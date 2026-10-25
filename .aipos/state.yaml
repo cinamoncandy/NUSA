@@ -100,10 +100,10 @@ current_learning_exploration_a6_20261023:
   status: PARENT_SYNCED_LOCAL_VALIDATION_PASS_PENDING_EXACT_HEAD_CI
   branch: feat/exploration-a6
   pull_request: 2797
-  base_parent: 09d75bfc6e12cfef56986e708633338b8daedf87
-  validation: "A2/A1/A3/A4/A5/A6/M2/chain/retention/security focused suite 182/182 PASS; build PASS; Node 24.19.0 preflight PASS (521 AIPOS files); validate:full PASS; security:gate PASS (audit high=0); AIPOS provenance, work-order index, and diff-check PASS after parent 09d75bfc6e12cfef56986e708633338b8daedf87 sync. Exact-head CI pending push."
+  base_parent: 078db80a49074f934496163c48997d0952362c39
+  validation: "After current A5/A3/A4 parent sync, build PASS; A6 focused 13/13 and combined A2/A1/A3/A4/A5/A6/storage/worker/security-gate suite 205/205 PASS on Node 24.19.0. Updated A6 tests to seed/read actual canonical hash-chain Research and checksum-verified PAPER stores after the new authority verifier correctly rejected mocked sources. Preflight PASS (strict AIPOS YAML 521 files), validate:full PASS, security:gate PASS (raw high/critical=0, secrets=0), AIPOS provenance PASS, diff-check PASS. A5 CI run 40149667563 is still in progress; A6 exact CI is pending push."
   blockers: "Canonical cutoff/META policy owners and production Learning trigger remain undefined. Keep stacked PR Draft; no Audit/Release/merge/deployment."
-  next: "Push validated A6 successor to existing feat/exploration-a6 non-force; run exact-head CI and request fresh independent review only after green. Keep Draft and do not claim production wiring."
+  next: "Push the validated parent integration and canonical fixture repair non-force to existing feat/exploration-a6; run exact-head CI and request fresh independent review only after green. Keep Draft and do not claim production wiring."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_fatal_shutdown_20261015:
@@ -127,16 +127,16 @@ current_learning_hourly_recovery_20261012:
 
 current_learning_supersession_a5_20261023:
   work_order: WO-LEARNING-20261023-A5-SUPERSESSION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AFTER_SECURITY_REGRESSION_FIX
+  status: LOCAL_VALIDATED_PARENT_SYNC_PENDING_EXACT_HEAD_CI
   branch: feat/supersession-a5
   pull_request: 2796
-  parent_head: 05837941cc8f575d25eb6a4b8099914cdcd9bd72
+  parent_head: c35931ef62dd5af661d00ab38e47cc76f8981f9f
   first_broken_transition: "A5 append integrity and retry identity → existing hash-chained ledger durability → restart/replay"
-  validation: "Fresh npm advisories GHSA-xjj6-f33q-929c found undici 6.28.1/7.29.1 vulnerable in shared base. Existing canonical overrides updated to fixed 6.29.1/7.30.1; audit high=0 and security:gate PASS. Exact CI 40044601486 exposed an obsolete security-gate regression assertion; updated it to require 7.30.1/6.29.1 and reject 7.29.1/6.28.1. Node 24.19.0 focused A5/Evolution/worker 49/49 plus security-gate 10/10 PASS; build, preflight, validate:full, security:gate, provenance PASS. Exact-head CI pending."
+  validation: "Reconverged the existing #2796 branch with A3 exact head c35931ef62dd5af661d00ab38e47cc76f8981f9f. Resolved the shared Evolution ledger API so appendWithResult reservation semantics and appendWithValidation graph checks execute inside one serialized append transaction; preserved both A3 and A5 callers. Node 24.19.0 build PASS; A3/A4/A5 + Evolution ledger + Autopilot worker focused tests 95/95 PASS; tests/security-gate.test.js 10/10 PASS; pnpm run preflight, validate:full, security:gate, lint (0 errors; 45 existing warnings), and diff-check PASS. Current A3 exact-head CI run 40149447554 is still in progress; new A5 exact-head CI has not run."
   prior_exact_head: bcbf23e5dac210be7db4291b1a9e34b40c28fc55
   prior_exact_head_ci: "FAILED; run 40042338633. Coverage-core-3 worker.test failed only at UTC midnight because a Date.now-after-call strict >60s assertion observed a 60s minimum wait. Failure preserved; fixed deterministically with a fixed noon test clock, without changing runtime thresholds."
   review_finding: "Fresh Codex review on b0e32e575 found P2 AIPOS parent/validation facts disagreed between state.yaml and the A5 work order. Successor bcbf23e5 aligns parent_head 05837941 and validation 158/158. Its CI failure was a UTC-midnight test-clock flake, now fixed on the current local successor; prior failure remains recorded."
-  next: "Commit corrected security-gate regression with all evidence, push non-force to #2796, run exact-head CI, request fresh independent review only after green."
+  next: "Commit and non-force push the resolved A3/A5 parent integration to the existing #2796 branch; run exact-head CI and required companion, then request fresh independent review only after green."
   blockers: "Cutoff/META owner and production trigger remain undefined; no production caller or Learning completion is claimed."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
@@ -3726,18 +3726,24 @@ current_autopilot_runner_readiness:
 
 current_learning_meta_holdout_replay_20261018:
   work_order: WO-LEARNING-20261018-META-HOLDOUT-REPLAY
-  status: VERIFYING
+  status: PARENT_SYNCED_PENDING_EXACT_HEAD_CI
   branch: feat/meta-oos-a3
   pull_request: 2795
-  base: 3828be38d57c83f8ed96641cedeef9d56434b84e
-  head: b36beb95610fee07d22b9137f86e703b7ecfd52d
-  ci_run: 39130068088
-  validation: "17 focused A3 tests and 1248 isolated test files PASS; build/typecheck/validate:full/security/AIPOS provenance PASS; lint PASS with 26 existing warnings. Exact-head CI run 39130068088 PASS on head b36beb95610fee07d22b9137f86e703b7ecfd52d, including validation, test, all five coverage shards, and aggregate coverage. Initial bash ENOENT fixed by adding installed Git Bash to PATH; no assertions weakened."
-  finding: "Fixed durable META holdout replay idempotence on PR #2795. Remaining blockers: cutoff/META policies have no verified canonical owners, and read-only caller search found no production A3-to-A4 eligibility application path; A4 still accepts caller-provided eligibility."
-  next: "Obtain canonical versioned cutoff and META policy owner specifications; then wire production A2/A1/A3/A4 and reconverge the stack. Fresh independent review remains required. Keep Draft; no Audit/Release until blockers are resolved."
+  predecessor_head: 179ad1818925cd2a0087e7f59f9bbbe0aa485df2
+  parent_a4_head: f37566cc000be1d00850293d6e0a636103a32d23
+  prior_exact_head_ci: 40146442748
+  prior_review_id: 5640768157
+  prior_review_p1_comment_ids: [4369088597, 4369088598, 4369088600]
+  head: c35931ef62dd5af661d00ab38e47cc76f8981f9f
+  validation: "After reconverging A4 parent f37566cc000be1d00850293d6e0a636103a32d23 locally without conflict: Node 24.19.0 build PASS; A3 META OOS + A4 application + Evolution ledger tests 61/61 PASS; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); lint PASS (0 errors, 45 existing warnings); diff-check PASS. A4 CI 40148595895 and Mobile Native 40148595902 SUCCESS; A4 independent review requested and pending. A3 exact-head CI 40149447554 is running."
+  finding: "Fresh review of 179ad181 found three P1s: caller-selected partition could bias holdout, assignment uniqueness was not checked in the serialized append transaction, and malformed self-consistent durable receipts could omit required identity fields. Successor locally disables all partition assignment/eligibility until owner policy exists, validates exact receipt schema/envelope, and checks cycle uniqueness in the ledger append transaction. No cutoff/META allocation policy or production trigger owner is invented."
+  ci_run: 40149447554
+  review_request_comment: null
+  next: "Wait for exact-head CI 40149447554 on c35931ef62dd5af661d00ab38e47cc76f8981f9f. After terminal success, request a fresh independent review for this exact SHA. Keep Draft; no Audit/Release/merge/runtime claim until canonical authority owners and production trigger are resolved."
   blockers:
     - BLOCKED_LEARNING_CUTOFF_OWNER_UNDEFINED_OR_UNVERIFIED
     - BLOCKED_META_PARTITION_POLICY_UNDEFINED
+    - BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_methods_20261013:
@@ -3825,21 +3831,59 @@ current_learning_resume_failed_cycle:
   finding: "The merged scheduler retries gaps remembered by its current process, bounded to 5 ticks per period; the original runtime failure reason remains unknown."
   limitation: "The in-memory awaitingCycle marker is lost on restart; restart-safe continuation is tracked by WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME."
 
-current_learning_a1_receipt_provenance_20261023:
-  work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
-  status: LOCAL_VALIDATED_REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
-  validation: "Fresh review of A1 head 40e43db82d0a2aed299bea682308e30be160d3e4 found three P2s covering mixed-case A2 reference ordering, legacy A1 receipt size after A2 rehydration, and fingerprint-keyed legacy reservation replay. Repairs pass 66/66 focused A1 decision/storage tests, build, Node 24.19.0 preflight, validate:full, security:gate, AIPOS provenance, and diff checks."
-  issue: 2793
-  next: "Verify remote PR head is still 40e43db82d0a2aed299bea682308e30be160d3e4, commit and push the substantive repair non-forcing, verify exact-head CI, then request fresh independent review if green. No production application or cycle completion claim."
-current_learning_a2_evidence_resolution_20261023:
+current_learning_a2_authority_reservation_20261024:
   work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
-  status: EXACT_HEAD_CI_PASS_REVIEW_NO_FINDINGS
+  status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_MAJOR_FINDINGS
   pull_request: 2792
   branch: feat/learning-input-set-a2
-  prior_exact_head: 4d7750f37a08e7a8196dad25552340fdff27fe00
-  first_broken_transition: "A2 receipt -> canonical Research/PAPER evidence resolution"
-  validation: "Review of predecessor 66d4ee3fe6f2026cbe31e92915f21fdc17b56cea found two P2s: sparse-array holes at the evidence-resolution boundary and whitespace Research IDs counted as canonical reservations. Both were repaired on 4d7750f37a08e7a8196dad25552340fdff27fe00. A2/A1/storage tests 44/44 PASS; build, Node 24.19.0 preflight, validate:full, security:gate, provenance, and diff checks PASS. Exact-head CI run 39903170341 and required companion workflows PASS. Fresh Codex review submitted on the exact head; no inline findings were produced."
-  next: "A2 is reviewed and remains Draft; continue sequentially with the A1 sync in existing PR #2793. #2855 and server deployment remain untouched."
+  prior_exact_head: 7a7fc070ec3e48206049caa7b8ea82603b4892c8
+  reviewed_head: 67410d1075aef57207591e7aafe5908cbfd6e069
+  exact_head: 8ff681511376160c542168674ff195feeb57e5af
+  first_broken_transition: "generic A1-shaped ledger append -> malformed change assessment releases a reserved A2 capacity slot"
+  implementation: "Storage re-derives every A1 change assessment using the frozen longBarTickEvery owner aperture, immutable/unknown surface rejection, bounded values and canonical reason; verifies canonical ordering, unique proposed surfaces, admissible/rejected partitions, magnitude, and outcome before replay or append can release A2 capacity."
+  validation: "Node v24.19.0; build PASS; focused A2 identity/retention/storage 47/47 PASS including malformed proposed/admissible/rejected arrays, forged assessment rejection, restart-preserved reservation and canonical A1 consumption; preflight PASS; validate:full PASS; security:gate PASS (0 raw high/critical, 0 secrets); diff-check PASS before final AIPOS refresh."
+  prior_exact_head_ci: "67410d1075aef57207591e7aafe5908cbfd6e069 CI 40106540162 and five required companions PASS; all historical after review repair."
+  predecessor_review_finding: "Fresh review on 67410d1075aef57207591e7aafe5908cbfd6e069 found P2: validate each A1 change entry against canonical domain contract before releasing reservation; repaired on successor head."
+  exact_head_ci: "PASS: run 40143048327; required Actual PAPER, capability guard, transport readiness, activation rehearsal, read-only broker, and Autopilot event bridge checks PASS on exact head."
+  fresh_independent_review: "Fresh exact-head Codex review comment 6390977571: no major issues; reviewed commit 8ff6815113. Advisory review only, not formal NUSA Validator acceptance."
+  next: "Continue with existing dependent PR #2793 synchronized to this exact A2 head. Keep Draft; no #2855/server action."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_a1_receipt_provenance_20261024:
+  work_order: WO-LEARNING-20261023-A1-RECEIPT-PROVENANCE
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  pull_request: 2793
+  branch: feat/learning-decision-a1
+  current_a2_dependency_head: 8ff681511376160c542168674ff195feeb57e5af
+  first_broken_transition: "A1 successor synchronization -> verified canonical A2 payload and authority-bound capacity release"
+  validation: "Merged the current A2 branch locally; A1 storage now verifies A2 authority from canonical Research/PAPER readers within the existing append transaction, validates A1 against the exact durable A2 payload, accepts the immediately preceding canonical A1 receipt shape only for replay, and shares binary ordering. Focused A1/A2/storage suite 102/102 PASS; final preflight and full local gates pending."
+  exact_head_ci: PENDING
+  independent_review: PENDING_FRESH_EXACT_HEAD_REVIEW_AFTER_CI
+  next: "Complete Node 24.19 preflight and repository gates, inspect A1/A2 semantic merge, then verify remote #2793 head before non-force push. Request fresh independent review only after exact-head CI and required companions pass. Keep Draft; no merge, deployment, or server action."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_a2_evidence_resolution_20261023:
+  work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
+  status: LOCAL_VALIDATED_PENDING_NEW_EXACT_HEAD_CI
+  pull_request: 2792
+  branch: feat/learning-input-set-a2
+  prior_exact_head: 6f5a703a34335a86e810033e770089437b926486
+  first_broken_transition: "canonical A2 PAPER evidence order -> durable Evolution ledger reservation replay -> matching A1 capacity release"
+  validation: "Exact-head review of 4d7750f37a08e7a8196dad25552340fdff27fe00 found a P2: storage reservation reconstruction used localeCompare while A2 identity uses binary/code-unit ordering. Existing A2 ledger normalization and reservation validation now share code-unit comparison. Added mixed-case PAPER ids [B,a] regression proving file-backed restart retains the reserved A1 slot and matching A1 consumes it. Focused SQLite Evolution ledger tests 13/13 PASS; build PASS; Node 24.19.0 preflight PASS; validate:full PASS; diff-check pending. Fresh local security:gate reports 4 unmitigated dependency advisories (electron 1243069, body-parser 1243073, undici 1243113/1243114), zero secrets; no dependency manifests/lockfiles changed."
+  next: "Complete diff/AIPOS checks and inspect exact dependency audit baseline; commit the A2 repair on existing #2792, run fresh exact-head CI, then request fresh independent review only if green. A1 remains dependency-bound; #2855/server deployment untouched."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_a2_evidence_resolution_20261024:
+  work_order: WO-LEARNING-20261023-A2-EVIDENCE-RESOLUTION
+  status: EXACT_HEAD_CI_PASS_FRESH_REVIEW_NO_MAJOR_FINDINGS
+  pull_request: 2792
+  branch: feat/learning-input-set-a2
+  exact_head: 8ff681511376160c542168674ff195feeb57e5af
+  first_broken_transition: "generic A1-shaped ledger append -> malformed change assessment releases a reserved A2 capacity slot"
+  validation: "Node 24.19.0; 47 focused A2 identity/retention/storage tests PASS; build, preflight, validate:full, security:gate, AIPOS and diff checks PASS."
+  exact_head_ci: "PASS: 40143048327 with all required companions and Autopilot event bridge PASS."
+  fresh_independent_review: "Comment 6390977571 on exact head 8ff681511376160c542168674ff195feeb57e5af: no major issues; advisory review, not formal NUSA Validator acceptance."
+  next: "A2 exact-head CI and fresh review completed; proceed to dependent A1 PR #2793. Keep Draft; #2855/server deployment remain separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_a4_bounded_application_20261022:
@@ -3851,6 +3895,20 @@ current_learning_a4_bounded_application_20261022:
   first_broken_transition: "A1 ADMISSIBLE -> current owner spec + durable META-HOLDOUT eligibility -> bounded A4 application"
   validation: "Successor changes: caller eligibility is removed; current spec identity is checked; durable write-ahead intent, restart reconciliation, fail-safe read-back, and provenance-bound receipts are enforced. Fresh review of f909604b found two P1 and one P2; fixes require well-formed META proof counters, closed-set recovery outcomes, and the existing canonical exclusive owner lease around the whole application operation. Node 24.19.0; focused A1/A2/A4 90/90 PASS; build, preflight, validate:full, security:gate, diff-check PASS. Successor exact-head CI/review pending."
   remaining: "No production caller is wired. Keep Draft; exact-head CI, fresh independent review, canonical A3 authority and production runtime integration remain open."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_learning_a4_capacity_20261023:
+  work_order: WO-LEARNING-20261022-A4-APPLICATION
+  status: LOCAL_VALIDATED_PENDING_FRESH_NONAUTHOR_REVIEW
+  branch: feat/learning-application-a4
+  pr: 2794
+  previous_local_head: e130c254
+  parent_head: 4ed23afe388e2afff7cad77c50328f42ce3565c2
+  remote_a4_predecessor: df2501ad067c73662bec272f310e17300634ae31
+  local_reconvergence_head: fe516f5f44f757c319c0f2edc23fbfe94b6becb4
+  validation: "Exact successor f37566cc000be1d00850293d6e0a636103a32d23 on Node 24.19.0: build PASS; focused A4/A1/A2 SQLite ledger tests 51/51 PASS; preflight, validate:full, security:gate, lint (0 errors; 45 existing warnings), and diff-check PASS. Exact-head CI 40148595895 SUCCESS and Mobile Native 40148595902 SUCCESS (Android debug included). Fresh non-author review requested on exact head; no result yet."
+  review_findings: "Fresh exact-head review comments on 3849e1e9: P1 IDs 4354716464, 4354716473, 4354716480, 4354839823, 4354839828, 4356054560, 4356054567, 4364881582, 4364881587; P2 ID 4369049595. Earlier findings listed under the work order were addressed in prior commits; this successor addresses the remaining surface-pending and provenance issues."
+  next: "Await fresh independent review of exact head f37566cc000be1d00850293d6e0a636103a32d23; keep Draft and no release/merge/runtime claim."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_learning_baseline_observation_20261013:

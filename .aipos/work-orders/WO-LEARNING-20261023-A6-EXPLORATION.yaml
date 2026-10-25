@@ -4,8 +4,8 @@ status: PARENT_SYNCED_LOCAL_VALIDATION_PASS_PENDING_EXACT_HEAD_CI
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: feat/supersession-a5
-base_head: 09d75bfc6e12cfef56986e708633338b8daedf87
-parent_sync: "Merged A5 exact head 09d75bfc after CI 40045059478 PASS; A5 fresh independent review is pending. This brings undici security fix 6.29.1/7.30.1."
+base_head: 078db80a49074f934496163c48997d0952362c39
+parent_sync: "Locally merged the current A5 exact head 078db80a49074f934496163c48997d0952362c39, itself based on A3 c35931ef62dd5af661d00ab38e47cc76f8981f9f; A5 exact CI run 40149667563 was still in progress at this validation. Preserves A3 appendWithValidation plus A5 appendWithResult in one serialized ledger transaction and the fixed undici floors."
 branch: feat/exploration-a6
 pull_request: 2797
 authority_impact: learning-evidence-durable-replay-correctness-no-policy-or-production-authority-change
@@ -53,15 +53,15 @@ blockers:
   - "BLOCKED_META_PARTITION_POLICY_UNDEFINED"
   - "BLOCKED_PRODUCTION_LEARNING_TRIGGER_OWNER_UNDEFINED"
 validation:
-  focused: "182/182 PASS on Node 24.19.0 after parent 09d75bfc sync, including both repaired review findings and undici security regression"
+  focused: "After current A5/A3/A4 parent sync, initial combined run exposed 12 A6 test setup failures because the new canonical A2 evidence verifier correctly rejected mocked reader-only fixtures. Updated exploration tests to seed and read actual checksum/hash-chain-backed Research and PAPER stores; focused A6 suite 13/13 PASS and combined Learning/A5/A4/A3/A2/A1/storage/worker/security-gate suite 205/205 PASS on Node 24.19.0."
   prior_focused: "165/165 PASS before latest A5 parent sync; includes orphan and out-of-order A6/A2 replay rejection, strategy-family membership revalidation, extra cost-field exclusion, SQLite restart/replay, and serialized stale-writer coverage."
-  build: "PASS on Node 24.19.0 / pnpm 11.25.0 after parent 09d75bfc sync"
-  preflight: "PASS on Node 24.19.0 after parent sync; portability, platform-independent tests, Android release contract, and 521-file AIPOS checks PASS"
-  validate_full: PASS
-  security_gate: "PASS; pnpm audit high=0/critical=0 with undici 6.29.1/7.30.1"
-  aipos_provenance: PASS
+  build: "PASS after current A5/A3/A4 parent sync and canonical-store test fixture repair on Node 24.19.0 / pnpm 11.25.0"
+  preflight: "PASS on Node 24.19.0 after canonical test fixture and AIPOS updates; portability, platform-independent tests, Android release contract, and strict 521-file AIPOS YAML checks PASS"
+  validate_full: "PASS after current A5/A3/A4 integration and A6 canonical-source test repair; architecture truth, safety, AI zero-authority, AIPOS drift/conformance, and repository architecture validators PASS"
+  security_gate: "PASS; raw high/critical=0, secrets=0, unmitigated=0; no security thresholds or exceptions changed"
+  aipos_provenance: "PASS; work-order provenance reconciliation reports only the two pre-existing colliding historical IDs"
   diff_check: PASS
   exact_head_ci: PENDING_AFTER_PUSH
   independent_review: PENDING_AFTER_CURRENT_EXACT_HEAD_CI
   prior_exact_head_ci_failure: "A6 head 7b2a610c CI run 40043771127 failed security:gate before #2796 undici override repair; this failure is preserved and superseded by parent 09d75bfc, whose exact-head CI passed."
-  review_findings_repaired: "Fresh Codex review on e1950b1a found two P1s: full-snapshot lookup allowed a later A2 to retroactively authorize earlier A6, and replay skipped strategy-family membership validation. Repair enforces prior-record chronology and rechecks membership; regressions cover both. Previous head CI remains historical; current exact-head gates required after parent sync."
+  review_findings_repaired: "Fresh Codex review on e1950b1a found two P1s: full-snapshot lookup allowed a later A2 to retroactively authorize earlier A6, and replay skipped strategy-family membership validation. Repair enforces prior-record chronology and rechecks membership; regressions cover both. Latest source change repairs only invalid test fixtures rejected by the canonical A2 verifier; no verification rule was weakened."

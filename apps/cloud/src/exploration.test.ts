@@ -3,6 +3,10 @@ import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 import { createResearchCandidateSpecification, type ResearchCandidateSpecification } from "../../../packages/contracts/src/researchCandidateSpecification";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import { SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/persistedPaperPeriodStore";
+import { SqliteResearchFactoryDecisionHistoryRepository } from "../../../packages/storage/src/researchFactoryDecisionHistoryRepository";
+import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
+import type { ResearchFactoryDecisionHistoryRecord } from "../../../packages/contracts/src/researchFactoryDecisionHistory";
 import { mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
@@ -63,17 +67,79 @@ function familyRegistry(): StrategyFamilyRegistry {
   return registry;
 }
 
-function evidenceAuthority() {
+function seedResearchRecord(): ResearchFactoryDecisionHistoryRecord {
+  return {
+    candidateId: "candidate-a",
+    evaluationId: "trial-a",
+    outcome: "REJECTED",
+    reasons: ["canonical research fixture"],
+    observedAt: TIME - 10_000,
+    authority: "PAPER_ONLY",
+    liveAuthority: "NONE",
+    productionMutationAllowed: false,
+    aiAuthority: "ZERO_AUTHORITY",
+  };
+}
+
+function seedPaperPeriod(): PersistedPaperPeriodEnvelope {
+  const periodStartAt = TIME - 6_000;
+  const periodEndAt = TIME - 5_000;
+  return {
+    record: {
+      recordId: "period-a",
+      periodIndex: 0,
+      periodStartAt,
+      periodEndAt,
+      advisory: {
+        schemaVersion: 1,
+        generatedAt: "1970-01-01T00:00:00.000Z",
+        policy: { maximumCandidateWeight: 1, minimumEvidenceBreadth: 1, maximumCandidateCount: 1, maximumFamilyWeight: 1 },
+        entries: [],
+        excludedCandidateIds: [],
+        reasons: [],
+        provenance: { sourceDatasetIds: ["dataset-a"] },
+      },
+      realizedReturns: {},
+      benchmarkReturn: 0,
+      turnoverCostRate: 0,
+      costEvidence: {
+        evidenceId: "cost-period-a",
+        source: "PAPER_EXECUTION_RECEIPT",
+        evidenceKind: "OBSERVED",
+        evidenceFingerprintSha256: "a".repeat(64),
+        observedAt: periodEndAt,
+        feeRate: 0,
+        spreadRate: 0,
+        slippageRate: 0,
+      },
+      status: "COMPLETED",
+    },
+    candidateProvenance: [],
+  };
+}
+
+function evidenceAuthority(
+  researchHistory: SqliteResearchFactoryDecisionHistoryRepository,
+  paperPeriods: SqlitePersistedPaperPeriodStore,
+) {
+  const readResearchSnapshot = () => researchHistory.list().map((record) => ({ recordId: record.evaluationId, recordedAt: record.observedAt }));
+  const readPaperSnapshot = () => paperPeriods.listRecords().map((record) => ({ recordId: record.recordId, recordedAt: record.periodEndAt }));
   return createLearningEvidenceAuthorityFromReaders({
-    readResearch: (recordId: string) => recordId === "trial-a" ? { recordId, recordedAt: TIME - 10_000 } : undefined,
-    readPaper: (recordId: string) => recordId === "period-a" ? { recordId, recordedAt: TIME - 5_000 } : undefined,
+    readResearch: (recordId) => readResearchSnapshot().find((record) => record.recordId === recordId),
+    readPaper: (recordId) => readPaperSnapshot().find((record) => record.recordId === recordId),
+    readResearchSnapshot,
+    readPaperSnapshot,
   });
 }
 
 function setup(filename: string, now: () => number = () => TIME) {
   const db = new SqliteDatabase(filename);
+  const paperPeriods = new SqlitePersistedPaperPeriodStore(db);
+  const researchHistory = new SqliteResearchFactoryDecisionHistoryRepository(db);
+  researchHistory.append(seedResearchRecord());
+  paperPeriods.append(seedPaperPeriod());
   const evolution = new SqliteEvolutionLearningLedger(db);
-  const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(), now);
+  const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(researchHistory, paperPeriods), now);
   const input = inputSets.append(inputSet());
   const exploration = new LearningExplorationLedger(evolution, inputSets, familyRegistry(), now);
   return { db, evolution, input, inputSets, exploration };
@@ -101,8 +167,10 @@ describe("A6 durable exploration contract", () => {
     const filename = dbPath();
     const db = new SqliteDatabase(filename);
     try {
+      const paperPeriods = new SqlitePersistedPaperPeriodStore(db);
+      const researchHistory = new SqliteResearchFactoryDecisionHistoryRepository(db);
       const evolution = new SqliteEvolutionLearningLedger(db);
-      const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(), () => TIME);
+      const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(researchHistory, paperPeriods), () => TIME);
       const ledger = new LearningExplorationLedger(evolution, inputSets, familyRegistry(), () => TIME);
       assert.throws(() => ledger.propose(HASH("missing"), candidate()), (error: unknown) => error instanceof ExplorationError && error.code === "A2_INPUT_NOT_DURABLE");
       assert.equal(evolution.size(), 0);
@@ -188,8 +256,10 @@ describe("A6 durable exploration contract", () => {
       state.exploration.propose(state.input.fingerprint, candidate());
       const record = state.evolution.list().find((entry) => entry.validationStatus === "LEARNING_EXPLORATION");
       assert.ok(record);
+      const orphanPaperPeriods = new SqlitePersistedPaperPeriodStore(orphanDb);
+      const orphanResearchHistory = new SqliteResearchFactoryDecisionHistoryRepository(orphanDb);
       const orphanEvolution = new SqliteEvolutionLearningLedger(orphanDb);
-      const emptyInputSets = new LearningInputSetLedger(orphanEvolution, evidenceAuthority(), () => TIME);
+      const emptyInputSets = new LearningInputSetLedger(orphanEvolution, evidenceAuthority(orphanResearchHistory, orphanPaperPeriods), () => TIME);
       const replay = new LearningExplorationLedger({
         list: () => [record],
         appendWithValidation: () => { throw new Error("append must not run during replay"); },
@@ -322,8 +392,10 @@ describe("A6 durable exploration contract", () => {
 
 function setupAfterRestart(filename: string) {
   const db = new SqliteDatabase(filename);
+  const paperPeriods = new SqlitePersistedPaperPeriodStore(db);
+  const researchHistory = new SqliteResearchFactoryDecisionHistoryRepository(db);
   const evolution = new SqliteEvolutionLearningLedger(db);
-  const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(), () => TIME);
+  const inputSets = new LearningInputSetLedger(evolution, evidenceAuthority(researchHistory, paperPeriods), () => TIME);
   const input = inputSets.summary().latest;
   assert.ok(input, "the canonical A2 receipt survives restart");
   return {

@@ -29,7 +29,8 @@ import {
  * rather than resolved by recency.
  */
 
-type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "append" | "list">;
+type EvolutionLedgerPort = Pick<SqliteEvolutionLearningLedger, "appendWithValidation" | "list">;
+type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 
 const ASSIGNMENT_RECORD = /^meta-oos:[a-f0-9]{64}$/;
 const MAX_RECORDS = 10_000;
@@ -49,7 +50,7 @@ export interface MetaOosDurableReceipt {
   readonly replayed: boolean;
 }
 
-function parseRecord(record: { readonly hypothesis: string }): MetaOosAssignment {
+function parseRecord(record: EvolutionRecord): MetaOosAssignment {
   let parsed: unknown;
   try {
     parsed = JSON.parse(record.hypothesis);
@@ -60,6 +61,21 @@ function parseRecord(record: { readonly hypothesis: string }): MetaOosAssignment
     assertMetaOosAssignment(parsed);
   } catch (error) {
     throw new MetaOosLedgerError("MALFORMED_RECEIPT", error instanceof Error ? error.message : "recorded meta-OOS assignment is malformed");
+  }
+  const expectedReferences = [
+    `meta-oos:${(parsed as MetaOosAssignment).assignmentFingerprint}`,
+    (parsed as MetaOosAssignment).learningCycleId,
+    (parsed as MetaOosAssignment).learningDecisionFingerprint,
+    ...((parsed as MetaOosAssignment).holdoutClaimIdentity == null ? [] : [`holdout:${(parsed as MetaOosAssignment).holdoutClaimIdentity}`]),
+  ].sort((left, right) => left.localeCompare(right));
+  if (record.problem !== "NUSA meta-OOS partition assignment: which cross-cycle partition judged this learning cycle"
+    || record.evidenceReferences.length !== expectedReferences.length
+    || record.evidenceReferences.some((reference, index) => reference !== expectedReferences[index])
+    || record.changeReference !== (parsed as MetaOosAssignment).policyVersion
+    || record.validationStatus !== "META_OOS_ASSIGNMENT"
+    || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true
+    || !Number.isFinite(Date.parse(record.recordedAt)) || new Date(record.recordedAt).toISOString() !== record.recordedAt) {
+    throw new MetaOosLedgerError("MALFORMED_RECEIPT", "durable meta-OOS Evolution envelope is malformed");
   }
   return parsed;
 }
@@ -85,6 +101,10 @@ export class MetaOosLedger {
    * record behind claiming the cycle was validly observed.
    */
   public assign(input: MetaOosAssignmentInput, holdouts: HoldoutClaimPort): MetaOosDurableReceipt {
+    // No cycle-order partition constants or canonical policy owner have been approved. This
+    // check fails before reads, holdout claims, or durable writes; caller-selected partitions stay
+    // closed until the owner decision is recorded.
+    const assignment = assignMetaPartition(input, holdouts);
     const existing = this.records().find((assignment) => assignment.learningCycleId === input.learningCycleId);
     if (existing != null) {
       if (existing.partition !== input.partition) {
@@ -102,9 +122,7 @@ export class MetaOosLedger {
     if (!Number.isSafeInteger(timestamp) || timestamp < 0) throw new MetaOosLedgerError("INVALID_CLOCK", "durable clock is invalid");
 
     // Validate every fallible persistence precondition before consuming a single-use holdout.
-    const assignment = assignMetaPartition(input, holdouts);
-
-    const record = this.ledger.append({
+    const record = this.ledger.appendWithValidation({
       opportunityId: `meta-oos:${assignment.assignmentFingerprint}`,
       problem: "NUSA meta-OOS partition assignment: which cross-cycle partition judged this learning cycle",
       evidenceReferences: Object.freeze([
@@ -123,6 +141,15 @@ export class MetaOosLedger {
       rollbackReference: null,
       reusable: true,
       recordedAt: new Date(timestamp).toISOString(),
+    }, (currentRecords) => {
+      for (const currentRecord of currentRecords) {
+        if (!ASSIGNMENT_RECORD.test(currentRecord.opportunityId)) continue;
+        const current = parseRecord(currentRecord);
+        if (current.learningCycleId === assignment.learningCycleId
+          && current.assignmentFingerprint !== assignment.assignmentFingerprint) {
+          throw new MetaOosLedgerError("PARTITION_FORK", "cycle " + assignment.learningCycleId + " already has a different durable partition assignment");
+        }
+      }
     });
 
     const replayed = parseRecord(record);

@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type { EvolutionLearningRecord } from "../../../apps/autopilot/src/evolveLearningMemory";
 import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
+import { SqlitePersistedPaperPeriodStore } from "./persistedPaperPeriodStore";
+import { SqliteResearchFactoryDecisionHistoryRepository } from "./researchFactoryDecisionHistoryRepository";
 
 const SCHEMA_VERSION = 1 as const;
 const GENESIS_HASH = "0".repeat(64);
@@ -26,7 +28,11 @@ const LEARNING_INPUT_SET_FIELDS = new Set([
   "canonicalOrderingVersion",
 ]);
 const LEARNING_DECISION_ID = /^learning-decision(?::|-cycle-v1:)([a-f0-9]{64})$/;
+const LEARNING_APPLICATION_INTENT_ID = /^learning-application-intent:([a-f0-9]{64})$/;
+const LEARNING_APPLICATION_ID = /^learning-application:([a-f0-9]{64})$/;
 const LEARNING_INPUT_SET_PROBLEM = "NUSA learning input set: the exact evidence a Learning Decision was built from";
+const LEARNING_INPUT_SET_LEGACY_STATUS = "LEARNING_INPUT_SET";
+const LEARNING_INPUT_SET_AUTHORIZED_STATUS = "LEARNING_INPUT_SET_AUTHORITY_VERIFIED";
 const LEARNING_DECISION_PROBLEM = "NUSA learning decision: the bounded conclusion drawn from one learning input set";
 const LEARNING_DECISION_FIELDS = new Set([
   "schemaVersion", "learningCycleId", "learningInputSet", "learningInputSetFingerprint", "previousResearchSpecFingerprint",
@@ -38,6 +44,16 @@ const LEARNING_DECISION_FIELDS = new Set([
 // resolved the full input set on replay. Keep accepting exactly that canonical historical shape
 // while rebuilding reservations; new A1 appends must still satisfy the stronger embedded-A2 check.
 const LEGACY_LEARNING_DECISION_FIELDS = new Set([...LEARNING_DECISION_FIELDS].filter((field) => field !== "learningInputSet"));
+const LEARNING_DECISION_CHANGE_FIELDS = new Set([
+  "surface", "currentValue", "proposedValue", "minimum", "maximum", "maximumDeltaPerCycle", "verdict", "reason",
+]);
+const LEARNING_DECISION_IMMUTABLE_SURFACES = new Set([
+  "PAPER_ONLY", "liveAuthority", "productionMutationAllowed", "aiAuthority", "aiDecisionAuthority",
+  "minimumSample", "minimumSampleSize", "oosWindow", "oosRatio", "walkForward", "purge", "embargo",
+  "costGate", "costCompleteness", "leakageRules", "governance", "releaseAuthority", "brokerAuthority",
+  "orderAuthority", "withdrawalAuthority",
+]);
+const LEARNING_DECISION_IMMUTABLE_PREFIXES = ["risk", "qualification", "governance", "release", "live", "broker", "order"] as const;
 const LEARNING_POLICY_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const LEARNING_BOUNDED_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$/;
 const LEARNING_REASON_REFERENCE = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,239}$/;
@@ -96,6 +112,11 @@ function invalid(code: string, message: string): never {
   throw new EvolutionLearningLedgerError(code, `${code}: ${message}`);
 }
 
+/** Stable code-unit ordering shared with canonical Learning input identities. */
+function compareCanonicalStrings(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function text(value: unknown, field: string, maximum: number, maximumBytes?: number): string {
   if (typeof value !== "string") invalid("INVALID_RECORD", `${field} must be text`);
   const normalized = value.trim();
@@ -129,7 +150,7 @@ function normalize(value: EvolutionLearningRecord): EvolutionLearningRecord {
     if (!REFERENCE.test(normalized)) invalid("INVALID_EVIDENCE_REFERENCE", "learning evidence reference is invalid");
     return normalized;
   });
-  const uniqueEvidenceReferences = [...new Set(evidenceReferences)].sort((left, right) => left.localeCompare(right));
+  const uniqueEvidenceReferences = [...new Set(evidenceReferences)].sort(compareCanonicalStrings);
   if (uniqueEvidenceReferences.length === 0) invalid("EVIDENCE_REQUIRED", "learning evidence is required");
   const hypothesis = text(candidate.hypothesis, "hypothesis", MAX_HYPOTHESIS_BYTES, MAX_HYPOTHESIS_BYTES);
   const changeReference = text(candidate.changeReference, "changeReference", 240);
@@ -155,6 +176,44 @@ function normalize(value: EvolutionLearningRecord): EvolutionLearningRecord {
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+/** Re-derive an A1 assessment at the storage boundary; array/object shape alone is not authority. */
+function canonicalLearningChangeAssessment(value: unknown): Record<string, unknown> | null {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return null;
+  const change = value as Record<string, unknown>;
+  if (Object.keys(change).some((key) => !LEARNING_DECISION_CHANGE_FIELDS.has(key))
+    || typeof change.surface !== "string" || !LEARNING_BOUNDED_ID.test(change.surface)
+    || typeof change.currentValue !== "number" || !Number.isFinite(change.currentValue)
+    || typeof change.proposedValue !== "number" || !Number.isFinite(change.proposedValue)) return null;
+
+  const surface = change.surface;
+  const currentValue = change.currentValue;
+  const proposedValue = change.proposedValue;
+  const immutable = LEARNING_DECISION_IMMUTABLE_SURFACES.has(surface)
+    || LEARNING_DECISION_IMMUTABLE_PREFIXES.some((prefix) => surface.toLowerCase().startsWith(prefix));
+  let expected: Record<string, unknown>;
+  if (immutable) {
+    expected = { surface, currentValue, proposedValue, verdict: "REJECTED", reason: "immutable surface: no learning decision may move it, whatever the evidence" };
+  } else if (surface !== "longBarTickEvery") {
+    expected = { surface, currentValue, proposedValue, verdict: "REJECTED", reason: "surface is not on the owner allowlist: learning may not invent a mutable field" };
+  } else {
+    const bounds = { minimum: 1, maximum: 4, maximumDeltaPerCycle: 1 };
+    if (!Number.isSafeInteger(currentValue) || !Number.isSafeInteger(proposedValue)) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "cadence values must be safe integers" };
+    } else if (currentValue < bounds.minimum || currentValue > bounds.maximum) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "current value is outside the owner bounds" };
+    } else if (proposedValue < bounds.minimum || proposedValue > bounds.maximum) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "proposed value is outside the owner bounds" };
+    } else if (Math.abs(proposedValue - currentValue) > bounds.maximumDeltaPerCycle) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "step exceeds the maximum delta allowed in one cycle" };
+    } else if (proposedValue === currentValue) {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "REJECTED", reason: "proposal does not change the current value" };
+    } else {
+      expected = { surface, currentValue, proposedValue, ...bounds, verdict: "ADMISSIBLE", reason: "within the owner-defined aperture for one cycle" };
+    }
+  }
+  return canonicalResearchJson(change) === canonicalResearchJson(expected) ? expected : null;
 }
 
 function contentHash(record: EvolutionLearningRecord): string {
@@ -224,9 +283,27 @@ function canonicalLearningDecisionForReservation(record: EvolutionLearningRecord
     || !Array.isArray(decision.proposedChanges) || decision.proposedChanges.length > 32
     || !Array.isArray(decision.admissibleChanges) || !Array.isArray(decision.rejectedChanges)
     || !Array.isArray(decision.reasonEvidence) || decision.reasonEvidence.length > 64) return false;
+  const proposedChanges: Record<string, unknown>[] = [];
+  for (const item of decision.proposedChanges) {
+    const assessment = canonicalLearningChangeAssessment(item);
+    if (assessment == null) return false;
+    proposedChanges.push(assessment);
+  }
+  const canonicalOrder = [...proposedChanges].sort((left, right) => compareCanonicalStrings(left.surface as string, right.surface as string)
+    || (left.currentValue as number) - (right.currentValue as number)
+    || (left.proposedValue as number) - (right.proposedValue as number));
+  if (canonicalResearchJson(proposedChanges) !== canonicalResearchJson(canonicalOrder)
+    || new Set(proposedChanges.map((change) => change.surface)).size !== proposedChanges.length) return false;
+  const admissibleChanges = proposedChanges.filter((change) => change.verdict === "ADMISSIBLE");
+  const rejectedChanges = proposedChanges.filter((change) => change.verdict === "REJECTED");
+  if (canonicalResearchJson(admissibleChanges) !== canonicalResearchJson(decision.admissibleChanges)
+    || canonicalResearchJson(rejectedChanges) !== canonicalResearchJson(decision.rejectedChanges)) return false;
+  const expectedMagnitude = admissibleChanges.reduce((largest, change) => Math.max(largest, Math.abs((change.proposedValue as number) - (change.currentValue as number))), 0);
+  const expectedOutcome = admissibleChanges.length > 0 ? "ADMISSIBLE" : proposedChanges.length > 0 ? "REJECTED" : "INSUFFICIENT";
+  if (decision.changeMagnitude !== expectedMagnitude || decision.decisionOutcome !== expectedOutcome) return false;
   const reasons = decision.reasonEvidence as unknown[];
   if (reasons.some((item, index) => typeof item !== "string" || !LEARNING_REASON_REFERENCE.test(item) || (index > 0 && item <= (reasons[index - 1] as string)))) return false;
-  const expectedReferences = [record.opportunityId, fingerprint, ...(reasons as string[])].sort((left, right) => left.localeCompare(right));
+  const expectedReferences = [record.opportunityId, fingerprint, ...(reasons as string[])].sort(compareCanonicalStrings);
   return record.evidenceReferences.length === expectedReferences.length
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
 }
@@ -260,7 +337,7 @@ function canonicalLegacyLearningDecisionForReservation(record: EvolutionLearning
 }
 
 function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord, fingerprint: string): boolean {
-  if (record.validationStatus !== "LEARNING_INPUT_SET" || record.problem !== LEARNING_INPUT_SET_PROBLEM
+  if ((record.validationStatus !== LEARNING_INPUT_SET_LEGACY_STATUS && record.validationStatus !== LEARNING_INPUT_SET_AUTHORIZED_STATUS) || record.problem !== LEARNING_INPUT_SET_PROBLEM
     || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true) return false;
   let payload: unknown;
   try { payload = JSON.parse(record.hypothesis); } catch { return false; }
@@ -299,24 +376,57 @@ function canonicalLearningInputSetForReservation(record: EvolutionLearningRecord
     if (typeof input[field] !== "string" || !LEARNING_POLICY_ID.test(input[field] as string)) return false;
   }
   if (sha256(canonicalResearchJson(input)) !== fingerprint) return false;
-  // EvolutionLearningLedger.normalize stores references in localeCompare order. Match that one
-  // canonical storage ordering even though A2 lane IDs themselves use code-point ordering.
   const expectedReferences = [record.opportunityId, ...(input.paperEvidenceRecordIds as string[]).map((id) => `paper-period:${id}`)]
-    .sort((left, right) => left.localeCompare(right));
+    .sort(compareCanonicalStrings);
   return record.evidenceReferences.length === expectedReferences.length
     && record.evidenceReferences.every((reference, index) => reference === expectedReferences[index]);
+}
+
+function isLearningInputSetCandidate(record: EvolutionLearningRecord): boolean {
+  return record.opportunityId.startsWith("learning-input-set:")
+    || record.validationStatus === LEARNING_INPUT_SET_LEGACY_STATUS
+    || record.validationStatus === LEARNING_INPUT_SET_AUTHORIZED_STATUS
+    || record.problem === LEARNING_INPUT_SET_PROBLEM;
+}
+
+function canonicalLearningInputSetEvidenceVerifier(db: EvolutionLearningLedgerDatabase): (inputSet: Record<string, unknown>) => boolean {
+  // These are the existing canonical, integrity-checking readers. PAPER uses its read-only path so
+  // ledger startup cannot introduce schema writes after recovery evidence has been prepared.
+  const research = new Map(new SqliteResearchFactoryDecisionHistoryRepository(db).list().map((item) => [item.evaluationId, item.observedAt]));
+  const paper = new Map(SqlitePersistedPaperPeriodStore.readRecords(db).map((item) => [item.recordId, item.periodEndAt]));
+  return (inputSet) => {
+    const researchIds = inputSet.researchEvidenceRecordIds as unknown[];
+    const researchAt = inputSet.researchEvidenceObservedAt as unknown[];
+    const paperIds = inputSet.paperEvidenceRecordIds as unknown[];
+    const paperAt = inputSet.paperEvidenceObservedAt as unknown[];
+    return researchIds.every((id, index) => research.get(id as string) === researchAt[index])
+      && paperIds.every((id, index) => paper.get(id as string) === paperAt[index]);
+  };
+}
+
+function hasVerifiedLearningInputSetAuthority(
+  record: EvolutionLearningRecord,
+  fingerprint: string,
+  verify: (inputSet: Record<string, unknown>) => boolean,
+): boolean {
+  if (!canonicalLearningInputSetForReservation(record, fingerprint)) return false;
+  try {
+    return verify(JSON.parse(record.hypothesis) as Record<string, unknown>);
+  } catch {
+    return false;
+  }
 }
 
 function isLearningDecisionCandidate(record: EvolutionLearningRecord): boolean {
   return record.validationStatus === "LEARNING_DECISION" || record.problem === LEARNING_DECISION_PROBLEM || LEARNING_DECISION_ID.test(record.opportunityId);
 }
 
-function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[]): Map<string, string> {
+function pendingLearningDecisionFingerprints(records: readonly EvolutionLearningRecord[], verify: (inputSet: Record<string, unknown>) => boolean): Map<string, string> {
   const pending = new Map<string, string>();
   for (const record of records) {
-    if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
+    if (isLearningInputSetCandidate(record)) {
       const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-      if (match != null && canonicalLearningInputSetForReservation(record, match[1])) pending.set(match[1], record.hypothesis);
+      if (match != null && hasVerifiedLearningInputSetAuthority(record, match[1], verify)) pending.set(match[1], record.hypothesis);
       continue;
     }
     if (isLearningDecisionCandidate(record)) {
@@ -335,17 +445,111 @@ function pendingLearningDecisionFingerprints(records: readonly EvolutionLearning
 function pendingReservationsAfterAppend(
   pending: Map<string, string>,
   record: EvolutionLearningRecord,
+  verify: (inputSet: Record<string, unknown>) => boolean,
 ): Map<string, string> {
   const next = new Map(pending);
-  if (record.validationStatus === "LEARNING_INPUT_SET" && record.problem === LEARNING_INPUT_SET_PROBLEM) {
+  if (isLearningInputSetCandidate(record)) {
     const match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
-    if (match != null && canonicalLearningInputSetForReservation(record, match[1])) next.set(match[1], record.hypothesis);
+    if (match != null && hasVerifiedLearningInputSetAuthority(record, match[1], verify)) next.set(match[1], record.hypothesis);
   }
   if (isLearningDecisionCandidate(record)) {
     const matchingReservations = record.evidenceReferences.filter((reference) => next.has(reference));
-    if (matchingReservations.length === 1 && canonicalLearningDecisionForReservation(record, matchingReservations[0], next.get(matchingReservations[0])!)) next.delete(matchingReservations[0]);
+    if (matchingReservations.length === 1) {
+      const fingerprint = matchingReservations[0];
+      const inputSetPayload = next.get(fingerprint)!;
+      if (canonicalLearningDecisionForReservation(record, fingerprint, inputSetPayload)
+        || canonicalLegacyLearningDecisionForReservation(record, fingerprint, inputSetPayload)) next.delete(fingerprint);
+    }
   }
   return next;
+}
+
+/**
+ * An A4 write-ahead intent promises one terminal receipt. Keep that slot reserved in the same
+ * append boundary as A2's input/decision reservation so unrelated writers cannot strand a
+ * completed runtime mutation without durable terminal evidence.
+ */
+function pendingLearningApplicationIntents(records: readonly EvolutionLearningRecord[]): Map<string, Record<string, unknown>> {
+  const pending = new Map<string, Record<string, unknown>>();
+  for (const record of records) {
+    const intentMatch = LEARNING_APPLICATION_INTENT_ID.exec(record.opportunityId);
+    if (record.validationStatus === "LEARNING_APPLICATION_INTENT" || intentMatch != null) {
+      if (intentMatch == null || record.validationStatus !== "LEARNING_APPLICATION_INTENT") {
+        invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent namespace and validation status do not match");
+      }
+      let parsed: unknown;
+      try { parsed = JSON.parse(record.hypothesis); } catch { invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent payload is malformed"); }
+      if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent payload is not an object");
+      const intent = parsed as Record<string, unknown>;
+      const { schemaVersion, intentFingerprint, ...content } = intent;
+      const expectedKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "intentFingerprint"].sort();
+      if (Object.keys(intent).sort().join("|") !== expectedKeys.join("|") || schemaVersion !== 1
+        || intentFingerprint !== intentMatch[1] || sha256(canonicalResearchJson(content)) !== intentMatch[1]
+        || !SHA256.test(intent.learningDecisionFingerprint as string) || !/^learning-cycle:[a-f0-9]{64}$/.test(intent.learningCycleId as string)
+        || !SHA256.test(intent.previousResearchSpecFingerprint as string)
+        || typeof intent.surface !== "string" || !LEARNING_BOUNDED_ID.test(intent.surface)
+        || ![intent.previousValue, intent.requestedValue, intent.boundedValue].every((value) => typeof value === "number" && Number.isSafeInteger(value))
+        || ![intent.applicationTimestamp, intent.runtimeIdentity, intent.sourceCommit].every((value) => typeof value === "string" && LEARNING_BOUNDED_ID.test(value))) {
+        invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent identity or fields are invalid");
+      }
+      const references = [record.opportunityId, intent.learningDecisionFingerprint as string, intent.learningCycleId as string, intent.previousResearchSpecFingerprint as string].sort();
+      if (record.problem !== "NUSA learning application write-ahead intent: bounded state change planned before mutation"
+        || record.outcome !== "SUCCESS" || record.failureReason !== null || record.rollbackReference !== null || record.reusable !== true
+        || record.evidenceReferences.length !== references.length || record.evidenceReferences.some((reference, index) => reference !== references[index])) {
+        invalid("INVALID_LEARNING_APPLICATION_INTENT", "application intent record metadata is invalid");
+      }
+      pending.set(intentMatch[1], intent);
+      continue;
+    }
+
+    const terminalMatch = LEARNING_APPLICATION_ID.exec(record.opportunityId);
+    if (terminalMatch == null || record.validationStatus !== "LEARNING_APPLICATION") continue;
+    let parsed: unknown;
+    try { parsed = JSON.parse(record.hypothesis); } catch { continue; }
+    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const receipt = parsed as Record<string, unknown>;
+    if (!["APPLIED", "NOOP", "FAILED", "REJECTED"].includes(receipt.applicationOutcome as string)) continue;
+    const { schemaVersion: receiptSchema, outcomeVersion, applicationFingerprint } = receipt;
+    const optionalReceiptKeys = receipt.applicationOutcome === "FAILED" ? ["fallbackReason"]
+      : receipt.applicationOutcome === "REJECTED" ? ["rejectionReason"] : [];
+    const expectedReceiptKeys = ["schemaVersion", "learningDecisionFingerprint", "learningCycleId", "previousResearchSpecFingerprint", "intentFingerprint", "surface", "previousValue", "requestedValue", "boundedValue", "appliedValue", "applicationOutcome", "applicationFingerprint", "applicationTimestamp", "runtimeIdentity", "sourceCommit", "outcomeVersion", ...optionalReceiptKeys].sort();
+    const receiptDigest = sha256(canonicalResearchJson({
+      learningDecisionFingerprint: receipt.learningDecisionFingerprint,
+      learningCycleId: receipt.learningCycleId,
+      previousResearchSpecFingerprint: receipt.previousResearchSpecFingerprint,
+      intentFingerprint: receipt.intentFingerprint,
+      surface: receipt.surface,
+      previousValue: receipt.previousValue,
+      requestedValue: receipt.requestedValue,
+      boundedValue: receipt.boundedValue,
+      appliedValue: receipt.appliedValue,
+      applicationOutcome: receipt.applicationOutcome,
+      fallbackReason: receipt.fallbackReason ?? null,
+      rejectionReason: receipt.rejectionReason ?? null,
+      applicationTimestamp: receipt.applicationTimestamp,
+      runtimeIdentity: receipt.runtimeIdentity,
+      sourceCommit: receipt.sourceCommit,
+    }));
+    if (receiptSchema !== 1 || outcomeVersion !== "learning-application-outcome-v1"
+      || Object.keys(receipt).sort().join("|") !== expectedReceiptKeys.join("|")
+      || applicationFingerprint !== terminalMatch[1] || receiptDigest !== terminalMatch[1]
+      || ![receipt.learningDecisionFingerprint, receipt.previousResearchSpecFingerprint, receipt.intentFingerprint].every((value) => typeof value === "string" && SHA256.test(value))) continue;
+    const intent = pending.get(receipt.intentFingerprint as string);
+    if (intent == null) continue;
+    if (receipt.applicationOutcome === "REJECTED"
+      && receipt.rejectionReason !== "recovery confirmed the previous intent was not applied; a new bounded attempt is required") continue;
+    if (receipt.learningDecisionFingerprint !== intent.learningDecisionFingerprint || receipt.learningCycleId !== intent.learningCycleId
+      || receipt.previousResearchSpecFingerprint !== intent.previousResearchSpecFingerprint || receipt.surface !== intent.surface
+      || receipt.previousValue !== intent.previousValue || receipt.requestedValue !== intent.requestedValue || receipt.boundedValue !== intent.boundedValue) continue;
+    const refs = [record.opportunityId, receipt.learningDecisionFingerprint as string, receipt.learningCycleId as string].sort();
+    if (record.problem !== "NUSA learning application: one admitted decision change bounded and applied exactly once"
+      || record.changeReference !== receipt.surface || record.outcome !== "SUCCESS"
+      || record.failureReason !== (receipt.fallbackReason ?? null) || record.rollbackReference !== null || record.reusable !== true
+      || !Number.isFinite(Date.parse(record.recordedAt)) || new Date(record.recordedAt).toISOString() !== record.recordedAt
+      || record.evidenceReferences.length !== refs.length || record.evidenceReferences.some((reference, index) => reference !== refs[index])) continue;
+    pending.delete(receipt.intentFingerprint as string);
+  }
+  return pending;
 }
 
 function eventHash(sequence: number, record: EvolutionLearningRecord, previousHash: string): string {
@@ -381,14 +585,17 @@ export class SqliteEvolutionLearningLedger {
   private readonly maximumRecords: number;
   private cached: EvolutionLearningLedgerReplay;
 
-  public constructor(private readonly db: EvolutionLearningLedgerDatabase, maximumRecords = MAX_RECORDS) {
+  public constructor(
+    private readonly db: EvolutionLearningLedgerDatabase,
+    maximumRecords = MAX_RECORDS,
+  ) {
     if (!Number.isSafeInteger(maximumRecords) || maximumRecords < 1 || maximumRecords > MAX_RECORDS) invalid("INVALID_RETENTION", "learning ledger capacity is invalid");
     this.maximumRecords = maximumRecords;
     this.cached = this.replay();
   }
 
   public append(value: EvolutionLearningRecord): EvolutionLearningRecord {
-    return this.appendWithValidation(value, () => undefined);
+    return this.appendWithResult(value).record;
   }
 
   /**
@@ -401,26 +608,59 @@ export class SqliteEvolutionLearningLedger {
     value: EvolutionLearningRecord,
     validateCurrent: (records: readonly EvolutionLearningRecord[]) => void,
   ): EvolutionLearningRecord {
-    const record = normalize(value);
-    const current = this.replay();
-    const existing = current.records.find((item) => item.opportunityId === record.opportunityId);
-    if (existing != null) {
-      if (contentHash(existing) !== contentHash(record)) invalid("IDENTITY_CONFLICT", "learning opportunity was reused with different evidence");
-      return existing;
-    }
-    const pendingReservations = pendingLearningDecisionFingerprints(current.records);
-    if (isLearningDecisionCandidate(record)) {
-      const matchingReservations = record.evidenceReferences.filter((reference) => pendingReservations.has(reference));
-      if (matchingReservations.length !== 1 || !canonicalLearningDecisionForReservation(record, matchingReservations[0], pendingReservations.get(matchingReservations[0])!)) {
-        invalid("INVALID_LEARNING_DECISION_RECEIPT", "only a canonical A1 receipt bound to exactly one pending A2 input set may use reserved capacity");
-      }
-    }
-    const pending = pendingReservationsAfterAppend(pendingReservations, record);
-    if (current.records.length + 1 + pending.size > this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted or reserved for pending A1 decisions");
-    const previous = current.records.at(-1);
-    if (previous != null && Date.parse(record.recordedAt) < Date.parse(previous.recordedAt)) invalid("CHRONOLOGY_REGRESSION", "learning record timestamp regressed");
+    return this.appendInternal(value, validateCurrent).record;
+  }
 
-    this.db.transaction(() => {
+  /** Atomic identity acquisition for callers whose side effect must have one durable winner. */
+  public appendWithResult(value: EvolutionLearningRecord): { readonly record: EvolutionLearningRecord; readonly inserted: boolean } {
+    return this.appendInternal(value, () => undefined);
+  }
+
+  private appendInternal(
+    value: EvolutionLearningRecord,
+    validateCurrent: (records: readonly EvolutionLearningRecord[]) => void,
+  ): { readonly record: EvolutionLearningRecord; readonly inserted: boolean } {
+    const record = normalize(value);
+    return this.db.transaction(() => {
+      const current = this.replay();
+      const a2Candidate = isLearningInputSetCandidate(record);
+      const a2Match = LEARNING_INPUT_SET_ID.exec(record.opportunityId);
+      const hasStoredA2Candidate = current.records.some(isLearningInputSetCandidate);
+      let verifyInputSet: (inputSet: Record<string, unknown>) => boolean = () => false;
+      if (a2Candidate || hasStoredA2Candidate) {
+        try {
+          verifyInputSet = canonicalLearningInputSetEvidenceVerifier(this.db);
+        } catch {
+          if (!a2Candidate) invalid("LEARNING_INPUT_AUTHORITY_UNAVAILABLE", "durable A2 reservations cannot be reconstructed while canonical evidence readers are unavailable");
+        }
+      }
+      if (a2Candidate && (record.validationStatus !== LEARNING_INPUT_SET_AUTHORIZED_STATUS || a2Match == null
+        || !hasVerifiedLearningInputSetAuthority(record, a2Match[1], verifyInputSet))) {
+        invalid("UNVERIFIED_LEARNING_INPUT_SET", "A2-shaped records require canonical durable Research/PAPER authority before append or reservation");
+      }
+      const existing = current.records.find((item) => item.opportunityId === record.opportunityId);
+      if (existing != null) {
+        if (contentHash(existing) !== contentHash(record)) invalid("IDENTITY_CONFLICT", "learning opportunity was reused with different evidence");
+        validateCurrent(current.records);
+        return Object.freeze({ record: existing, inserted: false });
+      }
+      const pendingReservations = pendingLearningDecisionFingerprints(current.records, verifyInputSet);
+      if (isLearningDecisionCandidate(record)) {
+        const matchingReservations = record.evidenceReferences.filter((reference) => pendingReservations.has(reference));
+        const fingerprint = matchingReservations[0];
+        const inputSetPayload = fingerprint == null ? undefined : pendingReservations.get(fingerprint);
+        if (matchingReservations.length !== 1 || inputSetPayload == null
+          || (!canonicalLearningDecisionForReservation(record, fingerprint, inputSetPayload)
+            && !canonicalLegacyLearningDecisionForReservation(record, fingerprint, inputSetPayload))) {
+          invalid("INVALID_LEARNING_DECISION_RECEIPT", "only a canonical A1 receipt bound to exactly one pending A2 input set may use reserved capacity");
+        }
+      }
+      const pending = pendingReservationsAfterAppend(pendingReservations, record, verifyInputSet);
+      const applicationReservations = pendingLearningApplicationIntents([...current.records, record]);
+      if (current.records.length + 1 + pending.size + applicationReservations.size > this.maximumRecords) invalid("CAPACITY_EXCEEDED", "learning ledger capacity is exhausted or reserved for pending A1/A4 receipts");
+      const previous = current.records.at(-1);
+      if (previous != null && Date.parse(record.recordedAt) < Date.parse(previous.recordedAt)) invalid("CHRONOLOGY_REGRESSION", "learning record timestamp regressed");
+
       const meta = readMeta(this.db.connection);
       if (meta.eventCount !== current.eventCount || meta.ledgerHash !== current.headHash) invalid("CONCURRENT_CHANGE", "learning ledger changed during append");
       validateCurrent(current.records);
@@ -434,9 +674,9 @@ export class SqliteEvolutionLearningLedger {
       this.db.connection.prepare(
         "UPDATE evolution_learning_ledger_meta SET event_count = ?, ledger_hash = ? WHERE id = 1 AND schema_version = ?"
       ).run(sequence, currentEventHash, SCHEMA_VERSION);
+      this.cached = this.replay();
+      return Object.freeze({ record: this.cached.records.at(-1)!, inserted: true });
     });
-    this.cached = this.replay();
-    return this.cached.records.at(-1)!;
   }
 
   public replay(): EvolutionLearningLedgerReplay {
