@@ -75,3 +75,18 @@ Safety remains:
 - `realTransferAuthority=false`
 - `aiAuthority=ZERO_AUTHORITY`
 - `VERIFIED=false`
+
+## Latest continuation — review repair on 2026-10-25
+
+PR #2878 exact head `c20ddbad1e220cc40c47e49ecc30b6cbe325cc17` completed CI and all required companion workflows successfully. Fresh Codex review on that exact SHA found six P1s: strategy source fingerprints were not checked against captured bytes; blank instrument/data entries normalized to empty strings; Research Intelligence discovery time was not reconciled to the news observation; strategy/news precommits could predate evidence; dataset/PIT/OOS/fee/slippage plans could be empty; and no attributable replication outcome receipt existed.
+
+The successor local repair now:
+
+- requires a bounded captured public strategy source snapshot and verifies its SHA-256;
+- rejects blank instruments/data requirements;
+- binds Research Intelligence `discoveredAt` to the news observation's first-observed time and retrieval chronology;
+- rejects precommit timestamps earlier than source observation/retrieval;
+- requires dataset identity, explicit PIT and OOS plans, and fee and slippage model/assumption bindings;
+- adds an immutable fingerprinted replication receipt bound to strategy, precommit, dataset identity, evaluator version/source SHA, result evidence, and negative evidence.
+
+Successor local validation: focused intake tests 11/11; Node 24.19 `preflight`; typecheck/build; `validate:full`; `security:gate`; lint (45 warnings, 0 errors); `git diff --check`; and full `pnpm test` (1,281 isolated test files) all PASS. These results are on the local successor tree only. The current remote PR head remains `c20ddbad…`; its prior CI/review do not validate the repair. Next: commit/push once, then require fresh exact-head CI and fresh non-author review. Formal Validator, Audit/Release, production Scout composition, persisted result consumption, and natural Research/PAPER outcome remain outstanding. Oracle backup/deployment lane remains independent; no host mutation was performed here.

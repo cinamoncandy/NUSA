@@ -44,7 +44,7 @@ scope:
   - Bind precommit identity to source/evidence fingerprint, normalized spec hash, dataset/manifest identity, evaluation plan, cost assumptions, and relevant code/version identity where the existing contract supports them.
   - Reproduce the original strategy first. Improvements, parameter searches, combinations, or AI-generated variants must be separate descendants and must never overwrite the original replication result.
   - Use existing PIT/OOS/walk-forward, stress/adversarial, cost/slippage, Strategy Governance, and PAPER gates instead of creating parallel evaluators or promotion paths.
-  - Persist or expose a deterministic replication receipt/result that distinguishes REPRODUCED, NOT_REPRODUCED, INSUFFICIENT_EVIDENCE, and INVALID_INPUT (or existing canonical equivalents) without rewriting adverse evidence.
+  - Persist or expose a deterministic replication receipt/result bound to strategy, precommit, dataset, evaluator version/source SHA, and timestamp; it distinguishes REPRODUCED, NOT_REPRODUCED, INSUFFICIENT_EVIDENCE, and INVALID_INPUT and preserves adverse evidence without rewriting it.
   - Record replication failures, alpha decay, regime dependence, crowding, transaction-cost destruction, overfitting, look-ahead, survivorship, and data-snooping findings as useful negative evidence.
   - Permit only NUSA-validated candidates to advance toward governed PAPER challenger consideration; no automatic promotion or activation is introduced.
   - Normalize SCOUT crypto news into immutable, fingerprint-verified point-in-time observations with separate observed facts, publisher claims, and advisory inferences; social/rumor or chronology-unknown sources remain unverified.
@@ -60,7 +60,7 @@ out_of_scope:
   - Replacing the existing Hypothesis/Precommit/Research/Strategy Governance architecture.
 acceptance:
   - A valid reproducible public/authorized strategy record deterministically maps to one normalized strategy identity and one precommitted Research candidate before any evaluation result is known.
-  - Missing critical strategy rules, missing/ambiguous provenance, evidence fingerprint mismatch, or contradictory source identity fails closed without guessed defaults.
+  - Missing critical strategy rules, missing/ambiguous provenance, evidence fingerprint mismatch, or contradictory source identity fails closed without guessed defaults; strategy fingerprints are verified against captured source snapshots.
   - The original published strategy is immutable as the replication baseline; variants and improvements receive separate identities and lineage.
   - The same normalized source/spec produces deterministic identity and precommit material; material source/spec changes change the bound identity.
   - Duplicate intake does not create duplicate canonical strategies or duplicate evaluation authority.
@@ -73,7 +73,7 @@ acceptance:
   - Replication success and failure are both retained as attributable, challengeable evidence; adverse results are not discarded or rewritten.
   - Actual performance claims remain blocked when canonical dataset/provenance prerequisites are unmet, including unresolved #2815 or explicit OHLCV manifest requirements where applicable.
   - Tests cover valid deterministic intake, missing required rules, ambiguous/missing provenance, fingerprint/spec tamper, duplicate intake, original-vs-variant separation, deterministic output, and high external reported returns that still cannot produce a NUSA pass.
-  - Tests cover immutable news snapshot fingerprint, chronology/PIT, social/rumor fail-closed behavior, fact/claim/inference separation, duplicate/syndication classification, explicit hypothesis-to-precommit continuity, and rejection of non-PIT observations.
+  - Tests cover immutable news snapshot fingerprint, Research Intelligence discovery chronology/PIT, precommit-after-evidence ordering, social/rumor fail-closed behavior, fact/claim/inference separation, duplicate/syndication classification, explicit hypothesis-to-precommit continuity, and rejection of non-PIT observations.
   - Runtime-untrusted source/event/confidence taxonomy values and malformed evidence arrays fail closed rather than reaching PIT or hypothesis classification.
   - Existing PAPER_ONLY and zero-authority safety invariants remain unchanged.
 verification_commands:
@@ -111,7 +111,7 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Push the runtime-taxonomy repair to the existing Draft PR #2878, then run exact-head CI and
-  fresh non-author validation. Production Scout composition, durable result consumption, and
-  natural end-to-end Research/PAPER evidence remain follow-up work; do not claim them complete
-  from contract tests.
+  Push the locally validated six-finding repair to the existing Draft PR #2878, then run
+  exact-head CI and fresh non-author validation. Production Scout composition, durable result
+  consumption, and natural end-to-end Research/PAPER evidence remain follow-up work; do not
+  claim them complete from contract tests.
