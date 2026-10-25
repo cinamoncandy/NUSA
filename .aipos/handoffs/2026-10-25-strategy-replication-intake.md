@@ -113,6 +113,14 @@ P0 tracks remain separate: exact-main Oracle release run `40178950069` is still 
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
 
+## Fresh exact-head review repair — optional news scalar trust boundary, 2026-10-25
+
+Fresh Codex review of exact head `0a3b3eb76d1eb11c72d3a793fc2a84f3ae8dc76c` completed as review `5643254473` and found one P1: malformed optional fields such as numeric `syndicationClusterId` or object-valued `expectedDirection` were copied through the observation factory, so callers could recompute the public identity and still reach PIT binding. The local successor now rejects non-text/blank values for all optional scalar text fields (`originalPublisher`, `syndicationClusterId`, `expectedDirection`, `expectedMagnitude`, `expectedHorizon`) and normalizes valid optional strings before identity generation. Regression coverage includes forged/recomputed identity rejection for malformed cluster and direction fields and stable identity across whitespace normalization.
+
+Validation on the local successor: Node 24.19 `pnpm run preflight`, focused Research intake tests 13/13, `pnpm run build`, `pnpm run typecheck`, `pnpm run validate:full`, `pnpm run security:gate`, `pnpm run lint` (45 existing warnings, 0 errors), `pnpm test` (1,281 isolated test files), and `git diff --check` all PASS. AIPOS drift and provenance checks also PASS after recording this finding. Exact-head CI and fresh review for the successor are pending; no formal NUSA Validator, Audit/Release, merge, production Scout/store wiring, or genuine Research/PAPER outcome is claimed. Generated `docs/audits/*` artifacts remain excluded. Oracle state was only read; no deployment, restart, or DB mutation occurred.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
 ## Fresh exact-head review repair — 2026-10-25
 
 On exact head `eb1a16ea5f615a2228e383d30f9eb041892a217c`, fresh Codex review found two additional P1 trust-boundary gaps: a deserialized StrategySpec could have required rules/lists changed and its public strategy identity recomputed before precommit admission; a deserialized crypto-news observation could similarly recompute its identity after changing taxonomy/confidence/evidence arrays and still reach PIT binding.

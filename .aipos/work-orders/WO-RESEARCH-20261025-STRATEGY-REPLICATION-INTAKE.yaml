@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
 title: Strategy Replication-First and Crypto News Research Intake
-status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
 priority: P1
 risk: MEDIUM
 authority_impact: none
@@ -111,8 +111,7 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Push the locally validated successor with strategy-spec and crypto-news observation
-  revalidation to the existing Draft PR #2878, then run exact-head CI and fresh non-author
-  review/Validator. Production Scout composition, durable result consumption, and natural
-  end-to-end Research/PAPER evidence remain follow-up work; do not claim them complete from
-  contract tests.
+  Push the locally validated optional-news-scalar validation repair to existing Draft PR
+  #2878 once, then require exact-head CI and fresh non-author review/Validator. Production
+  Scout composition, durable result consumption, and natural end-to-end Research/PAPER
+  evidence remain follow-up work; do not claim them complete from contract tests.

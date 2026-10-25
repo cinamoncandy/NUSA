@@ -3648,11 +3648,11 @@ current_research_failure_reasons:
 
 current_strategy_replication_intake_20261025:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
   branch: feat/research-intelligence-precommit-bridge
   issue: 2735
-  validation: "PR 2878 prior remote head eb1a16ea5f615a2228e383d30f9eb041892a217c exact-head CI and required companions PASS. Fresh Codex review on that SHA found P1s for deserialized strategy-spec revalidation and deserialized crypto-news taxonomy/evidence-array revalidation before PIT binding. Local successor re-runs normalizeStrategyReplication at strategy precommit admission and createCryptoNewsResearchObservation before Research Intelligence binding; recomputed-identity malformed strategy/news regressions reject. Current local gates: focused intake 13/13, Node 24.19 preflight, build, typecheck, validate:full, security:gate, lint (45 existing warnings, 0 errors), git diff --check, pnpm test (1281 isolated files) PASS. Results are local only until the successor is pushed and exact-head CI/review complete; generated docs/audits outputs are excluded."
-  next: "Publish the locally validated substantive repair to existing Draft PR 2878 once; require new exact-head CI and fresh non-author review. Formal NUSA Validator, production Scout/store wiring, and genuine Research/PAPER outcomes remain unverified."
+  validation: "PR 2878 exact head 0a3b3eb76d1eb11c72d3a793fc2a84f3ae8dc76c CI and required companions PASS; fresh Codex review 5643254473 found P1: malformed optional crypto-news scalar fields could be reidentified and reach PIT binding. Local successor validates and canonicalizes originalPublisher, syndicationClusterId, expectedDirection, expectedMagnitude, and expectedHorizon; regressions reject malformed values after identity recomputation and confirm whitespace normalization has stable identity. Node 24.19 preflight, focused intake 13/13, build, typecheck, validate:full, security:gate, lint (45 existing warnings, 0 errors), pnpm test (1281 isolated files), and git diff --check PASS. These are local results until the repaired successor has exact-head CI and fresh review; generated docs/audits outputs are excluded."
+  next: "Publish the locally validated substantive repair to existing Draft PR 2878 once; obtain successor exact-head CI and fresh non-author review. Formal NUSA Validator, production Scout/store wiring, and genuine Research/PAPER outcomes remain unverified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_strategy_validation_20261016:

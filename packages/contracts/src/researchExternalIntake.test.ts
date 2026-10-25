@@ -88,6 +88,9 @@ test("news keeps facts, claims, inferences separate, deduplicates identity, and 
   assert.equal(rumor.verificationStatus, "UNVERIFIED");
   assert.equal(rumor.coverageStatus, "UNKNOWN");
   assert.equal(rumor.aiAuthority, "ZERO_AUTHORITY");
+  const optionalText = createCryptoNewsResearchObservation(news({ syndicationClusterId: " cluster-1 ", expectedDirection: " UP ", expectedMagnitude: " medium ", expectedHorizon: " 1h " }));
+  const canonicalOptionalText = createCryptoNewsResearchObservation(news({ syndicationClusterId: "cluster-1", expectedDirection: "UP", expectedMagnitude: "medium", expectedHorizon: "1h" }));
+  assert.equal(optionalText.observationIdentity, canonicalOptionalText.observationIdentity);
 });
 
 test("news without publication time cannot be PIT evidence", () => {
@@ -174,6 +177,11 @@ test("untrusted runtime taxonomy and malformed evidence arrays fail closed", () 
   assert.throws(() => createCryptoNewsResearchObservation(news({ eventType: "BUY" as never })), /CLASSIFICATION_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ confidence: "CERTAIN" as never })), /CLASSIFICATION_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ entities: [42] as never })), /EVIDENCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ syndicationClusterId: 7 as never })), /EVIDENCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ originalPublisher: 42 as never })), /EVIDENCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ expectedDirection: { trade: "BUY" } as never })), /EVIDENCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ expectedMagnitude: null as never })), /EVIDENCE_INVALID/);
+  assert.throws(() => createCryptoNewsResearchObservation(news({ expectedHorizon: "   " })), /EVIDENCE_INVALID/);
 });
 
 test("PIT binding revalidates deserialized news fields even when identity is recomputed", () => {
@@ -185,4 +193,8 @@ test("PIT binding revalidates deserialized news fields even when identity is rec
   assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedConfidence, observationIdentity: reidentifyNews(forgedConfidence) }, sourceRecord), /BINDING_INVALID/);
   const forgedEvidence = { ...observation, observedFacts: [" "] };
   assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedEvidence, observationIdentity: reidentifyNews(forgedEvidence) }, sourceRecord), /BINDING_INVALID/);
+  const forgedCluster = { ...observation, syndicationClusterId: 7 as never };
+  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedCluster, observationIdentity: reidentifyNews(forgedCluster) }, sourceRecord), /BINDING_INVALID/);
+  const forgedDirection = { ...observation, expectedDirection: { trade: "BUY" } as never };
+  assert.throws(() => bindCryptoNewsResearchIntelligence({ ...forgedDirection, observationIdentity: reidentifyNews(forgedDirection) }, sourceRecord), /BINDING_INVALID/);
 });
