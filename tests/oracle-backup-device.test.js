@@ -5,9 +5,11 @@ const { spawnSync } = require("node:child_process");
 
 const helper = fs.readFileSync("deploy/oracle/nusa-release-step.sh", "utf8");
 const blockPredicate = helper.match(/^backup_device_is_block\(\) \{[\s\S]*?^\}/m)?.[0];
+const directDiskPredicate = helper.match(/^backup_device_is_direct_disk_name\(\) \{[\s\S]*?^\}/m)?.[0];
 const directoryPredicate = helper.match(/^backup_path_is_directory\(\) \{[\s\S]*?^\}/m)?.[0];
 const resolver = helper.match(/^backup_block_device_for_paths\(\) \{[\s\S]*?^\}/m)?.[0];
 assert.ok(blockPredicate, "root-owned helper must define the block-device predicate");
+assert.ok(directDiskPredicate, "root-owned helper must define the strict direct-disk predicate");
 assert.ok(directoryPredicate, "root-owned helper must define the backup-directory predicate");
 assert.ok(resolver, "root-owned helper must contain the canonical backup topology resolver");
 
@@ -20,8 +22,10 @@ function runResolver({ mounts, devices, blocks = ["/dev/sda1", "/dev/sda"] }) {
   const script = `set -uo pipefail
 die() { printf '%s\\n' "$*" >&2; return 1; }
 ${blockPredicate}
+${directDiskPredicate}
 ${directoryPredicate}
 ${blockOverride}
+backup_device_is_direct_disk_name() { case "$1" in /dev/sda|/dev/sdb|/dev/nvme0n1) return 0 ;; *) return 1 ;; esac; }
 backup_path_is_directory() { return 0; }
 findmnt() {
   local output="" target="" previous="" arg
@@ -128,6 +132,10 @@ test("direct disk device names are validated and ambiguous parent chains fail cl
     },
     devices: { "TYPE:/dev/sda": "disk", "PKNAME:/dev/sda": "" },
   };
+  const directResult = runResolver({ ...direct, blocks: ["/dev/sda"] });
+  assert.equal(directResult.status, 0, directResult.stderr);
+  assert.equal(directResult.stdout, "/dev/sda");
+
   const badName = runResolver({
     mounts: { ...direct.mounts, "SOURCE:/var/lib/nusa/state.sqlite": "/dev/sda[bad]" },
     devices: direct.devices,

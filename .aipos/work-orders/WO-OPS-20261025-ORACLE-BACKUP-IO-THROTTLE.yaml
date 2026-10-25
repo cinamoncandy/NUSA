@@ -38,7 +38,7 @@ safety:
   expired_lease_revival: false
 rollback: "Revert the reviewed workflow/helper source change through the protected repository path. No host mutation or rollback is performed by this work order."
 verification_commands:
-  - node --test tests/oracle-paper-release-workflow.test.js
+  - node --test tests/oracle-backup-device.test.js tests/oracle-paper-release-workflow.test.js
   - pnpm run preflight
   - git diff --check
 validation: "Predecessor heads passed full local/CI gates but fresh non-author review found bootstrap ordering, timeout isolation, unit wording/topology coverage, and evidence-wording defects. This successor embeds device selection in the reviewed root helper, validates state+backup filesystem topology, isolates the calculated backup timeout from activation, and must rerun focused tests, preflight, validate:full, security:gate, AIPOS validation, exact-head CI, and fresh independent review."
