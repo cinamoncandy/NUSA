@@ -113,6 +113,16 @@ P0 tracks remain separate: exact-main Oracle release run `40178950069` is still 
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
 
+## Fresh exact-head review repair — optional StrategySpec metadata + channel identity, 2026-10-25
+
+PR #2878 exact head `33b89e1952c1d819e9765bb5e85f2c99634a70d2` had exact-head CI and required companions PASS. Fresh Codex review `5643319844` found one P1: deserialized optional StrategySpec metadata such as `sourceCodeAvailable: "MAYBE"`, object-valued `publicationDate`, malformed lists, or non-record external performance could pass through normalization during precommit reconstruction. It also found one P2: `transmissionChannels` were validated as strings but not normalized, allowing semantically equivalent inputs to produce different observation identities.
+
+The local successor validates optional scalar text, the source-code enum, optional evidence arrays, and reported-performance record shape before constructing a spec; it trims/deduplicates/sorts metadata arrays and transmission channels. Regressions recompute public identities around malformed StrategySpec metadata and verify deterministic channel identity.
+
+Local checks on this successor: Node 24.19 `pnpm run preflight`; focused intake 13/13; build; typecheck; `validate:full`; `security:gate`; lint (45 existing warnings, zero errors); `pnpm test` (1,281 isolated test files); and `git diff --check` PASS. Current successor is not yet published; exact-head CI and a fresh non-author review are required after push. Formal NUSA Validator, Audit/Release, production Scout/store wiring, durable result consumption, and genuine Research/PAPER outcome remain outstanding. Oracle remains untouched; generated `docs/audits/*` outputs are excluded.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
 ## Fresh exact-head review repair — optional news scalar trust boundary, 2026-10-25
 
 Fresh Codex review of exact head `0a3b3eb76d1eb11c72d3a793fc2a84f3ae8dc76c` completed as review `5643254473` and found one P1: malformed optional fields such as numeric `syndicationClusterId` or object-valued `expectedDirection` were copied through the observation factory, so callers could recompute the public identity and still reach PIT binding. The local successor now rejects non-text/blank values for all optional scalar text fields (`originalPublisher`, `syndicationClusterId`, `expectedDirection`, `expectedMagnitude`, `expectedHorizon`) and normalizes valid optional strings before identity generation. Regression coverage includes forged/recomputed identity rejection for malformed cluster and direction fields and stable identity across whitespace normalization.

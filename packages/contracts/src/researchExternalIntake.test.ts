@@ -72,6 +72,17 @@ test("deserialized strategy specs are revalidated before precommit admission", (
   const blankExit = { ...spec, exitRule: " " };
   const forgedExit = { ...blankExit, strategyIdentity: reidentifyStrategy(blankExit) };
   assert.throws(() => makePrecommit(forgedExit), /RULES_INSUFFICIENT/);
+  const malformedPublication = { ...spec, publicationDate: {} as never };
+  assert.throws(() => makePrecommit({ ...malformedPublication, strategyIdentity: reidentifyStrategy(malformedPublication) }), /METADATA_INVALID/);
+  const malformedSourceCode = { ...spec, sourceCodeAvailable: "MAYBE" as never };
+  assert.throws(() => makePrecommit({ ...malformedSourceCode, strategyIdentity: reidentifyStrategy(malformedSourceCode) }), /METADATA_INVALID/);
+  const malformedLimitations = { ...spec, knownLimitations: "not-an-array" as never };
+  assert.throws(() => makePrecommit({ ...malformedLimitations, strategyIdentity: reidentifyStrategy(malformedLimitations) }), /METADATA_INVALID/);
+  const malformedPerformance = { ...spec, reportedPerformance: "Sharpe 999" as never };
+  assert.throws(() => makePrecommit({ ...malformedPerformance, strategyIdentity: reidentifyStrategy(malformedPerformance) }), /METADATA_INVALID/);
+  const canonicalMetadata = normalizeStrategyReplication(strategy({ knownLimitations: [" limitation  a ", "limitation a"], residualUnknowns: ["unknown b", " unknown a "] }));
+  assert.deepEqual(canonicalMetadata.knownLimitations, ["limitation a"]);
+  assert.deepEqual(canonicalMetadata.residualUnknowns, ["unknown a", "unknown b"]);
 });
 
 const news = (patch: Partial<CryptoNewsResearchInput> = {}): CryptoNewsResearchInput => ({
@@ -91,6 +102,10 @@ test("news keeps facts, claims, inferences separate, deduplicates identity, and 
   const optionalText = createCryptoNewsResearchObservation(news({ syndicationClusterId: " cluster-1 ", expectedDirection: " UP ", expectedMagnitude: " medium ", expectedHorizon: " 1h " }));
   const canonicalOptionalText = createCryptoNewsResearchObservation(news({ syndicationClusterId: "cluster-1", expectedDirection: "UP", expectedMagnitude: "medium", expectedHorizon: "1h" }));
   assert.equal(optionalText.observationIdentity, canonicalOptionalText.observationIdentity);
+  const channels = createCryptoNewsResearchObservation(news({ transmissionChannels: [" liquidity ", "liquidity", " adoption "] }));
+  const canonicalChannels = createCryptoNewsResearchObservation(news({ transmissionChannels: ["adoption", "liquidity"] }));
+  assert.equal(channels.observationIdentity, canonicalChannels.observationIdentity);
+  assert.deepEqual(channels.transmissionChannels, ["adoption", "liquidity"]);
 });
 
 test("news without publication time cannot be PIT evidence", () => {
