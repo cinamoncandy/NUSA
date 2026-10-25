@@ -191,10 +191,10 @@ export class LearningInputSetLedger {
   }
 
   /** Exact canonical reader used by downstream A1; validates the full durable metadata contract. */
-  public getByFingerprint(fingerprint: string): LearningInputSetReceipt | undefined {
+  public getByFingerprint(fingerprint: string, snapshot: readonly EvolutionLedgerRecord[] = this.ledger.list()): LearningInputSetReceipt | undefined {
     if (!HASH.test(fingerprint)) throw new LearningInputSetLedgerError("IDENTITY_DERIVATION_FAILED", "learning input set fingerprint is not a SHA-256 digest");
     const opportunityId = `learning-input-set:${fingerprint}`;
-    const record = this.ledger.list().find((candidate) => candidate.opportunityId === opportunityId);
+    const record = snapshot.find((candidate) => candidate.opportunityId === opportunityId);
     if (record == null) return undefined;
     const inputSet = parseReceipt(record);
     if (learningInputSetFingerprint(inputSet) !== fingerprint) throw new LearningInputSetLedgerError("IDENTITY_CONFLICT", "recorded learning input set does not match its fingerprint");
