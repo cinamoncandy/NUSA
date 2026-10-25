@@ -112,11 +112,11 @@ export function aggregateClosedCandles(input: {
   const aggregateFingerprint = input.observations.length === 0
     ? undefined
     : createHash("sha256").update(JSON.stringify(input.observations.map((observation) => [observation.observedAt, observation.price, observation.source ?? null, observation.sourceFingerprint ?? null, observation.evidenceFingerprintSha256 ?? null])), "utf8").digest("hex");
-  const evidenceHasAny = input.observations.some((observation) => observation.evidenceFingerprintSha256 != null);
-  const evidenceAggregateFingerprint = input.observations.length === 0
-    ? undefined
-    : (evidenceHasAny
-      ? createHash("sha256").update(JSON.stringify(input.observations.map((observation) => observation.evidenceFingerprintSha256 ?? null)), "utf8").digest("hex")
-      : aggregateFingerprint);
+  // A window receipt is evidence only when every observation in the batch carries
+  // its own validated evidence identity. Never mint a receipt from ticker values,
+  // source fingerprints, or null placeholders when provenance is absent/partial.
+  const evidenceComplete = input.observations.length > 0
+    && input.observations.every((observation) => observation.evidenceFingerprintSha256 != null);
+  const evidenceAggregateFingerprint = evidenceComplete ? aggregateFingerprint : undefined;
   return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles), ...(sources.size === 1 ? { source: [...sources][0] } : {}), ...(aggregateFingerprint == null ? {} : { sourceFingerprint: aggregateFingerprint }), ...(aggregateFingerprint == null ? {} : { evidenceFingerprintSha256: evidenceAggregateFingerprint }) });
 }

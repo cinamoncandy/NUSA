@@ -87,13 +87,40 @@ test("empty input and bad configuration fail closed", () => {
 
 test("multiple per-tick source fingerprints with one stable source are accepted and aggregated deterministically", () => {
   const hex = (n) => n.toString(16).padStart(64, "0");
-  const obs = [...dense(0, [100, 101, 102, 103]), ...dense(1, [103, 110, 100, 104])].map((o, i) => ({ ...o, source: "UPBIT_PUBLIC_TICKER", sourceFingerprint: hex(i + 1) }));
+  const obs = [...dense(0, [100, 101, 102, 103]), ...dense(1, [103, 110, 100, 104])].map((o, i) => ({ ...o, source: "UPBIT_PUBLIC_TICKER", sourceFingerprint: hex(i + 1), evidenceFingerprintSha256: hex(i + 101) }));
   const r = aggregateClosedCandles({ ...base, observations: obs });
   assert.equal(r.source, "UPBIT_PUBLIC_TICKER");
   assert.match(r.sourceFingerprint, /^[a-f0-9]{64}$/);
   assert.match(r.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
   const r2 = aggregateClosedCandles({ ...base, observations: obs });
   assert.equal(r.sourceFingerprint, r2.sourceFingerprint);
+  assert.equal(r.evidenceFingerprintSha256, r2.evidenceFingerprintSha256);
+});
+
+test("missing or partial observation evidence never becomes a window evidence fingerprint", () => {
+  const hex = (n) => n.toString(16).padStart(64, "0");
+  const observations = dense(0, [100, 101, 102, 103]).map((o, i) => ({
+    ...o,
+    source: "UPBIT_PUBLIC_TICKER",
+    sourceFingerprint: hex(i + 1),
+  }));
+  const missing = aggregateClosedCandles({ ...base, observations });
+  assert.match(missing.sourceFingerprint, /^[a-f0-9]{64}$/);
+  assert.equal(missing.evidenceFingerprintSha256, undefined);
+
+  const partial = aggregateClosedCandles({
+    ...base,
+    observations: observations.map((observation, i) => i === 0
+      ? { ...observation, evidenceFingerprintSha256: hex(101) }
+      : observation),
+  });
+  assert.equal(partial.evidenceFingerprintSha256, undefined);
+
+  const complete = aggregateClosedCandles({
+    ...base,
+    observations: observations.map((observation, i) => ({ ...observation, evidenceFingerprintSha256: hex(i + 101) })),
+  });
+  assert.match(complete.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
 });
 
 test("genuinely mixed source identity fails closed", () => {
