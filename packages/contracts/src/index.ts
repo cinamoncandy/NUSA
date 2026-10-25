@@ -33,6 +33,7 @@ export * from "./polymarketResearchEvidence";
 export * from "./researchMemoryLifecycle";
 export * from "./researchMemorySemantics";
 export * from "./researchPrecommit";
+export * from "./researchExternalIntake";
 export * from "./researchDatasetSemantics";
 export * from "./personalPaperOperations";
 export * from "./operationalProgress";

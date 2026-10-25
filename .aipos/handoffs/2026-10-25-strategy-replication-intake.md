@@ -1,4 +1,4 @@
-# Strategy Replication-First Research Intake handoff
+# Strategy Replication-First + Crypto News Research Intake handoff
 
 ## Durable objective
 
@@ -16,6 +16,8 @@ Canonical work order:
 
 `SCOUT/public strategy evidence -> provenance validation -> normalized reproducible StrategySpec -> deterministic identity/dedup -> immutable existing ResearchPrecommit -> PIT/OOS/walk-forward + realistic costs -> governed PAPER challenger consideration -> result/negative evidence -> later separate improvement/variant lineage`
 
+`SCOUT/crypto news -> immutable content snapshot + fingerprint/PIT check -> observed facts / publisher claims / Scout inferences separated -> explicit testable ResearchHypothesis -> existing ResearchPrecommit -> PIT/OOS/cost evaluation`
+
 This is a replication-first bridge, not a second Research Factory or strategy engine.
 
 External reported CAGR/Sharpe/win-rate/drawdown/benchmark claims remain attributed external claims. They cannot satisfy NUSA validation, promotion, PAPER, Risk, Deployment, or LIVE gates.
@@ -24,17 +26,15 @@ The original strategy must be reproduced first and retained as the immutable bas
 
 ## AIPOS recovery / state note
 
-`AGENTS.md` requires `.aipos/state.yaml` updates through `node scripts/aipos-state-insert.js <entry.yaml>` / `pnpm run aipos:state-add -- <entry.yaml>` so parallel PRs do not conflict on the large state file. This handoff was created through the repository API without a local workspace; therefore the canonical state insertion is deliberately **not fabricated by whole-file API replacement**.
+`AGENTS.md` requires `.aipos/state.yaml` updates through `node scripts/aipos-state-insert.js <entry.yaml>` / `pnpm run aipos:state-add -- <entry.yaml>`. The canonical entry was inserted with that script and is now `IN_PROGRESS`; the existing work order was expanded for crypto news without creating duplicate work.
 
-The implementation session's first local metadata action is to insert a top-level state entry for this work order with the canonical insertion script, then validate AIPOS before implementation. Do not claim state registration complete until that script has run and the resulting diff is reviewed.
-
-Suggested state entry semantics:
+State entry semantics:
 
 - work_order: `WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE`
-- status: `READY`
+- status: `IN_PROGRESS`
 - branch: `feat/research-intelligence-precommit-bridge`
 - issue: `2735`
-- next: `Implement deterministic public-strategy StrategySpec -> existing ResearchPrecommit replication bridge; external performance is metadata only.`
+- next: `Review contract semantics and complete remaining local full-suite environment gate; then refresh preflight and all required gates before any Draft PR.`
 - safety: `PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY`
 
 ## Required implementation boundaries
@@ -56,7 +56,15 @@ Before opening a PR, run local focused tests plus repository gates required by t
 
 ## Current truth at handoff
 
-Only AIPOS planning records exist on this branch. Strategy intake implementation and tests are **not yet implemented or validated**. No strategy has been proven profitable or approved for PAPER by this work order.
+Implemented locally on the existing branch:
+
+- deterministic StrategyReplicationSpec normalization, ORIGINAL/VARIANT identity, external performance isolation, and bridge to existing `ResearchPrecommit`;
+- crypto news observation contract with content snapshot SHA-256 check, publication/first-observed/retrieval chronology, social/rumor fail-closed PIT status, separated facts/claims/inferences, and exact/syndication duplicate classification;
+- explicit-only news hypothesis adapter to existing `ResearchHypothesis` and `ResearchPrecommit` (requires caller-supplied testable assumptions; no order path);
+- 7 focused tests PASS; TypeScript build/typecheck, `validate:full`, `security:gate`, `lint`, Node 24.19 `preflight`, and `git diff --check` PASS.
+- `pnpm test` PASS: 1,281 isolated test files. Initial Electron installation failed because Node fetch did not use the session proxy; installing the official Electron package with `NODE_OPTIONS=--use-env-proxy` resolved the environment issue without source/test changes.
+
+No strategy has been proven profitable, persisted as an accepted research result, or approved for PAPER by this work order. The current implementation is a contract slice; production Scout composition, durable result consumption, exact-head CI, non-author validation, Audit/Release, and natural Research/PAPER outcomes remain outstanding. Last fresh protected main was `4bb02f4655044122a95e3dbb94bba65844c0f0cb`; branch head was `079e6a8e5f242173cc79d705a7d73e142b18840b` before this local change set.
 
 Safety remains:
 

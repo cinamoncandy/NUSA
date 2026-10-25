@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
-title: Strategy Replication-First Research Intake
-status: READY
+title: Strategy Replication-First and Crypto News Research Intake
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
 priority: P1
 risk: MEDIUM
 authority_impact: none
@@ -47,6 +47,9 @@ scope:
   - Persist or expose a deterministic replication receipt/result that distinguishes REPRODUCED, NOT_REPRODUCED, INSUFFICIENT_EVIDENCE, and INVALID_INPUT (or existing canonical equivalents) without rewriting adverse evidence.
   - Record replication failures, alpha decay, regime dependence, crowding, transaction-cost destruction, overfitting, look-ahead, survivorship, and data-snooping findings as useful negative evidence.
   - Permit only NUSA-validated candidates to advance toward governed PAPER challenger consideration; no automatic promotion or activation is introduced.
+  - Normalize SCOUT crypto news into immutable, fingerprint-verified point-in-time observations with separate observed facts, publisher claims, and advisory inferences; social/rumor or chronology-unknown sources remain unverified.
+  - Deduplicate exact reposts using canonical content fingerprint or explicit syndication cluster, while treating uncertain same-publisher/time matches as POSSIBLE_DUPLICATE rather than independent corroboration.
+  - Convert news into a canonical ResearchHypothesis and existing ResearchPrecommit only when a verified PIT observation and explicit testable hypothesis/evaluation/cost/capacity assumptions are supplied; never infer a trade or emit an order.
 out_of_scope:
   - New external crawling or scraping infrastructure.
   - Reverse engineering or copying proprietary code, binaries, assets, secrets, credentials, or protected expressions.
@@ -64,9 +67,13 @@ acceptance:
   - External reported performance is stored only as attributed claim/evidence metadata and can never satisfy PIT/OOS, governance, or PAPER promotion gates.
   - Candidate evaluation uses existing temporally-correct PIT/OOS or walk-forward controls and includes economically relevant fees/slippage assumptions.
   - Candidate cannot create orders, mutate production state, bypass Strategy Governance/Risk/Deployment gates, or gain authority from external evidence.
+  - A news snapshot whose SHA-256 does not match, whose publication time is missing/future, or whose source type is social/rumor cannot become PIT-eligible or produce a precommit.
+  - A valid news observation keeps facts, publisher claims, and Scout inferences distinct; only an explicit, complete hypothesis is bridged to the existing ResearchHypothesis and ResearchPrecommit contracts.
+  - Duplicate syndicated content does not increase independent corroboration, and uncertain duplicate candidates remain labeled POSSIBLE_DUPLICATE.
   - Replication success and failure are both retained as attributable, challengeable evidence; adverse results are not discarded or rewritten.
   - Actual performance claims remain blocked when canonical dataset/provenance prerequisites are unmet, including unresolved #2815 or explicit OHLCV manifest requirements where applicable.
   - Tests cover valid deterministic intake, missing required rules, ambiguous/missing provenance, fingerprint/spec tamper, duplicate intake, original-vs-variant separation, deterministic output, and high external reported returns that still cannot produce a NUSA pass.
+  - Tests cover immutable news snapshot fingerprint, chronology/PIT, social/rumor fail-closed behavior, fact/claim/inference separation, duplicate/syndication classification, explicit hypothesis-to-precommit continuity, and rejection of non-PIT observations.
   - Existing PAPER_ONLY and zero-authority safety invariants remain unchanged.
 verification_commands:
   - pnpm run build
@@ -103,6 +110,7 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Recover exact existing Research Intelligence/Hypothesis/Precommit contracts, implement the
-  smallest deterministic Strategy Replication Intake bridge on this branch, run local focused
-  and repository gates, then open one Draft PR referencing #2735 only after local validation passes.
+  Open one Draft PR on the existing branch referencing #2735 with this contract slice and its
+  explicit limits. Then run exact-head CI and fresh non-author validation. Production Scout
+  composition, durable result consumption, and natural end-to-end Research/PAPER evidence remain
+  follow-up work; do not claim them complete from contract tests.

@@ -697,7 +697,7 @@ current_jev_domain_observation_contract:
   remaining: fresh-exact-head-CI_then_independent-Audit_after-nextRetryAt_then_Release_then_merge
 current_provider_backpressure:
   work_order: WO-20260927-PROVIDER-BACKPRESSURE
-  status: IN_PROGRESS
+  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
   implementation_status: RECONVERGED_PENDING_EXACT_HEAD_VALIDATION
   issue: 2185
   parent_pr: 2336
@@ -3645,6 +3645,15 @@ current_research_failure_reasons:
   authority_impact: none
   owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
   finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
+
+current_strategy_replication_intake_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: IN_PROGRESS
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  validation: "Strategy/news intake contracts: build/typecheck, validate:full, security:gate, lint, preflight (Node 24.19), git diff --check PASS; focused 7/7; pnpm test 1281 isolated files PASS after installing Electron with NODE_OPTIONS=--use-env-proxy. Exact-head CI/review pending."
+  next: "Open one Draft PR on the existing branch referencing #2735; request exact-head CI and fresh non-author validation. Production Scout/store wiring and genuine Research/PAPER outcomes remain unverified."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_strategy_validation_20261016:
   work_order: WO-RESEARCH-20261016-A-GRADE-VALIDATION
