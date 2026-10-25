@@ -31,11 +31,11 @@ function Chip({ children }: { readonly children: string }) {
   return <View style={styles.chip}><Text style={styles.chipText}>{children}</Text></View>;
 }
 
-/** Registered studies: dot-matrix dates on a quiet card, the next verdict lit. Dates are the frozen designs' verdict times. */
+/** Registered studies awaiting validation: dot-matrix dates on a quiet card, the next verdict lit. Dates are the frozen designs' verdict times. */
 export function StudyTimeline({ nowMs }: { readonly nowMs: number }) {
   const rows = buildStudyTimeline(nowMs);
-  return <Entering index={3}><GrainCard tone="DARK" style={styles.card} testID="learning-studies" accessibilityLabel={`사전 등록 연구. ${rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}`}>
-    <Chip>사전 등록 연구</Chip>
+  return <Entering index={3}><GrainCard tone="DARK" style={styles.card} testID="learning-studies" accessibilityLabel={`검증 예정 연구. ${rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}`}>
+    <Chip>검증 예정 연구</Chip>
     <View style={styles.studyList}>
       {rows.map((r) => <View key={r.id} style={styles.studyRow}>
         <DotNumeral text={r.dateLabel} pitch={4} color={r.next ? auraPalette.neon : auraPalette.muted} glow={r.next} accessibilityLabel={r.dateLabel} />
