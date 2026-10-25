@@ -172,6 +172,12 @@ test("replication receipt binds outcome to spec, precommit, dataset and preserve
   assert.equal(receipt.precommitFingerprint, precommit.fingerprint);
   assert.deepEqual(receipt.negativeEvidence, ["transaction costs destroyed edge", "unstable across regimes"]);
   verifyStrategyReplicationReceipt(receipt, precommit);
+  const paddedDatasetPrecommit = strategyReplicationPrecommit({ spec, sourceSha: SHA, datasetBinding: { manifest: " dataset-1 " }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  const paddedDatasetReceipt = createStrategyReplicationReceipt({ result: "INSUFFICIENT_EVIDENCE", spec, precommit: paddedDatasetPrecommit, datasetIdentity: " dataset-1 ", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { reason: "preserve exact bound identity" } });
+  assert.equal(paddedDatasetReceipt.datasetIdentity, " dataset-1 ");
+  verifyStrategyReplicationReceipt(paddedDatasetReceipt, paddedDatasetPrecommit);
+  const unknownPolicyPrecommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: precommit.experimentIdentity, candidateIdentity: precommit.candidateIdentity, strategyIdentity: precommit.strategyIdentity, datasetBinding: precommit.datasetBinding, sourceSha: precommit.sourceSha, parameterPlan: precommit.parameterPlan, costPlan: precommit.costPlan, regimePlan: precommit.regimePlan, evaluationPlan: precommit.evaluationPlan, validationPolicyIdentity: "UNKNOWN", createdAt: precommit.createdAt });
+  assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit: unknownPolicyPrecommit, datasetIdentity: "dataset-1", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /PRECOMMIT_MISMATCH/);
   assert.throws(() => createStrategyReplicationReceipt({ result: "REPRODUCED", spec, precommit, datasetIdentity: "other-dataset", evaluatorVersion: "replicator-v1", evaluatorSourceSha: SHA, observedAt: "2026-10-26T00:00:00Z", evidence: { result: "pass" } }), /DATASET_MISMATCH/);
   assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, negativeEvidence: [] }, precommit), /FINGERPRINT_MISMATCH|NON_CANONICAL/);
   assert.throws(() => verifyStrategyReplicationReceipt({ ...receipt, datasetIdentity: "other-dataset" }, precommit), /PRECOMMIT_MISMATCH/);
