@@ -45,12 +45,13 @@ const githubResponse = (status: number, payload: unknown, textValue?: string) =>
   async text() { return textValue ?? JSON.stringify(payload); },
 });
 
-function validatorGithubFetch(options: { staleSecondPull?: boolean } = {}) {
+function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean } = {}) {
   let pullReads = 0;
-  const diff = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+const safe = true;\n";
+  const diff = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
   const protocol = "# NUSA /grill-me protocol\n" + "adversarial exact-head fail-closed independent validation. ".repeat(8);
   return (async (input: string) => {
     const url = String(input);
+    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, [{ filename: "a.ts", status: "modified" }]);
     if (url.includes(`/pulls/${request.prNumber}`)) {
       pullReads += 1;
       return githubResponse(200, { state: "open", changed_files: 1, head: { sha: options.staleSecondPull && pullReads > 1 ? "c".repeat(40) : request.headSha, repo: { full_name: request.repository } }, base: { sha: request.baseSha, repo: { full_name: request.repository } } });
@@ -58,6 +59,11 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean } = {}) {
     if (url.includes(`/actions/runs/${request.workflowRunId}`)) return githubResponse(200, { id: request.workflowRunId, name: "CI", event: "pull_request", status: "completed", conclusion: "success", head_sha: request.headSha, repository: { full_name: request.repository }, pull_requests: [{ number: request.prNumber }] });
     if (url.includes(`/compare/${request.baseSha}...${request.headSha}`)) return githubResponse(200, {}, diff);
     if (url.includes("/contents/docs/GRILL_ME_PROTOCOL.md?ref=")) return githubResponse(200, {}, protocol);
+    if (url.includes(`/contents/package.json?ref=${request.headSha}`)) return githubResponse(200, {}, "{}\n");
+    if (url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(200, {}, options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : 'import { helper } from "./helper";\nhelper();');
+    if (url.includes(`/contents/helper.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function helper() { return true; }\n");
+    if (url.includes(`/contents/helper?ref=${request.headSha}`) || url.includes(`/contents/helper/`)) return githubResponse(404, {});
+    if (url.includes(`/contents/helper.`)) return githubResponse(404, {});
     throw new Error(`unexpected fetch ${url}`);
   }) as never;
 }
@@ -75,6 +81,24 @@ test("fresh VALIDATOR independently reviews exact head using protected-base gril
   assert.equal(result.reviewedAt, 999);
   assert.match(prompt, /TRUSTED PROTECTED-BASE GRILL_ME_PROTOCOL/);
   assert.match(prompt, /NUSA \/grill-me protocol/);
+  assert.match(prompt, /BEGIN BOUNDED EXACT-HEAD DEPENDENCY CONTEXT/);
+  assert.match(prompt, /helper.ts @ a{40}/);
+  assert.match(prompt, /export function helper\(\)/);
+  assert.ok(result.evidenceRefs.includes(`github:dependency/helper.ts@${request.headSha}`));
+});
+
+test("fresh VALIDATOR fails closed on a changed source import that escapes the repository", async () => {
+  let aiCalled = false;
+  const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  await assert.rejects(executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ unsafeImport: true })), /VALIDATOR_DEPENDENCY_PATH_ESCAPE/);
+  assert.equal(aiCalled, false);
+});
+
+test("fresh VALIDATOR fails closed when a changed line uses an unresolved repository alias", async () => {
+  let aiCalled = false;
+  const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  await assert.rejects(executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ aliasImport: true })), /VALIDATOR_DEPENDENCY_IMPORT_UNCLASSIFIED/);
+  assert.equal(aiCalled, false);
 });
 
 test("fresh VALIDATOR fails if the exact head changes during review", async () => {

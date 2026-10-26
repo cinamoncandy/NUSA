@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: P1_DIFF_EVIDENCE_PATH_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_CI_AND_REVIEW
+status: P1_EXACT_HEAD_DEPENDENCY_CONTEXT_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_CI_AND_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -49,6 +49,7 @@ acceptance:
   - "All AUDIT_REQUEST ingress reaches the existing execution consumer before deterministic Audit/Release."
   - "Fresh stateless VALIDATOR uses exact immutable base..head diff and exact canonical CI evidence, with P0/P1 blockers fail-closed."
   - "Trusted validator artifact is bound to repository, PR, head, base, CI run, consumer run and run attempt; missing/stale/forged identity fails closed."
+  - "Validator supplies bounded, exact-head content for directly referenced local dependencies of changed source lines; unknown paths, retrieval failures, and context limits fail closed before a verdict."
   - "Deterministic Audit re-reads the artifact before DETERMINISTIC_AUDIT_PASS; Release re-reads it before authorization and before merge."
   - "Exact-head CI plus required companion workflows pass on final PR head."
   - "A separate fresh non-author review of this bootstrap control-plane change reports P0=0/P1=0 before Ready."
@@ -104,3 +105,29 @@ latest_repair_2026_10_26:
     security_gate: PASS
     full_test_suite: PASS_1288_ISOLATED_TEST_FILES
     git_diff_check: PASS
+
+latest_dependency_context_repair_2026_10_27:
+  repository_verified:
+    protected_main: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
+    pr_2772_head_before_repair: 3349af9d56a3fe3a536a742514241a8e88d2ca98
+    pr_2772_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
+    pr_state: OPEN_DRAFT_MERGEABLE
+  review_finding:
+    review_receipt: 5654741705
+    comment: 4379233529
+    severity: P1
+    summary: "The exact-head stateless validator had no repository retrieval and only saw PR diff/protocol, so it could miss defects requiring unchanged dependency definitions despite /grill-me requiring dependency inspection."
+  repair:
+    files:
+      - apps/autopilot/src/auditRunner.ts
+      - apps/autopilot/src/validatorRunner.test.ts
+    contract: "Fetch current PR changed paths, read changed source only at exact head, inspect directly referenced relative modules used by changed diff lines, and include bounded exact-head dependency context plus evidence references. Reject path traversal, mismatched diff/file lists, missing files, retrieval failures, and limits before AI. No caller-selected paths or write capability."
+    limits: "24 changed source files; 240000 source-scan characters; 24 dependency files; 96000 characters per dependency; 180000 total dependency-context characters."
+  local_validation_checkpoint: "Node 24.19.0; preflight, typecheck, build, validate:full, security:gate, and git diff --check PASS; validatorRunner 8/8, auditRunner 34/34, independent audit contract 16/16, and full suite 1288 isolated test files PASS."
+  exact_head: PENDING_COMMIT
+  exact_head_ci: PENDING
+  fresh_non_author_review: PENDING
+  formal_validator: PENDING
+  audit_release_merge: NOT_STARTED
+  next: "Verify remote PR/main again; non-force push successor to existing #2772 branch with expected-head protection; require exact-head CI/companions and fresh independent review. Keep Draft and do not resolve findings as author."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

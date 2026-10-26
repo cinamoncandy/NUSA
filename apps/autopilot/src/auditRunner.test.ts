@@ -90,14 +90,19 @@ function fetchSequence(options: {
 } = {}) {
   const firstRun = options.firstRun ?? run();
   const secondRun = options.secondRun ?? firstRun;
+  const firstPull = options.firstPull ?? pull();
+  const secondPull = options.secondPull ?? firstPull;
+  const fileList = (value: unknown) => Array.from({ length: Number((value as { changed_files?: number }).changed_files ?? 1) }, (_, index) => ({ filename: index === 0 ? "a.ts" : `file-${index}.ts`, status: "modified" }));
   const queue = [
-    response(200, options.firstPull ?? pull()),
+    response(200, firstPull),
     response(200, firstRun),
     ...(needsFallback(firstRun) ? [response(200, options.firstHeadPulls ?? headPulls())] : []),
+    response(200, fileList(firstPull)),
     response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+const safe = true;\n"),
-    response(200, options.secondPull ?? options.firstPull ?? pull()),
+    response(200, secondPull),
     response(200, secondRun),
     ...(needsFallback(secondRun) ? [response(200, options.secondHeadPulls ?? options.firstHeadPulls ?? headPulls())] : []),
+    response(200, fileList(secondPull)),
   ];
   return async () => {
     const next = queue.shift();

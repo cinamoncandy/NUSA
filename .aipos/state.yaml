@@ -4095,36 +4095,39 @@ current_autopilot_fresh_validator_gate_20261026:
   issue: 2760
   pull_request: 2772
   branch: fix/validator-evidence-gate-2760
-  status: P1_DIFF_EVIDENCE_PATH_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_CI_AND_REVIEW
+  status: P1_EXACT_HEAD_DEPENDENCY_CONTEXT_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_CI_AND_REVIEW
   protected_main: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
-  predecessor_pr_head: 3eee9bcfb1c71f2a3a4cfeb0f653830636dd8a3b
+  predecessor_pr_head: 3349af9d56a3fe3a536a742514241a8e88d2ca98
   predecessor_pr_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
-  findings:
+  exact_head_review:
+    review_receipt: 5654741705
+    reviewed_head: 3349af9d56a3fe3a536a742514241a8e88d2ca98
+    finding: "P1 #4379233529: validator model received only PR diff/protocol and could miss defects requiring unchanged dependency definitions; /grill-me requires relevant dependency inspection."
+  prior_findings_repaired:
     - "P1 #4377972408: deletion-only blockers need removed-line evidence references."
-    - "P1 #4378178003: whole-file deletion must use the old path and reset parser state at diff boundaries."
-  repair:
+    - "P1 #4378178003: whole-file deletion must use old path and reset parser state at diff boundaries."
+  current_repair:
     files:
       - apps/autopilot/src/auditRunner.ts
-      - apps/autopilot/src/auditRunner.test.ts
-    behavior: "Old and new paths are tracked independently; per-file line/path state resets at diff --git; deletions bind to the old path, additions to the new path; deleted files cannot inherit the previous path."
+      - apps/autopilot/src/validatorRunner.test.ts
+    behavior: "Before model review, list exact PR changed paths and inspect changed TypeScript/JavaScript source at the requested head. For direct relative imports referenced by changed lines, fetch dependency source at the same exact head and include bounded content plus evidence refs. Repository paths, changed-file count, source scan bytes, dependency count, per-file bytes, and total context bytes are bounded; path escape, missing/unresolved source, HTTP errors, or exceeded limits fail before AI verdict generation."
+    excluded: "No arbitrary caller-selected paths, broad repository blob upload, write access, or repository mutation. Transitive/alias/unavailable dependencies are disclosed as limitations and fail closed when material."
     fail_closed: true
-  predecessor_ci:
-    run: 40345771631
-    attempt: 2
-    result: PASS
-    scope: "Historical predecessor CI and companion workflows; not evidence for the repair successor."
-  local_validation:
+  validation:
     node: 24.19.0
+    typecheck: PASS
     build: PASS
+    validator_runner_tests: PASS_8_OF_8
     focused_audit_runner: PASS_34_OF_34
     independent_audit_contract: PASS_16_OF_16
     preflight: PASS
-    typecheck: PASS
     validate_full: PASS
     security_gate: PASS
     full_tests: PASS_1288_ISOLATED_TEST_FILES
-    diff_check: PASS
-  next: "After committing AIPOS with the source repair, re-fetch the existing PR branch, publish only with non-force expected-head protection, then require exact-head workflows and fresh non-author review. Keep Draft; formal Validator, Audit, Release, and merge remain independent gates."
+    git_diff_check: PASS
+    exact_head_ci: PENDING
+    fresh_review: PENDING
+  next: "Re-fetch PR #2772 and protected main, commit the dependency-context repair/AIPOS evidence, then non-force update the existing branch only if expected head still matches 3349af9d56a3fe3a536a742514241a8e88d2ca98. Require fresh exact-head workflows and independent review; keep Draft and leave threads unresolved for adjudication."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_autopilot_light_task_gate:
