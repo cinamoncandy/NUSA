@@ -2579,7 +2579,7 @@ current_ops_backup_retention_buckets_20261021:
 
 current_ops_oracle_backup_helper_proof_20261026:
   work_order: WO-OPS-20261026-BACKUP-HELPER-PROOF
-  status: PR_OPEN_DRAFT_REVIEWED_PENDING_INDEPENDENT_AUDIT_RELEASE
+  status: PR_OPEN_DRAFT_GATES_MUST_BE_RECHECKED_BEFORE_AUDIT_RELEASE
   issue: 2770
   pull_request: 2885
   branch: codex/oracle-backup-helper-artifact-20261026
@@ -2590,11 +2590,11 @@ current_ops_oracle_backup_helper_proof_20261026:
   previous_reviewed_head: 393777626ac198bd3b2ebb529ee0a04214e79c85
   previous_393_head_gates: 'CI 40258480963, Actual PAPER 40258480972, Capability 40258480876, Activation 40258481077, Transport 40258480905, Read-only Broker 40258480894: all completed/success; historical after P2 repair.'
   latest_reviewed_head: 7b686e93c94665efea614dfef960da668a202a2c
-  latest_non_author_review: 'Fresh Codex review on exact head 7b686e93c94665efea614dfef960da668a202a2c found no major issues (receipt 6406957908); both older P2 threads resolved.'
+  latest_non_author_review: 'Review 6406957908 on prior head 7b686e93c94665efea614dfef960da668a202a2c found no major issues; a later review of f3a3617f4485d0fae27127be9708d908d506031a found a P2 requiring an explicit latest-head gate recheck before Audit/Release.'
   latest_head_gates: 'On 7b686e93c94665efea614dfef960da668a202a2c: CI 40259509806, Actual PAPER 40259510207, Capability 40259509900, Activation 40259509810, Transport 40259509884, Read-only Broker 40259509891 all completed/success.'
   validation: 'Focused tests 31/31; AIPOS YAML/provenance/drift/conformance and diff check PASS. Earlier build/typecheck/validate:full/security/lint PASS. If this AIPOS record creates a new PR head, prior exact-head receipts are historical and must not be reused.'
   runtime: 'No host helper installation, Oracle release, backup invocation, WAL recovery, or runtime performance acceptance has occurred.'
-  next: 'Recheck live protected main/base and PR head, then use canonical Independent Audit and separately authorized Release gates. Keep Draft until explicitly authorized. Host acceptance requires separate authorization and genuine evidence.'
+  next: 'Before Audit, verify the live protected main/base and PR head; require all six required workflows to be completed/success on that exact head and a fresh non-author review on the same exact SHA with no actionable findings. If any commit changes the head, repeat both checks. Only then proceed to Independent Audit and separately authorized Release. Keep Draft until explicitly authorized. Host acceptance requires separate authorization and genuine evidence.'
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_backup_io_throttle_20261025:

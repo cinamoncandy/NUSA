@@ -1,6 +1,6 @@
 id: WO-OPS-20261026-BACKUP-HELPER-PROOF
 title: Avoid extracting the full release before Oracle backup helper verification
-status: PR_OPEN_DRAFT_REVIEWED_PENDING_INDEPENDENT_AUDIT_RELEASE
+status: PR_OPEN_DRAFT_GATES_MUST_BE_RECHECKED_BEFORE_AUDIT_RELEASE
 priority: P0
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
@@ -43,7 +43,7 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-validation: 'Repairs pushed to PR #2885 as of exact head 7b686e93c94665efea614dfef960da668a202a2c. Six exact-head workflows PASS: CI 40259509806, Actual PAPER 40259510207, Capability 40259509900, Activation 40259509810, Transport 40259509884, Read-only Broker 40259509891. Focused tests 31/31 and AIPOS YAML/provenance/drift/conformance/diff PASS. If this work order changes again, these receipts become historical.'
-precommit_review: 'Fresh non-author Codex review on exact head 7b686e93c94665efea614dfef960da668a202a2c found no major issues (receipt 6406957908). Both prior P2 threads are resolved. Independent Audit and authorized Release remain separate gates.'
+validation: 'PR head f3a3617f4485d0fae27127be9708d908d506031a has five of six required workflows completed/success; CI was still in progress at last observation. Review found a P2: AIPOS must explicitly require fresh exact-head workflows and non-author review immediately before Audit/Release. This is being corrected. Earlier head 7b686e93c94665efea614dfef960da668a202a2c had all six PASS and no-major-issues receipt, but those receipts are historical after the AIPOS commit.'
+precommit_review: 'P2 findings on 393777626 were fixed; fresh review on 7b686e93c9 found no major issues. Review on f3a3617f found one P2 about explicit current-head gate sequencing. Fix and obtain fresh exact-head gates/review before Audit/Release.'
 publication_blockers: []
-next: Recheck live protected main/base and exact PR head, then obtain the canonical Independent Audit and separately authorized Release decision. Keep Draft until those gates explicitly permit transition. No Oracle deployment, helper installation, backup invocation, or host mutation is authorized.
+next: Require six completed/success workflows and a fresh clean non-author review bound to the same live PR head and current protected base immediately before Independent Audit. Any head change invalidates both receipts. Keep Draft; then use separately authorized Release gates. No Oracle deployment, helper installation, backup invocation, or host mutation is authorized.
