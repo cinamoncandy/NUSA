@@ -2657,6 +2657,18 @@ current_ops_oracle_backup_runbook_evidence_20261026:
   next: "Fast-forward publish to the existing PR branch, verify exact-head checks and review, preserve Draft, then continue only through canonical governed gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_ops_oracle_backup_prep_timeout_reconciled_20261026:
+  work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
+  status: PUBLISHED_PENDING_EXACT_HEAD_CHECKS_AND_FRESH_GRILL_ME
+  issue: 2770
+  pull_request: 2877
+  exact_head: cfbacd4f82eee62bfb1de0c56b7fe16f839ce601
+  base_sha: de6cb5d56acfec429659301c9c1ed8b424e7935f
+  publication: "The timeout repair and AIPOS reconciliation are published non-force on the existing PR branch. PR body matches the published head/base and keeps Draft."
+  validation: "Focused Oracle tests 31/31, workflow YAML parse, pnpm run validate, and git diff --check PASS on this tree. At last fresh check, four required checks were still in progress; three required companions passed and the audit-dispatch fallback was skipped. Historical review receipts target ef26d009 and are stale."
+  next: "Wait for all required exact-head workflows, then obtain a new-session /grill-me review on this exact head. Keep Draft; Formal Validator, Independent Audit, Release, merge, and Oracle host acceptance remain separate and pending."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
   status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
