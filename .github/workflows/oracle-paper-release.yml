@@ -115,6 +115,7 @@ jobs:
     steps:
       - name: Recheck exact protected main before backup
         id: source_fresh
+        timeout-minutes: 5
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -129,10 +130,12 @@ jobs:
 
       - name: Free disk by pruning superseded releases (bounded)
         if: steps.source_fresh.outputs.fresh == 'true'
+        timeout-minutes: 20
         run: sudo "$STEP" prune
 
       - name: Download exact-source helper proof
         if: steps.source_fresh.outputs.fresh == 'true'
+        timeout-minutes: 25
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: nusa-paper-release-helper
@@ -140,6 +143,7 @@ jobs:
 
       - name: Require reviewed root-owned helper exact match before backup
         if: steps.source_fresh.outputs.fresh == 'true'
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           [[ "$HELPER_SHA" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Missing helper digest"; exit 1; }
