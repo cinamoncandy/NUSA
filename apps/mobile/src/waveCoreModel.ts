@@ -50,6 +50,15 @@ export function waveEnvelope(x: number, pulses: readonly WavePulse[], now: numbe
   return e;
 }
 
+/** Largest swing of a wave from its centre line, as a share of the box height. The strip below and the title above stay clear of it. */
+export const WAVE_REACH = 0.34;
+
+/** Soft limit: nearly linear for small swings, flattening smoothly as a swing nears `limit`, so a burst of pulses never leaves the box. */
+export function softLimit(value: number, limit: number): number {
+  if (!Number.isFinite(value) || !(limit > 0)) return 0;
+  return limit * Math.tanh(value / limit);
+}
+
 /** One step of the amplitude spring toward `rest`; a kick is added to the velocity by the caller. */
 export function springStep(amp: number, velocity: number, rest: number, dt: number): { readonly amp: number; readonly velocity: number } {
   const acc = (rest - amp) * 34 - velocity * 3.6;
