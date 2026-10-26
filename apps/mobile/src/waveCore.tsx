@@ -35,17 +35,19 @@ function wavePath(w: WaveSpec, width: number, cy: number, amp: number, phase: nu
   return path;
 }
 
-export function WaveCore({ decisionCount, orderCount, fillCount = null, live, width, reducedMotion, testID = "now-core" }: {
+export function WaveCore({ decisionCount, orderCount, fillCount = null, live, compact = false, width, reducedMotion, testID = "now-core" }: {
   readonly decisionCount: number | null;
   readonly orderCount: number | null;
   /** Today's PAPER fill count; each rise draws the waves into one line and sends a shockwave. */
   readonly fillCount?: number | null;
   readonly live: boolean;
+  /** Shorter box for the no-data state, so a flat line does not leave a large empty panel. */
+  readonly compact?: boolean;
   readonly width: number;
   readonly reducedMotion: boolean | null;
   readonly testID?: string;
 }) {
-  const height = Math.round(width * 0.78);
+  const height = Math.round(width * (compact ? 0.5 : 0.78));
   const cy = Math.round(height * 0.46);
   const pulses = useRef<readonly WavePulse[]>([]);
   const ticks = useRef<readonly WavePulse[]>([]);
