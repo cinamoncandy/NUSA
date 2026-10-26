@@ -2579,20 +2579,20 @@ current_ops_backup_retention_buckets_20261021:
 
 current_ops_oracle_backup_io_throttle_20261025:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: PR_2874_MERGED_FOLLOWUP_PR_2877_DRAFT_PENDING_CI_AND_REVIEW
+  status: PR_2877_DRAFT_P1_OUTER_TIMEOUT_REPAIR_VALIDATION_PENDING
   issue: 2770
   pull_request: 2874
   follow_up_pull_request: 2877
   follow_up_branch: ccr-00277777-hhlnx4
-  follow_up_base_sha: 4bb02f4655044122a95e3dbb94bba65844c0f0cb
+  follow_up_base_sha: a49325d4677841ef76c36e9edd7939cc0c204588
   branch: fix/oracle-backup-io-priority
   base_sha: fa4c3ad43790d4c6b2916582ef2dee0b32b52118
   previous_source_head: a48daf0a4350e0fdea528b811ac7f0b45f7f094f
-  finding: "Oracle release backup I/O on the shared state-database disk can starve the foreground PAPER writer lease; nice/ionice alone does not provide a bandwidth bound on the measured host scheduler."
-  evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s while capped near 1 MiB/s with PAPER foreground reads improving from about 10 to 14 MiB/s. Current DB stat is 958,992,384 bytes (914.57 MiB); retain the conservative 957 MiB envelope. Six Sunday full-file phases at 0.8 MiB/s require ~119.6 min; +30% observed-workload variance = ~155.5 min, rounded to a backup-only 180 min bound. Stage/preflight/activation remains a separate 40 min job. This is script/budget evidence, not runtime acceptance."
+  finding: "Oracle backup I/O can starve the foreground PAPER writer lease, and run 40198892768 additionally proved the 190-minute outer backup job timeout cancels the 180-minute capped backup step after 149 minutes because 42m33s of bounded setup work runs first."
+  evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s while capped near 1 MiB/s with PAPER foreground reads improving from about 10 to 14 MiB/s. Current DB stat is 958,992,384 bytes (914.57 MiB); retain the conservative 957 MiB envelope. Six Sunday full-file phases at 0.8 MiB/s require ~119.6 min; +30% observed-workload variance = ~155.5 min, rounded to a backup-only 180 min bound. Stage/preflight/activation remains a separate 40 min job. This is script/budget evidence, not runtime acceptance. Run 40198892768: job 121186042724 ran 13:45:11-16:58:33Z; backup step ran 14:27:44-16:56:46Z (~149m) then was cancelled. The workflow outer bound was 190m; `wal_checkpoint(PASSIVE)` disk-I/O warning is caught best-effort by sqlite-backup.js and is not the cancellation cause. Release mutation was skipped; no verified backup receipt exists. Increase outer backup-job budget to 240m (60m pre-backup allowance + unchanged 180m step); preserve 40m release job."
   validation: "Windows coverage at predecessor 0d1877e754946af9a38fa1dd16b74ce6f204be9c exposed an unterminated-quote Git Bash error from passing the multiline test script via bash -c. Harness now uses stdin/bash -s. Focused helper/workflow suite 29/29; Node 24.19 preflight, build, validate:full, security:gate (0 advisories/0 secrets), and diff check PASS. Exact-head CI and fresh independent review still required."
-  follow_up: "PR #2877 adds a fail-closed cgroup io-controller precondition and an in-scope io.max read-back before the capped backup, corrects runbook wording, and adds one test (31/31 focused tests on Node 22). Node 24 preflight left to CI; enforcement and throughput remain post-merge host evidence."
-  next: "PR #2874 is merged. Keep PR #2877 Draft until fresh exact-head CI and non-author review. Owner installs the reviewed root-owned helper before the next canonical Oracle release; #2770 closes only after governed exact-main runtime acceptance. No Oracle mutation by this follow-up."
+  follow_up: "PR #2877 adds cgroup io-controller enforcement checks plus the new evidence-based 240m outer backup job timeout with a 180m step cap and regression coverage. Existing exact-head receipts are historical after this repair; run Node 24 preflight, focused tests and fresh exact-head CI/review, then Formal Validator/Audit/Release. No Oracle retry until merge and exact-main release authorization."
+  next: "PR #2877 successor head with outer timeout repair -> exact-head CI -> fresh non-author review -> separate Formal Validator -> Audit/Release -> merge -> one canonical Oracle release attempt. Preserve all safety and readiness budgets; no host mutation before governed release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_health_guard_lock:

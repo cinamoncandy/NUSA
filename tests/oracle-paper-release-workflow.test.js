@@ -104,13 +104,20 @@ test("the calculated long backup budget is isolated from the short activation jo
   const budgetedBackupMinutes = Math.ceil(requiredBackupMinutes / roundUpToMinutes) * roundUpToMinutes;
   const backupStep = backupJob.slice(backupJob.indexOf("Back up persistent state before release mutation"));
   const backupStepTimeout = Number(backupStep.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+  const backupJobTimeout = Number(backupJob.match(/timeout-minutes:\s*(\d+)/)?.[1]);
   const releaseTimeout = Number(releaseJob.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+  const measuredPreBackupOverheadMinutes = 42 + 33 / 60;
+  const boundedPreBackupAllowanceMinutes = 60;
 
   assert.equal(Math.round(rawBackupMinutes * 10) / 10, 119.6);
   assert.equal(Math.round(requiredBackupMinutes * 10) / 10, 155.5);
   assert.equal(budgetedBackupMinutes, 180);
   assert.equal(backupStepTimeout, budgetedBackupMinutes, "backup-only timeout must be derived from the recorded production envelope");
   assert.ok(backupStepTimeout - requiredBackupMinutes >= 20, "calculated backup envelope needs at least twenty minutes of explicit margin");
+  assert.equal(backupJobTimeout, backupStepTimeout + boundedPreBackupAllowanceMinutes,
+    "outer job must allow the full bounded backup step after its pre-backup work");
+  assert.ok(boundedPreBackupAllowanceMinutes > measuredPreBackupOverheadMinutes,
+    "run 40198892768 measured 42m33s of pre-backup work; the outer job preserves additional margin");
   assert.equal(releaseTimeout, 40, "stage/preflight/activation keeps its independent short host-job budget");
   assert.match(readiness, /NUSA_READY_STARTUP_WAIT_MS \|\| 300_000/);
   assert.match(readiness, /startupWaitMs > 300_000/);

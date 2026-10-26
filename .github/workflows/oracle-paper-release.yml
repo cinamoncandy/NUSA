@@ -91,10 +91,12 @@ jobs:
     name: Back up exact-main Cloud PAPER state
     needs: prepare
     # Backup is isolated from activation so a slow verified backup can fail before any release
-    # switch. The step budget is derived from the observed production envelope below; it does not
-    # consume the separate 40-minute stage/preflight/activation job budget.
+    # switch. The job budget includes up to 60 minutes for source recheck, bounded prune, artifact
+    # download/unpack, and helper identity proof before the independently capped backup step.
+    # Run 40198892768 consumed 42m33s before backup began; the previous 190m job budget therefore
+    # cancelled its 180m backup step after only ~149m. The release mutation job remains separate.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    timeout-minutes: 190
+    timeout-minutes: 240
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       STEP: /opt/nusa/bin/nusa-release-step
