@@ -27,14 +27,15 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  // Owner-chosen N monogram (2026-09-28), lime (2026-09-30), redrawn as the contour N on near-black (2026-10-01).
+  // Owner-chosen wave mark (2026-10-26) replaces the N monogram: blue/cyan/violet waves with one pink order wave on near-black.
   for (const drawable of [fallback, fallbackRound, logo, splash]) {
-    assert.match(drawable, /NUSA N monogram mark/);
-    assert.match(drawable, /#B6F04B/);
+    assert.match(drawable, /NUSA wave mark/);
+    assert.match(drawable, /#4F7BFF/);
+    assert.doesNotMatch(drawable, /#B6F04B/, "the retired lime must not return");
   }
   for (const drawable of [fallback, fallbackRound]) assert.match(drawable, /#0B0C0E/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
-  assert.match(notification, /NUSA N monogram mark/);
+  assert.match(notification, /NUSA wave mark/);
   assert.doesNotMatch(notification, /#(?!FFFFFFFF|00000000)[0-9A-F]{6}/i, "notification icon must stay monochrome");
   assert.match(api31Theme, /windowSplashScreenAnimatedIcon/);
 });
