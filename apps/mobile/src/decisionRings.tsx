@@ -8,7 +8,7 @@ import { fieldHero, fieldRadii } from "./designSystem";
 import { holoChipPlacement } from "./holoModel";
 
 // Home hero: the reported PAPER decision count over the NUSA flow field: a pulse down the chain per new decision,
-// a lime ignition of the paper cluster on each new PAPER order. Motion stops entirely when the OS reduce-motion setting is on.
+// an order-pink ignition of the paper cluster on each new PAPER order. Motion stops entirely when the OS reduce-motion setting is on.
 export interface DecisionRingsStatus {
   readonly title: string;
   readonly detail: string;

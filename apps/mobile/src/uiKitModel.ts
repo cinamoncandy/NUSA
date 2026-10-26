@@ -2,7 +2,7 @@ import { calmPalette } from "./designSystem";
 
 /**
  * "Calm" design language (presentation only): one status sentence, a big number, hairline rows.
- * Colour carries meaning only: white = normal, lime = my PAPER order, amber = needs attention, red = loss/halt.
+ * Colour carries meaning only: white = normal, pink = my PAPER order, amber = needs attention, red = loss/halt.
  * Pure and React-free so the rules are tested behaviourally. Grants no authority.
  */
 export type CalmTone = "NORMAL" | "ORDER" | "ATTENTION" | "LOSS" | "MUTED";
