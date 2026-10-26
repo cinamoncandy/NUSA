@@ -5,8 +5,6 @@ const {
   ResearchIntelligenceScout,
 } = require("../dist/apps/cloud/src/researchIntelligenceScout.js");
 
-const NOW = new Date("2026-09-20T03:50:00.000Z");
-
 function feed(summary) {
   return '<?xml version="1.0" encoding="UTF-8"?>' +
     '<feed xmlns="http://www.w3.org/2005/Atom">' +
@@ -42,7 +40,6 @@ async function withFetch(fetchImpl, run) {
 test("real arXiv source snapshot becomes zero-authority AXIOM review input", async () => {
   const calls = [];
   const collector = new ArxivResearchIntelligenceCollector({
-    now: () => NOW,
     maxResults: 5,
   });
   const result = await withFetch(fetchFor(feed(
@@ -87,9 +84,22 @@ test("real arXiv source snapshot becomes zero-authority AXIOM review input", asy
   ]);
 });
 
+test("caller-provided collector clock cannot backdate an authenticated source capture", async () => {
+  const callerClock = new Date("2020-01-01T00:00:00.000Z");
+  const collector = new ArxivResearchIntelligenceCollector({ now: () => callerClock });
+  const result = await withFetch(fetchFor(feed("Market impact and transaction cost modeling."), []),
+    () => new ResearchIntelligenceScout([collector]).run());
+  const record = result.records[0];
+
+  assert.ok(record);
+  assert.equal(record.discoveredAt, record.sourceVerificationReceipt.capturedAt);
+  assert.notEqual(record.discoveredAt, callerClock.toISOString());
+  assert.ok(Date.parse(record.discoveredAt) > Date.parse("2020-01-01T00:00:00.000Z"));
+});
+
 test("same source content is deterministically suppressed as a duplicate", async () => {
   const xml = feed("Market impact and transaction cost modeling for reinforcement learning trading.");
-  const collector = new ArxivResearchIntelligenceCollector({ now: () => NOW });
+  const collector = new ArxivResearchIntelligenceCollector();
   const first = await withFetch(fetchFor(xml, []), () => new ResearchIntelligenceScout([collector]).run());
   const second = await withFetch(fetchFor(xml, []), () => new ResearchIntelligenceScout([collector]).run(first.records));
 
@@ -103,11 +113,11 @@ test("same source content is deterministically suppressed as a duplicate", async
 });
 
 test("changed content for the same arXiv identity is an incremental revision, not a fresh source", async () => {
-  const firstCollector = new ArxivResearchIntelligenceCollector({ now: () => NOW });
+  const firstCollector = new ArxivResearchIntelligenceCollector();
   const first = await withFetch(fetchFor(feed("Market impact and transaction cost modeling for reinforcement learning trading."), []),
     () => new ResearchIntelligenceScout([firstCollector]).run());
 
-  const revisedCollector = new ArxivResearchIntelligenceCollector({ now: () => new Date("2026-09-20T04:00:00.000Z") });
+  const revisedCollector = new ArxivResearchIntelligenceCollector();
   const revised = await withFetch(fetchFor(feed(
       "Revised market impact and transaction cost modeling for reinforcement learning trading with added stress tests."
     ), []), () => new ResearchIntelligenceScout([revisedCollector]).run(first.records));
@@ -120,7 +130,7 @@ test("changed content for the same arXiv identity is an incremental revision, no
 });
 
 test("collector failure is observable and cannot fabricate a handoff", async () => {
-  const collector = new ArxivResearchIntelligenceCollector({ now: () => NOW });
+  const collector = new ArxivResearchIntelligenceCollector();
   const result = await withFetch(async () => new Response("", { status: 503 }),
     () => new ResearchIntelligenceScout([collector]).run());
 
@@ -141,7 +151,7 @@ test("generic workflow portfolio research is collected but not routed as financi
     '<summary>We study execution of agentic workflows, compute cost, model selection, and portfolio construction for software tasks.</summary>' +
     '<author><name>Example Author</name></author>' +
     '</entry></feed>';
-  const collector = new ArxivResearchIntelligenceCollector({ now: () => NOW });
+  const collector = new ArxivResearchIntelligenceCollector();
   const result = await withFetch(fetchFor(xml, []), () => new ResearchIntelligenceScout([collector]).run());
 
   assert.equal(result.discovered, 1);

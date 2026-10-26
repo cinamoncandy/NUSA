@@ -128,7 +128,6 @@ export function issueResearchIntelligenceSourceVerificationReceipt(
   record: ResearchIntelligenceRecord,
   capture: VerifiedResearchIntelligenceResponseCapture,
   rawContent: string,
-  capturedAt: string,
 ): ResearchIntelligenceRecord {
   if (!capture || typeof capture !== "object" || !verifiedResponseCaptures.has(capture)) {
     throw new Error("RESEARCH_INTELLIGENCE_SOURCE_CAPTURE_INVALID");
@@ -136,12 +135,13 @@ export function issueResearchIntelligenceSourceVerificationReceipt(
   if (!record || record.sourceVerification !== "UNVERIFIED" || record.validationStatus !== "DISCOVERED"
     || record.sourceVerificationReceipt !== undefined || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()
     || !validSha256(capture.responseBody.length > 0 ? rawSha256(capture.responseBody) : "")
-    || !Number.isFinite(Date.parse(capturedAt))
-    || Date.parse(capturedAt) !== Date.parse(record.discoveredAt)) {
+    || !Number.isFinite(Date.parse(capture.capturedAt))
+    || new Date(capture.capturedAt).toISOString() !== capture.capturedAt
+    || Date.parse(capture.capturedAt) !== Date.parse(record.discoveredAt)) {
     throw new Error("RESEARCH_INTELLIGENCE_SOURCE_CAPTURE_INVALID");
   }
   validateCaptureSource(record, capture.verifierId, capture.requestUrl, capture.responseUrl);
-  validateCompleteArxivEntry(record, capture, rawContent, capturedAt);
+  validateCompleteArxivEntry(record, capture, rawContent, capture.capturedAt);
   const core = Object.freeze({
     schemaVersion: 1 as const,
     verifierId: capture.verifierId,
@@ -150,7 +150,7 @@ export function issueResearchIntelligenceSourceVerificationReceipt(
     responseFingerprint: rawSha256(capture.responseBody),
     rawContentSha256: record.rawContentSha256.toLowerCase(),
     sourceEntryBindingFingerprint: sourceEntryBinding(record),
-    capturedAt: new Date(capturedAt).toISOString(),
+    capturedAt: capture.capturedAt,
   });
   const receipt = Object.freeze({ ...core, receiptFingerprint: sha256(core) });
   const verified = Object.freeze({
@@ -168,6 +168,8 @@ export interface VerifiedResearchIntelligenceResponseCapture {
   readonly requestUrl: string;
   readonly responseUrl: string;
   readonly responseBody: string;
+  /** Stamped by the canonical fetch after the full response body is read; callers cannot supply it. */
+  readonly capturedAt: string;
 }
 
 /** Fetches a public source itself; callers cannot mint a verified capture from supplied bytes. */
@@ -189,11 +191,13 @@ export async function fetchResearchIntelligenceSourceCapture(
     redirect: "error",
   });
   if (!response.ok) throw new Error(`arXiv API returned HTTP ${response.status}`);
+  const responseBody = await response.text();
   const capture = Object.freeze({
     verifierId,
     requestUrl: request.toString(),
     responseUrl: response.url || request.toString(),
-    responseBody: await response.text(),
+    responseBody,
+    capturedAt: new Date().toISOString(),
   });
   if (capture.responseBody.length === 0) throw new Error("SOURCE_CAPTURE_RESPONSE_EMPTY");
   verifiedResponseCaptures.add(capture);
@@ -229,7 +233,24 @@ export function carryResearchIntelligenceSourceAuthentication<T extends Research
   source: ResearchIntelligenceRecord,
   derived: T,
 ): T {
+  const sourceCore = { ...source } as Record<string, unknown>;
+  const derivedCore = { ...derived } as Record<string, unknown>;
+  for (const key of ["novelty", "relatedExistingResearch", "axiomHandoffStatus"]) {
+    delete sourceCore[key];
+    delete derivedCore[key];
+  }
+  const allowedNovelty = new Set(["NEW", "DUPLICATE", "INCREMENTAL", "REPLICATION"]);
+  const allowedHandoffStatus = new Set(["NOT_READY", "READY_FOR_AXIOM_REVIEW", "DUPLICATE_SUPPRESSED"]);
+  const relationsAreCanonical = Array.isArray(derived.relatedExistingResearch)
+    && derived.relatedExistingResearch.every((value) => typeof value === "string" && value.length > 0)
+    && canonicalResearchJson(derived.relatedExistingResearch) === canonicalResearchJson([...new Set(derived.relatedExistingResearch)].sort())
+    && (derived.novelty !== "DUPLICATE" || derived.axiomHandoffStatus === "DUPLICATE_SUPPRESSED")
+    && (derived.axiomHandoffStatus !== "DUPLICATE_SUPPRESSED" || derived.novelty === "DUPLICATE");
   if (isResearchIntelligenceSourceRecordAuthenticated(source)
+    && canonicalResearchJson(sourceCore) === canonicalResearchJson(derivedCore)
+    && allowedNovelty.has(derived.novelty)
+    && allowedHandoffStatus.has(derived.axiomHandoffStatus)
+    && relationsAreCanonical
     && derived.recordId === source.recordId
     && derived.contentFingerprint === source.contentFingerprint
     && derived.sourceVerificationReceipt?.receiptFingerprint === source.sourceVerificationReceipt?.receiptFingerprint) {

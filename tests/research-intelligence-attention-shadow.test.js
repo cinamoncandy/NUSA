@@ -51,7 +51,7 @@ function record(overrides = {}) {
     title: "Realistic Market Impact Modeling for Reinforcement Learning Trading Environments",
     authors: ["NUSA Test"],
     publishedAt: "2026-03-30T17:55:21.000Z",
-    discoveredAt: "2026-09-20T03:50:00.000Z",
+    discoveredAt: sourceCapture.capturedAt,
     rawContentSha256: createHash("sha256").update(rawContent).digest("hex"),
     topic: ["market-microstructure"],
     market: "UNSPECIFIED",
@@ -80,7 +80,7 @@ function record(overrides = {}) {
   if (unverified.sourceId !== "arxiv:2603.29086"
     || unverified.sourceUrl !== "https://arxiv.org/abs/2603.29086"
     || unverified.rawContentSha256 !== createHash("sha256").update(rawContent).digest("hex")) return unverified;
-  return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent, unverified.discoveredAt);
+  return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent);
 }
 
 function collectorFor(records, sourceId = "arxiv") {

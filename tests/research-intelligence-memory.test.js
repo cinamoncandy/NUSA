@@ -3,10 +3,13 @@ const assert = require("node:assert/strict");
 
 const {
   createResearchIntelligenceRecord,
+  researchIntelligenceHypothesisSemanticFingerprint,
 } = require("../dist/packages/contracts/src/researchIntelligence.js");
 const {
   fetchResearchIntelligenceSourceCapture,
   issueResearchIntelligenceSourceVerificationReceipt,
+  carryResearchIntelligenceSourceAuthentication,
+  isResearchIntelligenceSourceRecordAuthenticated,
 } = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
 const {
   ResearchIntelligenceScout,
@@ -39,7 +42,7 @@ test.before(async () => {
   }
 });
 
-function unverifiedRecord(discoveredAt, patch = {}) {
+function unverifiedRecord(discoveredAt = sourceCapture.capturedAt, patch = {}) {
   return createResearchIntelligenceRecord({
     sourceId: "arxiv:2603.29086",
     sourceType: "ARXIV",
@@ -75,9 +78,9 @@ function unverifiedRecord(discoveredAt, patch = {}) {
   });
 }
 
-function record(discoveredAt) {
-  const unverified = unverifiedRecord(discoveredAt);
-  return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent, discoveredAt);
+function record(patch = {}) {
+  const unverified = unverifiedRecord(sourceCapture.capturedAt, patch);
+  return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent);
 }
 
 test("canonical semantic memory suppresses the same research across scout runs", async () => {
@@ -86,7 +89,7 @@ test("canonical semantic memory suppresses the same research across scout runs",
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
     const firstCollector = {
       sourceId: "arxiv",
-      collect: async () => Object.freeze([record("2026-09-20T04:00:00.000Z")]),
+      collect: async () => Object.freeze([record()]),
     };
     const first = await new ResearchIntelligenceScout([firstCollector], memory).run();
 
@@ -97,7 +100,7 @@ test("canonical semantic memory suppresses the same research across scout runs",
 
     const secondCollector = {
       sourceId: "arxiv",
-      collect: async () => Object.freeze([record("2026-09-20T16:00:00.000Z")]),
+      collect: async () => Object.freeze([record()]),
     };
     const second = await new ResearchIntelligenceScout([secondCollector], memory).run();
 
@@ -129,11 +132,11 @@ test("research intelligence memory fails closed on record identity conflict", ()
   const db = new SqliteDatabase(":memory:");
   try {
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
-    const original = record("2026-09-20T04:00:00.000Z");
+    const original = record();
     memory.append(original);
 
     assert.throws(
-      () => memory.append(record("2026-09-20T05:00:00.000Z")),
+      () => memory.append(record({ testableHypothesis: "A different research interpretation of the same source." })),
       /identity conflict/,
     );
   } finally {
@@ -145,7 +148,7 @@ test("SQLite source trust rejects caller taxonomy claims and rehydrates only can
   const db = new SqliteDatabase(":memory:");
   try {
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
-    const authenticated = record("2026-09-20T04:00:00.000Z");
+    const authenticated = record();
     const { issueResearchIntelligenceSourceVerificationReceipt } = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
     const unverified = createResearchIntelligenceRecord({
       sourceId: authenticated.sourceId, sourceType: authenticated.sourceType, sourceUrl: authenticated.sourceUrl,
@@ -160,7 +163,6 @@ test("SQLite source trust rejects caller taxonomy claims and rehydrates only can
       unverified,
       { ...sourceCapture },
       rawContent,
-      unverified.discoveredAt,
     ), /CAPTURE_INVALID/, "a caller-copy of the receipt material is not an authenticated capture capability");
     const callerClaim = Object.freeze({
       ...authenticated,
@@ -181,26 +183,63 @@ test("SQLite source trust rejects caller taxonomy claims and rehydrates only can
 
 test("source verifier rejects an arXiv ID substring and metadata not present in the complete entry", () => {
   const idOnly = "<id>http://arxiv.org/abs/2603.29086v1</id>";
-  const substringRecord = unverifiedRecord("2026-09-20T04:00:00.000Z", {
+  const substringRecord = unverifiedRecord(sourceCapture.capturedAt, {
     rawContentSha256: require("node:crypto").createHash("sha256").update(idOnly).digest("hex"),
     title: "Invented title",
     publishedAt: "2020-01-01T00:00:00.000Z",
     claimedContribution: "Invented publisher claim",
   });
   assert.throws(
-    () => issueResearchIntelligenceSourceVerificationReceipt(substringRecord, sourceCapture, idOnly, substringRecord.discoveredAt),
+    () => issueResearchIntelligenceSourceVerificationReceipt(substringRecord, sourceCapture, idOnly),
     /ENTRY_INVALID/,
   );
 
-  const fabricatedMetadata = unverifiedRecord("2026-09-20T04:00:00.000Z", {
+  const fabricatedMetadata = unverifiedRecord(sourceCapture.capturedAt, {
     title: "Invented title",
     publishedAt: "2020-01-01T00:00:00.000Z",
     claimedContribution: "Invented publisher claim",
   });
   assert.throws(
-    () => issueResearchIntelligenceSourceVerificationReceipt(fabricatedMetadata, sourceCapture, rawContent, fabricatedMetadata.discoveredAt),
+    () => issueResearchIntelligenceSourceVerificationReceipt(fabricatedMetadata, sourceCapture, rawContent),
     /RECORD_MISMATCH/,
   );
+
+  const backdatedRecord = unverifiedRecord("2026-04-01T00:00:00.000Z");
+  assert.throws(
+    () => issueResearchIntelligenceSourceVerificationReceipt(backdatedRecord, sourceCapture, rawContent),
+    /CAPTURE_INVALID/,
+    "the caller cannot backdate a capture independently stamped by the canonical fetch",
+  );
+});
+
+test("source authentication cannot be carried across changes to research interpretation fields", () => {
+  const authenticated = record();
+  const legitimateRelation = carryResearchIntelligenceSourceAuthentication(authenticated, Object.freeze({
+    ...authenticated,
+    novelty: "NEW",
+    relatedExistingResearch: [],
+    axiomHandoffStatus: "NOT_READY",
+  }));
+  assert.equal(isResearchIntelligenceSourceRecordAuthenticated(legitimateRelation), true);
+
+  const forgedInterpretation = carryResearchIntelligenceSourceAuthentication(authenticated, Object.freeze({
+    ...authenticated,
+    testableHypothesis: "A caller-authored hypothesis that was not present in the source.",
+    hypothesisSemanticFingerprint: researchIntelligenceHypothesisSemanticFingerprint({
+      testableHypothesis: "A caller-authored hypothesis that was not present in the source.",
+      market: authenticated.market,
+      timeframe: authenticated.timeframe,
+      method: authenticated.method,
+    }),
+    nusaRelevance: "HIGH",
+    evidenceQuality: "CODE_AVAILABLE_UNVERIFIED",
+    assumptions: ["Caller-selected assumption."],
+    requiredData: ["Caller-selected data requirement."],
+    novelty: "NEW",
+    relatedExistingResearch: [],
+    axiomHandoffStatus: "READY_FOR_AXIOM_REVIEW",
+  }));
+  assert.equal(isResearchIntelligenceSourceRecordAuthenticated(forgedInterpretation), false);
 });
 
 
@@ -208,7 +247,7 @@ test("persisted payload tampering fails closed against semantic provenance", () 
   const db = new SqliteDatabase(":memory:");
   try {
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
-    const original = record("2026-09-20T04:00:00.000Z");
+    const original = record();
     memory.append(original);
 
     db.connection.prepare(
@@ -237,8 +276,8 @@ test("only the canonical persisted Research Intelligence repository can bind new
       sourceUrl: "https://arxiv.org/abs/2603.29086",
       publisher: "arXiv",
       publishedAt: "2026-03-30T17:55:21.000Z",
-      retrievedAt: "2026-10-25T00:00:00Z",
-      firstObservedAt: "2026-10-24T01:00:00Z",
+      retrievedAt: sourceCapture.capturedAt,
+      firstObservedAt: sourceCapture.capturedAt,
       contentSnapshot: snapshot,
       contentFingerprint: fingerprint,
       sourceType: "NEWS",
@@ -250,7 +289,7 @@ test("only the canonical persisted Research Intelligence repository can bind new
       publisherClaims: ["impact is bullish"],
       scoutInferences: ["test whether volatility changes"],
     });
-    const sourceRecord = record(observation.firstObservedAt);
+    const sourceRecord = record();
     const unverifiedSourceRecord = createResearchIntelligenceRecord({
       sourceId: sourceRecord.sourceId, sourceType: sourceRecord.sourceType, sourceUrl: sourceRecord.sourceUrl,
       sourceVerification: "UNVERIFIED", title: sourceRecord.title, authors: sourceRecord.authors,
@@ -292,7 +331,7 @@ test("only the canonical persisted Research Intelligence repository can bind new
       holdingPeriodMs: 3_600_000,
       capacityAssumptions: { maxNotional: 1_000_000, maxParticipationRate: 0.01 },
       transactionCostSensitivity: 0.8,
-      createdAt: "2026-10-25T02:00:00Z",
+      createdAt: sourceCapture.capturedAt,
       datasetBinding: { manifest: "manifest-v1" },
       evaluationPlan: {
         pitWindow: { startAt: "2026-01-01T00:00:00Z", endAt: "2026-06-01T00:00:00Z" },

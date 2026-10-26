@@ -69,7 +69,6 @@ export interface ResearchIntelligenceScoutResult {
 }
 
 export interface ArxivResearchIntelligenceCollectorOptions {
-  readonly now?: () => Date;
   readonly maxResults?: number;
   readonly searchQuery?: string;
 }
@@ -181,12 +180,10 @@ function testableReplicationHypothesis(title: string): string {
 
 export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceCollector {
   public readonly sourceId = "arxiv";
-  private readonly now: () => Date;
   private readonly maxResults: number;
   private readonly searchQuery: string;
 
   public constructor(options: ArxivResearchIntelligenceCollectorOptions = {}) {
-    this.now = options.now ?? (() => new Date());
     this.maxResults = options.maxResults ?? 20;
     this.searchQuery = options.searchQuery ?? DEFAULT_ARXIV_QUERY;
     if (!Number.isSafeInteger(this.maxResults) || this.maxResults < 1 || this.maxResults > 100) {
@@ -208,7 +205,7 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
       throw new Error("arXiv response is not a usable Atom feed");
     }
 
-    const discoveredAt = this.now().toISOString();
+    const discoveredAt = capture.capturedAt;
     const records: ResearchIntelligenceRecord[] = [];
     for (const match of xml.matchAll(/<entry\b[\s\S]*?<\/entry>/gi)) {
       const entry = match[0];
@@ -262,7 +259,7 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
           transactionCostSensitivity: "UNKNOWN",
           validationStatus: "DISCOVERED",
         });
-      records.push(issueResearchIntelligenceSourceVerificationReceipt(unverifiedRecord, capture, entry, discoveredAt));
+      records.push(issueResearchIntelligenceSourceVerificationReceipt(unverifiedRecord, capture, entry));
     }
 
     return Object.freeze(records.sort((left, right) => {

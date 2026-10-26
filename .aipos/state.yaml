@@ -68,6 +68,18 @@ current_strategy_intake_canonical_store_binding_local_validated_20261026:
   next: "Confirm remote branch identity, publish one substantive non-force successor commit, then obtain exact-head CI and fresh non-author review. Formal NUSA Validator remains separate; production Scout composition and genuine Research/PAPER outcome remain unverified."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_capture_clock_and_auth_carry_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: ab530a26d5171101ef201a737f9bc061c984ea53
+  finding: "Fresh exact-head review found caller-injected collector time could backdate canonical arXiv capture, and generic authentication carry could preserve trust after changing unbound hypothesis, relevance, evidence-quality, assumption, or required-data fields."
+  fix: "The canonical HTTPS fetch stamps capturedAt after reading the complete response; issuer and record discoveredAt bind to that opaque timestamp. Authentication carry now compares the complete record projection and allows only canonical relation/handoff metadata deltas, rejecting interpretation-field changes even with recomputed public semantic fingerprints."
+  validation: "Node 24.19 preflight, typecheck, validate:full, security:gate, lint (45 existing warnings/0 errors), build, focused Research Intelligence tests 34/34, full pnpm test (1284 isolated test files), and git diff check PASS. Successor exact-head CI and fresh review pending."
+  next: "Recheck protected main and PR/remote branch identity, commit and non-force push the substantive repair to existing PR #2878, then require exact-successor CI and fresh non-author review. Formal NUSA Validator remains separate; keep Draft; no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_final_local_validated_20261026:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI

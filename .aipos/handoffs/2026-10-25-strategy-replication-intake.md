@@ -180,3 +180,13 @@ Fresh Codex review on PR #2878 head `46eb5ef73ad7e7b7d2930461df712c91ae3c8f0c` f
 Validation on the current local successor: focused Research Intelligence memory tests 6/6; Scout/attention-shadow tests 26/26; build; `validate:full`; `security:gate`; lint (45 existing warnings, zero errors); full `pnpm test` (1,284 isolated test files); and `git diff --check` PASS. Exact-head CI and fresh review for the successor remain pending. AIPOS state records this finding and next transition. No formal NUSA Validator, Audit/Release, merge, Oracle deployment/restart, or production evidence is claimed. The Oracle backup cancellation remains a separate unresolved infrastructure issue; no retry or mutation was performed.
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
+## Fresh exact-head review repair — capture timestamp and authentication carry boundary, 2026-10-26
+
+Fresh Codex review on PR #2878 head `ab530a26d5171101ef201a737f9bc061c984ea53` found two P1s. First, the collector's injectable `now` callback could set `discoveredAt` earlier than the actual arXiv fetch; second, the generic authentication carry helper preserved the WeakSet capability when internal code changed `testableHypothesis`, its semantic fingerprint, relevance, evidence quality, assumptions, or required-data fields.
+
+The successor now stamps `capturedAt` inside the canonical HTTPS fetch after reading the full response body. Receipt issuance requires `record.discoveredAt` to equal that opaque capture timestamp; the collector no longer accepts an injectable clock. Authentication carry compares every canonical record field and only permits novelty/related-record/handoff metadata deltas with valid deterministic forms. Regression tests cover a caller-provided 2020 clock, backdated receipt issuance, and changed interpretation fields with a recomputed semantic fingerprint.
+
+Validation on the local successor: Node 24.19 preflight, typecheck, `validate:full`, `security:gate`, lint (45 existing warnings / 0 errors), build, focused Research Intelligence tests 34/34, full `pnpm test` (1,284 isolated test files), and `git diff --check` PASS. Exact-head CI and fresh non-author review for the successor remain pending. No formal NUSA Validator, Audit/Release, merge, or Oracle deployment/restart is claimed. Oracle backup cancellation remains unresolved; no retry or runtime mutation was performed.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
