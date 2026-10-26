@@ -67,13 +67,13 @@ test("the tiles keep the earlier row test ids and the labels speak Korean", () =
   for (const text of Object.values(VITAL_LABELS)) assert.match(text, /[가-힣]/);
 });
 
-test("the shared readability floor never lets text go below 12 px (body) or 11 px (tracked labels)", () => {
-  assert.deepEqual([MIN_BODY_FONT, MIN_LABEL_FONT], [12, 11]);
-  for (const n of [8, 9, 10, 11, 11.5]) assert.equal(readableFont(n), 12);
-  for (const n of [8, 9, 10]) assert.equal(labelFont(n), 11);
+test("the shared readability floor never lets text go below 13 px (body) or 12 px (tracked labels)", () => {
+  assert.deepEqual([MIN_BODY_FONT, MIN_LABEL_FONT], [13, 12]);
+  for (const n of [8, 9, 10, 11, 12.5]) assert.equal(readableFont(n), 13);
+  for (const n of [8, 9, 10, 11]) assert.equal(labelFont(n), 12);
   assert.equal(readableFont(14), 14);
   assert.equal(labelFont(13), 13);
-  assert.equal(readableLineHeight(12, 13), 17);
+  assert.equal(readableLineHeight(13, 13), 18);
   assert.equal(readableLineHeight(12, 20), 20);
 });
 

@@ -10,6 +10,8 @@ import { fieldFonts } from "./fieldFonts";
 import { readableFont } from "./designSystem";
 
 /**
+ * UNUSED since 2026-10-26 (the Now tab draws WaveCore); kept so the dotted-globe design can be restored. "lime" below is historical: the order colour is now pink.
+ *
  * The decision core, the main motion graphic of "지금" (owner-chosen 2026-10-21): a slowly turning sphere of points joined like a neural
  * mesh. A real new decision sends a wave of light across its surface; a real new PAPER order throws lime sparks out of it; when buying
  * is held the sphere cools to amber and slows. Presentation only: it draws the counts the screen already has and invents nothing.
@@ -112,7 +114,9 @@ function renderCore(canvas: SkCanvas, { tone, width, height, t, nowMs, still, wa
   // Aura: a soft pool of the tone colour behind the sphere.
   // Each gradient is made, used for one draw and disposed at once, so nothing native piles up at 30 fps.
   const drawGlow = (r: number, a0: number) => { const sh = Skia.Shader.MakeRadialGradient({ x: cx, y: cy }, r, [withAlpha(accent, a0), withAlpha(accent, a0 * 0.3), withAlpha(accent, 0)], [0, 0.45, 1], TileMode.Clamp); glow.setShader(sh); canvas.drawCircle(cx, cy, r, glow); glow.setShader(null); sh.dispose(); };
-  drawGlow(radius * 1.7, 0.16 + heat * 0.12);
+  drawGlow(radius * 1.9, 0.2 + heat * 0.14);
+  // Soft rim: one clean outline so the sphere reads as a solid shape, not a cloud of specks.
+  line.setStrokeWidth(1.2); set(line, colors.ink, 0.1); canvas.drawCircle(cx, cy, radius * breathe, line);
 
   // Orbit ring with one slow point (the hours going round).
   line.setStrokeWidth(1); set(line, colors.ink, 0.07);
@@ -137,13 +141,13 @@ function renderCore(canvas: SkCanvas, { tone, width, height, t, nowMs, still, wa
     groups[front > 0.66 ? 2 : front > 0.33 ? 1 : 0]!.push({ x: a.x, y: a.y }, { x: b.x, y: b.y });
   }
   line.setStrokeWidth(0.6);
-  [0.04, 0.08, 0.13].forEach((alpha, g) => { if (groups[g]!.length > 0) { set(line, colors.ink, alpha); canvas.drawPoints(PointMode.Lines, groups[g]!, line); } });
+  [0.025, 0.06, 0.12].forEach((alpha, g) => { if (groups[g]!.length > 0) { set(line, colors.ink, alpha); canvas.drawPoints(PointMode.Lines, groups[g]!, line); } });
   lit.forEach(({ a, b }) => { set(line, accent, 0.06 + Math.max(a.e, b.e) * 0.6); canvas.drawLine(a.x, a.y, b.x, b.y, line); });
 
   // Points: three depth groups in ink, then the wave-lit ones in the tone colour with a halo.
   const pg: SkPoint[][] = [[], [], []]; const hot: typeof proj = [];
   for (const q of proj) { if (q.e > 0.05) { hot.push(q); continue; } const front = (-q.z + 1) / 2; pg[front > 0.66 ? 2 : front > 0.33 ? 1 : 0]!.push({ x: q.x, y: q.y }); }
-  [[0.9, 0.2], [1.3, 0.38], [1.8, 0.7]].forEach(([w, alpha], g) => { if (pg[g]!.length > 0) { dot.setStrokeWidth(w! * q0(width)); set(dot, colors.ink, alpha!); canvas.drawPoints(PointMode.Points, pg[g]!, dot); } });
+  [[0, 0], [1.4, 0.34], [2.1, 0.75]].forEach(([w, alpha], g) => { if (alpha! > 0 && pg[g]!.length > 0) { dot.setStrokeWidth(w! * q0(width)); set(dot, colors.ink, alpha!); canvas.drawPoints(PointMode.Points, pg[g]!, dot); } });
   hot.forEach((q) => {
     dot.setStrokeWidth((1.6 + q.e * 3) * q0(width)); set(dot, accent, 0.4 + q.e * 0.6); canvas.drawPoints(PointMode.Points, [{ x: q.x, y: q.y }], dot);
     if (q.e > 0.35) { set(fill, accent, q.e * 0.18); canvas.drawCircle(q.x, q.y, 6 + q.e * 8, fill); }

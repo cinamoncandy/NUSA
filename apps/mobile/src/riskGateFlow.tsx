@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   rSeg: { position: "absolute", top: 40, height: 7 },
   rDash: { position: "absolute", top: 43, width: 2, height: 1.5, backgroundColor: calmColors.muted },
   rFlag: { position: "absolute", top: 14, width: 1, height: 26, backgroundColor: calmColors.text },
-  rFlagText: { position: "absolute", top: 8, width: 86, color: calmColors.text, fontSize: readableFont(11) },
+  rFlagText: { position: "absolute", top: 8, width: 100, color: calmColors.text, fontSize: readableFont(11) },
   rNow: { position: "absolute", width: 8, height: 8, borderRightWidth: 2, borderBottomWidth: 2, borderColor: calmColors.attention },
   rNowText: { position: "absolute", width: 60, textAlign: "center", color: calmColors.attention, fontSize: readableFont(11) },
   rHour: { position: "absolute", top: 54, color: calmColors.muted, fontSize: readableFont(11) },

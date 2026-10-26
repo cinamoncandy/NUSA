@@ -13,7 +13,7 @@ const GATE_WORD = Object.freeze({ PASS: "통과", FAIL: "실패", BLOCKED: "막�
 
 export function buildSafetyScreen(gates: LiveGateSummary | null, blockers: readonly string[]): SafetyScreenModel {
   const rows: SafetyRow[] = [
-    { label: "실거래", hint: "모의투자만 할 수 있어요", value: "잠김 · 영구", tone: "ORDER" },
+    { label: "실거래", hint: "모의투자만 할 수 있어요", value: "잠김 · 영구", tone: "NORMAL" },
     { label: "AI", hint: "의견만 낼 수 있어요", value: "권한 없음", tone: "NORMAL" },
   ];
   if (gates != null) {

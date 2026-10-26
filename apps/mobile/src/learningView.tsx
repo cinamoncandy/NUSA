@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { PaperShadowMonitorView } from "./paperShadowMonitorView";
-import { buildLearningScreen } from "./learningScreenModel";
+import { buildLearningScreen, splitHeroLines } from "./learningScreenModel";
 import { buildLearningFunnel } from "./learningFunnelModel";
 import { LearningFunnel } from "./learningFunnel";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
@@ -28,7 +28,7 @@ export function LearningView(props: Props) {
   </View>;
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
     {funnel ? <LearningFunnel model={funnel} /> : <>
-      <InstrumentHero index="02 / 학습" lines={[{ text: model.headline, color: calmToneColor(model.tone) }]} />
+      <InstrumentHero index="02 / 학습" lines={splitHeroLines(model.headline).map((text) => ({ text, color: calmToneColor(model.tone) }))} label={model.headline} />
       {model.sub ? <Reveal index={1} reducedMotion={reduced}><Text style={styles.sub}>{model.sub}</Text></Reveal> : null}
     </>}
     <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
