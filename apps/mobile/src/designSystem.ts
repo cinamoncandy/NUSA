@@ -270,6 +270,7 @@ export function designSystemSnapshot(theme: Theme): string {
 /**
  * The HOME hero's own accent family. The names say "lime" for history; since 2026-10-26 the colour is the order pink (same as calmPalette.order). Used only for the elements that sit directly with the
  * hero (order count, market chip, the learning tile); the rest of the app keeps the theme colours. Status colours are never this pink.
+ * Known exception: a healthy learning tile also takes this accent (homeVitalsModel.vitalUsesHeroAccent); a warning or missing state keeps its status colour.
  */
 export const fieldHero = Object.freeze({
   lime: "#FF7AC8",
