@@ -43,7 +43,7 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-validation: 'PR head f3a3617f4485d0fae27127be9708d908d506031a has five of six required workflows completed/success; CI was still in progress at last observation. Review found a P2: AIPOS must explicitly require fresh exact-head workflows and non-author review immediately before Audit/Release. This is being corrected. Earlier head 7b686e93c94665efea614dfef960da668a202a2c had all six PASS and no-major-issues receipt, but those receipts are historical after the AIPOS commit.'
-precommit_review: 'P2 findings on 393777626 were fixed; fresh review on 7b686e93c9 found no major issues. Review on f3a3617f found one P2 about explicit current-head gate sequencing. Fix and obtain fresh exact-head gates/review before Audit/Release.'
+validation: 'Exact head f20835bd534fa44c7bad5ffe989054ecf27f5b62: six required workflows completed/success (CI 40260651754, Actual PAPER 40260651579, Capability 40260651635, Activation 40260651581, Transport 40260651713, Read-only Broker 40260651704). Focused tests 31/31 and AIPOS YAML/provenance/drift/conformance/diff PASS. Any later head change makes these workflow receipts historical.'
+precommit_review: 'Fresh non-author review on exact head f20835bd534fa44c7bad5ffe989054ecf27f5b62 found no actionable findings (receipt 6407094152); all three prior P2 review threads are resolved. The next Audit transition still requires live exact-head/base and gate revalidation.'
 publication_blockers: []
 next: Require six completed/success workflows and a fresh clean non-author review bound to the same live PR head and current protected base immediately before Independent Audit. Any head change invalidates both receipts. Keep Draft; then use separately authorized Release gates. No Oracle deployment, helper installation, backup invocation, or host mutation is authorized.
