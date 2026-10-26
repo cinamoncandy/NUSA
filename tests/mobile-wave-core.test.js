@@ -62,3 +62,9 @@ test("a real fill rise locks the waves into one line briefly; no rise, none", ()
   const view = read("nowView.tsx");
   assert.match(view, /fillCount=\{blocked \? null : heartbeat\?\.paperFillCount \?\? null\}/);
 });
+
+test("the wave sets its blend mode by name; the BlendMode enum crashed the emulator (enumKey undefined)", () => {
+  const src = read("waveCore.tsx");
+  assert.match(src, /blendMode="plus"/);
+  assert.doesNotMatch(src, /BlendMode\./);
+});

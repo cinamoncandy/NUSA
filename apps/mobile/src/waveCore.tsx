@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
-import { BlendMode, BlurMask, Canvas, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
+import { BlurMask, Canvas, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, waveEnvelope, WAVE_HISTORY_MS, WAVE_PULSE_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { readableFont, wavePalette } from "./designSystem";
@@ -134,7 +134,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, wi
       {scene.pink > 0.02 ? <Rect x={0} y={0} width={width} height={height} opacity={scene.pink * 0.3}>
         <RadialGradient c={vec(width / 2, cy)} r={width * 0.45} colors={[wavePalette.pink, "transparent"]} />
       </Rect> : null}
-      <Group blendMode={BlendMode.Plus}>
+      <Group blendMode="plus">
         {scene.waves.map(({ w, mul, path }) => path == null ? null : <Group key={`${w.color}-${w.f}`}>
           <Path path={path} style="stroke" strokeWidth={w.kind === "back" ? 12 : 10} strokeCap="round" color={grey ? wavePalette.idle : w.color} opacity={0.12 * Math.min(1, mul + 0.2)}><BlurMask blur={6} style="normal" /></Path>
           {w.kind === "back" ? null : <Path path={path} style="stroke" strokeWidth={1.6} strokeCap="round" color={grey ? wavePalette.idle : w.color} opacity={0.9 * Math.min(1, mul + 0.2)} />}
