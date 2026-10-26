@@ -41,6 +41,6 @@ export function HeartbeatPulse({ lastHeartbeatAt, width, reducedMotion }: { read
 
 const styles = StyleSheet.create({
   track: { height: 3, overflow: "hidden", alignSelf: "center", borderRadius: 2, backgroundColor: calmColors.line },
-  rest: { ...StyleSheet.absoluteFillObject, backgroundColor: calmColors.order },
+  rest: { ...StyleSheet.absoluteFill, backgroundColor: calmColors.order },
   beam: { position: "absolute", top: 0, bottom: 0, width: BEAM, borderRadius: 2, backgroundColor: calmColors.text },
 });
