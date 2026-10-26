@@ -66,7 +66,8 @@ test("the host privileged helper must exactly match reviewed source before the i
   const helperGate = backupJob.indexOf("Require reviewed root-owned helper exact match before backup");
   const backup = backupJob.indexOf("Back up persistent state before release mutation");
   assert.ok(helperGate > 0 && helperGate < backup, "helper drift must fail before backup starts");
-  assert.match(backupJob, /cmp --silent "\$STEP" "\$RELEASE_TREE\/deploy\/oracle\/nusa-release-step\.sh"/);
+  assert.match(backupJob, /cmp --silent "\$STEP" "\$HELPER_PROOF"/);
+  orderIn(backupJob, ["sha256sum --check --status", 'cmp --silent "$STEP" "$HELPER_PROOF"', 'sudo "$STEP" backup']);
   assert.match(backupJob, /Install the exact reviewed root-owned helper before backup\/release/);
 });
 
@@ -382,11 +383,11 @@ test("rollback restores a legacy release that predates the Autopilot systemd uni
   assert.match(installUnits, /die "missing nusa-autopilot\.service/, "forward activation must still fail closed when the unit is missing");
 });
 
-test("superseded releases are pruned before backup artifact expansion so a full disk cannot fail the backup", () => {
+test("superseded releases are pruned before helper proof download so a full disk cannot fail the backup", () => {
   const backupJob = workflow.slice(workflow.indexOf("  backup:"), workflow.indexOf("  release:"));
   const recheck = backupJob.indexOf("Recheck exact protected main before backup");
   const prune = backupJob.indexOf('sudo "$STEP" prune');
-  const download = backupJob.indexOf("Download built release for helper identity proof");
+  const download = backupJob.indexOf("Download exact-source helper proof");
   const backup = backupJob.indexOf('"$STEP" backup');
   assert.ok(prune > recheck && prune < download, "prune must run after the main recheck and before the backup artifact download");
   assert.ok(prune < backup, "prune must free space before the backup");
