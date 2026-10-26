@@ -308,25 +308,36 @@ function parseAuditModelResponse(value: unknown): AuditModelVerdict {
 function currentDiffEvidenceRefs(diff: string): ReadonlySet<string> {
   const refs = new Set<string>();
   let currentFile: string | undefined;
-  let currentLine: number | undefined;
+  let newLine: number | undefined;
+  let oldLine: number | undefined;
   for (const line of diff.split("\n")) {
     if (line.startsWith("+++ b/")) {
       currentFile = line.slice("+++ b/".length);
-      currentLine = undefined;
+      newLine = undefined;
+      oldLine = undefined;
       continue;
     }
-    const hunk = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+    if (line.startsWith("--- ") || line.startsWith("diff ") || line.startsWith("index ")) continue;
+    const hunk = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
     if (hunk) {
-      currentLine = Number(hunk[1]);
+      oldLine = Number(hunk[1]);
+      newLine = Number(hunk[3]);
       continue;
     }
-    if (!currentFile || currentLine === undefined || line.startsWith("\\")) continue;
-    if (line.startsWith("+")) refs.add(`${currentFile}:+${currentLine}`);
-    if (!line.startsWith("-")) currentLine += 1;
+    if (!currentFile || newLine === undefined || oldLine === undefined || line.startsWith("\\")) continue;
+    if (line.startsWith("+")) {
+      refs.add(`${currentFile}:+${newLine}`);
+      newLine += 1;
+    } else if (line.startsWith("-")) {
+      refs.add(`${currentFile}:-${oldLine}`);
+      oldLine += 1;
+    } else {
+      newLine += 1;
+      oldLine += 1;
+    }
   }
   return refs;
 }
-
 function validateBlockerEvidenceAgainstCurrentDiff(verdict: AuditModelVerdict, diff: string): AuditModelVerdict {
   const currentRefs = currentDiffEvidenceRefs(diff);
   for (const finding of verdict.findings) {
@@ -461,7 +472,7 @@ function validatorPrompt(request: ValidatorRunnerRequest, diff: string, protocol
     "The model field mergeAllowed means only that this VALIDATOR found no P0/P1 blocker and the exact head may advance to independent Audit. It grants no merge, Audit, Release, GitHub approval, or production authority.",
     'Return only JSON matching response_format. safetyInvariantResult MUST be exactly "PASS" or "FAIL".',
     "PASS requires zero findings/blockers and mergeAllowed=true. PASS_WITH_NOTES permits P2 NOTE findings only, zero blockers, and mergeAllowed=true. FAIL requires at least one P0_/P1_ BLOCKER finding, blockers, and mergeAllowed=false.",
-    "For every BLOCKER, evidenceRef MUST be exactly one deterministic CURRENT ADDED-LINE EVIDENCE REF below. Never invent or transform one.",
+    "For every BLOCKER, evidenceRef MUST be exactly one deterministic CURRENT DIFF EVIDENCE REF below (an added `:+N` line, or a removed `:-N` line for a defect introduced solely by deleting a safety/authorization check). Never invent or transform one.",
     "--- BEGIN CURRENT ADDED-LINE EVIDENCE REFS ---",
     ...[...currentDiffEvidenceRefs(diff)].sort(),
     "--- END CURRENT ADDED-LINE EVIDENCE REFS ---",
@@ -482,7 +493,7 @@ function auditPrompt(request: AuditRunnerRequest, diff: string): string {
     "Each findings item code MUST be 1-80 characters and contain only uppercase A-Z, digits 0-9, underscore (_), dot (.), colon (:), or hyphen (-). Use a stable machine-readable identifier that names the specific defect you found in this diff; never copy an identifier from these instructions, and never use spaces or lowercase letters in code.",
     "Every BLOCKER finding MUST have at least one corresponding human-readable entry in blockers; never emit a BLOCKER finding with an empty blockers array.",
     "Rules: PASS requires zero findings and zero blockers and mergeAllowed=true. PASS_WITH_NOTES requires one or more NOTE findings and zero blockers; set mergeAllowed=true only when those notes are explicitly non-blocking and the exact reviewed head is safe to merge. FAIL requires at least one BLOCKER finding, at least one blocker, and mergeAllowed=false; never emit blockers without a BLOCKER finding. Any BLOCKER finding, safety failure, test weakening, evidence integrity issue, or material uncertainty requires FAIL and mergeAllowed=false.",
-    "For every BLOCKER, evidenceRef MUST be exactly one value from the deterministic CURRENT ADDED-LINE EVIDENCE REFS list below. Never invent or transform an evidenceRef. A `-` line is removed code, never current behavior; do not report it as a blocker. If a concern depends only on removed code, it is not a current blocker.",
+    "For every BLOCKER, evidenceRef MUST be exactly one value from the deterministic CURRENT DIFF EVIDENCE REFS lists below. Never invent or transform an evidenceRef. An added `:+N` ref cites current behavior. A removed `:-N` ref may be cited only for a defect introduced solely by deleting a safety/authorization check. If a concern depends only on removed code and is not a deletion-only regression, it is not a current blocker.",
     "--- BEGIN CURRENT ADDED-LINE EVIDENCE REFS ---",
     ...[...currentDiffEvidenceRefs(diff)].sort(),
     "--- END CURRENT ADDED-LINE EVIDENCE REFS ---",
