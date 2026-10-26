@@ -1,28 +1,29 @@
 # Learning-loop and Oracle timeout repair handoff — 2026-10-26
 
-## Closed-learning status
+## Current canonical gate — PR #2877 / Issue #2770
 
-- Protected main: `de6cb5d56acfec429659301c9c1ed8b424e7935f`.
-- Read-only Oracle host diagnosis run `40275442510` completed successfully on that workflow ref. `/health` returned HTTP 200 at `2026-10-26T05:41:17Z`, but deployed runtime source is `c59b522410cb0ea62977382f15d253c331c690f8`, not protected main.
-- Runtime reports `researchCollectionStatus=COLLECTING`, 45,108 candles / 15,840 required, `sessionsStarted=0`, and 110 `SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND` entries. `closedLearningLoop` has 621 ticks, `cyclesEvaluated=0`, `cyclesRecorded=0`, `failuresRecorded=0`, bootstrap `RESEARCH_NOT_DEPLOYABLE`, `lastBlockedReason=TICK_ERROR`, and 68 owner-baseline realized periods. Since runtime start: 12,984 market events, no PAPER orders or fills. The 314 fills in the historical ledger predate this run and are not new outcome proof.
-- `previousStop=PREVIOUS_CLOSED_LEARNING_SCHEDULER:PAPER_WRITER_LEASE_LOST`; 7.77-second maximum event-loop stall; services active with zero reported restarts. Disk is 90% used with 4.7 GB free; available memory was 377 MB. Full disk-consumer diagnostics were not run to avoid added I/O pressure.
-- Orderbook study and data-integrity markers were unavailable from the health-only diagnostic. It did not authenticate `/ready` or verify writer-lease ownership/renewal. Exact-main runtime acceptance remains false; learning loop and performance improvement remain unverified.
-- Existing genuine PAPER elapsed soak run `40270441841` is still in progress on exact main. Do not duplicate, cancel, or treat its in-progress state as acceptance.
+- Protected `main` and PR base: `de6cb5d56acfec429659301c9c1ed8b424e7935f`.
+- PR #2877: OPEN / Draft / mergeable; branch `ccr-00277777-hhlnx4`. The last verified source head before this AIPOS recovery correction was `2cbe7d282600df898e8f3057611c0324477fb753`; resolve the actual remote head afresh after publication.
+- On predecessor source head `2cbe7d2`, workflows were SUCCESS: CI `40290233557`; Actual PAPER `40290233541`; Capability Guard `40290233558`; Activation Rehearsal `40290233634`; Transport Readiness `40290233595`; Read-only Broker `40290233733`. These receipts are historical for the AIPOS correction successor.
+- Fresh Codex review receipt `6411381571` reviewed predecessor `2cbe7d2826` and said “Didn't find any major issues.” It is historical for the successor, does not provide formal P0/P1/P2 counts, and does not substitute for the NUSA Formal Validator.
+- GitHub currently lists six unresolved inline review threads, all marked outdated: `4374437884`, `4374437889`, `4374692949`, `4374796244`, `4374887312`, and `4375026300`. Their comments refer to predecessor heads; do not self-resolve them. The separate Formal Validator must adjudicate current applicability and provide explicit counts/verdict.
+- Formal NUSA Validator: PENDING. Independent Audit: NOT STARTED. Release authorization: NOT AUTHORIZED. Merge: NOT DONE. Keep Draft.
+- Backup-cancellation initiator/root cause for run `40198892768` remains UNKNOWN. Timing is consistent with outer-budget pressure but does not prove it.
 
-## Current exact gate — PR #2877 / Issue #2770
+The active work order is `WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE`. Its implementation repair is published in `2cbe7d2`; this follow-up changes AIPOS recovery records because they still directed operators to publish that already-published repair. The follow-up creates a new PR head, so resolve it from GitHub and rerun exact-head validation/review. The implementation replaces PAM-backed `runuser` with non-PAM `setpriv`, verifies the same device's transient-scope `io.max` after privilege drop immediately before SQLite, and fails closed if the cap is missing or mismatched. The 260-minute backup job (60-minute bounded preparation + 180-minute backup step + 20-minute transition margin), separate 40-minute release mutation job, 300-second readiness, 180-second soak, backup integrity/checksum/retention, and writer-lease semantics remain as reviewed. Actual host enforcement and throughput remain unverified until a governed post-merge exact-main release.
 
-- Protected main and PR base: `de6cb5d56acfec429659301c9c1ed8b424e7935f`.
-- Published PR #2877: OPEN / Draft / mergeable, head `ea4ee46bc475b3610ec6a711115fdd1300c22012`.
-- Exact-head CI `40286984490` and five required companion workflows `40286984464`, `40286984537`, `40286984564`, `40286984511`, `40286984487` passed.
-- Fresh non-author Codex review completed on this exact head and found P1 #4375026300: PAM-backed `runuser` may move the backup process from the verified transient I/O-capped cgroup into a user session scope.
-- Local successor repair now uses util-linux `setpriv` with resolved UID/GID and supplementary groups (no PAM), and checks `io.max` again after privilege drop immediately before Node. Regression coverage and runbook were updated. Local successor validation passes: focused tests 31/31, Node 24.19 preflight, validate:full, security:gate, lint (0 errors; existing warnings), bash -n, and diff check. It is not yet published and has no successor CI/review; do not reuse predecessor receipts.
-- Exact-head Formal Validator, Audit, Release authorization, merge, and Oracle runtime acceptance remain pending. Keep Draft.
-- Backup cancellation in run `40198892768` remains UNKNOWN; observed timing is only consistent with outer-budget pressure.
+## Fresh read-only Oracle and learning observation
 
-## Fresh read-only Oracle and learning status
+At `2026-10-26T09:11Z`, `/health` reported healthy, `nusa.service` was active, and port `41731` was listening. Runtime source SHA was `c59b522410cb0ea62977382f15d253c331c690f8`, not protected main. Root disk was 90% used with 4,864,728 KiB available. No deployment, restart, backup retry, database mutation, or lease mutation was performed. Authenticated `/ready` and current writer-lease ownership/renewal were not verified.
 
-At 2026-10-26 07:52 UTC: `nusa.service` active; local `/health` healthy; runtime SHA `c59b522410cb0ea62977382f15d253c331c690f8` does not match protected main. Root disk 90% used (4.7 GB free), available memory 395 MB. No deploy, restart, backup retry, DB mutation, or lease reset was performed.
+Health reported 45,108 research candles / 15,840 required, `sessionsStarted=0`, and 180 `SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND` skips. Closed learning reported 68 realized owner-baseline periods, `cyclesEvaluated=0`, `cyclesRecorded=0`, `failuresRecorded=0`, bootstrap `RESEARCH_NOT_DEPLOYABLE`, and `lastBlockedReason=TICK_ERROR`. Its initiating error remains UNKNOWN. Historical ledger fills (314) are not new candidate-bound PAPER evidence. Sealed dataset, Research session, durable cycle, N+1, exact-main runtime acceptance, and performance improvement remain unverified.
 
-Runtime reports `previousStop=PAPER_WRITER_LEASE_LOST`, 68 owner-baseline realized periods, 0 Research sessions, 150 manifest-not-found skips, 0 evaluated/recorded learning cycles, and no new PAPER orders/fills since process start. Historic ledger fills are not new candidate-bound proof. Authenticated readiness and writer-lease renewal were not verified. Dataset, Research N+1, durable learning, N+1 PAPER, and performance improvement remain unverified. Keep cancellation root cause UNKNOWN and `PERFORMANCE_IMPROVEMENT=UNPROVEN`.
+Migration 032 and the archive retention change are present in protected-main ancestry through merged PR #2854, but the current Oracle runtime SHA predates `main`; runtime migration application and forward recovery are therefore not accepted as verified. No retention adjustment, archive deletion, synthetic candle, or history rewrite is permitted.
 
-Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, `realTransferAuthority=false`, `aiAuthority=ZERO_AUTHORITY`.
+## Next permitted transition
+
+Fresh-read the actual PR #2877 head and protected main → exact-head CI and one fresh non-author review for the AIPOS correction successor → separate Formal NUSA Validator receipt with `P0`, `P1`, `P2`, actionable findings, and explicit verdict. Do not proceed to Audit, Release, merge, or Oracle mutation without the exact-head accepted gate and subsequent governed approvals.
+
+After governed merge, re-verify protected-main SHA, then use only the canonical Oracle release path. Exact-main runtime acceptance requires exact SHA, authenticated readiness, owned/renewing writer lease, stable listener, bounded startup and 180-second soak, controlled restart/replay, and duplicate-free behavior. Only then continue to sealed canonical dataset → authentic Research session → qualification/governed PAPER → candidate-bound outcome → durable learning cycle → Research N+1.
+
+Safety remains `PAPER_ONLY`; `liveAuthority=NONE`; `productionMutationAllowed=false`; `realOrderAuthority=false`; `realTransferAuthority=false`; `aiAuthority=ZERO_AUTHORITY`. `LEARNING_LOOP_VERIFIED=false`; `PERFORMANCE_IMPROVEMENT=UNPROVEN`.

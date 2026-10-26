@@ -2577,6 +2577,30 @@ current_ops_backup_retention_buckets_20261021:
   next: "Validate calendar-bucket retention -> exact-head CI/Validator -> governed merge -> reviewed backup run -> disk guard evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_ops_oracle_backup_current_head_20261026:
+  work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
+  status: PR_2877_AIPOS_RECOVERY_CORRECTED_EXACT_HEAD_GATES_REQUIRED
+  issue: 2770
+  pull_request: 2877
+  branch: ccr-00277777-hhlnx4
+  source_head_before_aipos_correction: 2cbe7d282600df898e8f3057611c0324477fb753
+  base_at_source_head: de6cb5d56acfec429659301c9c1ed8b424e7935f
+  state: OPEN_DRAFT_MERGEABLE
+  predecessor_workflow_evidence: "On source head 2cbe7d282600df898e8f3057611c0324477fb753: CI 40290233557; Actual PAPER 40290233541; Capability Guard 40290233558; Activation Rehearsal 40290233634; Transport Readiness 40290233595; Read-only Broker 40290233733; all SUCCESS. These receipts are historical after the AIPOS correction commit."
+  predecessor_codex_review: "Receipt 6411381571 reviewed 2cbe7d2826 and says no major issues. It is historical after the AIPOS correction commit and is not a Formal NUSA Validator receipt."
+  review_threads: "Six inline threads remain unresolved but outdated; independent Validator must adjudicate whether any remain actionable on this head. Do not resolve them from this CORE session."
+  current_head: RESOLVE_FROM_GITHUB_AT_RECOVERY
+  exact_head_ci_and_review: REQUIRED_AFTER_AIPOS_CORRECTION_COMMIT
+  formal_validator: PENDING_SEPARATE_FRESH_NON_AUTHOR_CURRENT_EXACT_SHA_VERDICT
+  audit: NOT_STARTED
+  release_authorization: NOT_AUTHORIZED
+  merge: NOT_DONE
+  oracle: "Read-only 2026-10-26T09:11Z: /health healthy, service active, 41731 listening, runtime SHA c59b522410cb0ea62977382f15d253c331c690f8 (not main), root disk 90% used with 4,864,728 KiB available. No deploy/restart/backup retry/database or lease mutation."
+  learning: "sessionsStarted=0; cyclesEvaluated=0; cyclesRecorded=0; 180 manifest-not-found skips; sealed dataset and closed learning loop unverified. TICK_ERROR root cause UNKNOWN."
+  first_broken_transition: "Resolve PR #2877 actual current head -> exact-head CI and fresh non-author review after the AIPOS correction -> separate Formal NUSA Validator P0/P1/P2 and explicit verdict."
+  next: "Fresh-read the actual PR head and main; validate that exact head and request one fresh non-author review after its CI is green, then obtain the separate Formal NUSA Validator receipt. Keep Draft; Audit/Release/merge and Oracle operations remain held."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_backup_helper_proof_20261026:
   work_order: WO-OPS-20261026-BACKUP-HELPER-PROOF
   status: PR_OPEN_DRAFT_GATES_MUST_BE_RECHECKED_BEFORE_AUDIT_RELEASE
@@ -2601,7 +2625,7 @@ current_ops_oracle_backup_helper_proof_20261026:
 
 current_ops_oracle_backup_io_throttle_20261025:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: PR_2877_P1_REPAIR_LOCAL_VALIDATED_READY_TO_PUBLISH
+  status: HISTORICAL_CHECKPOINT_SUPERSEDED_BY_2CBE7D2
   issue: 2770
   pull_request: 2874
   follow_up_pull_request: 2877
@@ -2610,11 +2634,11 @@ current_ops_oracle_backup_io_throttle_20261025:
   branch: ccr-00277777-hhlnx4
   base_sha: fa4c3ad43790d4c6b2916582ef2dee0b32b52118
   previous_source_head: a48daf0a4350e0fdea528b811ac7f0b45f7f094f
-  finding: "Current #2877 head ea4ee46 passed six workflows; fresh non-author review found P1 #4375026300: PAM-backed runuser may move the backup process outside the capped transient cgroup. Backup cancellation root cause remains UNKNOWN."
+  finding: "Historical checkpoint only: #2877 successor 2cbe7d282600df898e8f3057611c0324477fb753 replaced PAM-backed runuser with non-PAM setpriv and added a post-privilege-drop io.max verification. Backup cancellation root cause remains UNKNOWN."
   evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s while capped near 1 MiB/s with PAPER foreground reads improving from about 10 to 14 MiB/s. Current DB stat is 958,992,384 bytes (914.57 MiB); retain the conservative 957 MiB envelope. Six Sunday full-file phases at 0.8 MiB/s require ~119.6 min; +30% observed-workload variance = ~155.5 min, rounded to a backup-only 180 min bound. Stage/preflight/activation remains a separate 40 min job. This is script/budget evidence, not runtime acceptance. Run 40198892768: job 121186042724 ran 13:45:11-16:58:33Z; backup step ran 14:27:44-16:56:46Z (~149m) then was cancelled. The 42m33s pre-backup interval plus the 190m outer bound is consistent with timeout pressure, but logs do not establish the cancellation initiator. `wal_checkpoint(PASSIVE)` is caught as best-effort in sqlite-backup.js; its disk-I/O warning is not proven to be the cancellation cause. Release mutation was skipped; no verified backup receipt exists. Set the outer backup-job budget to 260m: bounded preparation 60m + backup 180m + 20m orchestration/step-transition margin; preserve the separate 40m release job."
-  validation: "Published ea4ee46 exact-head CI and companions passed; its fresh review found P1 #4375026300. The non-PAM setpriv and post-drop io.max repair is locally validated: focused tests 31/31, Node 24.19 preflight, validate:full, security:gate, lint (0 errors; existing warnings), bash -n, and diff check PASS. The repair is not yet published and has no successor CI/review. Oracle remains read-only; no backup retry or runtime acceptance."
+  validation: "Historical checkpoint: the 2cbe7d2 successor is published and its exact-head CI plus five required companion workflows passed; fresh Codex review receipt 6411381571 says no major issues. Formal NUSA Validator is still pending. Do not reuse predecessor evidence for another head. Oracle remains read-only; no backup retry or runtime acceptance."
   follow_up: "PR #2877 adds cgroup io-controller enforcement checks plus the evidence-based 260m outer backup job timeout (60m preparation + 180m step + 20m orchestration margin) and regression coverage. Existing exact-head receipts are historical after this repair; run Node 24 preflight, focused tests and fresh exact-head CI/review, then Formal Validator/Audit/Release. No Oracle retry until merge and exact-main release authorization."
-  next: "Publish the locally validated substantive repair non-force on existing #2877 branch; then require fresh exact-head workflows and independent review, followed by exact-head Formal Validator, Audit, Release, and merge. Keep Oracle deployment/retry on hold."
+  next: "Historical next action superseded: the 2cbe7d2 repair is already published. Use current_ops_oracle_backup_current_head_20261026 for the active exact-head state and obtain a separate fresh Formal NUSA Validator before Audit, Release, or merge. Keep Oracle deployment/retry on hold until governed merge and bounded runtime admission."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_backup_prep_timeouts_20261026:
