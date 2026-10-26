@@ -2617,6 +2617,18 @@ current_ops_oracle_backup_io_throttle_20261025:
   next: "PR #2877 successor head with outer timeout repair -> exact-head CI -> fresh non-author review -> separate Formal Validator -> Audit/Release -> merge -> one canonical Oracle release attempt. Preserve all safety and readiness budgets; no host mutation before governed release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_ops_oracle_backup_runbook_evidence_20261026:
+  work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
+  status: LOCAL_EVIDENCE_QUALIFICATION_REPAIR_PENDING_PUBLICATION_AND_EXACT_HEAD_GATES
+  issue: 2770
+  pull_request: 2877
+  prior_head: 5e6f67fbfe388acb04c7f5967f1ad3cee03ffd40
+  finding: "Fresh review found that the runbook attributed run 40198892768 cancellation to outer-budget pressure. Available logs establish 42m33s pre-backup time and cancellation after about 149 minutes under a 190-minute outer budget, but do not establish who initiated cancellation."
+  change: "Runbook now reports observed timing only and says the timing is consistent with outer-budget pressure without asserting causation. No runtime or release behavior changed."
+  validation: "Focused Oracle backup/workflow regression tests PASS 31/31 after adding Git for Windows bash to PATH (the first attempt without bash on PATH failed due local environment setup); pnpm preflight PASS; AIPOS YAML validation PASS (521 files); git diff --check PASS. Exact-head CI, fresh review, Formal Validator, Audit, and Release remain pending on the published successor head."
+  next: "Fast-forward publish to the existing PR branch, verify exact-head checks and review, preserve Draft, then continue only through canonical governed gates."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
   status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
