@@ -45,6 +45,7 @@ export function funnelReasonCodes(reason: string | undefined): readonly string[]
 const ORDER_INTENT_TEXT_CODES: Readonly<Record<string, string>> = Object.freeze({
   "paper account persistence failed": "PAPER_ACCOUNT_PERSISTENCE_FAILED",
   "decision allocation is zero": "DECISION_ALLOCATION_ZERO",
+  "insufficient paper position": "PAPER_POSITION_INSUFFICIENT",
 });
 
 /**

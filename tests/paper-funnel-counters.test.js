@@ -81,6 +81,7 @@ test("an order-intent result whose reason is free text still gets a fixed code, 
   const { orderIntentFunnelCode, PaperFunnelCounters } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
   assert.equal(orderIntentFunnelCode("FAILED", "paper account persistence failed"), "PAPER_ACCOUNT_PERSISTENCE_FAILED");
   assert.equal(orderIntentFunnelCode("REJECTED", "decision allocation is zero"), "DECISION_ALLOCATION_ZERO");
+  assert.equal(orderIntentFunnelCode("REJECTED", "insufficient paper position"), "PAPER_POSITION_INSUFFICIENT");
   assert.equal(orderIntentFunnelCode("BLOCKED", "some new sentence with an id 12345"), "BLOCKED_UNCODED_REASON", "unknown text only shows its status");
   assert.equal(orderIntentFunnelCode("DUPLICATE", "evt-1792333922255-KRW-XRP"), "DUPLICATE_UNCODED_REASON", "an identifier is never copied");
   assert.equal(orderIntentFunnelCode("BLOCKED", "PAPER_LIMIT_OPEN"), undefined, "a reason that is already a code list needs no extra code");
@@ -99,4 +100,15 @@ test("the runtime hands the funnel code to the recorder without changing the rec
   const fs = require("node:fs");
   const runtime = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
   assert.match(runtime, /stage: "ORDER_INTENT", occurredAt: now, market: ticker\.code, status: intentStatus, reason: result\.reason \?\? result\.status, funnelCode: orderIntentFunnelCode\(result\.status, result\.reason \?\? result\.status\)/);
+});
+
+test("the recorder keeps the recorded reason and never stores the funnel code on the event", () => {
+  const recorder = new PaperLearningEventRecorder({ persistencePath: ":memory:" });
+  const cycleId = paperLearningCycleId("KRW-XRP", 1_791_259_039_230);
+  const event = recorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: 1_791_259_039_232, market: "KRW-XRP", status: "FAIL", reason: "paper account persistence failed", funnelCode: "PAPER_ACCOUNT_PERSISTENCE_FAILED" });
+  assert.equal(event.reason, "paper account persistence failed");
+  assert.equal("funnelCode" in event, false);
+  const counts = recorder.funnelSnapshot().counts;
+  assert.equal(counts["ORDER_INTENT:FAIL"], 1);
+  assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
 });
