@@ -199,10 +199,18 @@ test("backup verifies the applied io.max inside the transient scope before runni
   const backupStart = helper.indexOf("  backup)");
   const backupCase = helper.slice(backupStart, helper.indexOf("\n\n  preflight)", backupStart));
   assert.match(backupCase, /backup_device_major_minor "\$backup_device"/);
-  assert.match(backupCase, /bash -c "\$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "\$backup_major_minor"/);
+  const capChecks = [...backupCase.matchAll(/bash -c "\$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "\$backup_major_minor"/g)];
+  assert.equal(capChecks.length, 2, "verify the cap both before and after dropping privileges");
+  assert.match(backupCase, /backup_service_gid="\$\(\/usr\/bin\/id -g "\$SERVICE_USER" 2>\/dev\/null\)"/);
+  assert.match(backupCase, /\[\[ -x \/usr\/bin\/setpriv \]\][\s\S]*?exec systemd-run/);
+  assert.match(backupCase, /nice -n 19 \/usr\/bin\/setpriv --reuid="\$SERVICE_USER" --regid="\$backup_service_gid" --init-groups --/);
+  assert.doesNotMatch(backupCase, /runuser/,
+    "the backup privilege transition must not open a PAM session that can move the process out of the capped cgroup");
   assert.ok(
-    backupCase.indexOf("backup-cap-check") < backupCase.indexOf("nice -n 19 runuser"),
-    "cap read-back must run before the backup command",
+    capChecks[0].index < backupCase.indexOf("nice -n 19 /usr/bin/setpriv")
+      && capChecks[1].index > backupCase.indexOf("nice -n 19 /usr/bin/setpriv")
+      && capChecks[1].index < backupCase.indexOf("env NUSA_DB="),
+    "the final backup command must run only after the non-PAM privilege drop and a second cap read-back",
   );
   const fs2 = require("node:fs");
   const os = require("node:os");

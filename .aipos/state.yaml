@@ -2601,20 +2601,20 @@ current_ops_oracle_backup_helper_proof_20261026:
 
 current_ops_oracle_backup_io_throttle_20261025:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: PR_2877_P2_NEXT_ACTION_RECONCILIATION_IN_PROGRESS
+  status: PR_2877_P1_REPAIR_LOCAL_VALIDATED_READY_TO_PUBLISH
   issue: 2770
   pull_request: 2874
   follow_up_pull_request: 2877
   follow_up_branch: ccr-00277777-hhlnx4
   follow_up_base_sha: de6cb5d56acfec429659301c9c1ed8b424e7935f
-  branch: fix/oracle-backup-io-priority
+  branch: ccr-00277777-hhlnx4
   base_sha: fa4c3ad43790d4c6b2916582ef2dee0b32b52118
   previous_source_head: a48daf0a4350e0fdea528b811ac7f0b45f7f094f
-  finding: "Oracle backup I/O can starve the foreground PAPER writer lease. Run 40198892768 additionally shows the backup step was cancelled after ~149 minutes following 42m33s of pre-backup work under a 190-minute job bound; this timing is consistent with outer-budget pressure, but available logs do not establish the initiating cancellation actor."
+  finding: "Current #2877 head ea4ee46 passed six workflows; fresh non-author review found P1 #4375026300: PAM-backed runuser may move the backup process outside the capped transient cgroup. Backup cancellation root cause remains UNKNOWN."
   evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s while capped near 1 MiB/s with PAPER foreground reads improving from about 10 to 14 MiB/s. Current DB stat is 958,992,384 bytes (914.57 MiB); retain the conservative 957 MiB envelope. Six Sunday full-file phases at 0.8 MiB/s require ~119.6 min; +30% observed-workload variance = ~155.5 min, rounded to a backup-only 180 min bound. Stage/preflight/activation remains a separate 40 min job. This is script/budget evidence, not runtime acceptance. Run 40198892768: job 121186042724 ran 13:45:11-16:58:33Z; backup step ran 14:27:44-16:56:46Z (~149m) then was cancelled. The 42m33s pre-backup interval plus the 190m outer bound is consistent with timeout pressure, but logs do not establish the cancellation initiator. `wal_checkpoint(PASSIVE)` is caught as best-effort in sqlite-backup.js; its disk-I/O warning is not proven to be the cancellation cause. Release mutation was skipped; no verified backup receipt exists. Set the outer backup-job budget to 260m: bounded preparation 60m + backup 180m + 20m orchestration/step-transition margin; preserve the separate 40m release job."
-  validation: "PR #2877 successor 5e4ea72e4617235aab124be45dc101c1c0c70bcb is published Open/Draft; its exact-head CI and five required companions passed. Fresh review on 5e found one P2 because this record still said publication was pending. This successor records the repair as published/current and preserves predecessor checkpoints as historical. Focused Oracle tests 31/31, pnpm preflight, pnpm validate (architecture/safety/AI authority), and diff check passed. Fresh review on 5c0f50432fecbb1aea7693246b3b0398a99af780 found P2 #4374887312: next-action text repeated completed publication and CI steps. This successor corrects that stale sequence. Since the AIPOS-only commit changes exact head, its checks and fresh review must be re-established. No full pnpm test or host acceptance claimed."
+  validation: "Published ea4ee46 exact-head CI and companions passed; its fresh review found P1 #4375026300. The non-PAM setpriv and post-drop io.max repair is locally validated: focused tests 31/31, Node 24.19 preflight, validate:full, security:gate, lint (0 errors; existing warnings), bash -n, and diff check PASS. The repair is not yet published and has no successor CI/review. Oracle remains read-only; no backup retry or runtime acceptance."
   follow_up: "PR #2877 adds cgroup io-controller enforcement checks plus the evidence-based 260m outer backup job timeout (60m preparation + 180m step + 20m orchestration margin) and regression coverage. Existing exact-head receipts are historical after this repair; run Node 24 preflight, focused tests and fresh exact-head CI/review, then Formal Validator/Audit/Release. No Oracle retry until merge and exact-main release authorization."
-  next: "At published head 5c0f50432fecbb1aea7693246b3b0398a99af780, all six exact-head workflows passed and only fresh review remained. This metadata correction creates a successor; after publication, verify that successor's exact-head workflows and fresh review, then exact-head Formal Validator ACCEPTED before Independent Audit. Keep Draft; Release, merge and Oracle host acceptance remain separate."
+  next: "Publish the locally validated substantive repair non-force on existing #2877 branch; then require fresh exact-head workflows and independent review, followed by exact-head Formal Validator, Audit, Release, and merge. Keep Oracle deployment/retry on hold."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_backup_prep_timeouts_20261026:
@@ -2661,14 +2661,14 @@ current_ops_oracle_backup_runbook_evidence_20261026:
 
 current_ops_oracle_backup_prep_timeout_reconciled_20261026:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: PR_2877_SUCCESSOR_PUBLISHED_REVIEW_FINDING_REPAIRED_VALIDATION_PENDING
+  status: HISTORICAL_P2_REPAIR_SUPERSEDED_BY_PAM_CGROUP_P1
   issue: 2770
   pull_request: 2877
   last_reviewed_head: 1df5305bece93e39a28dbd641bb77bf05ac9561b
   base_sha: de6cb5d56acfec429659301c9c1ed8b424e7935f
   publication: "PR #2877 successor 5e4ea72e4617235aab124be45dc101c1c0c70bcb was published Open/Draft and passed all six exact-head workflows. Its fresh review found P2 #4374796244: this entry incorrectly said publication was pending. The current successor repairs the state; resolve the resulting live head dynamically and require fresh gates."
   validation: "On published 5c0f50432fecbb1aea7693246b3b0398a99af780, six exact-head workflows passed; fresh review found P2 #4374887312 because next fields repeated already-completed publication and CI. This successor corrects those next actions. Focused tests 31/31, pnpm preflight, pnpm validate, and diff check pass. The documentation commit changes head, so successor checks and review must run fresh."
-  next: "This correction records that 5c0f50432fecbb1aea7693246b3b0398a99af780 passed all six workflows, and fixes P2 #4374887312 by removing already-completed publication/CI from next actions. After publishing this successor, resolve the live head and run its exact-head workflows plus fresh review; then obtain exact-head Formal Validator ACCEPTED before Independent Audit. Keep Draft; later gates remain separate."
+  next: "Historical checkpoint: predecessor AIPOS publication/CI wording was corrected by successor ea4ee46. Current #2877 P1 is tracked in current_ops_oracle_backup_io_throttle_20261025; resolve it on a new exact head before Formal Validator or Audit."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_health_guard_lock:

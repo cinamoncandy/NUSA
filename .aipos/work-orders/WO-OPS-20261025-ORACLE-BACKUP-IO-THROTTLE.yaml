@@ -1,6 +1,6 @@
 id: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
 title: "Bound verified Oracle state-backup I/O to protect the PAPER writer lease"
-status: PR_2877_P2_NEXT_ACTION_FINDING_REPAIRED_SUCCESSOR_VALIDATION_PENDING
+status: PR_2877_P1_REPAIR_LOCAL_VALIDATED_READY_TO_PUBLISH
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2770
@@ -9,7 +9,7 @@ follow_up_pull_request: 2877
 follow_up_branch: ccr-00277777-hhlnx4
 base_branch: main
 base_commit: fa4c3ad43790d4c6b2916582ef2dee0b32b52118
-implementation_branch: fix/oracle-backup-io-priority
+implementation_branch: ccr-00277777-hhlnx4
 authority_impact: none
 finding: "Oracle release run 40148117124 showed that the mandatory SQLite state backup can contend with the foreground PAPER runtime on the same block device; during the measured incident the PAPER writer lease and listener became unavailable while backup I/O was active."
 root_cause: "The existing verified backup performs substantial reads and writes against the persistent state database while the 1 GB Oracle host serves PAPER runtime and startup reads. The prior nice/ionice-only mitigation did not impose a bandwidth bound, and the host block scheduler is none."
@@ -44,10 +44,10 @@ verification_commands:
   - node --test tests/oracle-backup-device.test.js tests/oracle-paper-release-workflow.test.js
   - pnpm run preflight
   - git diff --check
-validation: "At predecessor 0d1877e754946af9a38fa1dd16b74ce6f204be9c, Windows coverage found Git Bash could not parse the multiline shell harness passed as a bash -c command-line argument (unterminated quote). The harness now passes the same source over stdin with bash -s. Local result: topology and release workflow tests 29/29; Node 24.19 preflight, build, validate:full, security:gate (0 advisories/0 secrets), bash -n, and diff check PASS. All predecessor receipts are historical; fresh exact-head CI and independent review remain required. Exact-byte capped throughput remains unmeasured."
+validation: "Exact head ea4ee46 passed six PR workflows; fresh Codex review found P1 #4375026300: PAM-backed runuser may move backup outside the capped transient cgroup. Successor uses non-PAM setpriv and reads io.max again after the UID/GID transition. Fresh focused tests, Node 24.19 preflight, repository validation, exact-head workflows, and independent review are required on the successor. Oracle remains read-only; no backup retry or runtime acceptance."
 follow_up:
-  scope: "PR #2877 adds a fail-closed cgroup v2 io-controller precondition and an in-scope io.max read-back (applied cap for the backup device must equal 1048576 B/s before node starts) to the backup verb in deploy/oracle/nusa-release-step.sh (systemd-run accepts IO*BandwidthMax without enforcing it when the io controller is absent), corrects runbook wording, and adds regression coverage. Run 40198892768 shows 42m33s before backup and cancellation after ~149m under a 190m outer bound; timing is consistent with outer-budget pressure, but available logs do not establish the initiating cancellation actor. The wal_checkpoint warning is best-effort and is not proven to be the cancellation cause. Successor keeps the isolated backup step at 180 minutes and job at 260 minutes with a 20-minute orchestration margin, and explicitly caps the four pre-backup steps at 5/20/25/10 minutes (60 minutes total), with regression coverage."
+  scope: "PR #2877 preserves the canonical cgroup-capped backup and budget. Fresh review P1 #4375026300 found PAM-backed runuser can migrate the backup process out of the verified transient scope. Repair with non-PAM setpriv UID/GID plus supplementary groups, then verify the same device io.max again after privilege drop immediately before node. Missing setpriv, invalid GID, migrated cgroup, or absent/incorrect cap fails closed. Preserve 1 MiB/s read/write caps, backup integrity/checksum/retention, 260m/180m/40m timeouts, 300s readiness, 180s soak, and lease semantics."
   base: "main de6cb5d56acfec429659301c9c1ed8b424e7935f (includes merged PR #2874 and exact-source helper artifact proof); synchronized into PR #2877 before the new exact-head validation."
-  validation: "At 5c0f50432fecbb1aea7693246b3b0398a99af780, six exact-head workflows passed; fresh review found P2 #4374887312 because the active AIPOS next fields repeated completed publication and CI. This successor corrects those actions. Focused tests 31/31, pnpm run preflight, pnpm run validate, and git diff --check pass. The update changes exact head, so its checks and review must run fresh. No full test suite or host acceptance claimed."
+  validation: "On unpublished successor based on ea4ee46: focused backup/workflow tests 31/31, Node 24.19 preflight, validate:full, security:gate (0 findings), lint (0 errors; existing warnings), bash -n, and diff check PASS. Fresh exact-head workflows and independent review are required after publication. No Oracle deployment, backup retry, DB/lease mutation, or host acceptance claimed."
   unchanged: "Backup engine semantics, 1048576 B/s cap, 180-minute backup step, 40-minute release job, 300 s readiness, 180 s soak, lease semantics, and all authority invariants. Outer backup job timeout is 260 minutes: 60-minute bounded preparation, 180-minute backup, and 20-minute orchestration/step-transition margin."
-  next: "Keep PR #2877 Draft. After publication, resolve the new PR head dynamically and verify all six exact-head workflows plus fresh non-author review. Then require exact-head Formal Validator ACCEPTED before Independent Audit. Keep Draft; Release, merge, and separately authorized Oracle host acceptance remain distinct gates. #2770 closes only after governed exact-main runtime acceptance; no Oracle retry or host mutation before that transition."
+  next: "Local focused tests, Node 24.19 preflight, repository validation, security gate, lint, and diff check are PASS. Publish this substantive repair non-force on the existing #2877 branch; then require fresh exact-head CI/companions and non-author review, followed by Formal Validator, Audit, Release, and protected merge. Oracle operations remain on hold until governed merge and bounded runtime admission."

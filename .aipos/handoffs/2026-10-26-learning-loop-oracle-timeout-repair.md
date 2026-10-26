@@ -9,13 +9,20 @@
 - Orderbook study and data-integrity markers were unavailable from the health-only diagnostic. It did not authenticate `/ready` or verify writer-lease ownership/renewal. Exact-main runtime acceptance remains false; learning loop and performance improvement remain unverified.
 - Existing genuine PAPER elapsed soak run `40270441841` is still in progress on exact main. Do not duplicate, cancel, or treat its in-progress state as acceptance.
 
-## PR #2877 current repair
+## Current exact gate — PR #2877 / Issue #2770
 
-- PR #2877 was Open/Draft at reviewed head `1df5305bece93e39a28dbd641bb77bf05ac9561b`, base/protected main `de6cb5d56acfec429659301c9c1ed8b424e7935f`; verify live before publication.
-- Required exact-head workflows passed on 1df. Fresh review found one P2: a predecessor AIPOS state entry still represented the 240-minute outer budget as current, while the reviewed code and work order use 260 minutes.
-- The 5e4ea72 successor was published Open/Draft and all six exact-head workflows passed. Fresh review found P2 #4374796244 because AIPOS still described that published successor as pending publication. This successor corrects state/work-order/handoff to published/current and keeps predecessor checkpoints historical. Focused tests 31/31, preflight, validate, and diff check passed; this commit invalidates predecessor receipts.
-- Fresh review on published head 5c0f50432fecbb1aea7693246b3b0398a99af780 found P2 #4374887312: active AIPOS next-action fields repeated already-completed publication and CI. This local successor corrects those stale actions. The 5c head had all six workflows passing; this AIPOS-only successor changes the head, so those receipts are historical for the new head. After publishing this successor, verify its exact-head workflows and obtain fresh non-author review. If clear, obtain Formal Validator ACCEPTED before Independent Audit. Keep Draft.
-- Formal Validator, Independent Audit, Release, merge, and separately authorized Oracle host acceptance remain distinct later gates.
-- Do not dispatch Oracle release, install/update the host helper, restart services, or mutate DB/lease. #2770 remains open until governed exact-main runtime acceptance and authentic PAPER evidence are obtained.
+- Protected main and PR base: `de6cb5d56acfec429659301c9c1ed8b424e7935f`.
+- Published PR #2877: OPEN / Draft / mergeable, head `ea4ee46bc475b3610ec6a711115fdd1300c22012`.
+- Exact-head CI `40286984490` and five required companion workflows `40286984464`, `40286984537`, `40286984564`, `40286984511`, `40286984487` passed.
+- Fresh non-author Codex review completed on this exact head and found P1 #4375026300: PAM-backed `runuser` may move the backup process from the verified transient I/O-capped cgroup into a user session scope.
+- Local successor repair now uses util-linux `setpriv` with resolved UID/GID and supplementary groups (no PAM), and checks `io.max` again after privilege drop immediately before Node. Regression coverage and runbook were updated. Local successor validation passes: focused tests 31/31, Node 24.19 preflight, validate:full, security:gate, lint (0 errors; existing warnings), bash -n, and diff check. It is not yet published and has no successor CI/review; do not reuse predecessor receipts.
+- Exact-head Formal Validator, Audit, Release authorization, merge, and Oracle runtime acceptance remain pending. Keep Draft.
+- Backup cancellation in run `40198892768` remains UNKNOWN; observed timing is only consistent with outer-budget pressure.
+
+## Fresh read-only Oracle and learning status
+
+At 2026-10-26 07:52 UTC: `nusa.service` active; local `/health` healthy; runtime SHA `c59b522410cb0ea62977382f15d253c331c690f8` does not match protected main. Root disk 90% used (4.7 GB free), available memory 395 MB. No deploy, restart, backup retry, DB mutation, or lease reset was performed.
+
+Runtime reports `previousStop=PAPER_WRITER_LEASE_LOST`, 68 owner-baseline realized periods, 0 Research sessions, 150 manifest-not-found skips, 0 evaluated/recorded learning cycles, and no new PAPER orders/fills since process start. Historic ledger fills are not new candidate-bound proof. Authenticated readiness and writer-lease renewal were not verified. Dataset, Research N+1, durable learning, N+1 PAPER, and performance improvement remain unverified. Keep cancellation root cause UNKNOWN and `PERFORMANCE_IMPROVEMENT=UNPROVEN`.
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, `realTransferAuthority=false`, `aiAuthority=ZERO_AUTHORITY`.

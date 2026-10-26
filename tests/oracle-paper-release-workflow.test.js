@@ -88,7 +88,10 @@ test("the privileged backup resolves both paths inside the reviewed root-owned h
   assert.match(backup, /IOWriteBandwidthMax=\$\{backup_device\} 1048576/);
   assert.ok(backup.indexOf("backup_block_device_for_paths") < backup.indexOf("systemd-run"), "topology validation must finish before the backup process starts");
   assert.match(backup, /systemd-run --quiet --collect --scope/);
-  assert.match(backup, /nice -n 19 runuser -u "\$SERVICE_USER"/);
+  assert.match(backup, /nice -n 19 \/usr\/bin\/setpriv --reuid="\$SERVICE_USER" --regid="\$backup_service_gid" --init-groups --/);
+  assert.match(backup, /\/usr\/bin\/setpriv --reuid="\$SERVICE_USER"[\s\S]*?bash -c "\$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "\$backup_major_minor"[\s\S]*?env NUSA_DB=/,
+    "the backup process must re-check its io.max after the non-PAM privilege drop");
+  assert.doesNotMatch(backup, /runuser/, "the backup path must not use PAM to create a different cgroup scope");
   assert.match(backup, /env NUSA_DB="\$state_db" NUSA_BACKUP_DIR="\$backup_dir"/);
 });
 

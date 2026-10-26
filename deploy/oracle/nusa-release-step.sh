@@ -447,13 +447,19 @@ case "$verb" in
     backup_io_controller_available || die "cgroup v2 io controller unavailable; refusing an unenforced backup cap"
     backup_major_minor="$(backup_device_major_minor "$backup_device")" \
       || die "backup device major:minor could not be resolved"
+    backup_service_gid="$(/usr/bin/id -g "$SERVICE_USER" 2>/dev/null)" \
+      || die "backup service group could not be resolved"
+    [[ "$backup_service_gid" =~ ^[0-9]+$ ]] || die "backup service group id is invalid"
+    [[ -x /usr/bin/setpriv ]] || die "setpriv is required for a non-PAM backup privilege drop"
     # The numeric systemd bandwidth value is bytes/second: 1,048,576 is exactly 1 MiB/s.
     # Limit only this child in its transient cgroup; failure never falls back to an uncapped backup.
     exec systemd-run --quiet --collect --scope \
       -p "IOReadBandwidthMax=${backup_device} 1048576" \
       -p "IOWriteBandwidthMax=${backup_device} 1048576" \
       bash -c "$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "$backup_major_minor" \
-      nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" NUSA_BACKUP_DIR="$backup_dir" node "$(script_in "$(active_release)" sqlite-backup.js)"
+      nice -n 19 /usr/bin/setpriv --reuid="$SERVICE_USER" --regid="$backup_service_gid" --init-groups -- \
+      bash -c "$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "$backup_major_minor" \
+      env NUSA_DB="$state_db" NUSA_BACKUP_DIR="$backup_dir" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
   preflight)
