@@ -115,6 +115,7 @@ test("the calculated long backup budget is isolated from the short activation jo
   ];
   const measuredPreBackupOverheadMinutes = 42 + 33 / 60;
   const boundedPreBackupAllowanceMinutes = 60;
+  const minimumJobTransitionMarginMinutes = 20;
   const firstStep = backupJob.indexOf("    steps:");
   const backupStepStart = backupJob.indexOf("      - name: Back up persistent state before release mutation");
   assert.ok(firstStep !== -1 && backupStepStart > firstStep, "backup job must declare preparation steps before backup");
@@ -139,8 +140,8 @@ test("the calculated long backup budget is isolated from the short activation jo
   assert.equal(budgetedBackupMinutes, 180);
   assert.equal(backupStepTimeout, budgetedBackupMinutes, "backup-only timeout must be derived from the recorded production envelope");
   assert.ok(backupStepTimeout - requiredBackupMinutes >= 20, "calculated backup envelope needs at least twenty minutes of explicit margin");
-  assert.equal(backupJobTimeout, backupStepTimeout + boundedPreBackupAllowanceMinutes,
-    "outer job must allow the full bounded backup step after its pre-backup work");
+  assert.ok(backupJobTimeout >= backupStepTimeout + boundedPreBackupAllowanceMinutes + minimumJobTransitionMarginMinutes,
+    "outer job must reserve at least twenty minutes beyond the full bounded preparation and backup steps");
   assert.deepEqual(actualPreBackupStepLimits, preBackupStepLimits.map(([, timeout]) => timeout),
     "each pre-backup stage must retain its reviewed individual time budget");
   assert.ok(actualPreBackupAllowanceMinutes <= boundedPreBackupAllowanceMinutes,

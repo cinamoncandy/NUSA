@@ -102,12 +102,13 @@ jobs:
     needs: prepare
     # Backup is isolated from activation so a slow verified backup can fail before any release
     # switch. The job budget includes up to 60 minutes for source recheck, bounded prune, artifact
-    # download/unpack, and helper identity proof before the independently capped backup step.
+    # download/unpack, and helper identity proof before the independently capped backup step,
+    # plus 20 minutes for runner orchestration and step transitions.
     # Run 40198892768 consumed 42m33s before backup began; its backup step was cancelled after
     # ~149m under the previous 190m job bound. Timing is consistent with outer-budget pressure,
     # but available logs do not establish the cancellation initiator. Release mutation is separate.
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    timeout-minutes: 240
+    timeout-minutes: 260
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       STEP: /opt/nusa/bin/nusa-release-step
