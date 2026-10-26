@@ -30,7 +30,7 @@ export function HeartbeatPulse({ lastHeartbeatAt, width, reducedMotion }: { read
       Animated.timing(opacity, { toValue: 0, duration: SWEEP_MS, easing: Easing.in(Easing.quad), useNativeDriver: true }),
     ]);
     anim.start();
-    return () => anim.stop();
+    return () => { anim.stop(); opacity.setValue(0); };
   }, [lastHeartbeatAt, reducedMotion, width, x, opacity]);
   if (width <= 0) return null;
   return <View style={[styles.track, { width }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
