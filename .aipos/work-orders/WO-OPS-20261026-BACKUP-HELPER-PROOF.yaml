@@ -1,13 +1,13 @@
 id: WO-OPS-20261026-BACKUP-HELPER-PROOF
 title: Avoid extracting the full release before Oracle backup helper verification
-status: PR_OPEN_DRAFT_PENDING_CANONICAL_AUDIT_RELEASE_AND_RUNTIME_ACCEPTANCE
+status: LOCAL_P2_REPAIRS_VALIDATED_PENDING_PUBLICATION
 priority: P0
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
 issue: 2770
 base_commit: a49325d4677841ef76c36e9edd7939cc0c204588
 implementation_branch: codex/oracle-backup-helper-artifact-20261026
-authority_impact: none
+authority_impact: production_backup_safety_gate
 objective: Preserve the exact-source privileged-helper gate while removing full-release download and extraction from the backup job.
 evidence:
   run_id: 40198892768
@@ -43,7 +43,7 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-validation: 'Red on predecessor; local regressions 31/31, build/typecheck/validate:full/security/lint/AIPOS provenance PASS. PR #2885 published head bc2d05cc70bfa14cae707406ce85b21e30f70c93: six required workflows completed/success; fresh Codex non-author review found no major issues (6406723607). Any head change invalidates those exact-head receipts. Independent Audit, Release, and runtime acceptance remain pending.'
-precommit_review: 'Separate non-author agent found no actionable P0/P1/P2 and independently reran 31/31 tests. Published-head Codex review is recorded above; neither is Independent Audit or Release authorization.'
+validation: 'Local repair resolves both P2 findings: handoff now records the published PR/current head and authority_impact is production_backup_safety_gate. Focused tests 31/31; AIPOS YAML/provenance/drift/conformance and diff check PASS. PR head 393777626ac198bd3b2ebb529ee0a04214e79c85 had six workflows PASS, historical after repair. Push and obtain fresh exact-head gates/review.'
+precommit_review: 'Earlier precommit review found no actionable P0/P1/P2; published-head review on 393777626 found two P2, both repaired locally. Fresh published-head review is required before Audit/Release.'
 publication_blockers: []
-next: Reconcile AIPOS handoff on PR #2885, then recheck live head/base and obtain fresh exact-head CI/review before canonical Independent Audit and Release. Oracle deployment, helper installation, backup, or service mutation remain outside this work order.
+next: Commit and push the validated AIPOS repairs to the existing PR #2885 branch, then require fresh exact-head six workflows and non-author review. Keep Draft; do not run Audit/Release until fresh review has no actionable findings and canonical eligibility is met. No Oracle mutation is authorized.

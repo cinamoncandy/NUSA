@@ -1,9 +1,10 @@
 current_ops_oracle_backup_helper_proof_20261026:
   work_order: WO-OPS-20261026-BACKUP-HELPER-PROOF
-  status: PR_OPEN_DRAFT_PENDING_CANONICAL_AUDIT_RELEASE_AND_RUNTIME_ACCEPTANCE
+  status: LOCAL_P2_REPAIRS_VALIDATED_PENDING_PUBLICATION
   issue: 2770
   pull_request: 2885
   branch: codex/oracle-backup-helper-artifact-20261026
+  authority_impact: production_backup_safety_gate
   base_sha: a49325d4677841ef76c36e9edd7939cc0c204588
   last_published_head: bc2d05cc70bfa14cae707406ce85b21e30f70c93
   exact_head_workflows:
@@ -20,6 +21,9 @@ current_ops_oracle_backup_helper_proof_20261026:
     review_comment_id: 6406723607
     exact_head: bc2d05cc70bfa14cae707406ce85b21e30f70c93
   local_validation: '31 focused tests PASS; build, typecheck, validate:full, security gate, lint, AIPOS provenance, diff check PASS.'
+  latest_reviewed_head: 393777626ac198bd3b2ebb529ee0a04214e79c85
+  latest_review_findings: TWO_ACTIONABLE_P2
   runtime_status: UNVERIFIED_PENDING_AUTHORIZED_EXACT_MAIN_DEPLOYMENT_AND_HOST_ACCEPTANCE
+  repair_status: BOTH_P2_REPAIRED_LOCALLY; 31_FOCUSED_TESTS_AND_AIPOS_VALIDATORS_PASS; PUSH_AND_FRESH_REVIEW_PENDING
   release_status: PENDING_INDEPENDENT_AUDIT_AND_RELEASE_AUTHORIZATION
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

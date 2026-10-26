@@ -2579,18 +2579,22 @@ current_ops_backup_retention_buckets_20261021:
 
 current_ops_oracle_backup_helper_proof_20261026:
   work_order: WO-OPS-20261026-BACKUP-HELPER-PROOF
-  status: PR_OPEN_DRAFT_PENDING_CANONICAL_AUDIT_RELEASE_AND_RUNTIME_ACCEPTANCE
+  status: LOCAL_P2_REPAIRS_VALIDATED_PENDING_PUBLICATION
   issue: 2770
   pull_request: 2885
   branch: codex/oracle-backup-helper-artifact-20261026
+  authority_impact: production_backup_safety_gate
   reviewed_base_sha: a49325d4677841ef76c36e9edd7939cc0c204588
-  last_published_head: bc2d05cc70bfa14cae707406ce85b21e30f70c93
-  last_head_gates: 'CI 40257671678, Actual PAPER 40257671736, Capability 40257671820, Activation 40257671691, Transport 40257671669, Read-only Broker 40257671589: all completed/success on bc2d05cc70bfa14cae707406ce85b21e30f70c93.'
-  last_non_author_review: 'Codex review completed on bc2d05cc70bfa14cae707406ce85b21e30f70c93; has_any_findings=false, has_unresolved_findings=false; review receipt 6406723607. This is not Independent Audit or Release authorization.'
-  validation: 'Local focused tests 31/31 plus build/typecheck/validate:full/security/lint/AIPOS provenance PASS. PR remains Draft. Any later commit invalidates prior exact-head checks; read live GitHub head and gates before canonical Audit/Release.'
-  runtime: 'No host helper installation, Oracle release, backup invocation, WAL recovery, or runtime performance acceptance has been performed. Actual #2770 runtime acceptance remains pending.'
-  next: 'Reconcile AIPOS handoff for the new exact PR head, rerun exact-head CI and fresh non-author review, then canonical Independent Audit and Release. Host acceptance requires separate authorized exact-main deployment and genuine evidence.'
+  previous_published_head: bc2d05cc70bfa14cae707406ce85b21e30f70c93
+  previous_head_gates: 'Six required workflows completed/success on bc2d05cc70bfa14cae707406ce85b21e30f70c93; historical after AIPOS sync commit.'
+  latest_reviewed_head: 393777626ac198bd3b2ebb529ee0a04214e79c85
+  latest_head_gates: 'CI 40258480963, Actual PAPER 40258480972, Capability 40258480876, Activation 40258481077, Transport 40258480905, Read-only Broker 40258480894: all completed/success.'
+  latest_non_author_review: 'Fresh Codex review on 393777626 found two actionable P2 findings: obsolete duplicate-publication instructions in handoff; authority_impact none misclassified a production backup safety-gate change. Both repaired locally; new review pending.'
+  validation: 'Focused tests 31/31; AIPOS YAML/provenance/drift/conformance and diff check PASS. Earlier build/typecheck/validate:full/security/lint PASS. Exact-head receipts on 393777626 become historical after repair; fresh gates/review pending.'
+  runtime: 'No host helper installation, Oracle release, backup invocation, WAL recovery, or runtime performance acceptance has occurred.'
+  next: 'Commit/push validated P2 repairs to PR #2885, rerun exact-head CI/workflows and fresh non-author review. Keep Draft; no Audit/Release until fresh review is clean. Host acceptance requires separate authorization and genuine evidence.'
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_backup_io_throttle_20261025:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
   status: LOCAL_VALIDATED_PENDING_FRESH_EXACT_HEAD_CI
