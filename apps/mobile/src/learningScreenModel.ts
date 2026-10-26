@@ -51,3 +51,25 @@ export function buildLearningScreen(state: PaperLearningScreenState): LearningSc
   ] : [];
   return Object.freeze({ tone, headline, sub, steps: Object.freeze(steps), narrowest, rows: Object.freeze(rows) });
 }
+
+/**
+ * Splits a long Korean hero sentence at the space nearest its middle so Android never breaks a word mid-syllable
+ * (it wrapped "배우는" as "배우 / 는"). Short text stays on one line. The words are unchanged; only the line split differs.
+ */
+export function splitHeroLines(text: string): readonly string[] {
+  const letters = Array.from(text).filter((ch) => !/\s/.test(ch)).length;
+  if (letters <= 6) return Object.freeze([text]);
+  const chars = Array.from(text);
+  const half = letters / 2;
+  let seen = 0;
+  let best = -1;
+  let bestGap = Number.POSITIVE_INFINITY;
+  chars.forEach((ch, i) => {
+    if (/\s/.test(ch)) {
+      const gap = Math.abs(seen - half);
+      if (seen > 0 && seen < letters && gap < bestGap) { best = i; bestGap = gap; }
+    } else seen += 1;
+  });
+  if (best < 0) return Object.freeze([text]);
+  return Object.freeze([chars.slice(0, best).join("").trim(), chars.slice(best + 1).join("").trim()].filter((line) => line !== ""));
+}
