@@ -68,16 +68,20 @@ export class PaperFunnelCounters {
     this.since = now();
   }
 
-  /** `extraCode` is an optional fixed code the caller derived for a reason that is free text (see orderIntentFunnelCode); it is counted like a reason code. */
-  public observe(event: FunnelEventLike, extraCode?: string): void {
+  public observe(event: FunnelEventLike): void {
     if (!STAGE.test(event.stage) || !STATUS.test(event.status)) return;
     const base = `${event.stage}:${event.status}`;
     this.add(base);
     const codes = [...funnelReasonCodes(event.reason)];
-    if (extraCode != null && CODE.test(extraCode) && !codes.includes(extraCode) && codes.length < MAX_CODES_PER_EVENT) codes.push(extraCode);
     const action = event.decision?.action;
     if (event.stage === "DECISION" && typeof action === "string" && CODE.test(action) && !codes.includes(action)) codes.unshift(action);
     for (const code of codes) this.add(`${base}:${code}`);
+  }
+
+  /** Counts one detail key "<STAGE>:<STATUS>:<CODE>" only (no stage total), for a fixed code the caller derived for a free-text reason (see orderIntentFunnelCode). */
+  public observeDetail(stage: string, status: string, code: string): void {
+    if (!STAGE.test(stage) || !STATUS.test(status) || !CODE.test(code)) return;
+    this.add(`${stage}:${status}:${code}`);
   }
 
   public snapshot(): PaperFunnelSnapshot {
@@ -111,4 +115,11 @@ export function funnelConversions(counts: Readonly<Record<string, number>>): Rea
     intentToFill: rate(n("FILL:PASS"), n("ORDER_INTENT:PASS")),
     fillToPnl: rate(n("PNL:PASS"), n("FILL:PASS")),
   });
+}
+
+/** Adds the detail counts of `extra` to `base`; `base` keeps its own `since`. Display only. */
+export function mergeFunnelSnapshots(base: PaperFunnelSnapshot, extra: PaperFunnelSnapshot): PaperFunnelSnapshot {
+  const counts: Record<string, number> = { ...base.counts };
+  for (const [key, value] of Object.entries(extra.counts)) counts[key] = (counts[key] ?? 0) + value;
+  return Object.freeze({ since: base.since, counts: Object.freeze(Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)))) });
 }

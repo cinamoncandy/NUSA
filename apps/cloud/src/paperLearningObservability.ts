@@ -157,15 +157,15 @@ export class PaperLearningEventRecorder {
     this.persistencePath = configuredPath?.trim() || undefined;
   }
 
-  public record(input: Omit<PaperLearningEvent, "id" | "mode"> & { readonly idSuffix?: string; readonly funnelCode?: string }): PaperLearningEvent {
+  public record(input: Omit<PaperLearningEvent, "id" | "mode"> & { readonly idSuffix?: string }): PaperLearningEvent {
     this.hydrate();
-    const { idSuffix = "", funnelCode, ...rest } = input;
+    const { idSuffix = "", ...rest } = input;
     const normalized = this.normalizeTruth(rest);
     const event = freeze({ ...normalized, id: stableId(normalized.cycleId, normalized.stage, idSuffix), mode: "PAPER" as const });
     const existing = this.byId.get(event.id);
     if (existing) return existing;
     this.byId.set(event.id, event);
-    this.funnel.observe(event, funnelCode);
+    this.funnel.observe(event);
     this.pruneMemory();
     this.persist(event);
     return event;

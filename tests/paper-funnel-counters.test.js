@@ -88,27 +88,32 @@ test("an order-intent result whose reason is free text still gets a fixed code, 
   assert.equal(orderIntentFunnelCode("weird status", "free text"), undefined, "an invalid status yields no code");
   assert.equal(orderIntentFunnelCode("FAILED", "constructor"), "FAILED_UNCODED_REASON", "prototype names are not codes");
   const f = new PaperFunnelCounters(() => 1);
-  f.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "paper account persistence failed" }, orderIntentFunnelCode("FAILED", "paper account persistence failed"));
+  f.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "paper account persistence failed" });
+  f.observeDetail("ORDER_INTENT", "FAIL", orderIntentFunnelCode("FAILED", "paper account persistence failed"));
   f.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "some sentence" });
+  f.observeDetail("ORDER_INTENT", "FAIL", "bad code");
   const counts = f.snapshot().counts;
   assert.equal(counts["ORDER_INTENT:FAIL"], 2);
   assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
   assert.equal(Object.keys(counts).some((key) => /persistence failed|sentence/.test(key)), false, "no free text reaches a key");
 });
 
-test("the runtime hands the funnel code to the recorder without changing the recorded reason", () => {
+test("the runtime counts the reason code beside the recorder, keeps the recorded reason, and merges it into /health", () => {
   const fs = require("node:fs");
   const runtime = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
-  assert.match(runtime, /stage: "ORDER_INTENT", occurredAt: now, market: ticker\.code, status: intentStatus, reason: result\.reason \?\? result\.status, funnelCode: orderIntentFunnelCode\(result\.status, result\.reason \?\? result\.status\)/);
+  assert.match(runtime, /stage: "ORDER_INTENT", occurredAt: now, market: ticker\.code, status: intentStatus, reason: result\.reason \?\? result\.status \}\)/);
+  assert.match(runtime, /orderIntentReasonCounters\.observeDetail\("ORDER_INTENT", intentStatus, intentCode\)/);
+  assert.match(runtime, /paperFunnel: mergeFunnelSnapshots\(paperLearningRecorder\.funnelSnapshot\(\), orderIntentReasonCounters\.snapshot\(\)\)/);
 });
 
-test("the recorder keeps the recorded reason and never stores the funnel code on the event", () => {
-  const recorder = new PaperLearningEventRecorder({ persistencePath: ":memory:" });
-  const cycleId = paperLearningCycleId("KRW-XRP", 1_791_259_039_230);
-  const event = recorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: 1_791_259_039_232, market: "KRW-XRP", status: "FAIL", reason: "paper account persistence failed", funnelCode: "PAPER_ACCOUNT_PERSISTENCE_FAILED" });
-  assert.equal(event.reason, "paper account persistence failed");
-  assert.equal("funnelCode" in event, false);
-  const counts = recorder.funnelSnapshot().counts;
-  assert.equal(counts["ORDER_INTENT:FAIL"], 1);
-  assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
+test("merging adds only detail counts and keeps the base since", () => {
+  const { PaperFunnelCounters, mergeFunnelSnapshots } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  const a = new PaperFunnelCounters(() => 5);
+  a.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "free text" });
+  const b = new PaperFunnelCounters(() => 9);
+  b.observeDetail("ORDER_INTENT", "FAIL", "FAILED_UNCODED_REASON");
+  const m = mergeFunnelSnapshots(a.snapshot(), b.snapshot());
+  assert.equal(m.since, 5);
+  assert.equal(m.counts["ORDER_INTENT:FAIL"], 1);
+  assert.equal(m.counts["ORDER_INTENT:FAIL:FAILED_UNCODED_REASON"], 1);
 });
