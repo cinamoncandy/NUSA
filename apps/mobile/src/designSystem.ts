@@ -92,13 +92,13 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
-/** Calm redesign (calm-v1) palette. Colour carries meaning only: text = normal, order = my PAPER order (lime), attention = amber, loss = red/halt. */
+/** Calm redesign (calm-v1) palette, wave accents since 2026-10-26. Colour carries meaning only: text = normal, order = my PAPER order (pink, as in the Now wave), attention = amber, loss = red/halt. */
 export const calmPalette = Object.freeze({
   ground: "#05080D",
   line: "#18212B",
   text: "#E8F0F2",
   muted: "#8794A0",
-  order: "#C6F54A",
+  order: "#FF7AB0",
   attention: "#FFC266",
   loss: "#FF5C5C",
 } as const);
@@ -115,20 +115,20 @@ export const wavePalette = Object.freeze({
   idle: "#787890",
 } as const);
 
-/** Aura palette (Learning tab, reference direction: near-black ground, one green that glows, grain). Presentation only. */
+/** Aura palette (Learning tab): near-black ground with the wave blue/violet light and grain (was green until 2026-10-26). Presentation only. */
 export const auraPalette = Object.freeze({
-  ground: "#0A0C0A",
-  card: "#111511",
-  text: "#F1F5F0",
-  muted: "#9AA39A",
-  deep: "#04200E",
-  mid: "#0E6B2A",
-  bright: "#2FD35C",
-  neon: "#3CFF7A",
-  unlit: "#2B3A2E",
+  ground: "#09090E",
+  card: "#111118",
+  text: "#F1F1F6",
+  muted: "#9C9CB2",
+  deep: "#140B33",
+  mid: "#3B2BA8",
+  bright: "#6F7CFF",
+  neon: "#A88BFF",
+  unlit: "#2B2A40",
   loss: "#FF6A5C",
   attention: "#FFC266",
-  scrim: "rgba(8,10,8,0.62)",
+  scrim: "rgba(9,9,14,0.62)",
 } as const);
 
 /** calm-v1: the whole app shares the calm palette. Cards blend into the ground (no boxes), white is the normal and primary tone, amber is attention only and red is loss/halt only. Identical in light and dark. */
