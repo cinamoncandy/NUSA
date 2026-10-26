@@ -38,10 +38,10 @@ export function SectionLabel({ left, right = null, live = false }: { readonly le
   const lineStyle = { transform: [{ translateX: draw.interpolate({ inputRange: [0, 1], outputRange: [-width / 2, 0] }) }, { scaleX: draw }] };
   return <View style={styles.labelWrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
     <View style={styles.label}>
-      <Text style={[fieldFonts.mono, styles.labelLeft]}>{left}</Text>
+      <Text style={styles.labelLeft}>{left}</Text>
       <View style={styles.labelRightRow}>
         {live ? <LivePulse reducedMotion={reduced} /> : null}
-        {right == null ? null : <Text style={[fieldFonts.mono, styles.labelRight]}>{right}</Text>}
+        {right == null ? null : <Text style={styles.labelRight}>{right}</Text>}
       </View>
     </View>
     {width > 0 ? <Animated.View pointerEvents="none" style={[styles.labelLine, lineStyle]} /> : null}
@@ -201,7 +201,7 @@ export function Reveal({ index = 0, reducedMotion, children, style }: { readonly
 }
 
 export const instrumentType = StyleSheet.create({
-  index: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 2 },
+  index: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 0.2 },
   heroLine: { color: calmColors.text, fontSize: 54, lineHeight: 58, fontWeight: "700", letterSpacing: -2 },
   sub: { color: calmColors.muted, fontSize: readableFont(14), lineHeight: 21, marginTop: 10, maxWidth: 320 },
 });
@@ -212,8 +212,8 @@ const styles = StyleSheet.create({
   labelRightRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   labelLine: { height: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
   pulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: calmColors.order },
-  labelLeft: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 1.2 },
-  labelRight: { color: calmColors.text, fontSize: readableFont(11), letterSpacing: 1.2 },
+  labelLeft: { color: calmColors.muted, fontSize: readableFont(13), fontWeight: "500" },
+  labelRight: { color: calmColors.text, fontSize: readableFont(13), fontWeight: "500" },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, padding: 14 },
   scan: { position: "absolute", left: 0, top: 0, bottom: 0, width: 2, backgroundColor: calmColors.text, opacity: 0.9 },
   tick: { position: "absolute", width: 8, height: 8, borderColor: calmColors.text, opacity: 0.7 },
@@ -227,7 +227,7 @@ const styles = StyleSheet.create({
 export function InstrumentHero({ index, lines, label }: { readonly index: string; readonly lines: readonly { readonly text: string; readonly amber?: boolean; readonly color?: string }[]; readonly label?: string }) {
   const reduced = useReducedMotion();
   return <View style={heroStyles.wrap}>
-    <Text style={[fieldFonts.mono, instrumentType.index]}>{index}</Text>
+    <Text style={instrumentType.index}>{index}</Text>
     <View style={heroStyles.lines} accessible accessibilityRole="header" accessibilityLabel={label ?? lines.map((l) => l.text).join(" ")}>
       {lines.map((l) => <HeroLine key={l.text} text={l.text} reduced={reduced} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]} />)}
     </View>
