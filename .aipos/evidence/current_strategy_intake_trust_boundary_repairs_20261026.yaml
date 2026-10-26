@@ -1,0 +1,12 @@
+current_strategy_intake_trust_boundary_repairs_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 7253e3a4bd1540524a1d0bf939c6dde3554a5a01
+  protected_main: 235b9bb3b538d411002933f0b84dfa59f14a8564
+  findings: "Fresh exact-head review at 088a3b9a18cdd68eae983ecb94d9961317df9853 found that a variant could embed an equivalent but unpersisted parent precommit, strategy precommit verification accepted a noncanonical regimePlan, and crypto-news observation identity retained unknown runtime keys."
+  fixes: "Variant admission now requires the exact persisted original precommit; adapter verification requires the canonical empty regimePlan; observation identity rejects unknown own string and symbol keys. Regression tests cover all three. The rebased tree preserves the remote durable duplicate classification/read-time guard."
+  validation: "Node 24.18 preflight, build, typecheck, validate:full, security:gate, lint (45 existing warnings, 0 errors), focused contract/storage tests 35/35, full pnpm test (1,284 isolated test files), AIPOS YAML/drift/conformance, and git diff --check PASS. The initial Electron 42.11.18 download timeout was resolved by installing the official release; no tests were skipped."
+  next: "Verify current protected main and PR #2878 head, commit and non-force push the validated successor to the existing Draft PR, then require exact-head CI/companions and fresh non-author review. Formal Validator is separate; no Audit/Release/merge/Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

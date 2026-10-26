@@ -258,7 +258,7 @@ export function verifyStrategyReplicationPrecommit(spec: StrategyReplicationSpec
   if (spec.kind === "NUSA_VARIANT" && (!parentSpec || !parentPrecommit)) throw new Error("STRATEGY_VARIANT_PARENT_PRECOMMIT_REQUIRED");
   if (spec.kind === "ORIGINAL_STRATEGY" && (parentSpec !== undefined || parentPrecommit !== undefined)) throw new Error("STRATEGY_ORIGINAL_HAS_PARENT");
   const parentExperimentIdentity = parentPrecommit?.experimentIdentity;
-  if (precommit.candidateIdentity !== spec.strategyIdentity || precommit.strategyIdentity !== spec.strategyIdentity || !knownText(precommit.validationPolicyIdentity) || !plainRecord(parameterSpec) || canonicalResearchJson(parameterSpec) !== canonicalResearchJson(spec) || !validatePrecommitPlans(precommit.datasetBinding, precommit.evaluationPlan, precommit.costPlan) || precommit.experimentIdentity !== strategyExperimentIdentity({ strategyIdentity: spec.strategyIdentity, sourceSha: precommit.sourceSha, datasetBinding: precommit.datasetBinding, evaluationPlan: precommit.evaluationPlan, costPlan: precommit.costPlan, validationPolicyIdentity: precommit.validationPolicyIdentity, ...(parentExperimentIdentity ? { parentExperimentIdentity } : {}) }) || !validTimestamp(precommit.createdAt) || Date.parse(precommit.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
+  if (precommit.candidateIdentity !== spec.strategyIdentity || precommit.strategyIdentity !== spec.strategyIdentity || !knownText(precommit.validationPolicyIdentity) || !plainRecord(parameterPlan) || canonicalResearchJson(precommit.regimePlan) !== "{}" || !plainRecord(parameterSpec) || canonicalResearchJson(parameterSpec) !== canonicalResearchJson(spec) || !validatePrecommitPlans(precommit.datasetBinding, precommit.evaluationPlan, precommit.costPlan) || precommit.experimentIdentity !== strategyExperimentIdentity({ strategyIdentity: spec.strategyIdentity, sourceSha: precommit.sourceSha, datasetBinding: precommit.datasetBinding, evaluationPlan: precommit.evaluationPlan, costPlan: precommit.costPlan, validationPolicyIdentity: precommit.validationPolicyIdentity, ...(parentExperimentIdentity ? { parentExperimentIdentity } : {}) }) || !validTimestamp(precommit.createdAt) || Date.parse(precommit.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
   if (spec.kind === "ORIGINAL_STRATEGY") {
     verifyStrategyReplicationSpec(parameterSpec as unknown as StrategyReplicationSpec);
   } else {
@@ -291,6 +291,14 @@ export interface CryptoNewsResearchObservation extends CryptoNewsResearchInput {
 }
 
 export function createCryptoNewsResearchObservation(input: CryptoNewsResearchInput): CryptoNewsResearchObservation {
+  const supportedInputFields = new Set([
+    "sourceUrl", "publisher", "originalPublisher", "publishedAt", "retrievedAt", "firstObservedAt",
+    "contentSnapshot", "contentFingerprint", "sourceType", "syndicationClusterId", "corroboratingSources",
+    "eventType", "entities", "assets", "jurisdictions", "confidence", "observedFacts", "publisherClaims",
+    "scoutInferences", "residualUnknowns", "expectedDirection", "expectedMagnitude", "expectedHorizon",
+    "transmissionChannels",
+  ]);
+  if (!input || typeof input !== "object" || Reflect.ownKeys(input).some((key) => typeof key !== "string" || !supportedInputFields.has(key))) throw new Error("NEWS_EVIDENCE_INVALID");
   if (!input || !text(input.publisher) || !SHA256.test(input.contentFingerprint) || !text(input.contentSnapshot) || !validTimestamp(input.retrievedAt) || !validTimestamp(input.firstObservedAt) || (input.publishedAt != null && !validTimestamp(input.publishedAt))) throw new Error("NEWS_PROVENANCE_INVALID");
   if (!NEWS_SOURCE_TYPES.has(input.sourceType) || !CRYPTO_EVENT_TYPES.has(input.eventType) || !NEWS_CONFIDENCE_LEVELS.has(input.confidence)) throw new Error("NEWS_CLASSIFICATION_INVALID");
   const optionalTextValues: readonly unknown[] = [input.originalPublisher, input.syndicationClusterId, input.expectedDirection, input.expectedMagnitude, input.expectedHorizon];

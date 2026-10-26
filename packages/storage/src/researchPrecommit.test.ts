@@ -95,6 +95,29 @@ test("caller-provided original with a valid identity cannot stand in for a persi
   } finally { db.close(); }
 });
 
+test("variant must embed the exact canonical parent precommit, not a later equivalent capture", () => {
+  const { db, repo } = fixture();
+  try {
+    const original = normalizeStrategyReplication(strategy());
+    const firstParent = precommit(original);
+    repo.create(firstParent);
+    const laterOriginal = normalizeStrategyReplication(strategy({ sourceObservedAt: "2026-10-26T00:00:00.000Z" }));
+    const laterParent = precommit(laterOriginal, undefined, undefined, "2026-10-26T00:00:01Z");
+    assert.equal(laterParent.experimentIdentity, firstParent.experimentIdentity);
+    assert.notEqual(laterParent.fingerprint, firstParent.fingerprint);
+
+    const variantInput = strategy({ variantOf: original.strategyIdentity, signalDefinition: "close > prior high plus regime filter" });
+    const variantWithLaterSourceParent = normalizeStrategyReplication(variantInput, laterOriginal);
+    const variantWithLaterParent = precommit(variantWithLaterSourceParent, laterOriginal, laterParent, "2026-10-26T00:00:02Z");
+    assert.throws(() => repo.create(variantWithLaterParent), /STRATEGY_VARIANT_PARENT_NOT_PERSISTED/);
+    assert.equal(repo.get(variantWithLaterParent.fingerprint), null);
+
+    const variantWithCanonicalSourceParent = normalizeStrategyReplication(variantInput, original);
+    const variantWithCanonicalParent = precommit(variantWithCanonicalSourceParent, original, firstParent);
+    assert.equal(repo.create(variantWithCanonicalParent).fingerprint, variantWithCanonicalParent.fingerprint);
+  } finally { db.close(); }
+});
+
 test("legacy orphan variant rows fail closed on canonical precommit reads", () => {
   const { db, repo } = fixture();
   try {

@@ -113,6 +113,16 @@ P0 tracks remain separate: exact-main Oracle release run `40178950069` is still 
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
 
+## Fresh exact-head review repairs — exact parent persistence and canonical input identity, 2026-10-26
+
+The PR review of predecessor `088a3b9a18cdd68eae983ecb94d9961317df9853` found three remaining boundary gaps: a variant could embed a later equivalent but unpersisted parent precommit; the adapter verifier accepted a modified `regimePlan` after the public fingerprint was recomputed; and crypto-news observation identity included unknown runtime string or symbol keys that the canonical stored projection later drops.
+
+The local successor requires the variant's exact parent fingerprint and canonical serialized precommit to resolve to the persisted original, requires the strategy adapter's canonical empty regime plan, and rejects unknown own keys before news identity construction. Adversarial tests cover alternate same-identity parents, fingerprint-recomputed regime plans, and unknown observation fields. The successor is based on newly fetched PR head `7253e3a4bd1540524a1d0bf939c6dde3554a5a01`, which independently added durable duplicate-classification preservation on both append and read; that remote implementation was retained rather than overwritten.
+
+Local validation after rebase: 35 focused contract/storage tests, build, typecheck, Node 24.18 preflight, `validate:full`, `security:gate`, lint (45 existing warnings, zero errors), full `pnpm test` (1,284 isolated test files), AIPOS YAML/drift/conformance, and `git diff --check` passed. The initial Electron 42.11.18 download timeout was resolved by installing the official release; no tests were skipped. Exact-head CI and independent review for the eventual successor remain pending. This work remains a code/evidence pass only; no formal NUSA Validator, Audit, Release, merge, Oracle/runtime mutation, strategy-profitability claim, or PAPER/LIVE authority increase.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
 ## Fresh exact-head review repair — optional StrategySpec metadata + channel identity, 2026-10-25
 
 PR #2878 exact head `33b89e1952c1d819e9765bb5e85f2c99634a70d2` had exact-head CI and required companions PASS. Fresh Codex review `5643319844` found one P1: deserialized optional StrategySpec metadata such as `sourceCodeAvailable: "MAYBE"`, object-valued `publicationDate`, malformed lists, or non-record external performance could pass through normalization during precommit reconstruction. It also found one P2: `transmissionChannels` were validated as strings but not normalized, allowing semantically equivalent inputs to produce different observation identities.

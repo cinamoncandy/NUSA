@@ -116,7 +116,9 @@ export class SqliteResearchPrecommitRepository {
         const spec = plan?.strategySpec;
         if (!isStrategySpec(spec) || spec.kind !== "ORIGINAL_STRATEGY" || spec.strategyIdentity !== strategyIdentity || plan.parentStrategySpec !== undefined) continue;
         verifyStrategyReplicationPrecommit(spec, precommit);
-        if (spec.strategyIdentity === expectedSpec.strategyIdentity && strategyAuthorityProjection(precommit) === strategyAuthorityProjection(expectedPrecommit as ResearchPrecommit)) return precommit;
+        if (spec.strategyIdentity === expectedSpec.strategyIdentity
+          && precommit.fingerprint === (expectedPrecommit as ResearchPrecommit).fingerprint
+          && canonicalResearchJson(precommit) === canonicalResearchJson(expectedPrecommit)) return precommit;
       } catch {
         // A malformed historical row cannot establish parent identity.
       }

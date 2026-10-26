@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { canonicalResearchJson } from "./researchRuntime";
 import { createResearchPrecommit } from "./researchPrecommit";
-import { classifyCryptoNewsDuplicate, createCryptoNewsResearchObservation, createStrategyReplicationReceipt, normalizeStrategyReplication, strategyReplicationPrecommit, verifyStrategyReplicationReceipt, type CryptoNewsResearchInput, type StrategyReplicationInput } from "./researchExternalIntake";
+import { classifyCryptoNewsDuplicate, createCryptoNewsResearchObservation, createStrategyReplicationReceipt, normalizeStrategyReplication, strategyReplicationPrecommit, verifyStrategyReplicationPrecommit, verifyStrategyReplicationReceipt, type CryptoNewsResearchInput, type StrategyReplicationInput } from "./researchExternalIntake";
 import { createResearchIntelligenceRecord } from "./researchIntelligence";
 
 const H = "a".repeat(64), SHA = "b".repeat(40);
@@ -255,4 +255,16 @@ test("news observation factory rejects malformed runtime taxonomy and provenance
   assert.throws(() => createCryptoNewsResearchObservation(news({ confidence: "CERTAIN" as never })), /CLASSIFICATION_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ observedFacts: [" "] })), /EVIDENCE_INVALID/);
   assert.throws(() => createCryptoNewsResearchObservation(news({ syndicationClusterId: 7 as never })), /EVIDENCE_INVALID/);
+});
+
+test("news observation identity rejects unrecognized runtime fields", () => {
+  assert.throws(() => createCryptoNewsResearchObservation({ ...news(), schemaHint: "future" } as never), /NEWS_EVIDENCE_INVALID/);
+});
+
+test("strategy replication rejects a modified regime plan even with a recomputed precommit fingerprint", () => {
+  const spec = normalizeStrategyReplication(strategy());
+  const precommit = strategyReplicationPrecommit({ spec, sourceSha: SHA, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  const { fingerprint: _fingerprint, ...precommitInput } = precommit;
+  const modified = createResearchPrecommit({ ...precommitInput, regimePlan: { regime: "BULL" } });
+  assert.throws(() => verifyStrategyReplicationPrecommit(spec, modified), /RECEIPT_PRECOMMIT_MISMATCH/);
 });
