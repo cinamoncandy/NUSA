@@ -53,7 +53,7 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   const upbitConnected = upbitStatus === "READY" && upbitSnapshot != null && upbitError == null;
 
   return <ScrollView style={{ backgroundColor: theme.colors.background }} contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false} testID="portfolio-screen">
-    <AuthorityRail detail="PAPER 자산 · 실계좌와 분리 · LIVE 없음" status={model ? (usingLocalPaper ? "LOCAL PAPER" : "PAPER READY") : error ? "DEGRADED" : "UNAVAILABLE"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
+    <AuthorityRail detail="PAPER 자산 · 실계좌와 분리 · LIVE 없음" status={model ? (usingLocalPaper ? "이 기기 모의투자" : "서버 연결됨") : error ? "일부 불가" : "받지 못함"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
     <ScreenLead eyebrow="포트폴리오" title="PAPER 자산과 결과" detail="Equity와 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인합니다." badge="PAPER" badgeTone="primary" />
     {error ? <StateNotice title="PAPER 자산 정보 일부 불완전" detail={error} tone="danger" /> : null}
     {!model ? <StateNotice title="PAPER 자산 정보 없음" detail="PAPER 서버에 연결하거나 LOCAL PAPER 결과가 생성되면 자산과 손익을 표시합니다. 모르는 값은 0으로 표시하지 않습니다." tone="warning" /> : null}
