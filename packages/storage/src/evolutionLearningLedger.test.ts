@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { createEvolutionLearningRecord, type EvolutionLearningRecord } from "../../../apps/autopilot/src/evolveLearningMemory";
+import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
 import { SqliteDatabase } from "./index";
 import { EvolutionLearningLedgerError, SqliteEvolutionLearningLedger } from "./evolutionLearningLedger";
 
@@ -20,6 +22,43 @@ const record = (opportunityId: string, recordedAt: string, overrides: Partial<Ev
   recordedAt,
   ...overrides,
 });
+
+const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
+
+function inputSetRecord(recordedAt: string, paperId: string | readonly string[], researchId = "trial-1"): { readonly fingerprint: string; readonly record: EvolutionLearningRecord } {
+  const paperIds = (Array.isArray(paperId) ? [...paperId] : [paperId]).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  const inputSet = {
+    schemaVersion: 1,
+    cutoffTimestamp: 10_000,
+    researchEvidenceRecordIds: [researchId],
+    researchEvidenceObservedAt: [1],
+    paperEvidenceRecordIds: paperIds,
+    paperEvidenceObservedAt: paperIds.map((_, index) => index + 2),
+    researchLaneDigest: sha256(canonicalResearchJson({ lane: "research", recordIds: [researchId], observedAt: [1] })),
+    performanceLaneDigest: sha256(canonicalResearchJson({ lane: "performance", recordIds: paperIds, observedAt: paperIds.map((_, index) => index + 2) })),
+    learningPolicyVersion: "learn-v1",
+    researchPolicyVersion: "research-v1",
+    riskPolicyVersion: "risk-v1",
+    governancePolicyVersion: "gov-v1",
+    canonicalOrderingVersion: "learning-input-set-canonical-order-v2",
+  };
+  const fingerprint = sha256(canonicalResearchJson(inputSet));
+  const opportunityId = `learning-input-set:${fingerprint}`;
+  return {
+    fingerprint,
+    record: record(opportunityId, recordedAt, {
+      problem: "NUSA learning input set: the exact evidence a Learning Decision was built from",
+      evidenceReferences: [opportunityId, ...paperIds.map((id) => `paper-period:${id}`)],
+      hypothesis: canonicalResearchJson(inputSet),
+      changeReference: "learn-v1",
+      validationStatus: "LEARNING_INPUT_SET_AUTHORITY_VERIFIED",
+      outcome: "SUCCESS",
+      failureReason: null,
+      rollbackReference: null,
+      reusable: true,
+    }),
+  };
+}
 
 function databasePath(): string {
   return join(mkdtempSync(join(process.cwd(), ".nusa-evolution-learning-")), "learning.db");
@@ -102,6 +141,69 @@ test("chronology regression and bounded capacity fail closed without pruning his
     assert.equal(ledger.size(), 1);
   } finally {
     chronologyDb.close();
+  }
+});
+
+test("a malformed namespace-shaped A2 record cannot reserve capacity after restart", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1");
+    assert.throws(() => ledger.append({ ...malformedA2.record, hypothesis: "{}" }), (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "UNVERIFIED_LEARNING_INPUT_SET");
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+    ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
+    assert.equal(ledger.size(), 1, "the rejected malformed A2 left no durable reservation or row");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("a forged generic A2 row with unresolved evidence is rejected before persistence and never reserves after restart", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const forged = inputSetRecord("2026-08-29T00:00:00.000Z", "missing-paper", "missing-research");
+    assert.throws(
+      () => ledger.append(forged.record),
+      (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "UNVERIFIED_LEARNING_INPUT_SET",
+      "a generic writer cannot persist an A2-shaped row without the canonical evidence authority",
+    );
+    assert.equal(ledger.size(), 0);
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+    ledger.append(record("opp:unrelated-one", "2026-08-29T00:01:00.000Z"));
+    ledger.append(record("opp:unrelated-two", "2026-08-29T00:02:00.000Z"));
+    assert.equal(ledger.size(), 2, "restart has no phantom A1 reservation to consume shared capacity");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
+  }
+});
+
+test("a whitespace Research ID cannot reserve A1 capacity after restart", () => {
+  const filename = databasePath();
+  let db = new SqliteDatabase(filename);
+  try {
+    let ledger = new SqliteEvolutionLearningLedger(db, 2);
+    const malformedA2 = inputSetRecord("2026-08-29T00:00:00.000Z", "p1", " ");
+    assert.throws(() => ledger.append(malformedA2.record), (error: unknown) => error instanceof EvolutionLearningLedgerError && error.code === "UNVERIFIED_LEARNING_INPUT_SET");
+    db.close();
+
+    db = new SqliteDatabase(filename);
+    ledger = new SqliteEvolutionLearningLedger(db, 2);
+    ledger.append(record("opp:unrelated", "2026-08-29T00:01:00.000Z"));
+    assert.equal(ledger.size(), 1, "a whitespace Research ID is rejected before persistence and cannot reserve capacity");
+  } finally {
+    db.close();
+    removeDatabasePath(filename);
   }
 });
 

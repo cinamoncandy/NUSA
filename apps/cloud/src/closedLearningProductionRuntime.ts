@@ -12,12 +12,13 @@ import { SqliteFuturesPublicStore } from "../../../packages/storage/src/futuresP
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
+import { createLearningEvidenceAuthorityFromReaders } from "./learningEvidenceAuthority";
 import { PaperChallengerPolicyApproval, paperChallengerPolicyEnabled } from "./paperChallengerPolicyApproval";
 import type { CommitteeVote, StrategyIdentity, StrategyValidationSummary } from "../../../packages/contracts/src/strategyGovernance";
 import { adaptPersistedPaperForwardEvidence } from "../../desktop/src/cloud/persistedPaperForwardEvidenceAdapter";
 import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERSION } from "./canonicalPaperCandidatePerformance";
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
-import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
+import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository, SqlitePersistedPaperPeriodStore } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
 import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
@@ -52,10 +53,14 @@ import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdent
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import { ClosedLearningInitialPaperBootstrap, type ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import { buildPaperPerformanceFromLedger, type PaperPerformanceFromLedgerResult } from "./paperPerformanceFromLedger";
+import type { LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 
 export const CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS = 30_000;
 
 export interface ClosedLearningProductionComposition {
+  readonly learningEvidenceAuthority: LearningEvidenceAuthority;
+  /** A2 read-back through the canonical Research decision and realized PAPER ledgers. */
+  readonly learningInputSetEvidenceAuthority: LearningEvidenceAuthority;
   readonly handle: CloudRuntimeHandle;
   readonly challengerBindings: PaperChallengerBindingLedger;
   /**
@@ -97,6 +102,19 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     }
   }
   const snapshots = new SqliteCloudDashboardSnapshotRepository(database);
+  // Bind A2 capacity reservation to the same canonical durable readers used by A2 itself. The
+  // storage transaction verifies citations before append and replay rechecks them after restart.
+  const history = new ClosedLearningResearchDecisionHistory(database);
+  const canonicalPaperEvidenceStore = new SqlitePersistedPaperPeriodStore(database);
+  const learningInputSetEvidenceAuthority = createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId) => history.readEvidence(recordId),
+    readPaper: (recordId) => {
+      const record = canonicalPaperEvidenceStore.listRecords().find((item) => item.recordId === recordId);
+      return record == null ? undefined : Object.freeze({ recordId, recordedAt: record.periodEndAt });
+    },
+    readResearchSnapshot: () => history.listEvidence(),
+    readPaperSnapshot: () => Object.freeze(canonicalPaperEvidenceStore.listRecords().map((record) => Object.freeze({ recordId: record.recordId, recordedAt: record.periodEndAt }))),
+  });
   const learningLedger = new SqliteEvolutionLearningLedger(database);
   const challengerBindings = new PaperChallengerBindingLedger(learningLedger);
   // A qualified challenger always wins; until one exists the owner-approved PAPER baseline trades.
@@ -128,6 +146,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // Evidence validation is read-only and can be expensive. Do it before owning the renewable
   // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
   let researchExperiments: ReturnType<typeof composeResearchExperiments>;
+  let longBarTickEvery = 1;
+  let readPaperEvidence: () => readonly { readonly recordId: string; readonly recordedAt: number }[] = () => [];
   try {
   // Cloud AI durability uses the exact canonical SQLite connection that already completed the
   // full-file startup quick_check. This avoids reopening and rescanning the same production-sized
@@ -137,8 +157,13 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // I/O must not starve the lease heartbeat.
   const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteDatabase: database });
 
-  let longBarTickEvery = 1;
-  researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  researchExperiments = composeResearchExperiments({
+    env,
+    database,
+    log: (line) => console.log(line),
+    longBarTickEvery: () => longBarTickEvery,
+    paperEvidenceReader: () => readPaperEvidence(),
+  });
   researchExperiments?.prepareRecovery();
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
@@ -242,6 +267,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     retireOpenPeriodForMixedBinding: (periodId: string) => baseHandle.retirePaperRealizedPeriodForMixedBinding(periodId),
     inspectOpenPeriodForMixedBinding: (periodId: string) => baseHandle.inspectPaperRealizedPeriodForMixedBinding(periodId),
   });
+  readPaperEvidence = () => periods.listRealizedPeriods().map((period) => ({ recordId: period.record.recordId, recordedAt: period.record.periodEndAt }));
 
   const replaySnapshots = new FileResearchRunReplaySnapshotStore(closedLearningConfig.researchReplaySnapshotPath);
   const replayInput = new ClosedLearningLineageReplayInputSource({
@@ -252,7 +278,6 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     executionQualityPolicy: closedLearningConfig.executionQualityPolicy,
   });
   const worker = new ClosedLearningResearchWorkerClient({ snapshotPath: closedLearningConfig.researchReplaySnapshotPath });
-  const history = new ClosedLearningResearchDecisionHistory(database);
   const artifacts = new FileQualifiedPaperChallengerArtifactStore(closedLearningConfig.qualifiedArtifactPath);
   const researchFactory = new ClosedLearningProductionResearchAdapter({ replayInput, worker, history, artifacts });
   const cycleRepository = new ClosedLearningEvolutionLedgerRepository(learningLedger);
@@ -265,7 +290,11 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // default on the PAPER host; NUSA_PAPER_CHALLENGER_POLICY_APPROVAL=DISABLED makes candidates wait.
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
-  const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
+  // Research experiment composition is optional. When disabled, keep the canonical durable
+  // decision-history and realized-period readers available; only absent research evidence should
+  // fail closed. PAPER evidence must not become unreadable merely because experiment ticks are off.
+  const learningEvidenceAuthority = researchExperiments?.learningEvidenceAuthority ?? learningInputSetEvidenceAuthority;
+  const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment, learningEvidenceAuthority, Date.now);
   const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
   const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);
 
@@ -532,6 +561,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   finally { researchExperiments?.finishPreparedRecovery(); }
 
   return Object.freeze({
+    learningEvidenceAuthority,
+    learningInputSetEvidenceAuthority,
     handle,
     challengerBindings,
     readCanonicalPaperAccount,

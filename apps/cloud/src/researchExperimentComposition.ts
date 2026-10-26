@@ -8,6 +8,7 @@ import { backfillMarket, createUpbitMinuteCandleFetcher, fillRecentGaps, type Ba
 import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
 import { materializeResearchDatasetManifest } from "./researchDatasetManifestMaterializer";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
+import { createLearningEvidenceAuthorityFromReaders, type LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 
 /**
  * Composition of the continuous research experiments. DISABLED unless NUSA_CLOUD_RESEARCH_EXPERIMENTS is exactly
@@ -90,6 +91,7 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
 }
 
 export interface ResearchExperimentComposition {
+  readonly learningEvidenceAuthority: LearningEvidenceAuthority;
   readonly datasetManifests: SqliteResearchDatasetManifestStore;
   /** Synchronous startup only: validate evidence without changing Research session state. */
   readonly prepareRecovery: () => void;
@@ -118,6 +120,7 @@ export function composeResearchExperiments(input: {
   readonly sleep?: (ms: number) => Promise<void>;
   /** Meta-learning steering: the longer bar lengths tick every N-th scheduled tick (1 = every tick). Read on every tick. */
   readonly longBarTickEvery?: () => number;
+  readonly paperEvidenceReader?: () => readonly { readonly recordId: string; readonly recordedAt: number }[];
 }): ResearchExperimentComposition | undefined {
   const log = input.log ?? (() => undefined);
   const parsed = readResearchExperimentSettings(input.env);
@@ -131,6 +134,16 @@ export function composeResearchExperiments(input: {
   const datasetManifests = new SqliteResearchDatasetManifestStore(db);
   const holdout = new SqliteResearchHoldoutLedger(db);
   const ledger = new SqliteResearchEvaluationLedger(db);
+  const paperEvidenceReader = input.paperEvidenceReader ?? (() => []);
+  const learningEvidenceAuthority = createLearningEvidenceAuthorityFromReaders({
+    readResearch: (recordId) => {
+      const record = ledger.list().find((candidate) => candidate.evaluationId === recordId);
+      return record == null ? undefined : { recordId, recordedAt: record.evaluationTimestamp };
+    },
+    readPaper: (recordId) => paperEvidenceReader().find((record) => record.recordId === recordId),
+    readResearchSnapshot: () => ledger.list().map((record) => ({ recordId: record.evaluationId, recordedAt: record.evaluationTimestamp })),
+    readPaperSnapshot: paperEvidenceReader,
+  });
   const precommits = new SqliteResearchPrecommitRepository(db);
   const candidates = new SqliteCandidatePromotionRepository(db);
   const memory = new SqliteResearchMemoryRepository(db);
@@ -419,6 +432,7 @@ export function composeResearchExperiments(input: {
     void task.finally(() => { if (scheduledTick === task) scheduledTick = undefined; });
   };
   return Object.freeze({
+    learningEvidenceAuthority,
     datasetManifests,
     prepareRecovery,
     finishPreparedRecovery: () => { preparationActive = false; clearPreparedRecovery(); },
