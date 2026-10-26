@@ -29,6 +29,9 @@ export interface FamilyPortfolioRiskPolicy {
 export interface FamilyPortfolioRiskEvidence {
   readonly schemaVersion: 1;
   readonly status: "VERIFIED" | "INSUFFICIENT";
+  readonly strategyFamily: Readonly<Record<string, string>>;
+  readonly policy: Readonly<FamilyPortfolioRiskPolicy>;
+  readonly policyFingerprintSha256: string;
   readonly strategyExposure: Readonly<Record<string, number>>;
   readonly familyExposure: Readonly<Record<string, number>>;
   readonly strategyConcentration: number;
@@ -68,6 +71,8 @@ const canonical = (value: unknown): string => {
   throw new Error("unsupported canonical value");
 };
 const digest = (value: unknown): string => createHash("sha256").update(canonical(value), "utf8").digest("hex");
+
+export const fingerprintFamilyPortfolioRiskPolicy = (policy: FamilyPortfolioRiskPolicy): string => digest(policy);
 
 function correlation(left: readonly number[], right: readonly number[]): number | null {
   if (left.length !== right.length || left.length < 2) return null;
@@ -125,8 +130,11 @@ export function buildFamilyPortfolioRiskEvidence(
     if (m.drawdowns.length !== m.returns.length) throw new Error("drawdown evidence length mismatch");
   }
 
+  const normalizedPolicy = Object.freeze({ ...policy });
+  const policyFingerprintSha256 = fingerprintFamilyPortfolioRiskPolicy(normalizedPolicy);
   const reasons: string[] = [];
   if (members.length === 0) reasons.push("MEMBERS_MISSING");
+  const strategyFamily: Record<string, string> = {};
   const strategyExposure: Record<string, number> = {};
   const familyExposure: Record<string, number> = {};
   const familyRiskBudgetUsage: Record<string, number> = {};
@@ -135,6 +143,7 @@ export function buildFamilyPortfolioRiskEvidence(
   let netExpectedEdgeAfterCosts = 0;
 
   for (const m of members) {
+    strategyFamily[m.strategyId] = m.familyId;
     strategyExposure[m.strategyId] = m.weight;
     familyExposure[m.familyId] = (familyExposure[m.familyId] ?? 0) + m.weight;
     familyRiskBudgetUsage[m.familyId] = (familyRiskBudgetUsage[m.familyId] ?? 0) + m.riskContribution;
@@ -180,6 +189,9 @@ export function buildFamilyPortfolioRiskEvidence(
   const payload = {
     schemaVersion: 1 as const,
     status: (reasons.length === 0 ? "VERIFIED" : "INSUFFICIENT") as "VERIFIED" | "INSUFFICIENT",
+    strategyFamily: Object.freeze(strategyFamily),
+    policy: normalizedPolicy,
+    policyFingerprintSha256,
     strategyExposure: Object.freeze(strategyExposure),
     familyExposure: Object.freeze(familyExposure),
     strategyConcentration,
@@ -197,4 +209,13 @@ export function buildFamilyPortfolioRiskEvidence(
     aiAuthority: "ZERO_AUTHORITY" as const,
   };
   return Object.freeze({ ...payload, fingerprintSha256: digest(payload) });
+}
+
+
+export function verifyFamilyPortfolioRiskEvidenceFingerprint(evidence: FamilyPortfolioRiskEvidence): boolean {
+  const { fingerprintSha256, ...payload } = evidence;
+  return /^[a-f0-9]{64}$/.test(fingerprintSha256)
+    && /^[a-f0-9]{64}$/.test(evidence.policyFingerprintSha256)
+    && fingerprintFamilyPortfolioRiskPolicy(evidence.policy) === evidence.policyFingerprintSha256
+    && digest(payload) === fingerprintSha256;
 }

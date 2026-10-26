@@ -23,6 +23,10 @@ describe("family portfolio risk evidence", () => {
   it("computes family exposure, concentration, dependence, drawdown overlap and risk budget", () => {
     const result = buildFamilyPortfolioRiskEvidence([member("s1", "trend"), member("s2", "mean")], policy);
     assert.equal(result.familyExposure.trend, 0.25);
+    assert.equal(result.strategyFamily.s1, "trend");
+    assert.equal(result.strategyFamily.s2, "mean");
+    assert.deepEqual(result.policy, policy);
+    assert.match(result.policyFingerprintSha256, /^[a-f0-9]{64}$/);
     assert.equal(result.familyExposure.mean, 0.25);
     assert.equal(result.strategyConcentration, 0.5);
     assert.equal(result.familyConcentration, 0.5);
