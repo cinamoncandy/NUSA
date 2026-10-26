@@ -21,3 +21,9 @@ Ordered next work:
 5. Research orderbook result is due no earlier than 2026-10-29; the prior handoff defers #2799 META policy until that result. S2/S3/S4 and S5 future holdout dates remain frozen. No premature evaluation or strategy qualification.
 
 Full learning-loop VERIFIED=false; investment improvement UNPROVEN. Safety: PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY.
+
+## PR #2885 publication and exact-head evidence — 2026-10-26
+
+The approved helper-proof change is published as Draft PR #2885, branch `codex/oracle-backup-helper-artifact-20261026`, head `bc2d05cc70bfa14cae707406ce85b21e30f70c93`, base/protected main `a49325d4677841ef76c36e9edd7939cc0c204588`. It changes the eight scoped files listed in WO-OPS-20261026-BACKUP-HELPER-PROOF. Exact-head CI `40257671678`, Actual PAPER `40257671736`, Capability Guard `40257671820`, Activation `40257671691`, Transport `40257671669`, and Read-only Broker `40257671589` all completed successfully. Fresh Codex non-author review completed on the same head with no findings (`has_any_findings=false`, `has_unresolved_findings=false`; comment `6406723607`). These are PR validation receipts only, not Independent Audit or Release authorization.
+
+Next: reconcile the AIPOS fields in this same scoped PR before stopping. Then recheck current main/head and obtain new exact-head workflows and review because any AIPOS commit changes the head. Keep the PR Draft until canonical review/authorization permits the next transition. No Oracle host mutation or runtime improvement has been proven. #2770 genuine readiness/fill/restart acceptance remains pending. Safety remains PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`.
