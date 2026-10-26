@@ -20,11 +20,10 @@ export function AuthorityRail({ detail, status, tone = "success", testID }: Read
   return <View style={[styles.authorityRail, { borderColor: theme.colors.border, backgroundColor: theme.colors.background }]} testID={testID}>
     <View style={styles.authorityBrandRow}>
       <View style={[styles.authorityDot, { borderColor: color }]} />
-      <Text style={[styles.authorityBrand, { color: theme.colors.text }]}>NUSA</Text>
-      <Text style={[styles.authorityMode, { color }]}>PAPER ONLY</Text>
-      <Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]} numberOfLines={1}>{detail}</Text>
+      <Text style={[styles.authorityMode, { color: theme.colors.text }]}>모의투자 전용</Text>
+      <View style={[styles.authorityStatus, { borderColor: color }]}><Text style={[styles.authorityStatusText, { color }]}>{status}</Text></View>
     </View>
-    <View style={[styles.authorityStatus, { borderColor: color }]}><Text style={[styles.authorityStatusText, { color }]}>{status}</Text></View>
+    <Text style={[styles.authorityDetail, { color: theme.colors.textMuted }]}>{detail}</Text>
   </View>;
 }
 
@@ -88,29 +87,28 @@ export function StateNotice({ title, detail, tone = "warning", testID }: Readonl
 }
 
 const styles = StyleSheet.create({
-  authorityRail: { minHeight: 32, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 2, paddingVertical: 4, justifyContent: "center" },
-  authorityBrandRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingRight: 72 },
+  authorityRail: { minHeight: 32, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 2, paddingVertical: 8, gap: 4 },
+  authorityBrandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   authorityDot: { width: 6, height: 6, borderWidth: 1.2, borderRadius: 999 },
-  authorityBrand: { fontSize: labelFont(10), lineHeight: 15, fontWeight: "600", letterSpacing: 1.45 },
-  authorityMode: { fontSize: labelFont(7), lineHeight: 15, fontWeight: "600", letterSpacing: 0.8 },
-  authorityDetail: { flex: 1, minWidth: 0, fontSize: readableFont(7), lineHeight: 17 },
-  authorityStatus: { position: "absolute", right: 0, top: 4, minHeight: 24, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, justifyContent: "center", paddingHorizontal: 8 },
-  authorityStatusText: { fontSize: labelFont(7), lineHeight: 15, fontWeight: "600", letterSpacing: 0.5 },
+  authorityMode: { flex: 1, fontSize: readableFont(13), lineHeight: 18, fontWeight: "600" },
+  authorityDetail: { fontSize: readableFont(13), lineHeight: 19 },
+  authorityStatus: { minHeight: 24, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, justifyContent: "center", paddingHorizontal: 10 },
+  authorityStatusText: { fontSize: labelFont(12), lineHeight: 16, fontWeight: "600" },
   lead: { gap: 4, paddingTop: 2 },
   leadTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 12 },
-  eyebrow: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.15 },
+  eyebrow: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 0.1 },
   leadTitle: { fontSize: 24, lineHeight: 30, fontWeight: "600", letterSpacing: -0.65 },
   leadDetail: { maxWidth: 720, fontSize: readableFont(11), lineHeight: 17 },
   badge: { minHeight: 24, borderRadius: 999, borderWidth: 1, justifyContent: "center", paddingHorizontal: 8 },
-  badgeText: { fontSize: labelFont(8), lineHeight: 15, fontWeight: "600", letterSpacing: 0.55 },
+  badgeText: { fontSize: labelFont(8), lineHeight: 15, fontWeight: "600", letterSpacing: 0 },
   metricStrip: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   metricCell: { flex: 1, minWidth: 0, paddingHorizontal: 10, paddingVertical: 12, gap: 4 },
-  metricLabel: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "500", letterSpacing: 1.4 },
+  metricLabel: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "500", letterSpacing: 0.1 },
   metricValue: { fontSize: 14, lineHeight: 19, fontWeight: "600", fontVariant: ["tabular-nums"] },
   section: { borderTopWidth: StyleSheet.hairlineWidth, borderRadius: 0, paddingHorizontal: 2, paddingTop: 18, paddingBottom: 6, gap: 12 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 },
   sectionTitleWrap: { flex: 1, gap: 3 },
-  sectionKicker: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 1.1 },
+  sectionKicker: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "600", letterSpacing: 0.1 },
   sectionTitle: { fontSize: 19, lineHeight: 24, fontWeight: "500" },
   sectionAction: { minHeight: 48, minWidth: 84, borderWidth: 1, borderRadius: fieldRadii.md, alignItems: "center", justifyContent: "center", paddingHorizontal: 12 },
   sectionActionText: { fontSize: readableFont(11), lineHeight: 17, fontWeight: "500" },
