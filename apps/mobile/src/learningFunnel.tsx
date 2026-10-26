@@ -49,7 +49,7 @@ export function LearningFunnel({ model }: { readonly model: LearningFunnelModel 
   const zero = holdout === 0;
   if (model.stages.length !== 3) return null;
   return <View style={styles.wrap} testID="learning-funnel" onLayout={(e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width) - 40)}>
-    <Text style={[fieldFonts.mono, styles.index]}>02 / 학습</Text>
+    <Text style={styles.index}>02 / 학습</Text>
     <View style={styles.hero} accessible accessibilityRole="header" accessibilityLabel={model.headline.replace(/\n/g, " ")}>
       <Odometer value={holdout} size={84} color={zero ? calmColors.attention : calmColors.text} reducedMotion={reducedMotion} />
       <Text style={[fieldFonts.displayStrong, styles.of]}>{` / ${tested.toLocaleString("en-US")}`}</Text>
@@ -76,12 +76,12 @@ export function LearningFunnel({ model }: { readonly model: LearningFunnelModel 
 }
 
 function Legend({ swatch, text }: { readonly swatch: object; readonly text: string }) {
-  return <View style={styles.legendItem}><View style={[styles.sw, swatch]} /><Text style={[fieldFonts.mono, styles.legendText]}>{text}</Text></View>;
+  return <View style={styles.legendItem}><View style={[styles.sw, swatch]} /><Text style={styles.legendText}>{text}</Text></View>;
 }
 
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 20, marginTop: 8, marginBottom: 8 },
-  index: { color: calmColors.muted, fontSize: readableFont(11), letterSpacing: 2 },
+  index: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 0.2 },
   hero: { flexDirection: "row", alignItems: "flex-end", marginTop: 12 },
   of: { color: calmColors.muted, fontSize: 30, lineHeight: 40, marginLeft: 4 },
   caption: { color: calmColors.text, fontSize: readableFont(15), marginTop: 2 },
