@@ -22,7 +22,7 @@ Run `40275442510` of `Oracle Host Diagnose` (workflow_dispatch, read-only, 2026-
 
 ## What this does and does not support
 
-- The learning loop is slow mainly because it has had **no new PAPER fills since 2026-10-18** and **no usable research dataset manifest**, on a runtime that predates the merged fixes.
+- The slowness is **consistent with** there having been **no new PAPER fills since 2026-10-18** and **no usable research dataset manifest**, on a runtime that predates the merged fixes. These are observed states, not proven causes.
 - It does **not** show the strategies are bad or good: `VERIFIED=false`, investment improvement `UNPROVEN`.
 - It does **not** show that the order failure is the writer lease. Confirming that needs the failure reason (the `ORDER_INTENT` reason or the advanced diagnostic line in the app), which `/health` does not expose in its funnel counts.
 

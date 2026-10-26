@@ -30,6 +30,7 @@ exclusions:
   - No synthetic fill, no fabricated PAPER evidence, no manual manifest or candle insertion.
   - No relaxation of the PAPER permission, risk, loss-limit, threshold, capital or lease gates; no second writer or control plane.
   - No blind retry of the Oracle release and no host mutation from a Claude session.
+  - No merge or approval from a Claude session; merging happens only through the release path or the owner.
   - PR 2855 is merged and deployed in c59b522; do not duplicate it, PR 2877 or PR 2885.
   - Keep the #2799 deferral and the frozen S2/S3/S4 and S5 holdout dates; no premature evaluation or strategy qualification.
 acceptance:
