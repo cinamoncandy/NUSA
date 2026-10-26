@@ -6,6 +6,7 @@ import { createResearchPrecommit } from "../../contracts/src/researchPrecommit";
 import { createCryptoNewsResearchObservation, validateCryptoNewsPrecommitPlans, type CryptoNewsHypothesisInput, type CryptoNewsResearchInput, type CryptoNewsResearchObservation } from "../../contracts/src/researchExternalIntake";
 import { createResearchIntelligenceRecord, type ResearchIntelligenceRecord } from "../../contracts/src/researchIntelligence";
 import {
+  carryResearchIntelligenceSourceAuthentication,
   isResearchIntelligenceSourceRecordAuthenticated,
   validatePersistedResearchIntelligenceSourceReceiptIntegrity,
 } from "../../contracts/src/researchIntelligenceVerificationInternal";
@@ -179,6 +180,16 @@ export class SqliteResearchIntelligenceMemoryRepository {
     const fresh = this.authenticatedThisProcess.get(stored.recordId);
     if (fresh && fresh.contentFingerprint === stored.contentFingerprint
       && fresh.sourceVerificationReceipt?.sourceEntryFingerprint === stored.sourceVerificationReceipt?.sourceEntryFingerprint) {
+      // Source recapture restores provenance trust, but it cannot rewrite the durable
+      // classification/lineage established when this record was first stored.
+      if (stored.novelty === "DUPLICATE") {
+        return carryResearchIntelligenceSourceAuthentication(fresh, Object.freeze({
+          ...fresh,
+          novelty: "DUPLICATE" as const,
+          relatedExistingResearch: stored.relatedExistingResearch,
+          axiomHandoffStatus: "DUPLICATE_SUPPRESSED" as const,
+        }));
+      }
       return fresh;
     }
     // The stored checksum can detect accidental corruption but cannot establish who issued it.
@@ -303,6 +314,16 @@ export class SqliteResearchIntelligenceMemoryRepository {
           && existing.sourceVerificationReceipt?.sourceEntryFingerprint === record.sourceVerificationReceipt?.sourceEntryFingerprint;
         if (!sameCapturedSource) {
           throw new Error("research intelligence record identity conflict");
+        }
+        if (existing.novelty === "DUPLICATE") {
+          // The capture authenticates source bytes, not a new relation decision. Keep
+          // the immutable duplicate relation and its original related-record lineage.
+          return carryResearchIntelligenceSourceAuthentication(record, Object.freeze({
+            ...record,
+            novelty: "DUPLICATE" as const,
+            relatedExistingResearch: existing.relatedExistingResearch,
+            axiomHandoffStatus: "DUPLICATE_SUPPRESSED" as const,
+          }));
         }
         return record;
       }

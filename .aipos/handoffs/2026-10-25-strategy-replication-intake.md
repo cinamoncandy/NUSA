@@ -200,3 +200,13 @@ Build and focused contract/storage regressions pass 21/21. Full local gates and 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
 
 Final local validation for the repeat-capture dedup repair: Node 24.19 preflight, build/typecheck, focused contract/storage 22/22, `validate:full`, `security:gate`, lint (45 pre-existing warnings, 0 errors), full `pnpm test` (1,284 isolated test files), and `git diff --check` all passed. A non-force successor commit/push to PR #2878 is the next step; its CI and independent review must be fresh.
+
+## Fresh exact-head review repair — durable duplicate relation preservation, 2026-10-26
+
+Fresh review on PR #2878 head `088a3b9a18cdd68eae983ecb94d9961317df9853` identified a P1: a durable `DUPLICATE` Research Intelligence record could be recaptured with default `NEW` relation metadata. That fresh capture could restore in-process source trust and replace the durable duplicate classification/lineage in the current-process projection, risking a duplicate AXIOM handoff.
+
+The canonical SQLite Research Intelligence repository now restores source authentication while preserving durable `DUPLICATE`, its `relatedExistingResearch` lineage, and `DUPLICATE_SUPPRESSED` status in both append and read resolution. The capture authenticates source bytes only; it cannot rewrite the prior relation decision. Regression coverage creates a durable duplicate, recaptures the same authenticated source with default `NEW`, and verifies the relation, lineage, trust binding, and no-handoff behavior remain intact.
+
+Validation on the local successor: Node 24.19 preflight; build; focused Research Intelligence memory tests 10/10; typecheck; `validate:full`; `security:gate`; lint (45 existing warnings, zero errors); full `pnpm test` (1,284 isolated test files); `git diff --check`; AIPOS YAML and drift gates PASS. Remote PR head remains `088a3b9...` and protected main remains `235b9bb3...` at last fetch; successor exact-head CI and independent review are pending. Existing audit outputs in `docs/audits/*` were preserved and excluded. No Oracle deployment, restart, DB/lease mutation, Audit/Release/merge, or Formal Validator is claimed.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.

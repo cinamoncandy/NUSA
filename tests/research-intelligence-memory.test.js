@@ -199,6 +199,41 @@ test("SQLite source trust rejects caller claims and requires fresh capture after
   }
 });
 
+test("fresh authenticated recapture preserves durable duplicate classification and lineage", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const memory = new SqliteResearchIntelligenceMemoryRepository(db);
+    const authenticated = record();
+    const duplicate = carryResearchIntelligenceSourceAuthentication(authenticated, Object.freeze({
+      ...authenticated,
+      novelty: "DUPLICATE",
+      relatedExistingResearch: Object.freeze(["research-record:canonical-original"]),
+      axiomHandoffStatus: "DUPLICATE_SUPPRESSED",
+    }));
+    assert.equal(isResearchIntelligenceSourceRecordAuthenticated(duplicate), true);
+    memory.append(duplicate);
+
+    // A later canonical source capture starts with the factory's default NEW metadata.
+    const recaptured = record();
+    assert.equal(recaptured.novelty, "NEW");
+    const appended = memory.append(recaptured);
+    assert.equal(appended.novelty, "DUPLICATE");
+    assert.deepEqual(appended.relatedExistingResearch, ["research-record:canonical-original"]);
+    assert.equal(appended.axiomHandoffStatus, "DUPLICATE_SUPPRESSED");
+
+    const resolved = memory.get(authenticated.recordId);
+    assert.equal(resolved.novelty, "DUPLICATE");
+    assert.deepEqual(resolved.relatedExistingResearch, ["research-record:canonical-original"]);
+    assert.equal(resolved.axiomHandoffStatus, "DUPLICATE_SUPPRESSED");
+    assert.equal(isResearchIntelligenceSourceRecordAuthenticated(resolved), true,
+      "fresh capture restores provenance authentication without replacing durable relation metadata");
+    assert.throws(() => require("../dist/packages/contracts/src/researchIntelligence.js")
+      .createAxiomResearchIntelligenceHandoff(resolved), /duplicate research/);
+  } finally {
+    db.close();
+  }
+});
+
 test("source verifier rejects an arXiv ID substring and metadata not present in the complete entry", () => {
   const idOnly = "<id>http://arxiv.org/abs/2603.29086v1</id>";
   const substringRecord = unverifiedRecord(sourceCapture.capturedAt, {

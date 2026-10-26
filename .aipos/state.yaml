@@ -80,6 +80,18 @@ current_strategy_intake_capture_clock_and_auth_carry_20261026:
   next: "Recheck protected main and PR/remote branch identity, commit and non-force push the substantive repair to existing PR #2878, then require exact-successor CI and fresh non-author review. Formal NUSA Validator remains separate; keep Draft; no Audit/Release/merge or Oracle mutation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_duplicate_classification_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 088a3b9a18cdd68eae983ecb94d9961317df9853
+  finding: "Fresh exact-head review found that recapturing an already durable DUPLICATE Research Intelligence record with default NEW relation metadata could restore source authentication while replacing the durable duplicate relation and related-record lineage in the current-process trust projection."
+  fix: "The canonical SQLite repository now restores authentication while preserving durable DUPLICATE classification, related-record lineage, and DUPLICATE_SUPPRESSED handoff state on both append and read resolution. Source recapture authenticates bytes only and cannot change the stored relation decision."
+  validation: "Node 24.19 preflight, build, focused Research Intelligence memory tests 10/10, typecheck, validate:full, security:gate, lint (45 existing warnings/0 errors), full pnpm test (1284 isolated test files), and git diff --check PASS."
+  next: "Recheck current protected main and PR/remote head; publish one substantive non-force successor to existing Draft PR #2878, then require exact-head CI/companions and a fresh non-author review. Formal NUSA Validator remains separate. No Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_final_local_validated_20261026:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
