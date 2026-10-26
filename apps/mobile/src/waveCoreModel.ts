@@ -50,6 +50,16 @@ export function waveEnvelope(x: number, pulses: readonly WavePulse[], now: numbe
   return e;
 }
 
+/** Largest swing of a wave from its centre line, as a share of the box height. The strip below and the title above stay clear of it. */
+export const WAVE_REACH = 0.2;
+
+/** Soft limit: nearly linear for small swings, flattening smoothly as a swing nears `limit`, so a burst of pulses never leaves the box. */
+export function softLimit(value: number, limit: number): number {
+  if (Number.isNaN(value) || !(limit > 0)) return 0;
+  if (!Number.isFinite(value)) return Math.sign(value) * limit;
+  return limit * Math.tanh(value / limit);
+}
+
 /** One step of the amplitude spring toward `rest`; a kick is added to the velocity by the caller. */
 export function springStep(amp: number, velocity: number, rest: number, dt: number): { readonly amp: number; readonly velocity: number } {
   const acc = (rest - amp) * 34 - velocity * 3.6;
@@ -61,7 +71,7 @@ export function springStep(amp: number, velocity: number, rest: number, dt: numb
 export const restAmplitude = (live: boolean, energy: number): number => (live ? 0.11 + 0.2 * Math.max(0, Math.min(1.5, energy)) : 0);
 
 /** Kick added to the spring velocity for one pulse. */
-export const pulseKick = (order: boolean): number => (order ? 8.5 : 6);
+export const pulseKick = (order: boolean): number => (order ? 5.5 : 4);
 
 /** Tick x positions (0..1, 1 = now) for rises seen in the last minute. */
 export function historyTicks(ticks: readonly WavePulse[], now: number): readonly { readonly x: number; readonly order: boolean; readonly fresh: number }[] {

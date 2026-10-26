@@ -78,3 +78,19 @@ test("review fixes: idle flat waves stop the frame loop, ticks age out under red
   const ds = read("designSystem.ts");
   assert.match(ds, /pink: calmPalette\.order,/);
 });
+
+test("waves are soft-limited so a burst of pulses never leaves the box", () => {
+  assert.equal(m.softLimit(0, 100), 0);
+  assert.ok(Math.abs(m.softLimit(5, 100) - 5) < 0.1, "small swings stay almost linear");
+  assert.ok(m.softLimit(10_000, 100) <= 100 && m.softLimit(-10_000, 100) >= -100);
+  assert.ok(m.softLimit(300, 100) < 100 && m.softLimit(300, 100) > m.softLimit(150, 100), "monotonic and below the limit");
+  assert.equal(m.softLimit(Number.NaN, 100), 0);
+  assert.equal(m.softLimit(Number.POSITIVE_INFINITY, 100), 100);
+  assert.equal(m.softLimit(Number.NEGATIVE_INFINITY, 100), -100);
+  assert.equal(m.softLimit(50, 0), 0);
+  assert.ok(m.WAVE_REACH > 0 && m.WAVE_REACH <= 0.25 && 0.46 + m.WAVE_REACH < 0.8, "centre line + reach stays clear above the tick strip (strip baseline 0.86, ticks rise above it)");
+  assert.ok(0.46 - m.WAVE_REACH > 0.1, "and below the top edge");
+  const src = read("waveCore.tsx");
+  assert.match(src, /softLimit\(Math\.sin\(/);
+  assert.doesNotMatch(src, /height \* 0\.42 \* scene\.shockK/);
+});

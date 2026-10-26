@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, waveEnvelope, WAVE_HISTORY_MS, WAVE_PULSE_MS, type WavePulse } from "./waveCoreModel";
+import { WAVE_REACH, fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, softLimit, springStep, waveEnvelope, WAVE_HISTORY_MS, WAVE_PULSE_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { readableFont, wavePalette } from "./designSystem";
 
@@ -24,12 +24,12 @@ const WAVES: readonly WaveSpec[] = [
   { color: wavePalette.pink, f: 2.0, s: 1.6, o: 4.4, a: 0, kind: "order" },
 ];
 
-function wavePath(w: WaveSpec, width: number, cy: number, amp: number, phase: number, pulses: readonly WavePulse[], now: number, lock: number): SkPath {
+function wavePath(w: WaveSpec, width: number, cy: number, amp: number, reach: number, phase: number, pulses: readonly WavePulse[], now: number, lock: number): SkPath {
   const f = w.f + (1.6 - w.f) * lock, s = w.s + (1 - w.s) * lock, o = w.o * (1 - lock);
   const path = Skia.Path.Make();
   for (let i = 0; i <= STEPS; i += 1) {
     const x = i / STEPS;
-    const y = cy + Math.sin(x * Math.PI * 2 * f + phase * s + o) * waveEnvelope(x, pulses, now) * amp;
+    const y = cy + softLimit(Math.sin(x * Math.PI * 2 * f + phase * s + o) * waveEnvelope(x, pulses, now) * amp, reach);
     if (i === 0) path.moveTo(x * width, y); else path.lineTo(x * width, y);
   }
   return path;
@@ -124,10 +124,10 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
   const scene = useMemo(() => {
     const st = state.current, now = Date.now();
     if (reducedMotion !== false) { st.flat = live ? 0 : 1; st.amp = restAmplitude(live, 0); }
-    const amp = height * 0.42 * st.amp * (1 - st.flat * 0.97);
+    const amp = height * 0.3 * st.amp * (1 - st.flat * 0.97);
     const waves = WAVES.map((w) => {
       const mul = w.kind === "order" ? st.pink : w.a * (1 - st.pink * 0.25);
-      return { w, mul, path: mul < 0.01 ? null : wavePath(w, width, cy, amp * mul * (w.kind === "order" ? 1.35 : 1), st.phase, pulses.current, now, fillAt.current == null ? 0 : fillLock(now - fillAt.current)) };
+      return { w, mul, path: mul < 0.01 ? null : wavePath(w, width, cy, amp * mul * (w.kind === "order" ? 1.35 : 1), height * WAVE_REACH, st.phase, pulses.current, now, fillAt.current == null ? 0 : fillLock(now - fillAt.current)) };
     });
     const lock = fillAt.current == null ? 0 : fillLock(now - fillAt.current);
     const shockK = fillAt.current == null ? 1 : (now - fillAt.current) / 1100;
@@ -156,7 +156,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
         <RadialGradient c={vec(width / 2, cy)} r={width * 0.5} colors={[calmColors.text, "transparent"]} />
       </Rect> : null}
       {scene.lock > 0.05 && scene.waves[2]?.path ? <Path path={scene.waves[2].path} style="stroke" strokeWidth={2.4} strokeCap="round" color={calmColors.text} opacity={scene.lock}><BlurMask blur={3} style="solid" /></Path> : null}
-      {scene.shockK < 1 ? [cy - height * 0.42 * scene.shockK, cy + height * 0.42 * scene.shockK].map((y, i) => <Rect key={`s${i}`} x={width * 0.1} y={y - 0.75} width={width * 0.8} height={1.5} color={calmColors.text} opacity={(1 - scene.shockK) * 0.6} />) : null}
+      {scene.shockK < 1 ? [cy - height * WAVE_REACH * scene.shockK, cy + height * WAVE_REACH * scene.shockK].map((y, i) => <Rect key={`s${i}`} x={width * 0.1} y={y - 0.75} width={width * 0.8} height={1.5} color={calmColors.text} opacity={(1 - scene.shockK) * 0.6} />) : null}
       <Rect x={0} y={cy - 0.5} width={width} height={1}>
         <LinearGradient start={vec(0, cy)} end={vec(width, cy)} colors={["transparent", calmColors.text, "transparent"]} positions={[0, 0.5, 1]} />
       </Rect>
