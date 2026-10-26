@@ -45,13 +45,15 @@ const githubResponse = (status: number, payload: unknown, textValue?: string) =>
   async text() { return textValue ?? JSON.stringify(payload); },
 });
 
-function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean } = {}) {
+function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean } = {}) {
   let pullReads = 0;
-  const diff = "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
+  const diff = options.deletedSource
+    ? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import { helper } from './helper';\n-helper();\n"
+    : "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
   const protocol = "# NUSA /grill-me protocol\n" + "adversarial exact-head fail-closed independent validation. ".repeat(8);
   return (async (input: string) => {
     const url = String(input);
-    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, [{ filename: "a.ts", status: "modified" }]);
+    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, [{ filename: "a.ts", status: options.deletedSource ? "removed" : "modified" }]);
     if (url.includes(`/pulls/${request.prNumber}`)) {
       pullReads += 1;
       return githubResponse(200, { state: "open", changed_files: 1, head: { sha: options.staleSecondPull && pullReads > 1 ? "c".repeat(40) : request.headSha, repo: { full_name: request.repository } }, base: { sha: request.baseSha, repo: { full_name: request.repository } } });
@@ -60,6 +62,8 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (url.includes(`/compare/${request.baseSha}...${request.headSha}`)) return githubResponse(200, {}, diff);
     if (url.includes("/contents/docs/GRILL_ME_PROTOCOL.md?ref=")) return githubResponse(200, {}, protocol);
     if (url.includes(`/contents/package.json?ref=${request.headSha}`)) return githubResponse(200, {}, "{}\n");
+    if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(404, {});
+    if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import { helper } from './helper';\nhelper();\n");
     if (url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(200, {}, options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : 'import { helper } from "./helper";\nhelper();');
     if (url.includes(`/contents/helper.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function helper() { return true; }\n");
     if (url.includes(`/contents/helper?ref=${request.headSha}`) || url.includes(`/contents/helper/`)) return githubResponse(404, {});
@@ -99,6 +103,16 @@ test("fresh VALIDATOR fails closed when a changed line uses an unresolved reposi
   const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
   await assert.rejects(executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ aliasImport: true })), /VALIDATOR_DEPENDENCY_IMPORT_UNCLASSIFIED/);
   assert.equal(aiCalled, false);
+});
+
+test("fresh VALIDATOR inspects deleted changed source at the exact PR base", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ deletedSource: true }), () => 999);
+  assert.equal(result.status, "VALIDATOR_COMPLETED");
+  assert.match(prompt, /DELETED SOURCE a\.ts @ BASE b{40}/);
+  assert.match(prompt, /import \{ helper \} from '\.\/helper'/);
+  assert.ok(result.evidenceRefs.includes(`github:deleted-source/a.ts@${request.baseSha}`));
 });
 
 test("fresh VALIDATOR fails if the exact head changes during review", async () => {

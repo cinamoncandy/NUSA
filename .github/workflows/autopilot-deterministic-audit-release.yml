@@ -125,9 +125,14 @@ jobs:
           unzip -q "$RUNNER_TEMP/nusa-deterministic-audit/validator.zip" -d "$RUNNER_TEMP/nusa-deterministic-audit/validator"
           validator_evidence="$(find "$RUNNER_TEMP/nusa-deterministic-audit/validator" -type f -name 'trusted-validator-evidence.json' -print -quit)"
           test -n "$validator_evidence"
+          audit_authority="$(find "$RUNNER_TEMP/nusa-deterministic-audit/validator" -type f -name 'trusted-audit-authority.json' -print -quit)"
+          test -n "$audit_authority"
           validator_script="$RUNNER_TEMP/nusa-deterministic-audit/validate-fresh-validator-evidence.js"
           gh api "repos/$GITHUB_REPOSITORY/contents/scripts/validate-fresh-validator-evidence.js?ref=$current_main" --jq '.content' | base64 --decode > "$validator_script"
           node "$validator_script" "$validator_evidence" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$REQUESTED_HEAD" "$current_main" "$WORKFLOW_RUN_ID" "$VALIDATOR_EXECUTION_RUN_ID" "$validator_attempt"
+          audit_authority_script="$RUNNER_TEMP/nusa-deterministic-audit/validate-trusted-audit-authority.js"
+          gh api "repos/$GITHUB_REPOSITORY/contents/scripts/validate-trusted-audit-authority.js?ref=$current_main" --jq '.content' | base64 --decode > "$audit_authority_script"
+          node "$audit_authority_script" "$audit_authority" "$GITHUB_REPOSITORY" "$PR_NUMBER" "$REQUESTED_HEAD" "$current_main" "$WORKFLOW_RUN_ID" "$VALIDATOR_EXECUTION_RUN_ID" "$validator_attempt"
 
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$WORKFLOW_RUN_ID" > "$RUNNER_TEMP/nusa-deterministic-audit/ci.json"
           jq -e --arg head "$REQUESTED_HEAD" --arg repo "$GITHUB_REPOSITORY" '

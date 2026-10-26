@@ -529,8 +529,14 @@ function decodeDiffHeaderPath(value: string): string {
   throw new Error("VALIDATOR_DIFF_PATH_INVALID");
 }
 
-function diffFileChanges(diff: string): ReadonlyMap<string, readonly string[]> {
+interface DiffFileChanges {
+  readonly linesByPath: ReadonlyMap<string, readonly string[]>;
+  readonly deletedPaths: ReadonlySet<string>;
+}
+
+function diffFileChanges(diff: string): DiffFileChanges {
   const result = new Map<string, string[]>();
+  const deletedPaths = new Set<string>();
   let currentPath: string | undefined;
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) {
@@ -556,10 +562,14 @@ function diffFileChanges(diff: string): ReadonlyMap<string, readonly string[]> {
       result.set(currentPath, []);
       continue;
     }
+    if (currentPath && line === "+++ /dev/null") {
+      deletedPaths.add(currentPath);
+      continue;
+    }
     if (currentPath && line.startsWith("+") && !line.startsWith("+++")) result.get(currentPath)?.push(line.slice(1));
     else if (currentPath && line.startsWith("-") && !line.startsWith("---")) result.get(currentPath)?.push(line.slice(1));
   }
-  return result;
+  return Object.freeze({ linesByPath: result, deletedPaths });
 }
 
 interface LocalImport { readonly specifier: string; readonly names: readonly string[] }
@@ -601,10 +611,10 @@ function resolveRelativeBase(importer: string, specifier: string): string {
   return stack.join("/");
 }
 
-async function fetchExactHeadDependency(path: string, request: ValidatorRunnerRequest, token: string, fetchImpl: FetchImpl): Promise<string | null> {
+async function fetchExactHeadDependency(path: string, request: ValidatorRunnerRequest, token: string, fetchImpl: FetchImpl, ref = request.headSha): Promise<string | null> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
   const encodedPath = path.split("/").map(encodeURIComponent).join("/");
-  const response = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(request.headSha)}`, { method: "GET", headers: githubHeaders("application/vnd.github.raw+json", token) });
+  const response = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/contents/${encodedPath}?ref=${encodeURIComponent(ref)}`, { method: "GET", headers: githubHeaders("application/vnd.github.raw+json", token) });
   if (response.status === 404) return null;
   if (response.status !== 200 || typeof response.text !== "function") throw new Error(`VALIDATOR_DEPENDENCY_HTTP_${response.status}`);
   const content = await response.text();
@@ -614,11 +624,13 @@ async function fetchExactHeadDependency(path: string, request: ValidatorRunnerRe
 
 async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, changedPaths: readonly string[], diff: string, token: string, fetchImpl: FetchImpl): Promise<{ readonly context: string; readonly evidenceRefs: readonly string[] }> {
   const changes = diffFileChanges(diff);
-  if (changes.size !== changedPaths.length || changedPaths.some((path) => !changes.has(path))) throw new Error("VALIDATOR_DIFF_PATH_LIST_MISMATCH");
-  const sourcePaths = changedPaths.filter((path) => /\.(?:[cm]?[jt]sx?)$/i.test(path) && changes.has(path));
+  if (changes.linesByPath.size !== changedPaths.length || changedPaths.some((path) => !changes.linesByPath.has(path))) throw new Error("VALIDATOR_DIFF_PATH_LIST_MISMATCH");
+  const sourcePaths = changedPaths.filter((path) => /\.(?:[cm]?[jt]sx?)$/i.test(path) && changes.linesByPath.has(path));
   if (sourcePaths.length > MAX_CONTEXT_SOURCE_FILES) throw new Error("VALIDATOR_CONTEXT_SOURCE_FILE_LIMIT_EXCEEDED");
   let sourceChars = 0;
   const dependencyPaths = new Set<string>();
+  const evidenceRefs: string[] = [];
+  const sourceContextParts: string[] = [];
   let declaredPackages: ReadonlyMap<string, string> | undefined;
   const loadDeclaredPackages = async (): Promise<ReadonlyMap<string, string>> => {
     if (declaredPackages) return declaredPackages;
@@ -641,11 +653,19 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
     return packages;
   };
   for (const sourcePath of sourcePaths) {
-    const source = await fetchExactHeadDependency(sourcePath, request, token, fetchImpl);
-    if (source === null) throw new Error("VALIDATOR_CHANGED_SOURCE_MISSING_AT_HEAD");
+    let source = await fetchExactHeadDependency(sourcePath, request, token, fetchImpl);
+    if (source === null && changes.deletedPaths.has(sourcePath)) {
+      source = await fetchExactHeadDependency(sourcePath, request, token, fetchImpl, request.baseSha);
+      if (source === null) throw new Error("VALIDATOR_DELETED_SOURCE_MISSING_AT_BASE");
+      evidenceRefs.push(`github:deleted-source/${sourcePath}@${request.baseSha}`);
+      sourceContextParts.push(`--- BEGIN DELETED SOURCE ${sourcePath} @ BASE ${request.baseSha} ---\n${source}\n--- END DELETED SOURCE ${sourcePath} ---`);
+    } else {
+      if (source === null) throw new Error("VALIDATOR_CHANGED_SOURCE_MISSING_AT_HEAD");
+      evidenceRefs.push(`github:changed-source/${sourcePath}@${request.headSha}`);
+    }
     sourceChars += source.length;
     if (sourceChars > MAX_CONTEXT_SOURCE_CHARS) throw new Error("VALIDATOR_CONTEXT_SOURCE_BYTES_EXCEEDED");
-    const changedText = changes.get(sourcePath)?.join("\n") ?? "";
+    const changedText = changes.linesByPath.get(sourcePath)?.join("\n") ?? "";
     for (const imported of localImports(source)) {
       if (!imported.names.some((name) => name === imported.specifier || new RegExp(`\\b${escapeRegExp(name)}\\b`).test(changedText))) continue;
       if (!imported.specifier.startsWith(".")) {
@@ -664,7 +684,7 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
     }
   }
   if (dependencyPaths.size > MAX_CONTEXT_DEPENDENCIES) throw new Error("VALIDATOR_DEPENDENCY_COUNT_EXCEEDED");
-  const contextParts: string[] = []; const evidenceRefs: string[] = sourcePaths.map((path) => `github:changed-source/${path}@${request.headSha}`);
+  const contextParts: string[] = [...sourceContextParts];
   if (declaredPackages) evidenceRefs.push(`github:dependency-manifest/package.json@${request.headSha}`);
   let totalChars = 0;
   for (const path of [...dependencyPaths].sort()) {
