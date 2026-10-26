@@ -88,7 +88,7 @@ test("waves are soft-limited so a burst of pulses never leaves the box", () => {
   assert.equal(m.softLimit(Number.POSITIVE_INFINITY, 100), 100);
   assert.equal(m.softLimit(Number.NEGATIVE_INFINITY, 100), -100);
   assert.equal(m.softLimit(50, 0), 0);
-  assert.ok(m.WAVE_REACH > 0 && 0.46 + m.WAVE_REACH < 0.8, "centre line + reach stays clear above the tick strip (strip baseline 0.86, ticks rise above it)");
+  assert.ok(m.WAVE_REACH > 0 && m.WAVE_REACH <= 0.25 && 0.46 + m.WAVE_REACH < 0.8, "centre line + reach stays clear above the tick strip (strip baseline 0.86, ticks rise above it)");
   assert.ok(0.46 - m.WAVE_REACH > 0.1, "and below the top edge");
   const src = read("waveCore.tsx");
   assert.match(src, /softLimit\(Math\.sin\(/);

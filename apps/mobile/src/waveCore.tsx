@@ -124,7 +124,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
   const scene = useMemo(() => {
     const st = state.current, now = Date.now();
     if (reducedMotion !== false) { st.flat = live ? 0 : 1; st.amp = restAmplitude(live, 0); }
-    const amp = height * 0.42 * st.amp * (1 - st.flat * 0.97);
+    const amp = height * 0.3 * st.amp * (1 - st.flat * 0.97);
     const waves = WAVES.map((w) => {
       const mul = w.kind === "order" ? st.pink : w.a * (1 - st.pink * 0.25);
       return { w, mul, path: mul < 0.01 ? null : wavePath(w, width, cy, amp * mul * (w.kind === "order" ? 1.35 : 1), height * WAVE_REACH, st.phase, pulses.current, now, fillAt.current == null ? 0 : fillLock(now - fillAt.current)) };
