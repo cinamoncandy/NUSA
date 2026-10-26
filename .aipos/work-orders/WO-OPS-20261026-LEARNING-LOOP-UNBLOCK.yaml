@@ -1,0 +1,55 @@
+id: WO-OPS-20261026-LEARNING-LOOP-UNBLOCK
+title: Unblock the PAPER learning loop (no orders since 2026-10-18, research dataset manifest missing)
+status: PLANNED_NOT_STARTED_DEPLOYMENT_NEEDS_APPROVED_OWNER_PATH
+priority: P0
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2770
+base_commit: de6cb5d56acfec429659301c9c1ed8b424e7935f
+implementation_branch: claude/learning-slow-diagnosis
+authority_impact: none
+objective: Make the reasons the learning loop is slow observable and sequence the approved fixes, without relaxing any safety gate. This work order records the diagnosis and the ordered actions; it does not deploy, restart or change risk, limits, thresholds or capital.
+evidence:
+  host_diagnose_run: 40275442510
+  host_diagnose_job: 121417107397
+  observed_at: '2026-10-26T05:41:17Z'
+  deployed_runtime_sha: c59b522410cb0ea62977382f15d253c331c690f8
+  protected_main_sha: de6cb5d56acfec429659301c9c1ed8b424e7935f
+  paper: 'decisionCount 12984, DECISION:PASS:BUY 4824, ORDER_INTENT:FAIL 4824, paperOrderCount 0, paperFillCount 0, ledger fillCount 314, lastFillAt 1792333922255 (2026-10-18), previousStop PAPER_WRITER_LEASE_LOST, eventLoopMaxStallMs 7770, eventLoopStallCount 23. The ORDER_INTENT failure reason is not exposed in the funnel counts: cause not proven.'
+  research: 'researchExperimentTicks SKIPPED 110, all SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND; sessionsStarted 0; closedLearningLoop cyclesEvaluated 0, bootstrap RESEARCH_NOT_DEPLOYABLE, lastBlockedReason TICK_ERROR. dataIntegrity WARN: candleSeries 1, candleRows7d 8590, candleStaleSeries 1, candleMaxLatestAgeMs 89416950 (about 24.8 h as of dataIntegrity.observedAt 2026-10-26T00:18:33Z, before the current process started). Manifests are materialised only after backfill COMPLETE or gap fill NO_GAPS/FILLED (apps/cloud/src/researchExperimentComposition.ts).'
+  host: '/ 90% used (4.7G free), memory 954 MB total / 377 MB available (this log); one vCPU and about 11 GB of release directories come from the 2026-10-15 handoff, not this log.'
+  deployment: 'Oracle PAPER Release runs were cancelled (run 40198892768 started 2026-10-25T13:43:07Z and ended about 16:58Z; the #2770 comment of 2026-10-26T04:08Z gives about 149 minutes for its backup step on a Sunday); cancellation cause not proven. #2885 (root helper artifact) and #2875 (lease handoff) are merged but not installed.'
+  diagnosis_note: .aipos/handoffs/2026-10-26-learning-loop-slowness-diagnosis.md
+scope:
+  - Approved exact-main Oracle deployment on a weekday with the installed exact reviewed root-owned helper and actual backup/readiness evidence (owner path; not this branch).
+  - Display-only change that carries the ORDER_INTENT failure reason into the /health paperFunnel counts, so the next diagnosis does not infer it (separate small PR, tests first).
+  - Post-deploy read-only re-check with Oracle Host Diagnose health_only=true.
+  - Approved ops-path cleanup of old release directories to restore disk headroom.
+  - Read the pre-registered order-book study result no earlier than 2026-10-29T03:30Z and record it in docs/research-ledger/experiments.json and AIPOS.
+exclusions:
+  - No synthetic fill, no fabricated PAPER evidence, no manual manifest or candle insertion.
+  - No relaxation of the PAPER permission, risk, loss-limit, threshold, capital or lease gates; no second writer or control plane.
+  - No blind retry of the Oracle release and no host mutation from a Claude session.
+  - No merge or approval from a Claude session; merging happens only through the release path or the owner.
+  - PR 2855 is merged and deployed in c59b522; do not duplicate it, PR 2877 or PR 2885.
+  - Keep the #2799 deferral and the frozen S2/S3/S4 and S5 holdout dates; no premature evaluation or strategy qualification.
+acceptance:
+  - After an approved deploy, paperOrderCount rises from a genuine PAPER decision (no synthetic fill) and previousStop is not a writer-lease loss.
+  - candleMaxLatestAgeMs falls and researchExperimentTicks stops reporting MANIFEST_NOT_FOUND, or the real blocker is named from evidence. The canonical 12-day window has a source gap 2026-10-18T17:02Z..22:04Z (PR 2840) with the earliest natural aging boundary about 2026-10-31 07:04 KST, so the manifest may not appear immediately after a deploy.
+  - The ORDER_INTENT failure reason is visible in the funnel counts (display-only), with tests.
+  - Disk headroom is restored through the approved path.
+  - Overall learning-loop VERIFIED stays false until evidence says otherwise; investment improvement stays UNPROVEN.
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+  - node scripts/validate-repository-portability.js
+  - node scripts/validate-platform-independent-tests.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'This publication is documentation only (this work order and the diagnosis note); AIPOS YAML, portability and platform-independent validators passed locally on the branch. CI and a fresh non-author review are required before governed integration.'
+precommit_review: 'Not yet requested.'
+publication_blockers:
+  - 'Deployment, host cleanup and the study read are outside this branch and need the approved owner release path.'
+next: Owner relays the ordered actions to the approved ops path (weekday deployment first). After a successful deployment, run Oracle Host Diagnose with health_only=true and append the result to this work order and the diagnosis note.
