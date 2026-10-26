@@ -1,6 +1,6 @@
 id: WO-OPS-20261026-BACKUP-HELPER-PROOF
 title: Avoid extracting the full release before Oracle backup helper verification
-status: LOCAL_P2_REPAIRS_VALIDATED_PENDING_PUBLICATION
+status: PR_OPEN_DRAFT_REVIEWED_PENDING_INDEPENDENT_AUDIT_RELEASE
 priority: P0
 owner: nusa-server-automation
 repository: cinamoncandy/NUSA
@@ -43,7 +43,7 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
-validation: 'Local repair resolves both P2 findings: handoff now records the published PR/current head and authority_impact is production_backup_safety_gate. Focused tests 31/31; AIPOS YAML/provenance/drift/conformance and diff check PASS. PR head 393777626ac198bd3b2ebb529ee0a04214e79c85 had six workflows PASS, historical after repair. Push and obtain fresh exact-head gates/review.'
-precommit_review: 'Earlier precommit review found no actionable P0/P1/P2; published-head review on 393777626 found two P2, both repaired locally. Fresh published-head review is required before Audit/Release.'
+validation: 'Repairs pushed to PR #2885 as of exact head 7b686e93c94665efea614dfef960da668a202a2c. Six exact-head workflows PASS: CI 40259509806, Actual PAPER 40259510207, Capability 40259509900, Activation 40259509810, Transport 40259509884, Read-only Broker 40259509891. Focused tests 31/31 and AIPOS YAML/provenance/drift/conformance/diff PASS. If this work order changes again, these receipts become historical.'
+precommit_review: 'Fresh non-author Codex review on exact head 7b686e93c94665efea614dfef960da668a202a2c found no major issues (receipt 6406957908). Both prior P2 threads are resolved. Independent Audit and authorized Release remain separate gates.'
 publication_blockers: []
-next: Commit and push the validated AIPOS repairs to the existing PR #2885 branch, then require fresh exact-head six workflows and non-author review. Keep Draft; do not run Audit/Release until fresh review has no actionable findings and canonical eligibility is met. No Oracle mutation is authorized.
+next: Recheck live protected main/base and exact PR head, then obtain the canonical Independent Audit and separately authorized Release decision. Keep Draft until those gates explicitly permit transition. No Oracle deployment, helper installation, backup invocation, or host mutation is authorized.
