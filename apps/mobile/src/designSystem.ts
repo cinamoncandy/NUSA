@@ -71,7 +71,7 @@ export const fieldPalette = Object.freeze({
   market: "#B8C4CC",
   dim: "#566676",
   governance: "#B8C4CC",
-  muted: "#8794A0",
+  muted: "#A2ADB8",
   axiom: "#B8C4CC",
   label: "#C9D2D8",
   text: "#E8F1FA",
@@ -97,7 +97,7 @@ export const calmPalette = Object.freeze({
   ground: "#05080D",
   line: "#18212B",
   text: "#E8F0F2",
-  muted: "#8794A0",
+  muted: "#A2ADB8",
   order: "#FF7AB0",
   attention: "#FFC266",
   loss: "#FF5C5C",
@@ -308,8 +308,8 @@ export const fieldMotion = Object.freeze({
  * text is never smaller than 12 px; tracked uppercase labels and eyebrows are never smaller than 11 px. Presenters
  * wrap their font sizes in these instead of hard-coding a smaller number.
  */
-export const MIN_BODY_FONT = 12;
-export const MIN_LABEL_FONT = 11;
+export const MIN_BODY_FONT = 13;
+export const MIN_LABEL_FONT = 12;
 export const readableFont = (size: number): number => Math.max(size, MIN_BODY_FONT);
 export const labelFont = (size: number): number => Math.max(size, MIN_LABEL_FONT);
 export const readableLineHeight = (size: number, lineHeight: number): number => Math.max(lineHeight, Math.round(size * 1.4));
