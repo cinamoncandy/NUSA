@@ -18,6 +18,6 @@ export function SafetyLine({ line }: Readonly<{ line: SafetyLineModel }>) {
 const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
   dot: { width: 7, height: 7, borderRadius: 4 },
-  word: { fontSize: 13, fontWeight: "600" },
+  word: { fontSize: readableFont(13), fontWeight: "600" },
   detail: { fontSize: readableFont(13), flexShrink: 1 },
 });

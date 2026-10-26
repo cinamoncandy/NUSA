@@ -38,7 +38,7 @@ export function SectionLabel({ left, right = null, live = false }: { readonly le
   const lineStyle = { transform: [{ translateX: draw.interpolate({ inputRange: [0, 1], outputRange: [-width / 2, 0] }) }, { scaleX: draw }] };
   return <View style={styles.labelWrap} onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))}>
     <View style={styles.label}>
-      <Text style={styles.labelLeft}>{left}</Text>
+      <Text style={styles.labelLeft} numberOfLines={2}>{left}</Text>
       <View style={styles.labelRightRow}>
         {live ? <LivePulse reducedMotion={reduced} /> : null}
         {right == null ? null : <Text style={styles.labelRight}>{right}</Text>}
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   labelRightRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   labelLine: { height: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
   pulse: { width: 6, height: 6, borderRadius: 3, backgroundColor: calmColors.order },
-  labelLeft: { color: calmColors.muted, fontSize: readableFont(13), fontWeight: "500" },
+  labelLeft: { flexShrink: 1, color: calmColors.muted, fontSize: readableFont(13), fontWeight: "500" },
   labelRight: { color: calmColors.text, fontSize: readableFont(13), fontWeight: "500" },
   panel: { borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, padding: 14 },
   scan: { position: "absolute", left: 0, top: 0, bottom: 0, width: 2, backgroundColor: calmColors.text, opacity: 0.9 },
@@ -216,7 +216,7 @@ export function InstrumentHero({ index, lines, label }: { readonly index: string
   return <View style={heroStyles.wrap}>
     <Text style={instrumentType.index}>{index}</Text>
     <View style={heroStyles.lines} accessible accessibilityRole="header" accessibilityLabel={label ?? lines.map((l) => l.text).join(" ")}>
-      {lines.map((l, order) => <HeroLine key={l.text} text={l.text} reduced={reduced} order={order} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]} />)}
+      {lines.map((l, order) => <HeroLine key={`${order}:${l.text}`} text={l.text} reduced={reduced} order={order} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]} />)}
     </View>
   </View>;
 }

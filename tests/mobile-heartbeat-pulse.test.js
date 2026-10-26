@@ -32,3 +32,12 @@ test("the pulse is wired to the server heartbeat time, sweeps once and never loo
   const view = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/nowView.tsx"), "utf8");
   assert.match(view, /lastHeartbeatAt=\{blocked \? null : heartbeat\?\.lastHeartbeatAt \?\? null\}/);
 });
+
+test("review fixes: the beam is cleared when its effect restarts, hero lines have unique keys, the connection chip comes first in the tree", () => {
+  const pulse = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/heartbeatPulse.tsx"), "utf8");
+  assert.match(pulse, /anim\.stop\(\); opacity\.setValue\(0\)/);
+  const kit = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/instrumentKit.tsx"), "utf8");
+  assert.match(kit, /key=\{`\$\{order\}:\$\{l\.text\}`\}/);
+  const conn = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/src/ownerConnectionExperience.tsx"), "utf8");
+  assert.doesNotMatch(conn, /column-reverse/);
+});

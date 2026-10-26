@@ -1,6 +1,6 @@
 /**
  * Pure model for the Now tab's heartbeat scan line. The line sweeps once each time the server's own heartbeat timestamp advances
- * (a heartbeat that really arrived), and its resting glow fades with the real age of that timestamp. Nothing here is a timer that
+ * (a heartbeat that really arrived), and its resting glow fades with the real age of that timestamp. The age is the phone clock minus the server stamp, so a skewed phone clock shifts the brightness (a future-dated stamp reads as stale, the safe side). FRESH_MS/STALE_MS are not derived from the real heartbeat cadence yet. Nothing here is a timer that
  * pretends to be progress. Presentation only.
  */
 export const FRESH_MS = 15_000;
