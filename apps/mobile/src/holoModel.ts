@@ -38,12 +38,13 @@ export const HOLO_ORDER_MS = 3600;
 export const HOLO_COLORS: Readonly<Record<"cyan" | "violet" | "pink" | "mint" | "lime" | "fill" | "hold" | "halt" | "ink", Rgb>> = Object.freeze({
   // The figure itself is cool white ink (after the owner's reference); lime is the one accent, for the order band and its marker.
   // The emerald ramp names are kept for the tint maths and the tests that pin it. Status tints (fill / hold / halt) stay unmistakable.
-  cyan: [104, 232, 166] as const,
-  violet: [78, 208, 176] as const,
-  pink: [150, 238, 170] as const,
-  mint: [120, 232, 200] as const,
-  lime: [198, 245, 74] as const,
-  fill: [222, 255, 150] as const,
+  // 2026-10-26: the ramp follows the wave palette (blue / cyan / violet light); the key named `lime` is now the order pink (kept for the tests and call sites that pin the name).
+  cyan: [79, 123, 255] as const,
+  violet: [63, 211, 255] as const,
+  pink: [168, 120, 255] as const,
+  mint: [120, 190, 255] as const,
+  lime: [255, 122, 200] as const,
+  fill: [255, 255, 255] as const,
   hold: [255, 194, 102] as const,
   halt: [255, 122, 122] as const,
   ink: [232, 240, 242] as const,

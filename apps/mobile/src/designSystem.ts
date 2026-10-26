@@ -268,14 +268,14 @@ export function designSystemSnapshot(theme: Theme): string {
  * or replace motion in one place. Motion always runs only on a semantic state change.
  */
 /**
- * The HOME hero's own accent family (lime from the owner's reference). Used only for the elements that sit directly with the
- * hero (order count, market chip, the learning tile); the rest of the app keeps the theme colours. Status colours are never lime.
+ * The HOME hero's own accent family. The names say "lime" for history; since 2026-10-26 the colour is the order pink (same as calmPalette.order). Used only for the elements that sit directly with the
+ * hero (order count, market chip, the learning tile); the rest of the app keeps the theme colours. Status colours are never this pink.
  */
 export const fieldHero = Object.freeze({
-  lime: "#C6F54A",
-  limeBorder: "rgba(198, 245, 74, 0.28)",
-  limeChipBorder: "rgba(198, 245, 74, 0.5)",
-  chipGround: "#050C08",
+  lime: "#FF7AC8",
+  limeBorder: "rgba(255, 122, 200, 0.28)",
+  limeChipBorder: "rgba(255, 122, 200, 0.5)",
+  chipGround: "#08070D",
 } as const);
 
 
