@@ -2664,7 +2664,7 @@ current_ops_oracle_backup_prep_timeout_reconciled_20261026:
   pull_request: 2877
   last_verified_head: c98c5a1c072976cae36e74f25173f5636262bb23
   base_sha: de6cb5d56acfec429659301c9c1ed8b424e7935f
-  publication: "Timeout repair and AIPOS reconciliation were published non-force on the existing PR branch. PR #2877 remained Open/Draft at last fresh check; resolve current head dynamically after this follow-up is published."
+  publication: "Timeout repair and AIPOS reconciliation were published non-force on the existing PR branch. PR #2877 remains Open/Draft; resolve its live head dynamically. Check runs for the published follow-up are pending."
   validation: "Checkpoint c98c5a1c072976cae36e74f25173f5636262bb23 passed focused tests 31/31, YAML parse, pnpm run validate, git diff --check, exact-head CI and required companions. Fresh review on that checkpoint found two P1s: zero outer-job orchestration margin and AIPOS naming predecessor cfbacd4f as current. This follow-up addresses both; new-head validation is pending."
   next: "After publishing the current follow-up, resolve the current PR head dynamically and verify exact-head checks and fresh review; Keep Draft; Formal Validator, Independent Audit, Release, merge, and Oracle host acceptance remain separate and pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
