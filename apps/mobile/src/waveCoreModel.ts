@@ -51,11 +51,12 @@ export function waveEnvelope(x: number, pulses: readonly WavePulse[], now: numbe
 }
 
 /** Largest swing of a wave from its centre line, as a share of the box height. The strip below and the title above stay clear of it. */
-export const WAVE_REACH = 0.34;
+export const WAVE_REACH = 0.3;
 
 /** Soft limit: nearly linear for small swings, flattening smoothly as a swing nears `limit`, so a burst of pulses never leaves the box. */
 export function softLimit(value: number, limit: number): number {
-  if (!Number.isFinite(value) || !(limit > 0)) return 0;
+  if (Number.isNaN(value) || !(limit > 0)) return 0;
+  if (!Number.isFinite(value)) return Math.sign(value) * limit;
   return limit * Math.tanh(value / limit);
 }
 
