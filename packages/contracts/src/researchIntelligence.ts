@@ -61,11 +61,13 @@ export interface ResearchIntelligenceAuthorityBoundary {
 }
 
 export interface ResearchIntelligenceSourceVerificationReceipt {
-  readonly schemaVersion: 1;
+  readonly schemaVersion: 2;
   readonly verifierId: "ARXIV_API_V1";
   readonly requestUrl: string;
   readonly responseUrl: string;
-  readonly responseFingerprint: string;
+  /** Immutable publisher entry captured from the verified response and retained for revalidation after restart. */
+  readonly sourceEntrySnapshot: string;
+  readonly sourceEntryFingerprint: string;
   readonly rawContentSha256: string;
   readonly sourceEntryBindingFingerprint: string;
   readonly capturedAt: string;

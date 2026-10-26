@@ -4,6 +4,7 @@ import type {
   ResearchIntelligenceRecord,
   ResearchIntelligenceSourceVerificationReceipt,
 } from "./researchIntelligence";
+import type { ResearchIntelligenceAvailability, ResearchIntelligenceEstimate, ResearchIntelligenceEvidenceQuality, ResearchIntelligenceRelevance, ResearchIntelligenceReproducibility } from "./researchIntelligence";
 
 /**
  * Internal collector-to-store capability. This module is intentionally not re-exported from
@@ -57,6 +58,92 @@ function sourceEntryBinding(record: ResearchIntelligenceRecord): string {
   });
 }
 
+const ARXIV_ASSUMPTIONS = Object.freeze([
+  "Source claims remain unverified until canonical NUSA replication.",
+  "Dataset, evaluator, benchmark, cost and execution semantics must be reconstructed from the source before protected validation.",
+].sort((left, right) => left.localeCompare(right)));
+const ARXIV_REQUIRED_DATA = Object.freeze([
+  "Source-described dataset or a provenance-equivalent NUSA dataset.",
+  "Canonical point-in-time market data and transaction-cost/execution evidence.",
+].sort((left, right) => left.localeCompare(right)));
+
+function classifyTopics(text: string): readonly string[] {
+  const normalized = text.toLowerCase();
+  const rules: readonly [string, RegExp][] = [
+    ["reinforcement-learning", /\breinforcement learning\b|\bppo\b|\bsac\b|\bddpg\b|\btd3\b|\ba2c\b/],
+    ["market-microstructure", /market microstructure|limit order book|order book/],
+    ["execution", /trade execution|order execution|execution algorithm|market impact|slippage|transaction cost|almgren|square-root law/],
+    ["portfolio-risk", /portfolio optimization|portfolio allocation|risk management|drawdown/],
+    ["time-series", /time[- ]series|forecasting|sequence model|transformer|state space/],
+    ["statistical-arbitrage", /statistical arbitrage|mean reversion|pairs trading/],
+    ["volatility", /volatility|variance|stochastic volatility/],
+    ["crypto", /crypto|bitcoin|ethereum|digital asset/],
+    ["llm-agents", /\bllm\b|large language model|multi-agent|agentic/],
+  ];
+  const topics = rules.filter(([, pattern]) => pattern.test(normalized)).map(([topic]) => topic);
+  return Object.freeze((topics.length > 0 ? topics : ["quantitative-finance"]).sort((left, right) => left.localeCompare(right)));
+}
+
+function classifyMethod(text: string): string {
+  const normalized = text.toLowerCase();
+  if (/\breinforcement learning\b|\bppo\b|\bsac\b|\bddpg\b|\btd3\b|\ba2c\b/.test(normalized)) return "reinforcement-learning";
+  if (/limit order book|order book/.test(normalized)) return "order-book-modeling";
+  if (/market impact|trade execution|order execution|execution algorithm|slippage|transaction cost/.test(normalized)) return "execution-cost-modeling";
+  if (/transformer|state space|sequence model/.test(normalized)) return "sequence-modeling";
+  if (/portfolio optimization|portfolio allocation/.test(normalized)) return "portfolio-optimization";
+  if (/statistical arbitrage|mean reversion|pairs trading/.test(normalized)) return "statistical-arbitrage";
+  return "quantitative-research";
+}
+
+function classifyRelevance(text: string): ResearchIntelligenceRelevance {
+  const normalized = text.toLowerCase();
+  const strongFinancialAnchor = /algorithmic trading|quantitative trading|systematic trading|\btrading\b|quantitative finance|financial market|stock market|capital market|market microstructure|limit order book|order book|bid[- ]ask|market impact|transaction cost|slippage|trade execution|order execution|liquidity|automated market mak|prediction market|\bclob\b|\bamm\b|\bstock\b|\bequity\b|asset pricing|\bcrypto(?:currency)?\b|\bbitcoin\b|\bethereum\b|order flow|sharpe|drawdown/;
+  const portfolioFinancialContext = /(portfolio optimization|asset allocation)/.test(normalized) && /asset|investment|return|risk|financial|stock|equity|crypto|sharpe|drawdown|volatility/.test(normalized);
+  if (!strongFinancialAnchor.test(normalized) && !portfolioFinancialContext) return "LOW";
+  const highSignal = /algorithmic trading|quantitative trading|systematic trading|reinforcement learning.{0,120}trading|trading.{0,120}reinforcement learning|market microstructure|limit order book|order book|market impact|trade execution|order execution|statistical arbitrage|pairs trading|automated market mak|\bclob\b|\bamm\b|order flow|equity index forecasting|high[- ]frequency swapping/;
+  return highSignal.test(normalized) ? "HIGH" : "MEDIUM";
+}
+
+function testableReplicationHypothesis(title: string): string {
+  return 'Under NUSA canonical point-in-time, leakage-controlled, transaction-cost-aware OOS validation, an independent reproduction of the source methodology "'
+    + title.replace(/\s+/g, " ").trim()
+    + '" will preserve the claimed directional effect relative to the source-stated baseline; otherwise the claim is rejected or remains insufficient.';
+}
+
+export interface CanonicalArxivInterpretation {
+  readonly topic: readonly string[];
+  readonly market: "UNSPECIFIED";
+  readonly timeframe: "UNSPECIFIED";
+  readonly method: string;
+  readonly testableHypothesis: string;
+  readonly assumptions: readonly string[];
+  readonly requiredData: readonly string[];
+  readonly codeAvailable: ResearchIntelligenceAvailability;
+  readonly datasetAvailable: ResearchIntelligenceAvailability;
+  readonly reproducibilityStatus: ResearchIntelligenceReproducibility;
+  readonly evidenceQuality: ResearchIntelligenceEvidenceQuality;
+  readonly nusaRelevance: ResearchIntelligenceRelevance;
+  readonly implementationCost: ResearchIntelligenceEstimate;
+  readonly expectedEconomicValue: ResearchIntelligenceEstimate;
+  readonly leakageRisk: ResearchIntelligenceEstimate;
+  readonly overfittingRisk: ResearchIntelligenceEstimate;
+  readonly regimeDependence: ResearchIntelligenceEstimate;
+  readonly transactionCostSensitivity: ResearchIntelligenceEstimate;
+}
+
+export function deriveCanonicalArxivInterpretation(title: string, summary: string): CanonicalArxivInterpretation {
+  const combined = `${title}\n${summary}`;
+  const codeAvailable: ResearchIntelligenceAvailability = /github\.com|code (?:is )?available|open[- ]source/i.test(combined) ? "AVAILABLE" : "UNKNOWN";
+  return Object.freeze({
+    topic: classifyTopics(combined), market: "UNSPECIFIED", timeframe: "UNSPECIFIED", method: classifyMethod(combined),
+    testableHypothesis: testableReplicationHypothesis(title), assumptions: ARXIV_ASSUMPTIONS, requiredData: ARXIV_REQUIRED_DATA,
+    codeAvailable, datasetAvailable: "UNKNOWN", reproducibilityStatus: "NOT_ATTEMPTED",
+    evidenceQuality: (codeAvailable === "AVAILABLE" ? "CODE_AVAILABLE_UNVERIFIED" : "PRIMARY_SOURCE_CLAIM_ONLY") as ResearchIntelligenceEvidenceQuality,
+    nusaRelevance: classifyRelevance(combined), implementationCost: "UNKNOWN", expectedEconomicValue: "UNKNOWN",
+    leakageRisk: "UNKNOWN", overfittingRisk: "UNKNOWN", regimeDependence: "UNKNOWN", transactionCostSensitivity: "UNKNOWN",
+  });
+}
+
 function validateCompleteArxivEntry(
   record: ResearchIntelligenceRecord,
   capture: VerifiedResearchIntelligenceResponseCapture,
@@ -86,12 +173,24 @@ function validateCompleteArxivEntry(
   const paperId = sourcePaperId(id);
   const recordPaperId = sourcePaperId(record.sourceUrl);
   const publishedMs = Date.parse(publishedAt);
+  const expectedInterpretation = deriveCanonicalArxivInterpretation(title, summary);
+  const actualInterpretation = {
+    topic: record.topic, market: record.market, timeframe: record.timeframe, method: record.method,
+    testableHypothesis: record.testableHypothesis, assumptions: record.assumptions, requiredData: record.requiredData,
+    codeAvailable: record.codeAvailable, datasetAvailable: record.datasetAvailable,
+    reproducibilityStatus: record.reproducibilityStatus, evidenceQuality: record.evidenceQuality,
+    nusaRelevance: record.nusaRelevance, implementationCost: record.implementationCost,
+    expectedEconomicValue: record.expectedEconomicValue, leakageRisk: record.leakageRisk,
+    overfittingRisk: record.overfittingRisk, regimeDependence: record.regimeDependence,
+    transactionCostSensitivity: record.transactionCostSensitivity,
+  };
   if (!paperId || paperId !== record.sourceId.slice("arxiv:".length) || recordPaperId !== paperId
     || record.sourceType !== "ARXIV" || record.title !== title
     || canonicalResearchJson(record.authors) !== canonicalResearchJson([...new Set(authors)])
     || !Number.isFinite(publishedMs) || new Date(publishedMs).toISOString() !== record.publishedAt
     || record.claimedContribution !== summary || record.discoveredAt !== new Date(capturedAt).toISOString()
-    || Date.parse(record.discoveredAt) < publishedMs || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()) {
+    || Date.parse(record.discoveredAt) < publishedMs || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()
+    || canonicalResearchJson(actualInterpretation) !== canonicalResearchJson(expectedInterpretation)) {
     throw new Error("ARXIV_SOURCE_CAPTURE_RECORD_MISMATCH");
   }
 }
@@ -133,7 +232,9 @@ export function issueResearchIntelligenceSourceVerificationReceipt(
     throw new Error("RESEARCH_INTELLIGENCE_SOURCE_CAPTURE_INVALID");
   }
   if (!record || record.sourceVerification !== "UNVERIFIED" || record.validationStatus !== "DISCOVERED"
-    || record.sourceVerificationReceipt !== undefined || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()
+    || record.sourceVerificationReceipt !== undefined || record.novelty !== "NEW" || record.relatedExistingResearch.length !== 0
+    || record.axiomHandoffStatus !== "NOT_READY" || record.failureReason !== undefined
+    || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()
     || !validSha256(capture.responseBody.length > 0 ? rawSha256(capture.responseBody) : "")
     || !Number.isFinite(Date.parse(capture.capturedAt))
     || new Date(capture.capturedAt).toISOString() !== capture.capturedAt
@@ -143,11 +244,12 @@ export function issueResearchIntelligenceSourceVerificationReceipt(
   validateCaptureSource(record, capture.verifierId, capture.requestUrl, capture.responseUrl);
   validateCompleteArxivEntry(record, capture, rawContent, capture.capturedAt);
   const core = Object.freeze({
-    schemaVersion: 1 as const,
+    schemaVersion: 2 as const,
     verifierId: capture.verifierId,
     requestUrl: canonicalUrl(capture.requestUrl).toString(),
     responseUrl: canonicalUrl(capture.responseUrl).toString(),
-    responseFingerprint: rawSha256(capture.responseBody),
+    sourceEntrySnapshot: rawContent,
+    sourceEntryFingerprint: rawSha256(rawContent),
     rawContentSha256: record.rawContentSha256.toLowerCase(),
     sourceEntryBindingFingerprint: sourceEntryBinding(record),
     capturedAt: capture.capturedAt,
@@ -204,19 +306,54 @@ export async function fetchResearchIntelligenceSourceCapture(
   return capture;
 }
 
-export function verifyPersistedResearchIntelligenceSourceReceipt(record: ResearchIntelligenceRecord): boolean {
+/** Checks that durable receipt bytes are internally consistent; this is not an authenticator. */
+export function validatePersistedResearchIntelligenceSourceReceiptIntegrity(record: ResearchIntelligenceRecord): boolean {
   if (!record || typeof record !== "object") return false;
-  const receipt = record.sourceVerificationReceipt;
+  const receipt = record.sourceVerificationReceipt as (Omit<ResearchIntelligenceSourceVerificationReceipt, "schemaVersion"> & {
+    readonly schemaVersion: number;
+    readonly responseFingerprint?: string;
+  }) | undefined;
   if (record.sourceVerification !== "VERIFIED_PRIMARY_SOURCE") {
     return record.validationStatus !== "SOURCE_VERIFIED" && receipt === undefined;
   }
-  if (record.validationStatus !== "SOURCE_VERIFIED" || !receipt || receipt.schemaVersion !== 1
-    || !validSha256(receipt.responseFingerprint) || receipt.rawContentSha256 !== record.rawContentSha256.toLowerCase()
+  if (record.validationStatus !== "SOURCE_VERIFIED" || !receipt || receipt.schemaVersion !== 2
+    && receipt.schemaVersion !== 1) return false;
+  if (receipt.schemaVersion === 1) {
+    if (!validSha256(receipt.responseFingerprint) || receipt.rawContentSha256 !== record.rawContentSha256.toLowerCase()
+      || receipt.sourceEntryBindingFingerprint !== sourceEntryBinding(record)
+      || !Number.isFinite(Date.parse(receipt.capturedAt)) || Date.parse(receipt.capturedAt) !== Date.parse(record.discoveredAt)
+      || !validSha256(receipt.receiptFingerprint)) return false;
+    try {
+      validateCaptureSource(record, receipt.verifierId, receipt.requestUrl, receipt.responseUrl);
+      const { receiptFingerprint, ...core } = receipt;
+      return receiptFingerprint === sha256(core);
+    } catch {
+      return false;
+    }
+  }
+  if (receipt.schemaVersion !== 2
+    || typeof receipt.sourceEntrySnapshot !== "string" || receipt.sourceEntrySnapshot.trim() === ""
+    || !validSha256(receipt.sourceEntryFingerprint) || rawSha256(receipt.sourceEntrySnapshot) !== receipt.sourceEntryFingerprint.toLowerCase()
+    || receipt.rawContentSha256 !== record.rawContentSha256.toLowerCase()
+    || receipt.sourceEntryFingerprint !== receipt.rawContentSha256
     || receipt.sourceEntryBindingFingerprint !== sourceEntryBinding(record)
     || !Number.isFinite(Date.parse(receipt.capturedAt)) || Date.parse(receipt.capturedAt) !== Date.parse(record.discoveredAt)
+    || !["NEW", "INCREMENTAL", "DUPLICATE", "CONTRADICTORY", "REPLICATION", "SUPERSEDED"].includes(record.novelty)
+    || !["NOT_READY", "READY_FOR_AXIOM_REVIEW", "ROUTED_TO_AXIOM_REVIEW", "DUPLICATE_SUPPRESSED"].includes(record.axiomHandoffStatus)
+    || !Array.isArray(record.relatedExistingResearch)
+    || record.relatedExistingResearch.some((value) => typeof value !== "string" || value.trim() === "")
+    || canonicalResearchJson(record.relatedExistingResearch) !== canonicalResearchJson([...new Set(record.relatedExistingResearch)].sort((left, right) => left.localeCompare(right)))
     || !validSha256(receipt.receiptFingerprint)) return false;
   try {
     validateCaptureSource(record, receipt.verifierId, receipt.requestUrl, receipt.responseUrl);
+    const snapshotCapture: VerifiedResearchIntelligenceResponseCapture = Object.freeze({
+      verifierId: receipt.verifierId,
+      requestUrl: receipt.requestUrl,
+      responseUrl: receipt.responseUrl,
+      responseBody: `<feed>${receipt.sourceEntrySnapshot}</feed>`,
+      capturedAt: receipt.capturedAt,
+    });
+    validateCompleteArxivEntry(record, snapshotCapture, receipt.sourceEntrySnapshot, receipt.capturedAt);
     const { receiptFingerprint, ...core } = receipt;
     return canonicalResearchJson({ ...receipt }) === canonicalResearchJson({ ...core, receiptFingerprint: sha256(core) })
       && receiptFingerprint === sha256(core);
@@ -225,8 +362,13 @@ export function verifyPersistedResearchIntelligenceSourceReceipt(record: Researc
   }
 }
 
+/** True only for a source capture authenticated in this process; persisted hashes alone never suffice. */
+export function verifyPersistedResearchIntelligenceSourceReceipt(record: ResearchIntelligenceRecord): boolean {
+  return isResearchIntelligenceSourceRecordAuthenticated(record);
+}
+
 export function isResearchIntelligenceSourceRecordAuthenticated(record: ResearchIntelligenceRecord): boolean {
-  return issuedSourceRecords.has(record) && verifyPersistedResearchIntelligenceSourceReceipt(record);
+  return issuedSourceRecords.has(record) && validatePersistedResearchIntelligenceSourceReceiptIntegrity(record);
 }
 
 export function carryResearchIntelligenceSourceAuthentication<T extends ResearchIntelligenceRecord>(

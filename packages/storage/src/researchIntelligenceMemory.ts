@@ -7,7 +7,7 @@ import { createCryptoNewsResearchObservation, validateCryptoNewsPrecommitPlans, 
 import { createResearchIntelligenceRecord, type ResearchIntelligenceRecord } from "../../contracts/src/researchIntelligence";
 import {
   isResearchIntelligenceSourceRecordAuthenticated,
-  verifyPersistedResearchIntelligenceSourceReceipt,
+  validatePersistedResearchIntelligenceSourceReceiptIntegrity,
 } from "../../contracts/src/researchIntelligenceVerificationInternal";
 import { researchMemoryArtifactDigestV1 } from "../../contracts/src/researchMemorySemantics";
 import { SqliteResearchSemanticMemoryRepository } from "./researchMemorySemantics";
@@ -73,7 +73,7 @@ function reconstructResearchIntelligenceRecord(record: ResearchIntelligenceRecor
     axiomHandoffStatus: record.axiomHandoffStatus,
   });
   if (record.sourceVerification === "VERIFIED_PRIMARY_SOURCE" || record.validationStatus === "SOURCE_VERIFIED") {
-    if (!verifyPersistedResearchIntelligenceSourceReceipt(record) || !record.sourceVerificationReceipt) {
+    if (!validatePersistedResearchIntelligenceSourceReceiptIntegrity(record) || !record.sourceVerificationReceipt) {
       throw new Error("research intelligence source verification receipt is invalid");
     }
     return Object.freeze({
@@ -107,7 +107,7 @@ function validateStoredRow(
   ) {
     throw new Error("research intelligence persisted row integrity violation");
   }
-  if (!verifyPersistedResearchIntelligenceSourceReceipt(record)) {
+  if (!validatePersistedResearchIntelligenceSourceReceiptIntegrity(record)) {
     throw new Error("research intelligence source verification receipt is invalid");
   }
   const reconstructed = reconstructResearchIntelligenceRecord(record);
@@ -118,6 +118,9 @@ function validateStoredRow(
 
 export class SqliteResearchIntelligenceMemoryRepository {
   private readonly semantic: SqliteResearchSemanticMemoryRepository;
+  // Durable receipts are self-consistency evidence, not an authenticator. Only a source capture
+  // observed by this process may restore trusted status; a restart requires a fresh capture.
+  private readonly authenticatedThisProcess = new Map<string, ResearchIntelligenceRecord>();
 
   public constructor(private readonly db: ResearchIntelligenceMemoryDatabase) {
     this.semantic = new SqliteResearchSemanticMemoryRepository(db);
@@ -143,7 +146,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
       if (overlay == null) {
         throw new Error("research intelligence semantic provenance mismatch");
       }
-      return Object.freeze(record);
+      return Object.freeze(this.resolveCurrentProcessTrust(record));
     }));
   }
 
@@ -169,7 +172,23 @@ export class SqliteResearchIntelligenceMemoryRepository {
     if (overlay == null) {
       throw new Error("research intelligence semantic provenance mismatch");
     }
-    return Object.freeze(record);
+    return Object.freeze(this.resolveCurrentProcessTrust(record));
+  }
+
+  private resolveCurrentProcessTrust(stored: ResearchIntelligenceRecord): ResearchIntelligenceRecord {
+    const fresh = this.authenticatedThisProcess.get(stored.recordId);
+    if (fresh && fresh.contentFingerprint === stored.contentFingerprint
+      && fresh.sourceVerificationReceipt?.sourceEntryFingerprint === stored.sourceVerificationReceipt?.sourceEntryFingerprint) {
+      return fresh;
+    }
+    // The stored checksum can detect accidental corruption but cannot establish who issued it.
+    // Preserve the immutable row as history while exposing it as unverified after restart.
+    return reconstructResearchIntelligenceRecord({
+      ...stored,
+      sourceVerification: "UNVERIFIED",
+      validationStatus: stored.validationStatus === "SOURCE_VERIFIED" ? "DISCOVERED" : stored.validationStatus,
+      sourceVerificationReceipt: undefined,
+    });
   }
 
   /**
@@ -260,7 +279,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
   public append(record: ResearchIntelligenceRecord): ResearchIntelligenceRecord {
     if (!record || typeof record !== "object") throw new Error("research intelligence record is invalid");
     const trusted = record.sourceVerification === "VERIFIED_PRIMARY_SOURCE" || record.validationStatus === "SOURCE_VERIFIED";
-    if (!verifyPersistedResearchIntelligenceSourceReceipt(record)
+    if (!validatePersistedResearchIntelligenceSourceReceiptIntegrity(record)
       || (trusted && !isResearchIntelligenceSourceRecordAuthenticated(record))) {
       throw new Error("research intelligence source verification is not authenticated");
     }
@@ -268,7 +287,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
     if (canonicalResearchJson(reconstructed) !== canonicalResearchJson(record)) {
       throw new Error("research intelligence record is not canonical");
     }
-    return this.db.transaction(() => {
+    const persisted = this.db.transaction(() => {
       const existingRow = this.db.connection.prepare(
         "SELECT record_id, source_id, source_type, content_fingerprint, hypothesis_semantic_fingerprint, discovered_at, payload_json FROM research_intelligence_records WHERE record_id = ?"
       ).get(record.recordId) as Record<string, unknown> | undefined;
@@ -276,10 +295,16 @@ export class SqliteResearchIntelligenceMemoryRepository {
       if (existingRow != null) {
         const existing = decode(existingRow);
         validateStoredRow(existingRow, existing);
-        if (canonicalResearchJson(existing) !== canonicalResearchJson(record)) {
+        const sameCapturedSource = existing.sourceId === record.sourceId
+          && existing.sourceType === record.sourceType
+          && existing.sourceUrl === record.sourceUrl
+          && existing.contentFingerprint === record.contentFingerprint
+          && existing.rawContentSha256 === record.rawContentSha256
+          && existing.sourceVerificationReceipt?.sourceEntryFingerprint === record.sourceVerificationReceipt?.sourceEntryFingerprint;
+        if (!sameCapturedSource) {
           throw new Error("research intelligence record identity conflict");
         }
-        return existing;
+        return record;
       }
 
       this.db.connection.prepare(
@@ -324,5 +349,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
 
       return record;
     });
+    if (trusted) this.authenticatedThisProcess.set(record.recordId, record);
+    return persisted;
   }
 }

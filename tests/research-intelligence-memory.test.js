@@ -7,9 +7,12 @@ const {
 } = require("../dist/packages/contracts/src/researchIntelligence.js");
 const {
   fetchResearchIntelligenceSourceCapture,
+  deriveCanonicalArxivInterpretation,
   issueResearchIntelligenceSourceVerificationReceipt,
   carryResearchIntelligenceSourceAuthentication,
   isResearchIntelligenceSourceRecordAuthenticated,
+  verifyPersistedResearchIntelligenceSourceReceipt,
+  validatePersistedResearchIntelligenceSourceReceiptIntegrity,
 } = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
 const {
   ResearchIntelligenceScout,
@@ -24,6 +27,7 @@ const {
 const {
   createCryptoNewsResearchObservation,
 } = require("../dist/packages/contracts/src/researchExternalIntake.js");
+const { canonicalResearchJson } = require("../dist/packages/contracts/src/researchRuntime.js");
 
 const rawContent = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><published>2026-03-30T17:55:21Z</published><title>Canonical market microstructure test source</title><summary>Canonical test source capture: market microstructure and algorithmic trading.</summary><author><name>NUSA Test</name></author></entry>";
 let sourceCapture;
@@ -43,6 +47,10 @@ test.before(async () => {
 });
 
 function unverifiedRecord(discoveredAt = sourceCapture.capturedAt, patch = {}) {
+  const interpretation = deriveCanonicalArxivInterpretation(
+    "Canonical market microstructure test source",
+    "Canonical test source capture: market microstructure and algorithmic trading.",
+  );
   return createResearchIntelligenceRecord({
     sourceId: "arxiv:2603.29086",
     sourceType: "ARXIV",
@@ -53,26 +61,8 @@ function unverifiedRecord(discoveredAt = sourceCapture.capturedAt, patch = {}) {
     publishedAt: "2026-03-30T17:55:21.000Z",
     discoveredAt,
     rawContentSha256: require("node:crypto").createHash("sha256").update(rawContent).digest("hex"),
-    topic: ["market-microstructure"],
-    market: "UNSPECIFIED",
-    timeframe: "UNSPECIFIED",
-    method: "order-book-modeling",
+    ...interpretation,
     claimedContribution: "Canonical test source capture: market microstructure and algorithmic trading.",
-    testableHypothesis:
-      "Under canonical point-in-time cost-aware validation, the directional effect remains observable.",
-    assumptions: ["External claims are not canonical NUSA evidence."],
-    requiredData: ["Canonical point-in-time market data."],
-    codeAvailable: "UNKNOWN",
-    datasetAvailable: "UNKNOWN",
-    reproducibilityStatus: "NOT_ATTEMPTED",
-    evidenceQuality: "PRIMARY_SOURCE_CLAIM_ONLY",
-    nusaRelevance: "HIGH",
-    implementationCost: "UNKNOWN",
-    expectedEconomicValue: "UNKNOWN",
-    leakageRisk: "UNKNOWN",
-    overfittingRisk: "UNKNOWN",
-    regimeDependence: "UNKNOWN",
-    transactionCostSensitivity: "UNKNOWN",
     validationStatus: "DISCOVERED",
     ...patch,
   });
@@ -135,20 +125,26 @@ test("research intelligence memory fails closed on record identity conflict", ()
     const original = record();
     memory.append(original);
 
+    const alteredInterpretation = unverifiedRecord(sourceCapture.capturedAt, {
+      testableHypothesis: "A different research interpretation of the same source.",
+    });
     assert.throws(
-      () => memory.append(record({ testableHypothesis: "A different research interpretation of the same source." })),
-      /identity conflict/,
+      () => issueResearchIntelligenceSourceVerificationReceipt(alteredInterpretation, sourceCapture, rawContent),
+      /RECORD_MISMATCH/,
     );
   } finally {
     db.close();
   }
 });
 
-test("SQLite source trust rejects caller taxonomy claims and rehydrates only canonical receipts", () => {
+test("SQLite source trust rejects caller claims and requires fresh capture after repository restart", () => {
   const db = new SqliteDatabase(":memory:");
   try {
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
     const authenticated = record();
+    const callerManufacturedCopy = Object.freeze({ ...authenticated });
+    assert.equal(verifyPersistedResearchIntelligenceSourceReceipt(callerManufacturedCopy), false,
+      "a caller-provided copy with a plausible unkeyed receipt must not authenticate");
     const { issueResearchIntelligenceSourceVerificationReceipt } = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
     const unverified = createResearchIntelligenceRecord({
       sourceId: authenticated.sourceId, sourceType: authenticated.sourceType, sourceUrl: authenticated.sourceUrl,
@@ -176,6 +172,28 @@ test("SQLite source trust rejects caller taxonomy claims and rehydrates only can
     assert.equal(memory.get(authenticated.recordId).sourceVerificationReceipt.receiptFingerprint,
       authenticated.sourceVerificationReceipt.receiptFingerprint);
     assert.equal(memory.list().length, 1);
+
+    const restartedMemory = new SqliteResearchIntelligenceMemoryRepository(db);
+    const rehydrated = restartedMemory.get(authenticated.recordId);
+    assert.equal(verifyPersistedResearchIntelligenceSourceReceipt(rehydrated), false,
+      "a self-hashed durable receipt is not an authenticated issuer after restart");
+    assert.equal(rehydrated.sourceVerification, "UNVERIFIED");
+    assert.equal(rehydrated.validationStatus, "DISCOVERED");
+    assert.equal(rehydrated.sourceVerificationReceipt, undefined);
+    const observation = createCryptoNewsResearchObservation({
+      sourceUrl: authenticated.sourceUrl, publisher: "arXiv",
+      publishedAt: authenticated.publishedAt, retrievedAt: authenticated.discoveredAt,
+      firstObservedAt: authenticated.discoveredAt, contentSnapshot: rawContent,
+      contentFingerprint: authenticated.rawContentSha256, sourceType: "NEWS", eventType: "REGULATION",
+      entities: ["SEC"], assets: ["BTC"], confidence: "MEDIUM", observedFacts: ["filing published"],
+      publisherClaims: ["impact is bullish"], scoutInferences: ["test whether volatility changes"],
+    });
+    assert.throws(() => restartedMemory.bindCryptoNewsResearchIntelligence(observation, authenticated.recordId),
+      /NEWS_RESEARCH_INTELLIGENCE_BINDING_INVALID/);
+
+    const recaptured = record();
+    assert.equal(restartedMemory.append(recaptured).sourceVerification, "VERIFIED_PRIMARY_SOURCE");
+    assert.equal(restartedMemory.list().length, 1, "fresh recapture restores process trust without duplicating history");
   } finally {
     db.close();
   }
@@ -240,6 +258,60 @@ test("source authentication cannot be carried across changes to research interpr
     axiomHandoffStatus: "READY_FOR_AXIOM_REVIEW",
   }));
   assert.equal(isResearchIntelligenceSourceRecordAuthenticated(forgedInterpretation), false);
+});
+
+test("persisted source receipt revalidates its immutable publisher entry snapshot", () => {
+  const db = new SqliteDatabase(":memory:");
+  try {
+    const memory = new SqliteResearchIntelligenceMemoryRepository(db);
+    const authenticated = record();
+    memory.append(authenticated);
+    const stored = memory.get(authenticated.recordId);
+    assert.equal(stored.sourceVerificationReceipt.schemaVersion, 2);
+    assert.equal(stored.sourceVerificationReceipt.sourceEntrySnapshot, rawContent);
+
+    const tamperedSnapshot = stored.sourceVerificationReceipt.sourceEntrySnapshot.replace("market microstructure", "invented market edge");
+    const { receiptFingerprint: _oldFingerprint, ...receiptCore } = stored.sourceVerificationReceipt;
+    const alteredCore = {
+      ...receiptCore,
+      sourceEntrySnapshot: tamperedSnapshot,
+      sourceEntryFingerprint: require("node:crypto").createHash("sha256").update(tamperedSnapshot).digest("hex"),
+    };
+    const alteredReceipt = {
+      ...alteredCore,
+      receiptFingerprint: require("node:crypto").createHash("sha256").update(canonicalResearchJson(alteredCore)).digest("hex"),
+    };
+    db.connection.prepare("UPDATE research_intelligence_records SET payload_json = ? WHERE record_id = ?")
+      .run(JSON.stringify({ ...stored, sourceVerificationReceipt: alteredReceipt }), stored.recordId);
+    assert.throws(() => memory.get(stored.recordId), /source verification receipt is invalid/);
+  } finally {
+    db.close();
+  }
+});
+
+test("legacy v1 source receipts remain readable as history but never restore trust", () => {
+  const authenticated = record();
+  const hash = (value) => require("node:crypto").createHash("sha256").update(value).digest("hex");
+  const sourceEntryBindingFingerprint = hash(canonicalResearchJson({
+    sourceId: authenticated.sourceId, sourceType: authenticated.sourceType, sourceUrl: authenticated.sourceUrl,
+    title: authenticated.title, authors: authenticated.authors, publishedAt: authenticated.publishedAt,
+    discoveredAt: authenticated.discoveredAt, rawContentSha256: authenticated.rawContentSha256.toLowerCase(),
+    claimedContribution: authenticated.claimedContribution,
+  }));
+  const legacyCore = {
+    schemaVersion: 1, verifierId: sourceCapture.verifierId, requestUrl: sourceCapture.requestUrl,
+    responseUrl: sourceCapture.responseUrl, responseFingerprint: hash(sourceCapture.responseBody),
+    rawContentSha256: authenticated.rawContentSha256.toLowerCase(), sourceEntryBindingFingerprint,
+    capturedAt: authenticated.discoveredAt,
+  };
+  const legacy = Object.freeze({
+    ...authenticated,
+    sourceVerificationReceipt: Object.freeze({
+      ...legacyCore, receiptFingerprint: hash(canonicalResearchJson(legacyCore)),
+    }),
+  });
+  assert.equal(validatePersistedResearchIntelligenceSourceReceiptIntegrity(legacy), true);
+  assert.equal(verifyPersistedResearchIntelligenceSourceReceipt(legacy), false);
 });
 
 

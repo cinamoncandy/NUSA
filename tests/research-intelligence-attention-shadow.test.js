@@ -19,6 +19,7 @@ const {
 } = require("../dist/packages/contracts/src/researchIntelligence.js");
 const {
   fetchResearchIntelligenceSourceCapture,
+  deriveCanonicalArxivInterpretation,
   issueResearchIntelligenceSourceVerificationReceipt,
 } = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
 const { createHash } = require("node:crypto");
@@ -43,6 +44,10 @@ test.before(async () => {
 
 function record(overrides = {}) {
   const rawContent = RAW_SOURCE;
+  const interpretation = deriveCanonicalArxivInterpretation(
+    "Realistic Market Impact Modeling for Reinforcement Learning Trading Environments",
+    "We add nonlinear market impact and transaction cost models to reinforcement learning trading.",
+  );
   const unverified = createResearchIntelligenceRecord({
     sourceId: "arxiv:2603.29086",
     sourceType: "ARXIV",
@@ -53,27 +58,9 @@ function record(overrides = {}) {
     publishedAt: "2026-03-30T17:55:21.000Z",
     discoveredAt: sourceCapture.capturedAt,
     rawContentSha256: createHash("sha256").update(rawContent).digest("hex"),
-    topic: ["market-microstructure"],
-    market: "UNSPECIFIED",
-    timeframe: "UNSPECIFIED",
-    method: "order-book-modeling",
+    ...interpretation,
     claimedContribution:
       "We add nonlinear market impact and transaction cost models to reinforcement learning trading.",
-    testableHypothesis:
-      "Under canonical point-in-time cost-aware validation, the directional effect remains observable.",
-    assumptions: ["External claims are not canonical NUSA evidence."],
-    requiredData: ["Canonical point-in-time market data."],
-    codeAvailable: "UNKNOWN",
-    datasetAvailable: "UNKNOWN",
-    reproducibilityStatus: "NOT_ATTEMPTED",
-    evidenceQuality: "PRIMARY_SOURCE_CLAIM_ONLY",
-    nusaRelevance: "HIGH",
-    implementationCost: "UNKNOWN",
-    expectedEconomicValue: "UNKNOWN",
-    leakageRisk: "UNKNOWN",
-    overfittingRisk: "UNKNOWN",
-    regimeDependence: "UNKNOWN",
-    transactionCostSensitivity: "UNKNOWN",
     validationStatus: "DISCOVERED",
     ...overrides,
   });
