@@ -2631,6 +2631,20 @@ current_ops_oracle_backup_prep_timeouts_20261026:
   next: "Publish a non-force update to existing PR #2877 only after verifying its head/base remain unchanged; then obtain fresh exact-head checks and a separate new-session /grill-me review. Keep Draft; Formal Validator, Audit, Release, and Oracle deployment remain separate gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_ops_oracle_backup_prep_timeouts_published_20261026:
+  work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
+  status: PUBLISHED_PENDING_FRESH_EXACT_HEAD_CI_AND_GRILL_ME
+  issue: 2770
+  pull_request: 2877
+  published_repair_commit: 81f9b98c86163e0047e66788a3b94a6c502ea13d
+  base_sha: de6cb5d56acfec429659301c9c1ed8b424e7935f
+  finding: "The previous 60-minute pre-backup allowance was described as bounded but lacked per-step enforcement."
+  repair: "Five/20/25/10-minute step limits now cover exact-source recheck, bounded prune, helper-proof download, and helper identity proof. Their total is 60 minutes; backup remains 180 minutes, outer job 240, release job 40. Regression enumerates the full preparation sequence and verifies each limit and total."
+  validation: "Local focused tests 31/31 PASS with Git for Windows bash in PATH; workflow YAML parse PASS using repository js-yaml; pnpm run validate PASS; git diff --check PASS. No full test suite or host operation."
+  publication: "The repair was pushed non-force to existing branch ccr-00277777-hhlnx4. This AIPOS state reconciliation is a follow-up commit, so all checks/reviews on 81f9b98c are historical; resolve the resulting PR head dynamically and require fresh exact-head evidence."
+  next: "Confirm protected main/base and PR head; wait for all exact-head checks, then obtain fresh separate-session /grill-me. Keep Draft. Formal Validator, Audit, Release, merge, and Oracle deployment remain separate gates."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_backup_runbook_evidence_20261026:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
   status: LOCAL_EVIDENCE_QUALIFICATION_REPAIR_PENDING_PUBLICATION_AND_EXACT_HEAD_GATES
