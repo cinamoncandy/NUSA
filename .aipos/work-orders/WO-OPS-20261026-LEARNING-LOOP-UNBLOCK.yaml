@@ -2,7 +2,7 @@ id: WO-OPS-20261026-LEARNING-LOOP-UNBLOCK
 title: Unblock the PAPER learning loop (no orders since 2026-10-18, research dataset manifest missing)
 status: PLANNED_NOT_STARTED_DEPLOYMENT_NEEDS_APPROVED_OWNER_PATH
 priority: P0
-owner: claude-core
+owner: nusa-development
 repository: cinamoncandy/NUSA
 issue: 2770
 base_commit: de6cb5d56acfec429659301c9c1ed8b424e7935f
@@ -18,7 +18,7 @@ evidence:
   paper: 'decisionCount 12984, DECISION:PASS:BUY 4824, ORDER_INTENT:FAIL 4824, paperOrderCount 0, paperFillCount 0, ledger fillCount 314, lastFillAt 1792333922255 (2026-10-18), previousStop PAPER_WRITER_LEASE_LOST, eventLoopMaxStallMs 7770, eventLoopStallCount 23. The ORDER_INTENT failure reason is not exposed in the funnel counts: cause not proven.'
   research: 'researchExperimentTicks SKIPPED 110, all SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND; sessionsStarted 0; closedLearningLoop cyclesEvaluated 0, bootstrap RESEARCH_NOT_DEPLOYABLE, lastBlockedReason TICK_ERROR. dataIntegrity WARN: candleSeries 1, candleRows7d 8590, candleStaleSeries 1, candleMaxLatestAgeMs 89416950 (about 24.8 h as of dataIntegrity.observedAt 2026-10-26T00:18:33Z, before the current process started). Manifests are materialised only after backfill COMPLETE or gap fill NO_GAPS/FILLED (apps/cloud/src/researchExperimentComposition.ts).'
   host: '/ 90% used (4.7G free), memory 954 MB total / 377 MB available (this log); one vCPU and about 11 GB of release directories come from the 2026-10-15 handoff, not this log.'
-  deployment: 'Oracle PAPER Release runs were cancelled (run 40198892768 started 2026-10-25T13:43:07Z and ended about 16:58Z; earlier runs 04:22Z and 09:01Z were cancelled too; the #2770 comment of 2026-10-26T04:08Z gives about 149 minutes for its backup step on a Sunday); cancellation cause not proven. #2885 (root helper artifact) and #2875 (lease handoff) are merged but not installed.'
+  deployment: 'Oracle PAPER Release runs were cancelled (run 40198892768 started 2026-10-25T13:43:07Z and ended about 16:58Z; the #2770 comment of 2026-10-26T04:08Z gives about 149 minutes for its backup step on a Sunday); cancellation cause not proven. #2885 (root helper artifact) and #2875 (lease handoff) are merged but not installed.'
   diagnosis_note: .aipos/handoffs/2026-10-26-learning-loop-slowness-diagnosis.md
 scope:
   - Approved exact-main Oracle deployment on a weekday with the installed exact reviewed root-owned helper and actual backup/readiness evidence (owner path; not this branch).

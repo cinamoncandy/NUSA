@@ -1,6 +1,6 @@
 # Learning-loop slowness diagnosis — 2026-10-26 (read-only)
 
-Author: Claude (CORE, main role). Scope: diagnosis only. No deploy, no runtime change, no risk, threshold or capital change. `authority_impact: none`. PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`.
+Author: CORE session. Scope: diagnosis only. No deploy, no runtime change, no risk, threshold or capital change. `authority_impact: none`. PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`.
 
 Re-read live GitHub and a fresh `/health` before acting on anything below. This note is a snapshot.
 
@@ -15,10 +15,10 @@ Run `40275442510` of `Oracle Host Diagnose` (workflow_dispatch, read-only, 2026-
 2. **The research experiment loop never starts a session.** `researchExperimentTicks.counts`: `SKIPPED=110`, all `SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND`; `sessionsStarted=0`; `closedLearningLoop.cyclesEvaluated=0`, `bootstrap=RESEARCH_NOT_DEPLOYABLE`, `lastBlockedReason=TICK_ERROR` (since 1792974298139).
    - The same counters also show `FAIL_EXCESSIVE_DRAWDOWN=79`, `FAIL_NO_EDGE=26` and `REPEAT_*=5` while `sessionsStarted=0`; this combination is **unexplained** here.
    - Code path: `researchExperimentComposition.ts` materialises a dataset manifest only after `backfillMarket` returns `COMPLETE` or `fillRecentGaps` returns `NO_GAPS`/`FILLED`; until then `datasetIdForMarket` returns a `missing-dataset-…` id and the runner skips with `MANIFEST_NOT_FOUND`.
-   - Data: `researchCandleCount=45108` (required `15840`) but `dataIntegrity.status=WARN`, `candleSeries=1`, `candleRows7d=8590`, `candleStaleSeries=1`, `candleMaxLatestAgeMs=89416950` (about 24.8 h, **as of `dataIntegrity.observedAt` 2026-10-26T00:18:33Z**, 5 h 23 min before this snapshot and before the current process started). The candle series is stale, so completeness is not reached. The manifest also depends on the canonical 12-day window: PR #2840 records a source gap `2026-10-18T17:02Z..22:04Z` that must not be synthesised, with the earliest natural aging boundary about 2026-10-31 07:04 KST, so `MANIFEST_NOT_FOUND` may not clear right after a deploy. This matches the open stall evidence in PR #2840 / `.aipos/handoffs/2026-10-25-candle-evidence-receipt.md`. Whether the cause is the 1 vCPU host, the event-loop stalls or the collector itself is **not established** by this snapshot.
+   - Data: `researchCandleCount=45108` (required `15840`) but `dataIntegrity.status=WARN`, `candleSeries=1`, `candleRows7d=8590`, `candleStaleSeries=1`, `candleMaxLatestAgeMs=89416950` (about 24.8 h, **as of `dataIntegrity.observedAt` 2026-10-26T00:18:33Z**, 5 h 23 min before this snapshot and before the current process started). The candle series being stale is consistent with completeness not being reached (not proven as the sole cause). The manifest also depends on the canonical 12-day window: PR #2840 records a source gap `2026-10-18T17:02Z..22:04Z` that must not be synthesised, with the earliest natural aging boundary about 2026-10-31 07:04 KST, so `MANIFEST_NOT_FOUND` may not clear right after a deploy. This matches the open stall evidence in PR #2840 / `.aipos/handoffs/2026-10-25-candle-evidence-receipt.md`. Whether the cause is the 1 vCPU host, the event-loop stalls or the collector itself is **not established** by this snapshot.
 3. **Meta-learning has nothing to promote.** `experiments=18`, `configurations=443`, `discoveryPasses=15`, `holdoutPasses=0`, `overfitRatePercent=100`, `paperNetBp=-17`, `paperExcessBp=2`, `shadowTrades=737`. `recommendedPrerequisites=COLLECT_ORDERBOOK` is already being served by the order-book collector (`orderBookSamples=4,644,143`, `tradeTicks=966,823`); the pre-registered study may not be read before 2026-10-29 (see the frozen deferral of #2799).
 4. **Host headroom is thin.** `/` is 90% used (41G of 45G, 4.7G free; memory total 954 MB with 377 MB available, from this log). The "11 GB release directory tree" and "one vCPU" figures come from the 2026-10-15 handoff, not from this log.
-5. **Two of the merged fixes are not deployed.** The deployed runtime `c59b522` is the merge commit of #2855, so #2855 is deployed. The root-helper artifact (#2885) and the lease handoff (#2875) are merged but not installed. Oracle PAPER Release run `40198892768` (started 2026-10-25T13:43:07Z, ended about 16:58Z) was cancelled; earlier runs on 2026-10-25 (04:22Z, 09:01Z) were cancelled too. The #2770 comment of 2026-10-26T04:08Z gives about 149 minutes for that run's backup step on a Sunday; this snapshot does not show it. The cancellation cause is not proven by the logs.
+5. **Two of the merged fixes are not deployed.** The deployed runtime `c59b522` is the merge commit of #2855, so #2855 is deployed. The root-helper artifact (#2885) and the lease handoff (#2875) are merged but not installed. Oracle PAPER Release run `40198892768` (started 2026-10-25T13:43:07Z, ended about 16:58Z) was cancelled. The #2770 comment of 2026-10-26T04:08Z gives about 149 minutes for that run's backup step on a Sunday; this snapshot does not show it. The cancellation cause is not proven by the logs.
 
 ## What this does and does not support
 
@@ -37,3 +37,9 @@ Run `40275442510` of `Oracle Host Diagnose` (workflow_dispatch, read-only, 2026-
 ## Not verified
 
 - Anything after 2026-10-26 05:41Z, any server state beyond `/health` and the host summary, the cause of the `ORDER_INTENT` failures, the cause of the candle stall, and the order-book study result.
+
+
+## Added after independent review
+
+- The ORDER_INTENT:FAIL count has no RISK:* counts next to it, and `runtime.ts` records a RISK event only when a risk result exists. So the failures likely happened before or without a risk result. This is an inference, not proof.
+- `lastBlockedAt` 1792974298139 is 2026-10-26T00:24:58Z, which is before the current process start, so it is not a reading of the current process.
