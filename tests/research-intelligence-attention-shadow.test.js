@@ -26,7 +26,7 @@ const { createHash } = require("node:crypto");
 const ENABLED = { NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true" };
 const DISABLED = {};
 const NOW_ISO = "2026-09-26T00:00:00.000Z";
-const RAW_SOURCE = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><summary>Canonical test source capture for the attention observer.</summary></entry>";
+const RAW_SOURCE = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><published>2026-03-30T17:55:21Z</published><title>Realistic Market Impact Modeling for Reinforcement Learning Trading Environments</title><summary>We add nonlinear market impact and transaction cost models to reinforcement learning trading.</summary><author><name>NUSA Test</name></author></entry>";
 let sourceCapture;
 test.before(async () => {
   const originalFetch = globalThis.fetch;

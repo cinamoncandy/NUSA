@@ -15,6 +15,86 @@ const sha256 = (value: unknown): string =>
   createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 const rawSha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
 const validSha256 = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/i.test(value);
+const normalizedText = (value: string): string => value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+function decodeXmlText(value: string): string {
+  return normalizedText(value)
+    .replace(/&(lt|gt|quot|apos|amp);/g, (_match, name: string) => ({ lt: "<", gt: ">", quot: '"', apos: "'", amp: "&" })[name]!)
+    .replace(/&#(\d+);/g, (_match, code: string) => {
+      try { return String.fromCodePoint(Number(code)); } catch { throw new Error("ARXIV_SOURCE_CAPTURE_XML_INVALID"); }
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (_match, code: string) => {
+      try { return String.fromCodePoint(parseInt(code, 16)); } catch { throw new Error("ARXIV_SOURCE_CAPTURE_XML_INVALID"); }
+    });
+}
+
+function tagValues(xml: string, tag: string): string[] {
+  const expression = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}\\s*>`, "gi");
+  return [...xml.matchAll(expression)].map((match) => decodeXmlText(match[1] ?? ""));
+}
+
+function oneTag(xml: string, tag: string): string {
+  const values = tagValues(xml, tag);
+  if (values.length !== 1 || values[0] === "") throw new Error("ARXIV_SOURCE_CAPTURE_ENTRY_INVALID");
+  return values[0]!;
+}
+
+function sourcePaperId(value: string): string | undefined {
+  let url: URL;
+  try { url = new URL(value); } catch { return undefined; }
+  if (!["http:", "https:"].includes(url.protocol) || url.hostname.toLowerCase() !== "arxiv.org"
+    || url.username || url.password || url.search || url.hash) return undefined;
+  const match = /^\/abs\/([^/]+)$/.exec(url.pathname);
+  return match?.[1]?.replace(/v\d+$/i, "");
+}
+
+function sourceEntryBinding(record: ResearchIntelligenceRecord): string {
+  return sha256({
+    sourceId: record.sourceId, sourceType: record.sourceType, sourceUrl: record.sourceUrl,
+    title: record.title, authors: record.authors, publishedAt: record.publishedAt,
+    discoveredAt: record.discoveredAt, rawContentSha256: record.rawContentSha256.toLowerCase(),
+    claimedContribution: record.claimedContribution,
+  });
+}
+
+function validateCompleteArxivEntry(
+  record: ResearchIntelligenceRecord,
+  capture: VerifiedResearchIntelligenceResponseCapture,
+  rawContent: string,
+  capturedAt: string,
+): void {
+  const entries = [...capture.responseBody.matchAll(/<entry\b[^>]*>[\s\S]*?<\/entry\s*>/gi)].map((match) => match[0]);
+  if (!/^<entry\b[^>]*>[\s\S]*<\/entry\s*>$/i.test(rawContent.trim())
+    || (rawContent.match(/<entry\b/gi) ?? []).length !== 1
+    || (rawContent.match(/<\/entry\s*>/gi) ?? []).length !== 1) {
+    throw new Error("ARXIV_SOURCE_CAPTURE_ENTRY_INVALID");
+  }
+  const matchingEntries = entries.filter((entry) => {
+    try { return sourcePaperId(oneTag(entry, "id")) === record.sourceId.slice("arxiv:".length); }
+    catch { return false; }
+  });
+  if (matchingEntries.length !== 1 || matchingEntries[0] !== rawContent) {
+    throw new Error("ARXIV_SOURCE_CAPTURE_ENTRY_MISMATCH");
+  }
+  const id = oneTag(rawContent, "id");
+  const publishedAt = oneTag(rawContent, "published");
+  const title = oneTag(rawContent, "title");
+  const summary = oneTag(rawContent, "summary");
+  const authors = [...rawContent.matchAll(/<author\b[^>]*>([\s\S]*?)<\/author\s*>/gi)]
+    .map((match) => oneTag(match[1] ?? "", "name"))
+    .sort((a, b) => a.localeCompare(b));
+  const paperId = sourcePaperId(id);
+  const recordPaperId = sourcePaperId(record.sourceUrl);
+  const publishedMs = Date.parse(publishedAt);
+  if (!paperId || paperId !== record.sourceId.slice("arxiv:".length) || recordPaperId !== paperId
+    || record.sourceType !== "ARXIV" || record.title !== title
+    || canonicalResearchJson(record.authors) !== canonicalResearchJson([...new Set(authors)])
+    || !Number.isFinite(publishedMs) || new Date(publishedMs).toISOString() !== record.publishedAt
+    || record.claimedContribution !== summary || record.discoveredAt !== new Date(capturedAt).toISOString()
+    || Date.parse(record.discoveredAt) < publishedMs || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()) {
+    throw new Error("ARXIV_SOURCE_CAPTURE_RECORD_MISMATCH");
+  }
+}
 
 function canonicalUrl(value: string): URL {
   const url = new URL(value);
@@ -55,18 +135,13 @@ export function issueResearchIntelligenceSourceVerificationReceipt(
   }
   if (!record || record.sourceVerification !== "UNVERIFIED" || record.validationStatus !== "DISCOVERED"
     || record.sourceVerificationReceipt !== undefined || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()
-    || !capture.responseBody.includes(rawContent)
     || !validSha256(capture.responseBody.length > 0 ? rawSha256(capture.responseBody) : "")
     || !Number.isFinite(Date.parse(capturedAt))
     || Date.parse(capturedAt) !== Date.parse(record.discoveredAt)) {
     throw new Error("RESEARCH_INTELLIGENCE_SOURCE_CAPTURE_INVALID");
   }
   validateCaptureSource(record, capture.verifierId, capture.requestUrl, capture.responseUrl);
-  const paperId = record.sourceId.slice("arxiv:".length).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  if (capture.verifierId === "ARXIV_API_V1"
-    && !new RegExp(`<id>https?://arxiv\\.org/abs/${paperId}(?:v\\d+)?</id>`, "i").test(rawContent)) {
-    throw new Error("ARXIV_SOURCE_CAPTURE_CONTENT_MISMATCH");
-  }
+  validateCompleteArxivEntry(record, capture, rawContent, capturedAt);
   const core = Object.freeze({
     schemaVersion: 1 as const,
     verifierId: capture.verifierId,
@@ -74,6 +149,7 @@ export function issueResearchIntelligenceSourceVerificationReceipt(
     responseUrl: canonicalUrl(capture.responseUrl).toString(),
     responseFingerprint: rawSha256(capture.responseBody),
     rawContentSha256: record.rawContentSha256.toLowerCase(),
+    sourceEntryBindingFingerprint: sourceEntryBinding(record),
     capturedAt: new Date(capturedAt).toISOString(),
   });
   const receipt = Object.freeze({ ...core, receiptFingerprint: sha256(core) });
@@ -132,6 +208,7 @@ export function verifyPersistedResearchIntelligenceSourceReceipt(record: Researc
   }
   if (record.validationStatus !== "SOURCE_VERIFIED" || !receipt || receipt.schemaVersion !== 1
     || !validSha256(receipt.responseFingerprint) || receipt.rawContentSha256 !== record.rawContentSha256.toLowerCase()
+    || receipt.sourceEntryBindingFingerprint !== sourceEntryBinding(record)
     || !Number.isFinite(Date.parse(receipt.capturedAt)) || Date.parse(receipt.capturedAt) !== Date.parse(record.discoveredAt)
     || !validSha256(receipt.receiptFingerprint)) return false;
   try {

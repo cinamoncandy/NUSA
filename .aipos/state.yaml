@@ -13,6 +13,17 @@ current_learning_identity_failure_20261014:
   next: "Persist actual post-close identity failure using existing ledger; no claimed cycle completion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_arxiv_entry_binding_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 46eb5ef73ad7e7b7d2930461df712c91ae3c8f0c
+  finding: "Fresh exact-head review found the source verifier accepted a target arXiv ID substring as rawContent while allowing unbound title, publication time, and contribution metadata. Verification now requires the complete exact entry, validates all trust-bearing record fields against parsed source content, and binds the source-entry projection fingerprint into the authenticated receipt and persisted-record check."
+  validation: "Node 24.19 preflight and required local gates previously passed; on this repair, focused Research Intelligence tests 6/6, Scout/attention tests 26/26, build, validate:full, security:gate, lint (45 existing warnings/0 errors), full pnpm test (1284 isolated test files), and git diff check PASS. Exact-head CI and successor review pending."
+  next: "Confirm protected main and PR/remote branch identity, commit and non-force push this substantive repair to the existing PR, then require exact-successor CI and fresh non-author review. Formal NUSA Validator remains separate. Keep Draft; no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_canonical_source_binding_20261025:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_FOCUSED_VALIDATED_PENDING_FULL_GATES

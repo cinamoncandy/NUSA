@@ -22,7 +22,7 @@ const {
   createCryptoNewsResearchObservation,
 } = require("../dist/packages/contracts/src/researchExternalIntake.js");
 
-const rawContent = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><summary>Canonical test source capture: market microstructure and algorithmic trading.</summary></entry>";
+const rawContent = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><published>2026-03-30T17:55:21Z</published><title>Canonical market microstructure test source</title><summary>Canonical test source capture: market microstructure and algorithmic trading.</summary><author><name>NUSA Test</name></author></entry>";
 let sourceCapture;
 test.before(async () => {
   const originalFetch = globalThis.fetch;
@@ -39,22 +39,22 @@ test.before(async () => {
   }
 });
 
-function record(discoveredAt) {
-  const unverified = createResearchIntelligenceRecord({
+function unverifiedRecord(discoveredAt, patch = {}) {
+  return createResearchIntelligenceRecord({
     sourceId: "arxiv:2603.29086",
     sourceType: "ARXIV",
     sourceUrl: "https://arxiv.org/abs/2603.29086",
     sourceVerification: "UNVERIFIED",
-    title: "Market microstructure and algorithmic trading test",
+    title: "Canonical market microstructure test source",
     authors: ["NUSA Test"],
-    publishedAt: "2026-03-31T00:00:00.000Z",
+    publishedAt: "2026-03-30T17:55:21.000Z",
     discoveredAt,
     rawContentSha256: require("node:crypto").createHash("sha256").update(rawContent).digest("hex"),
     topic: ["market-microstructure"],
     market: "UNSPECIFIED",
     timeframe: "UNSPECIFIED",
     method: "order-book-modeling",
-    claimedContribution: "A primary-source claim that requires independent canonical validation.",
+    claimedContribution: "Canonical test source capture: market microstructure and algorithmic trading.",
     testableHypothesis:
       "Under canonical point-in-time cost-aware validation, the directional effect remains observable.",
     assumptions: ["External claims are not canonical NUSA evidence."],
@@ -71,7 +71,12 @@ function record(discoveredAt) {
     regimeDependence: "UNKNOWN",
     transactionCostSensitivity: "UNKNOWN",
     validationStatus: "DISCOVERED",
+    ...patch,
   });
+}
+
+function record(discoveredAt) {
+  const unverified = unverifiedRecord(discoveredAt);
   return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent, discoveredAt);
 }
 
@@ -174,6 +179,30 @@ test("SQLite source trust rejects caller taxonomy claims and rehydrates only can
   }
 });
 
+test("source verifier rejects an arXiv ID substring and metadata not present in the complete entry", () => {
+  const idOnly = "<id>http://arxiv.org/abs/2603.29086v1</id>";
+  const substringRecord = unverifiedRecord("2026-09-20T04:00:00.000Z", {
+    rawContentSha256: require("node:crypto").createHash("sha256").update(idOnly).digest("hex"),
+    title: "Invented title",
+    publishedAt: "2020-01-01T00:00:00.000Z",
+    claimedContribution: "Invented publisher claim",
+  });
+  assert.throws(
+    () => issueResearchIntelligenceSourceVerificationReceipt(substringRecord, sourceCapture, idOnly, substringRecord.discoveredAt),
+    /ENTRY_INVALID/,
+  );
+
+  const fabricatedMetadata = unverifiedRecord("2026-09-20T04:00:00.000Z", {
+    title: "Invented title",
+    publishedAt: "2020-01-01T00:00:00.000Z",
+    claimedContribution: "Invented publisher claim",
+  });
+  assert.throws(
+    () => issueResearchIntelligenceSourceVerificationReceipt(fabricatedMetadata, sourceCapture, rawContent, fabricatedMetadata.discoveredAt),
+    /RECORD_MISMATCH/,
+  );
+});
+
 
 test("persisted payload tampering fails closed against semantic provenance", () => {
   const db = new SqliteDatabase(":memory:");
@@ -191,7 +220,7 @@ test("persisted payload tampering fails closed against semantic provenance", () 
 
     assert.throws(
       () => memory.list(),
-      /semantic provenance mismatch/,
+      /source verification receipt is invalid|semantic provenance mismatch/,
     );
   } finally {
     db.close();
@@ -207,7 +236,7 @@ test("only the canonical persisted Research Intelligence repository can bind new
     const observation = createCryptoNewsResearchObservation({
       sourceUrl: "https://arxiv.org/abs/2603.29086",
       publisher: "arXiv",
-      publishedAt: "2026-03-31T00:00:00.000Z",
+      publishedAt: "2026-03-30T17:55:21.000Z",
       retrievedAt: "2026-10-25T00:00:00Z",
       firstObservedAt: "2026-10-24T01:00:00Z",
       contentSnapshot: snapshot,

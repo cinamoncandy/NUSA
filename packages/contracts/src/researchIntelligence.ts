@@ -67,6 +67,7 @@ export interface ResearchIntelligenceSourceVerificationReceipt {
   readonly responseUrl: string;
   readonly responseFingerprint: string;
   readonly rawContentSha256: string;
+  readonly sourceEntryBindingFingerprint: string;
   readonly capturedAt: string;
   readonly receiptFingerprint: string;
 }
