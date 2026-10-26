@@ -41,6 +41,24 @@ export function funnelReasonCodes(reason: string | undefined): readonly string[]
   return out;
 }
 
+/** Known free-text order-intent reasons and their fixed codes. Text is never turned into a code by rewriting it: it could carry an identifier or a value. */
+const ORDER_INTENT_TEXT_CODES: Readonly<Record<string, string>> = Object.freeze({
+  "paper account persistence failed": "PAPER_ACCOUNT_PERSISTENCE_FAILED",
+  "decision allocation is zero": "DECISION_ALLOCATION_ZERO",
+});
+
+/**
+ * A fixed funnel code for an order-intent result whose reason is not already a code list (the funnel drops such text, so the counts say
+ * only "ORDER_INTENT:FAIL"). A known text maps to its code; any other free text maps to "<STATUS>_UNCODED_REASON" so the status
+ * (BLOCKED, REJECTED, FAILED, DUPLICATE, ...) is at least visible. Returns undefined when the reason already yields codes. Display only.
+ */
+export function orderIntentFunnelCode(status: string, reason: string | undefined): string | undefined {
+  if (funnelReasonCodes(reason).length > 0) return undefined;
+  if (reason != null && Object.prototype.hasOwnProperty.call(ORDER_INTENT_TEXT_CODES, reason)) return ORDER_INTENT_TEXT_CODES[reason];
+  const code = `${status}_UNCODED_REASON`;
+  return CODE.test(code) ? code : undefined;
+}
+
 export class PaperFunnelCounters {
   private readonly counts = new Map<string, number>();
   private readonly since: number;
@@ -49,11 +67,13 @@ export class PaperFunnelCounters {
     this.since = now();
   }
 
-  public observe(event: FunnelEventLike): void {
+  /** `extraCode` is an optional fixed code the caller derived for a reason that is free text (see orderIntentFunnelCode); it is counted like a reason code. */
+  public observe(event: FunnelEventLike, extraCode?: string): void {
     if (!STAGE.test(event.stage) || !STATUS.test(event.status)) return;
     const base = `${event.stage}:${event.status}`;
     this.add(base);
     const codes = [...funnelReasonCodes(event.reason)];
+    if (extraCode != null && CODE.test(extraCode) && !codes.includes(extraCode) && codes.length < MAX_CODES_PER_EVENT) codes.push(extraCode);
     const action = event.decision?.action;
     if (event.stage === "DECISION" && typeof action === "string" && CODE.test(action) && !codes.includes(action)) codes.unshift(action);
     for (const code of codes) this.add(`${base}:${code}`);

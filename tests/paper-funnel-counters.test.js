@@ -76,3 +76,27 @@ test("the counters are display-only: the recorder module calls them only to obse
   const rec = require("node:fs").readFileSync("apps/cloud/src/paperLearningObservability.ts", "utf8");
   assert.equal((rec.match(/this\.funnel\./g) ?? []).length, 2, "only observe and snapshot touch it");
 });
+
+test("an order-intent result whose reason is free text still gets a fixed code, and text is never rewritten into a code", () => {
+  const { orderIntentFunnelCode, PaperFunnelCounters } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  assert.equal(orderIntentFunnelCode("FAILED", "paper account persistence failed"), "PAPER_ACCOUNT_PERSISTENCE_FAILED");
+  assert.equal(orderIntentFunnelCode("REJECTED", "decision allocation is zero"), "DECISION_ALLOCATION_ZERO");
+  assert.equal(orderIntentFunnelCode("BLOCKED", "some new sentence with an id 12345"), "BLOCKED_UNCODED_REASON", "unknown text only shows its status");
+  assert.equal(orderIntentFunnelCode("DUPLICATE", "evt-1792333922255-KRW-XRP"), "DUPLICATE_UNCODED_REASON", "an identifier is never copied");
+  assert.equal(orderIntentFunnelCode("BLOCKED", "PAPER_LIMIT_OPEN"), undefined, "a reason that is already a code list needs no extra code");
+  assert.equal(orderIntentFunnelCode("weird status", "free text"), undefined, "an invalid status yields no code");
+  assert.equal(orderIntentFunnelCode("FAILED", "constructor"), "FAILED_UNCODED_REASON", "prototype names are not codes");
+  const f = new PaperFunnelCounters(() => 1);
+  f.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "paper account persistence failed" }, orderIntentFunnelCode("FAILED", "paper account persistence failed"));
+  f.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "some sentence" });
+  const counts = f.snapshot().counts;
+  assert.equal(counts["ORDER_INTENT:FAIL"], 2);
+  assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
+  assert.equal(Object.keys(counts).some((key) => /persistence failed|sentence/.test(key)), false, "no free text reaches a key");
+});
+
+test("the runtime hands the funnel code to the recorder without changing the recorded reason", () => {
+  const fs = require("node:fs");
+  const runtime = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
+  assert.match(runtime, /stage: "ORDER_INTENT", occurredAt: now, market: ticker\.code, status: intentStatus, reason: result\.reason \?\? result\.status, funnelCode: orderIntentFunnelCode\(result\.status, result\.reason \?\? result\.status\)/);
+});
