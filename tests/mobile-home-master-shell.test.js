@@ -18,8 +18,8 @@ test("HOME uses one canonical Intelligence OS authority rail instead of the lega
   assert.match(home, /PAPER ONLY/);
   assert.match(home, /LIVE NONE/);
   assert.match(home, /AI ZERO/);
-  assert.match(os, />NUSA<\/Text>/);
-  assert.match(os, />PAPER ONLY<\/Text>/);
+  assert.match(os, /모의투자 전용/);
+  assert.match(os, /authorityStatusText/);
 });
 
 test("bottom navigation is restrained and does not restore the legacy neon pill shell", () => {

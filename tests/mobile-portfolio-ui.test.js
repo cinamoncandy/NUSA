@@ -54,7 +54,7 @@ test("Portfolio UI model fails closed for unavailable or inconsistent data", () 
 test("Portfolio screen exposes truthful verified totals without unavailable return UI", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "portfolioView.tsx"), "utf8");
   const app = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "App.tsx"), "utf8");
-  assert.match(source, /PAPER 자산 정보 없음/);
+  assert.match(source, /모의투자 자산 정보 없음/);
   assert.match(source, /모르는 값은 0으로 표시하지 않습니다/);
   assert.match(source, /보유 종목 없음/);
   assert.match(source, /RefreshControl/);
