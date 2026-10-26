@@ -2577,6 +2577,28 @@ current_ops_backup_retention_buckets_20261021:
   next: "Validate calendar-bucket retention -> exact-head CI/Validator -> governed merge -> reviewed backup run -> disk guard evidence."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_ops_oracle_backup_helper_proof_20261026:
+  work_order: WO-OPS-20261026-BACKUP-HELPER-PROOF
+  status: PR_OPEN_DRAFT_GATES_MUST_BE_RECHECKED_BEFORE_AUDIT_RELEASE
+  issue: 2770
+  pull_request: 2885
+  branch: codex/oracle-backup-helper-artifact-20261026
+  authority_impact: production_backup_safety_gate
+  reviewed_base_sha: a49325d4677841ef76c36e9edd7939cc0c204588
+  previous_published_head: bc2d05cc70bfa14cae707406ce85b21e30f70c93
+  previous_head_gates: 'Six required workflows completed/success on bc2d05cc70bfa14cae707406ce85b21e30f70c93; historical after AIPOS sync commit.'
+  previous_reviewed_head: 393777626ac198bd3b2ebb529ee0a04214e79c85
+  previous_393_head_gates: 'CI 40258480963, Actual PAPER 40258480972, Capability 40258480876, Activation 40258481077, Transport 40258480905, Read-only Broker 40258480894: all completed/success; historical after P2 repair.'
+  previous_7b_reviewed_head: 7b686e93c94665efea614dfef960da668a202a2c
+  previous_7b_review_and_gates: 'No-major-issues review 6406957908; CI 40259509806, Actual PAPER 40259510207, Capability 40259509900, Activation 40259509810, Transport 40259509884, Read-only Broker 40259509891 all completed/success; historical after AIPOS gate-order sync.'
+  latest_reviewed_head: f20835bd534fa44c7bad5ffe989054ecf27f5b62
+  latest_non_author_review: 'Fresh review on exact head f20835bd534fa44c7bad5ffe989054ecf27f5b62 found no actionable findings (receipt 6407094152); all three prior P2 threads are resolved.'
+  latest_head_gates: 'On exact head f20835bd534fa44c7bad5ffe989054ecf27f5b62: CI 40260651754, Actual PAPER 40260651579, Capability 40260651635, Activation 40260651581, Transport 40260651713, Read-only Broker 40260651704 all completed/success.'
+  validation: 'On exact head f20835bd534fa44c7bad5ffe989054ecf27f5b62 all six workflows completed/success: CI 40260651754, Actual PAPER 40260651579, Capability 40260651635, Activation 40260651581, Transport 40260651713, Read-only Broker 40260651704. Focused tests 31/31; AIPOS YAML/provenance/drift/conformance and diff check PASS. Any later head change invalidates these receipts.'
+  runtime: 'No host helper installation, Oracle release, backup invocation, WAL recovery, or runtime performance acceptance has occurred.'
+  next: 'Before Audit, verify the live protected main/base and PR head; require all six required workflows to be completed/success on that exact head and a fresh non-author review on the same exact SHA with no actionable findings. If any commit changes the head, repeat both checks. Only then proceed to Independent Audit and separately authorized Release. Keep Draft until explicitly authorized. Host acceptance requires separate authorization and genuine evidence.'
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_ops_oracle_backup_io_throttle_20261025:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
   status: LOCAL_VALIDATED_PENDING_FRESH_EXACT_HEAD_CI

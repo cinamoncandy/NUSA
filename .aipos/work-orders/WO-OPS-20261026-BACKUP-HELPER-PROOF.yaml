@@ -1,0 +1,49 @@
+id: WO-OPS-20261026-BACKUP-HELPER-PROOF
+title: Avoid extracting the full release before Oracle backup helper verification
+status: PR_OPEN_DRAFT_GATES_MUST_BE_RECHECKED_BEFORE_AUDIT_RELEASE
+priority: P0
+owner: nusa-server-automation
+repository: cinamoncandy/NUSA
+issue: 2770
+base_commit: a49325d4677841ef76c36e9edd7939cc0c204588
+implementation_branch: codex/oracle-backup-helper-artifact-20261026
+authority_impact: production_backup_safety_gate
+objective: Preserve the exact-source privileged-helper gate while removing full-release download and extraction from the backup job.
+evidence:
+  run_id: 40198892768
+  backup_job_id: 121186042724
+  source_sha: 4bb02f4655044122a95e3dbb94bba65844c0f0cb
+  job_setup_at: '2026-10-25T13:46:43Z'
+  backup_step_at: '2026-10-25T14:27:45Z'
+  cancellation_at: '2026-10-25T16:56:44Z'
+  observation: 'About 41 minutes elapsed before backup, including download of a 390666501-byte release artifact and full extraction. The 190-minute job then had only about 149 minutes remaining for a step budgeted at 180 minutes. Cancellation at the job bound is consistent with timeout; the initiating actor is not established from these logs.'
+scope:
+  - Publish a small helper artifact and SHA-256 from the same exact-source prepare job as the built release.
+  - Download only that artifact for backup helper proof, verify its digest, then compare with the installed helper before backup.
+  - Retain the full sealed release exclusively for the separate activation job.
+  - Add negative tests for missing/tampered proof, wrong installed helper, and malformed digest.
+exclusions:
+  - No host mutation, backup invocation, helper installation, service restart, or deployment.
+  - No change to the backup engine, cgroup cap, retention, readiness, activation soak, lease, or job/step budgets.
+  - Do not modify or republish PR 2877; it owns the separate cgroup enforcement guard.
+acceptance:
+  - Backup cannot execute before exact-source helper digest and installed-helper identity verification.
+  - Backup job never downloads or extracts the full release bundle.
+  - Release job retains full-bundle verification and the existing governed activation path.
+  - Focused tests, build, preflight, full validators, security gate and diff check pass.
+  - Fresh CI and non-author review are required before governed integration; runtime improvement remains unverified until deployed.
+verification_commands:
+  - node --test tests/oracle-backup-helper-proof.test.js tests/oracle-backup-device.test.js tests/oracle-paper-release-workflow.test.js
+  - pnpm run build
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - git diff --check
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'Exact head f20835bd534fa44c7bad5ffe989054ecf27f5b62: six required workflows completed/success (CI 40260651754, Actual PAPER 40260651579, Capability 40260651635, Activation 40260651581, Transport 40260651713, Read-only Broker 40260651704). Focused tests 31/31 and AIPOS YAML/provenance/drift/conformance/diff PASS. Any later head change makes these workflow receipts historical.'
+precommit_review: 'Fresh non-author review on exact head f20835bd534fa44c7bad5ffe989054ecf27f5b62 found no actionable findings (receipt 6407094152); all three prior P2 review threads are resolved. The next Audit transition still requires live exact-head/base and gate revalidation.'
+publication_blockers: []
+next: Require six completed/success workflows and a fresh clean non-author review bound to the same live PR head and current protected base immediately before Independent Audit. Any head change invalidates both receipts. Keep Draft; then use separately authorized Release gates. No Oracle deployment, helper installation, backup invocation, or host mutation is authorized.
