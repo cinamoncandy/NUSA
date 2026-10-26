@@ -33,6 +33,7 @@ jobs:
       SOURCE_SHA: ${{ inputs.source_sha }}
     outputs:
       bundle_sha: ${{ steps.bundle.outputs.sha }}
+      helper_sha: ${{ steps.bundle.outputs.helper_sha }}
     steps:
       - name: Verify the requested source is exact protected main
         env:
@@ -78,12 +79,21 @@ jobs:
           set -euo pipefail
           tar -czf "$RUNNER_TEMP/nusa-release.tar.gz" --exclude=.git .
           echo "sha=$(sha256sum "$RUNNER_TEMP/nusa-release.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          echo "helper_sha=$(sha256sum deploy/oracle/nusa-release-step.sh | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - name: Upload built release
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: nusa-paper-release
           path: ${{ runner.temp }}/nusa-release.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Upload exact-source backup helper proof
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nusa-paper-release-helper
+          path: deploy/oracle/nusa-release-step.sh
           if-no-files-found: error
           retention-days: 1
 
@@ -100,7 +110,7 @@ jobs:
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       STEP: /opt/nusa/bin/nusa-release-step
-      BUNDLE_SHA: ${{ needs.prepare.outputs.bundle_sha }}
+      HELPER_SHA: ${{ needs.prepare.outputs.helper_sha }}
     steps:
       - name: Recheck exact protected main before backup
         id: source_fresh
@@ -120,30 +130,21 @@ jobs:
         if: steps.source_fresh.outputs.fresh == 'true'
         run: sudo "$STEP" prune
 
-      - name: Download built release for helper identity proof
+      - name: Download exact-source helper proof
         if: steps.source_fresh.outputs.fresh == 'true'
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: nusa-paper-release
-          path: ${{ runner.temp }}
-
-      - name: Verify and unpack exact source for helper identity proof
-        if: steps.source_fresh.outputs.fresh == 'true'
-        run: |
-          set -euo pipefail
-          [[ "$BUNDLE_SHA" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Missing bundle digest"; exit 1; }
-          echo "$BUNDLE_SHA  $RUNNER_TEMP/nusa-release.tar.gz" | sha256sum --check --status
-          RELEASE_TREE="$RUNNER_TEMP/nusa-backup-proof-$GITHUB_RUN_ID"
-          mkdir -p "$RELEASE_TREE"
-          tar -xzf "$RUNNER_TEMP/nusa-release.tar.gz" -C "$RELEASE_TREE"
-          rm -- "$RUNNER_TEMP/nusa-release.tar.gz"
-          echo "RELEASE_TREE=$RELEASE_TREE" >> "$GITHUB_ENV"
+          name: nusa-paper-release-helper
+          path: ${{ runner.temp }}/nusa-backup-helper
 
       - name: Require reviewed root-owned helper exact match before backup
         if: steps.source_fresh.outputs.fresh == 'true'
         run: |
           set -euo pipefail
-          cmp --silent "$STEP" "$RELEASE_TREE/deploy/oracle/nusa-release-step.sh" || {
+          [[ "$HELPER_SHA" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::Missing helper digest"; exit 1; }
+          HELPER_PROOF="$RUNNER_TEMP/nusa-backup-helper/nusa-release-step.sh"
+          echo "$HELPER_SHA  $HELPER_PROOF" | sha256sum --check --status
+          cmp --silent "$STEP" "$HELPER_PROOF" || {
             echo "::error::Host release helper differs from exact reviewed source. Install the exact reviewed root-owned helper before backup/release."
             exit 1
           }
