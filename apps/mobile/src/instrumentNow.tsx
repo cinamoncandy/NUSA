@@ -30,7 +30,7 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCo
     <InstrumentHero index="01 / 지금" lines={splitHeroLines(headline).map((text) => ({ text, color: calmToneColor(tone) }))} label={headline} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
     <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      {width > 0 ? <DecisionCore tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} width={width} reducedMotion={reduced} /> : null}
+      {width > 0 ? <DecisionCore tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} width={live ? width : Math.round(width * 0.62)} reducedMotion={reduced} /> : null}
       {width > 0 && live ? <HeartbeatPulse lastHeartbeatAt={lastHeartbeatAt} width={width} reducedMotion={reduced} /> : null}
     </View>
     <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
