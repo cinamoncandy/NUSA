@@ -28,9 +28,9 @@ test("the envelope is pinched at the ends and a live pulse raises the waves wher
 });
 
 test("the spring settles at rest; without data the rest is flat", () => {
-  let s = { amp: 0.22, velocity: m.pulseKick(true) };
+  let s = { amp: 0.11, velocity: m.pulseKick(true) };
   for (let i = 0; i < 300; i += 1) s = m.springStep(s.amp, s.velocity, m.restAmplitude(true, 0), 1 / 30);
-  assert.ok(Math.abs(s.amp - 0.22) < 0.01);
+  assert.ok(Math.abs(s.amp - 0.11) < 0.01);
   assert.equal(m.restAmplitude(false, 1), 0);
   assert.ok(m.restAmplitude(true, 1) > m.restAmplitude(true, 0));
   assert.ok(m.pulseKick(true) > m.pulseKick(false));

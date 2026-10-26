@@ -58,7 +58,7 @@ export function springStep(amp: number, velocity: number, rest: number, dt: numb
 }
 
 /** Resting height: quiet while live, rising a little with recent activity; flat without data. */
-export const restAmplitude = (live: boolean, energy: number): number => (live ? 0.22 + 0.14 * Math.max(0, Math.min(1.5, energy)) : 0);
+export const restAmplitude = (live: boolean, energy: number): number => (live ? 0.11 + 0.2 * Math.max(0, Math.min(1.5, energy)) : 0);
 
 /** Kick added to the spring velocity for one pulse. */
 export const pulseKick = (order: boolean): number => (order ? 8.5 : 6);

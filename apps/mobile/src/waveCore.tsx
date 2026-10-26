@@ -102,7 +102,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
         st.amp = next.amp; st.v = next.velocity;
         st.energy *= Math.exp(-dt / 3); st.pink *= Math.exp(-dt / 1.8);
         st.flat += ((isLive ? 0 : 1) - st.flat) * Math.min(1, dt * 2.5);
-        st.phase += dt * (isLive ? 1.6 + st.energy * 3.2 : 0);
+        st.phase += dt * (isLive ? 0.7 + st.energy * 4 : 0);
         pulses.current = pulses.current.filter((p) => now - p.born < WAVE_PULSE_MS);
         setFrame((n) => n + 1);
       }
