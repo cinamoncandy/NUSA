@@ -140,6 +140,18 @@ current_strategy_intake_placeholder_identity_validated_20261026:
   next: "Confirm the existing PR and base identity; publish one substantive non-force successor; obtain exact-head CI and fresh non-author review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_repeat_capture_dedup_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: fdc4269faee64b5008950171c28e34a1d7c924f5
+  finding: "Fresh review on the prior exact head also identified that repeat captures of the same source/spec changed sourceObservedAt and createdAt, yielding a different precommit fingerprint for the same experimentIdentity and allowing duplicate evaluation authority."
+  fix: "Strategy precommit experiment identity now includes source SHA and validation policy; the canonical SQLite precommit repository reuses the earliest durable precommit for the same experiment identity only when execution-authority projections match, and fails closed on conflicts. Capture chronology remains provenance and the original immutable receipt is retained."
+  validation: "Node 24.19 preflight, build/typecheck, focused contract/storage regressions 22/22, validate:full, security:gate, lint (45 existing warnings/0 errors), full pnpm test (1,284 isolated test files), and git diff check PASS."
+  next: "Publish one substantive non-force successor to PR #2878; require exact-head CI and fresh non-author review. Keep Draft; separate Formal NUSA Validator, no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_source_authentication_20261026:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_FULL_SUITE_AND_SUCCESSOR_EXACT_HEAD_CI

@@ -228,7 +228,24 @@ export function strategyReplicationPrecommit(input: { spec: StrategyReplicationS
     verifyStrategyReplicationPrecommit(input.parentSpec, input.parentPrecommit);
   } else if (input.parentPrecommit !== undefined) throw new Error("STRATEGY_ORIGINAL_HAS_PARENT");
   if (!validatePrecommitPlans(input.datasetBinding, input.evaluationPlan, input.costPlan) || !knownText(input.validationPolicyIdentity) || !validTimestamp(input.createdAt) || Date.parse(input.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("STRATEGY_PRECOMMIT_BINDING_INVALID");
-  return createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: spec.strategyIdentity, strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, sourceSha: input.sourceSha, parameterPlan: { strategySpec: spec, ...(input.parentSpec ? { parentStrategySpec: input.parentSpec, parentStrategyPrecommit: input.parentPrecommit } : {}) }, costPlan: input.costPlan, regimePlan: {}, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
+  const parentExperimentIdentity = input.parentPrecommit?.experimentIdentity;
+  return createResearchPrecommit({ schemaVersion: 1, experimentIdentity: strategyExperimentIdentity({ strategyIdentity: spec.strategyIdentity, sourceSha: input.sourceSha, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan, validationPolicyIdentity: input.validationPolicyIdentity, ...(parentExperimentIdentity ? { parentExperimentIdentity } : {}) }), candidateIdentity: spec.strategyIdentity, strategyIdentity: spec.strategyIdentity, datasetBinding: input.datasetBinding, sourceSha: input.sourceSha, parameterPlan: { strategySpec: spec, ...(input.parentSpec ? { parentStrategySpec: input.parentSpec, parentStrategyPrecommit: input.parentPrecommit } : {}) }, costPlan: input.costPlan, regimePlan: {}, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
+}
+
+function strategyExperimentIdentity(input: {
+  strategyIdentity: string; sourceSha: string; datasetBinding: Readonly<Record<string, unknown>>;
+  evaluationPlan: Readonly<Record<string, unknown>>; costPlan: Readonly<Record<string, unknown>>;
+  validationPolicyIdentity: string; parentExperimentIdentity?: string;
+}): string {
+  return digest({
+    strategyIdentity: input.strategyIdentity,
+    sourceSha: input.sourceSha.toLowerCase(),
+    datasetBinding: input.datasetBinding,
+    evaluationPlan: input.evaluationPlan,
+    costPlan: input.costPlan,
+    validationPolicyIdentity: input.validationPolicyIdentity,
+    ...(input.parentExperimentIdentity ? { parentExperimentIdentity: input.parentExperimentIdentity } : {}),
+  });
 }
 
 /** Validates a replication precommit payload. Durable parent resolution belongs to the canonical precommit repository. */
@@ -238,9 +255,11 @@ export function verifyStrategyReplicationPrecommit(spec: StrategyReplicationSpec
   const parameterSpec = parameterPlan?.strategySpec;
   const parentSpec = parameterPlan?.parentStrategySpec as StrategyReplicationSpec | undefined;
   const parentPrecommit = parameterPlan?.parentStrategyPrecommit as ResearchPrecommit | undefined;
-  if (precommit.candidateIdentity !== spec.strategyIdentity || precommit.strategyIdentity !== spec.strategyIdentity || !knownText(precommit.validationPolicyIdentity) || !plainRecord(parameterSpec) || canonicalResearchJson(parameterSpec) !== canonicalResearchJson(spec) || !validatePrecommitPlans(precommit.datasetBinding, precommit.evaluationPlan, precommit.costPlan) || precommit.experimentIdentity !== digest({ strategyIdentity: spec.strategyIdentity, datasetBinding: precommit.datasetBinding, evaluationPlan: precommit.evaluationPlan, costPlan: precommit.costPlan }) || !validTimestamp(precommit.createdAt) || Date.parse(precommit.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
+  if (spec.kind === "NUSA_VARIANT" && (!parentSpec || !parentPrecommit)) throw new Error("STRATEGY_VARIANT_PARENT_PRECOMMIT_REQUIRED");
+  if (spec.kind === "ORIGINAL_STRATEGY" && (parentSpec !== undefined || parentPrecommit !== undefined)) throw new Error("STRATEGY_ORIGINAL_HAS_PARENT");
+  const parentExperimentIdentity = parentPrecommit?.experimentIdentity;
+  if (precommit.candidateIdentity !== spec.strategyIdentity || precommit.strategyIdentity !== spec.strategyIdentity || !knownText(precommit.validationPolicyIdentity) || !plainRecord(parameterSpec) || canonicalResearchJson(parameterSpec) !== canonicalResearchJson(spec) || !validatePrecommitPlans(precommit.datasetBinding, precommit.evaluationPlan, precommit.costPlan) || precommit.experimentIdentity !== strategyExperimentIdentity({ strategyIdentity: spec.strategyIdentity, sourceSha: precommit.sourceSha, datasetBinding: precommit.datasetBinding, evaluationPlan: precommit.evaluationPlan, costPlan: precommit.costPlan, validationPolicyIdentity: precommit.validationPolicyIdentity, ...(parentExperimentIdentity ? { parentExperimentIdentity } : {}) }) || !validTimestamp(precommit.createdAt) || Date.parse(precommit.createdAt) < Date.parse(spec.sourceObservedAt)) throw new Error("REPLICATION_RECEIPT_PRECOMMIT_MISMATCH");
   if (spec.kind === "ORIGINAL_STRATEGY") {
-    if (parentSpec !== undefined || parentPrecommit !== undefined) throw new Error("STRATEGY_ORIGINAL_HAS_PARENT");
     verifyStrategyReplicationSpec(parameterSpec as unknown as StrategyReplicationSpec);
   } else {
     if (!parentSpec || !parentPrecommit || parentSpec.kind !== "ORIGINAL_STRATEGY" || parentSpec.strategyIdentity !== spec.variantOf) throw new Error("STRATEGY_VARIANT_PARENT_PRECOMMIT_REQUIRED");

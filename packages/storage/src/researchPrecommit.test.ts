@@ -20,9 +20,50 @@ function fixture() {
   const db = { connection, transaction<T>(fn: () => T): T { connection.exec("BEGIN IMMEDIATE"); try { const result = fn(); connection.exec("COMMIT"); return result; } catch (error) { connection.exec("ROLLBACK"); throw error; } }, close(): void { connection.close(); } };
   return { db, repo: new SqliteResearchPrecommitRepository(db) };
 }
-function precommit(spec: ReturnType<typeof normalizeStrategyReplication>, parentSpec?: ReturnType<typeof normalizeStrategyReplication>, parentPrecommit?: ReturnType<typeof strategyReplicationPrecommit>) {
-  return strategyReplicationPrecommit({ spec, ...(parentSpec ? { parentSpec } : {}), ...(parentPrecommit ? { parentPrecommit } : {}), sourceSha, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+function precommit(spec: ReturnType<typeof normalizeStrategyReplication>, parentSpec?: ReturnType<typeof normalizeStrategyReplication>, parentPrecommit?: ReturnType<typeof strategyReplicationPrecommit>, createdAt = "2026-10-25T00:00:00Z", validationPolicyIdentity = "policy-v1") {
+  return strategyReplicationPrecommit({ spec, ...(parentSpec ? { parentSpec } : {}), ...(parentPrecommit ? { parentPrecommit } : {}), sourceSha, datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity, createdAt });
 }
+
+test("repeat source captures reuse one durable strategy evaluation precommit", () => {
+  const { db, repo } = fixture();
+  try {
+    const firstSpec = normalizeStrategyReplication(strategy());
+    const first = precommit(firstSpec);
+    repo.create(first);
+
+    const laterSpec = normalizeStrategyReplication(strategy({ sourceObservedAt: "2026-10-26T00:00:00.000Z" }));
+    const later = precommit(laterSpec, undefined, undefined, "2026-10-26T00:00:01Z");
+    assert.equal(laterSpec.strategyIdentity, firstSpec.strategyIdentity);
+    assert.notEqual(laterSpec.sourceObservationFingerprint, firstSpec.sourceObservationFingerprint);
+    assert.equal(later.experimentIdentity, first.experimentIdentity);
+    assert.notEqual(later.fingerprint, first.fingerprint, "capture and invocation chronology remain in the immutable first receipt");
+
+    const reused = repo.create(later);
+    assert.equal(reused.fingerprint, first.fingerprint);
+    assert.equal(repo.get(first.fingerprint)?.fingerprint, first.fingerprint);
+    const row = db.connection.prepare("SELECT COUNT(*) AS count FROM research_precommits WHERE experiment_identity = ?").get(first.experimentIdentity) as { readonly count: number } | undefined;
+    assert.equal(row?.count, 1);
+  } finally { db.close(); }
+});
+
+test("strategy precommit identity changes when evaluator source or validation policy changes", () => {
+  const spec = normalizeStrategyReplication(strategy());
+  const original = precommit(spec);
+  const differentPolicy = precommit(spec, undefined, undefined, "2026-10-25T00:00:00Z", "policy-v2");
+  const differentSource = strategyReplicationPrecommit({ spec, sourceSha: "c".repeat(40), datasetBinding: { manifest: "dataset-1" }, evaluationPlan, costPlan, validationPolicyIdentity: "policy-v1", createdAt: "2026-10-25T00:00:00Z" });
+  assert.notEqual(differentPolicy.experimentIdentity, original.experimentIdentity);
+  assert.notEqual(differentSource.experimentIdentity, original.experimentIdentity);
+});
+
+test("durable experiment identity index must match the immutable precommit payload", () => {
+  const { db, repo } = fixture();
+  try {
+    const original = precommit(normalizeStrategyReplication(strategy()));
+    repo.create(original);
+    db.connection.prepare("UPDATE research_precommits SET experiment_identity = ? WHERE fingerprint = ?").run("f".repeat(64), original.fingerprint);
+    assert.throws(() => repo.get(original.fingerprint), /PRECOMMIT_EXPERIMENT_STORAGE_KEY_MISMATCH/);
+  } finally { db.close(); }
+});
 
 test("variant precommit cannot persist until its original parent precommit is durable", () => {
   const { db, repo } = fixture();

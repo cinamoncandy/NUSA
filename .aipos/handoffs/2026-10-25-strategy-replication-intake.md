@@ -190,3 +190,13 @@ The successor now stamps `capturedAt` inside the canonical HTTPS fetch after rea
 Validation on the local successor: Node 24.19 preflight, typecheck, `validate:full`, `security:gate`, lint (45 existing warnings / 0 errors), build, focused Research Intelligence tests 34/34, full `pnpm test` (1,284 isolated test files), and `git diff --check` PASS. Exact-head CI and fresh non-author review for the successor remain pending. No formal NUSA Validator, Audit/Release, merge, or Oracle deployment/restart is claimed. Oracle backup cancellation remains unresolved; no retry or runtime mutation was performed.
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
+## Review follow-up — repeat-capture precommit deduplication, 2026-10-26
+
+An additional review thread on predecessor `ab530a26d5171101ef201a737f9bc061c984ea53` identified that a repeated capture of identical source bytes/rules changed `sourceObservedAt` and `createdAt`, producing another ResearchPrecommit row with the same experiment identity. The local repair makes the experiment identity bind evaluator source SHA and validation policy, then makes the canonical SQLite repository reuse the earliest durable strategy precommit only when the execution-authority projection is identical; conflicting material projections fail closed. Capture provenance and the first immutable precommit are preserved; no history is rewritten.
+
+Build and focused contract/storage regressions pass 21/21. Full local gates and successor exact-head CI/review are pending. Current pushed head `fdc4269faee64b5008950171c28e34a1d7c924f5` includes the preceding capture-clock/auth-carry repairs but not this additional dedup fix. Once full gates pass, publish one non-force successor and restart exact-head validation. Formal NUSA Validator remains separate; keep Draft and do not run Audit/Release/merge or Oracle mutation.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
+Final local validation for the repeat-capture dedup repair: Node 24.19 preflight, build/typecheck, focused contract/storage 22/22, `validate:full`, `security:gate`, lint (45 pre-existing warnings, 0 errors), full `pnpm test` (1,284 isolated test files), and `git diff --check` all passed. A non-force successor commit/push to PR #2878 is the next step; its CI and independent review must be fresh.
