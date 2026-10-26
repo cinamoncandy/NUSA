@@ -9,7 +9,7 @@ export type Vec3 = readonly [number, number, number];
 export interface CoreWave { readonly origin: Vec3; readonly born: number }
 export interface CoreBurst { readonly origin: Vec3; readonly born: number; readonly dirs: readonly Vec3[]; readonly speeds: readonly number[] }
 
-export const CORE_POINTS = 360;
+export const CORE_POINTS = 220;
 export const WAVE_MS = 2200;
 export const BURST_MS = 1900;
 export const MAX_WAVES = 6;

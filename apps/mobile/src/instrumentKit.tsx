@@ -101,33 +101,20 @@ export function Panel({ children, style, scan = false }: { readonly children: Re
   </View>;
 }
 
-const DECODE_GLYPHS = "▮▯░▒▓01/\\<>+=";
-/** Decodes a statement left to right in about 0.6 s: unresolved characters flicker through mono glyphs, then lock. Settled text under reduce-motion. */
-function useDecoded(text: string, reduced: boolean | null): string {
-  const [shown, setShown] = useState(text);
+/** A hero line rises a few pixels and fades in once (about 0.55 s, softly decelerating). Settled text under reduce-motion; hidden until the OS has answered. */
+function HeroLine({ text, style, reduced, order = 0 }: { readonly text: string; readonly style: StyleProp<TextStyle>; readonly reduced: boolean | null; readonly order?: number }) {
+  const v = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (reduced !== false) { setShown(text); return undefined; }
-    const total = text.length;
-    const started = Date.now();
-    const tick = () => {
-      const locked = Math.min(total, Math.floor(((Date.now() - started) / 600) * total));
-      setShown(text.split("").map((ch, i) => (i < locked || /\s/.test(ch) ? ch : DECODE_GLYPHS[Math.floor(Math.random() * DECODE_GLYPHS.length)])).join(""));
-      if (locked >= total) clearInterval(timer);
-    };
-    const timer = setInterval(tick, 40);
-    tick();
-    return () => clearInterval(timer);
-  }, [text, reduced]);
-  return shown;
-}
-
-function HeroLine({ text, style, reduced }: { readonly text: string; readonly style: StyleProp<TextStyle>; readonly reduced: boolean | null }) {
-  const shown = useDecoded(text, reduced);
-  // The real text reserves the layout (no rewrap while glyphs flicker); the decoded copy is drawn over it and stays hidden until the OS answers.
-  return <View>
-    <Text style={[style, { opacity: 0 }]}>{text}</Text>
-    <Text style={[style, StyleSheet.absoluteFill, reduced === null ? { opacity: 0 } : null]}>{shown}</Text>
-  </View>;
+    if (reduced === null) return undefined;
+    if (reduced) { v.setValue(1); return undefined; }
+    v.setValue(0);
+    const anim = Animated.timing(v, { toValue: 1, duration: 550, delay: 80 + order * 110, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    anim.start();
+    return () => anim.stop();
+  }, [text, reduced, order, v]);
+  return <Animated.View style={{ opacity: v, transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }}>
+    <Text style={style}>{text}</Text>
+  </Animated.View>;
 }
 
 /** Each digit is a 0-9 column that rolls to its value, ones place first. A changed value rolls again. */
@@ -229,7 +216,7 @@ export function InstrumentHero({ index, lines, label }: { readonly index: string
   return <View style={heroStyles.wrap}>
     <Text style={instrumentType.index}>{index}</Text>
     <View style={heroStyles.lines} accessible accessibilityRole="header" accessibilityLabel={label ?? lines.map((l) => l.text).join(" ")}>
-      {lines.map((l) => <HeroLine key={l.text} text={l.text} reduced={reduced} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]} />)}
+      {lines.map((l, order) => <HeroLine key={l.text} text={l.text} reduced={reduced} order={order} style={[instrumentType.heroLine, l.amber ? { color: calmColors.attention } : l.color ? { color: l.color } : null]} />)}
     </View>
   </View>;
 }
