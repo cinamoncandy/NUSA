@@ -77,6 +77,8 @@ sudo /opt/nusa/bin/nusa-release-step backup
 
 Before this command, `/opt/nusa/bin/nusa-release-step` must be installed from and byte-identical to the exact reviewed protected-main source used by the release. Device selection is implemented inside that root-owned helper; it does not execute a not-yet-staged release-owned resolver. The helper allows only ext4/xfs state and backup filesystems that resolve to the same single backing disk, and fails closed on unsupported or ambiguous topology. It runs the existing `scripts/sqlite-backup.js` SQLite `VACUUM INTO` backup inside a transient systemd cgroup capped at exactly 1048576 B/s (1 MiB/s) read and write with low CPU priority, then preserves `PRAGMA integrity_check`, SHA-256 sidecars, and calendar-bucket retention. No uncapped fallback exists. The workflow gives this backup its own calculated timeout and keeps stage/preflight/activation in a separate shorter job so a slow backup cannot terminate a switched-but-unproven release.
 
+The build job publishes a separate `nusa-paper-release-helper` artifact and its SHA-256 from the same exact source checkout. Before backup, the host downloads only that helper file, verifies its digest, and compares it byte-for-byte with the installed root-owned helper. The full release bundle is downloaded and verified only in the separate release job; backup preparation does not extract it. This avoids consuming the backup window with a full source/dependency tree extraction.
+
 Verify that the command reports `status=PASS` before continuing.
 
 ## Bounded release disk hygiene
