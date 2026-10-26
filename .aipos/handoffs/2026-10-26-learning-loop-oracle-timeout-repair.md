@@ -13,8 +13,8 @@
 
 - PR #2877 was Open/Draft at reviewed head `1df5305bece93e39a28dbd641bb77bf05ac9561b`, base/protected main `de6cb5d56acfec429659301c9c1ed8b424e7935f`; verify live before publication.
 - Required exact-head workflows passed on 1df. Fresh review found one P2: a predecessor AIPOS state entry still represented the 240-minute outer budget as current, while the reviewed code and work order use 260 minutes.
-- Local AIPOS reconciliation now records 260 minutes (60 preparation + 180 backup + 20 orchestration), marks predecessor 240-minute entries as historical/superseded, and records the P2 plus pending successor validation. Focused Oracle tests 31/31 and `pnpm run preflight` now pass; `pnpm run validate` and `git diff --check` passed; publication and successor exact-head checks remain pending.
-- Next: run focused tests, AIPOS validation, and `git diff --check`; recheck PR/base and publish only non-force if remote remains at 1df; then verify all successor exact-head workflows and fresh review. Keep Draft.
+- The 5e4ea72 successor was published Open/Draft and all six exact-head workflows passed. Fresh review found P2 #4374796244 because AIPOS still described that published successor as pending publication. This successor corrects state/work-order/handoff to published/current and keeps predecessor checkpoints historical. Focused tests 31/31, preflight, validate, and diff check passed; this commit invalidates predecessor receipts.
+- Next: publish this correction non-force to the existing PR branch only after rechecking head/base; then verify all six workflows and fresh review on its new exact head. If review is clear, obtain Formal Validator ACCEPTED before Independent Audit. Keep Draft.
 - Formal Validator, Independent Audit, Release, merge, and separately authorized Oracle host acceptance remain distinct later gates.
 - Do not dispatch Oracle release, install/update the host helper, restart services, or mutate DB/lease. #2770 remains open until governed exact-main runtime acceptance and authentic PAPER evidence are obtained.
 

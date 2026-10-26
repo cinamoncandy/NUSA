@@ -2601,7 +2601,7 @@ current_ops_oracle_backup_helper_proof_20261026:
 
 current_ops_oracle_backup_io_throttle_20261025:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: LOCAL_P2_AIPOS_REPAIR_VALIDATED_PENDING_PUBLICATION
+  status: PR_2877_P2_AIPOS_REPAIR_PUBLISHED_SUCCESSOR_VALIDATION_PENDING
   issue: 2770
   pull_request: 2874
   follow_up_pull_request: 2877
@@ -2612,7 +2612,7 @@ current_ops_oracle_backup_io_throttle_20261025:
   previous_source_head: a48daf0a4350e0fdea528b811ac7f0b45f7f094f
   finding: "Oracle backup I/O can starve the foreground PAPER writer lease. Run 40198892768 additionally shows the backup step was cancelled after ~149 minutes following 42m33s of pre-backup work under a 190-minute job bound; this timing is consistent with outer-budget pressure, but available logs do not establish the initiating cancellation actor."
   evidence: "Read-only host evidence: state DB filesystem /dev/sda1 -> /dev/sda TYPE=disk; cgroup v2 io available; measured backup about 0.8 MiB/s while capped near 1 MiB/s with PAPER foreground reads improving from about 10 to 14 MiB/s. Current DB stat is 958,992,384 bytes (914.57 MiB); retain the conservative 957 MiB envelope. Six Sunday full-file phases at 0.8 MiB/s require ~119.6 min; +30% observed-workload variance = ~155.5 min, rounded to a backup-only 180 min bound. Stage/preflight/activation remains a separate 40 min job. This is script/budget evidence, not runtime acceptance. Run 40198892768: job 121186042724 ran 13:45:11-16:58:33Z; backup step ran 14:27:44-16:56:46Z (~149m) then was cancelled. The 42m33s pre-backup interval plus the 190m outer bound is consistent with timeout pressure, but logs do not establish the cancellation initiator. `wal_checkpoint(PASSIVE)` is caught as best-effort in sqlite-backup.js; its disk-I/O warning is not proven to be the cancellation cause. Release mutation was skipped; no verified backup receipt exists. Set the outer backup-job budget to 260m: bounded preparation 60m + backup 180m + 20m orchestration/step-transition margin; preserve the separate 40m release job."
-  validation: "On reviewed head 1df5305bece93e39a28dbd641bb77bf05ac9561b, exact-head required workflows passed and fresh review found one P2: an earlier active state entry still described the 240-minute outer budget. The local AIPOS reconciliation marks predecessor entries historical and records the current 260-minute contract. Focused Oracle tests 31/31, pnpm run preflight, pnpm run validate (including architecture/safety/AI authority), and git diff --check passed. Publication and exact-successor checks remain pending. No full pnpm test or host acceptance claimed."
+  validation: "PR #2877 successor 5e4ea72e4617235aab124be45dc101c1c0c70bcb is published Open/Draft; its exact-head CI and five required companions passed. Fresh review on 5e found one P2 because this record still said publication was pending. This successor records the repair as published/current and preserves predecessor checkpoints as historical. Focused Oracle tests 31/31, pnpm preflight, pnpm validate (architecture/safety/AI authority), and diff check passed. This commit changes exact head; all successor-head receipts are pending. No full pnpm test or host acceptance claimed."
   follow_up: "PR #2877 adds cgroup io-controller enforcement checks plus the evidence-based 260m outer backup job timeout (60m preparation + 180m step + 20m orchestration margin) and regression coverage. Existing exact-head receipts are historical after this repair; run Node 24 preflight, focused tests and fresh exact-head CI/review, then Formal Validator/Audit/Release. No Oracle retry until merge and exact-main release authorization."
   next: "Validate this AIPOS reconciliation, publish non-force only if PR #2877 head/base still match, then require exact-successor checks and fresh review. Keep Draft; Formal Validator, Audit/Release, merge and separately authorized Oracle runtime acceptance remain pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
@@ -2629,7 +2629,7 @@ current_ops_oracle_backup_prep_timeouts_20261026:
   change: "Historical checkpoint only: added 5/20/25/10-minute step timeouts for source recheck, bounded prune, exact-source helper artifact download, and helper identity verification. At that checkpoint the outer job was 240 minutes; this budget was superseded by the 260-minute successor on 1df5305bece93e39a28dbd641bb77bf05ac9561b."
   validation: "Focused Oracle tests 31/31 PASS after adding Git for Windows bash to PATH; the first attempt failed because bash was missing from PATH. pnpm run preflight PASS; git diff --check PASS. No full suite or Oracle host mutation performed."
   stale_receipts: "All exact-head workflow and review evidence on ef26d009 is historical after the new commit; fresh exact-head CI and a separate new-session /grill-me review are required."
-  next: "Publish a non-force update to existing PR #2877 only after verifying its head/base remain unchanged; then obtain fresh exact-head checks and a separate new-session /grill-me review. Keep Draft; Formal Validator, Audit, Release, and Oracle deployment remain separate gates."
+  next: "Historical next action at the predecessor checkpoint; superseded by the published PR #2877 successors recorded below."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_backup_prep_timeouts_published_20261026:
@@ -2644,31 +2644,31 @@ current_ops_oracle_backup_prep_timeouts_published_20261026:
   repair: "Historical checkpoint only: five/20/25/10-minute step limits cover exact-source recheck, bounded prune, helper-proof download, and helper identity proof. The 240-minute outer budget in this checkpoint was superseded by the 260-minute successor on 1df5305bece93e39a28dbd641bb77bf05ac9561b."
   validation: "Local focused tests 31/31 PASS with Git for Windows bash in PATH; workflow YAML parse PASS using repository js-yaml; pnpm run validate PASS; git diff --check PASS. No full test suite or host operation."
   publication: "The repair was pushed non-force to existing branch ccr-00277777-hhlnx4. This AIPOS state reconciliation is a follow-up commit, so all checks/reviews on 81f9b98c are historical; resolve the resulting PR head dynamically and require fresh exact-head evidence."
-  next: "Confirm protected main/base and PR head; wait for all exact-head checks, then obtain fresh separate-session /grill-me. Keep Draft. Formal Validator, Audit, Release, merge, and Oracle deployment remain separate gates."
+  next: "Historical next action at the 81f9b98 checkpoint; superseded by later published successors."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_backup_runbook_evidence_20261026:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: LOCAL_EVIDENCE_QUALIFICATION_REPAIR_PENDING_PUBLICATION_AND_EXACT_HEAD_GATES
+  status: HISTORICAL_RUNBOOK_REPAIR_PUBLISHED_IN_5E4EA72
   issue: 2770
   pull_request: 2877
   prior_head: 5e6f67fbfe388acb04c7f5967f1ad3cee03ffd40
   finding: "Fresh review found that the runbook attributed run 40198892768 cancellation to outer-budget pressure. Available logs establish 42m33s pre-backup time and cancellation after about 149 minutes under a 190-minute outer budget, but do not establish who initiated cancellation."
-  change: "Runbook now reports observed timing only and says the timing is consistent with outer-budget pressure without asserting causation. No runtime or release behavior changed."
+  change: "Historical change published by 5e4ea72e4617235aab124be45dc101c1c0c70bcb: runbook reports observed timing only and says it is consistent with outer-budget pressure without asserting causation. No runtime or release behavior changed."
   validation: "Focused Oracle backup/workflow regression tests PASS 31/31 after adding Git for Windows bash to PATH (the first attempt without bash on PATH failed due local environment setup); pnpm preflight PASS; AIPOS YAML validation PASS (521 files); git diff --check PASS. Exact-head CI, fresh review, Formal Validator, Audit, and Release remain pending on the published successor head."
-  next: "Fast-forward publish to the existing PR branch, verify exact-head checks and review, preserve Draft, then continue only through canonical governed gates."
+  next: "Historical next action superseded: the runbook repair was included by 5e4ea72e4617235aab124be45dc101c1c0c70bcb; current successor validation is recorded under current_ops_oracle_backup_prep_timeout_reconciled_20261026."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_backup_prep_timeout_reconciled_20261026:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: P2_STATE_REPAIR_LOCAL_VALIDATION_PENDING
+  status: PR_2877_SUCCESSOR_PUBLISHED_REVIEW_FINDING_REPAIRED_VALIDATION_PENDING
   issue: 2770
   pull_request: 2877
   last_reviewed_head: 1df5305bece93e39a28dbd641bb77bf05ac9561b
   base_sha: de6cb5d56acfec429659301c9c1ed8b424e7935f
-  publication: "Timeout repair and AIPOS reconciliation were published non-force on the existing PR branch. PR #2877 remains Open/Draft; current reviewed head 1df5305bece93e39a28dbd641bb77bf05ac9561b passed exact-head checks but fresh review found one AIPOS P2. This state repair is pending publication; resolve live head dynamically afterward."
-  validation: "Checkpoint c98c5a1c072976cae36e74f25173f5636262bb23 passed focused tests 31/31, YAML parse, pnpm run validate, git diff --check, exact-head CI and required companions. Fresh review on c98 found two P1s, repaired in the published 1df checkpoint: 260-minute outer timeout with 20-minute margin, and last-verified-checkpoint AIPOS semantics. Exact-head workflows passed on 1df; fresh review then found one P2 because an earlier active state entry still said 240 minutes. This follow-up repairs the remaining AIPOS entry; its new-head evidence is pending."
-  next: "Focused Oracle tests 31/31, pnpm run preflight, pnpm run validate, and git diff --check passed. Verify live PR/base and publish non-force; resolve the new exact head and require all exact-head checks plus fresh review. Keep Draft; Formal Validator, Independent Audit, Release, merge, and Oracle host acceptance remain separate and pending."
+  publication: "PR #2877 successor 5e4ea72e4617235aab124be45dc101c1c0c70bcb was published Open/Draft and passed all six exact-head workflows. Its fresh review found P2 #4374796244: this entry incorrectly said publication was pending. The current successor repairs the state; resolve the resulting live head dynamically and require fresh gates."
+  validation: "Historical checks on c98 and 1df are predecessor evidence only. On 5e4ea72e4617235aab124be45dc101c1c0c70bcb, six exact-head workflows passed; fresh review found P2 #4374796244 for a stale AIPOS publication status. This successor marks the 5e repair published/current and records the P2 resolution. Focused Oracle tests, pnpm preflight, pnpm validate, and diff check pass. New exact-head checks/review remain pending."
+  next: "Focused Oracle tests 31/31, pnpm run preflight, pnpm run validate, and git diff --check passed. This successor records the 5e publication-state finding as fixed. After publication, resolve the live PR head; require six exact-head workflows and fresh review, then exact-head Formal Validator ACCEPTED before Independent Audit. Keep Draft; Release, merge, and separately authorized Oracle host acceptance remain later gates."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ops_oracle_health_guard_lock:
