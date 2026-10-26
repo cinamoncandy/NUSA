@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeIndependentAudit, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
+import { currentDiffEvidenceRefs, executeIndependentAudit, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -138,6 +138,41 @@ test("validates the immutable read-only audit request contract", () => {
   assert.equal(validated.liveAuthority, "NONE");
   assert.equal(validated.productionMutationAllowed, false);
   assert.equal(validated.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("diff evidence binds deleted lines to the old path and resets at file boundaries", () => {
+  const refs = currentDiffEvidenceRefs([
+    "diff --git a/previous.ts b/previous.ts",
+    "index 1111111..2222222 100644",
+    "--- a/previous.ts",
+    "+++ b/previous.ts",
+    "@@ -1,2 +1,2 @@",
+    "-removed from previous",
+    "+replacement in previous",
+    "diff --git a/deleted/security.ts b/deleted/security.ts",
+    "deleted file mode 100644",
+    "index 3333333..0000000",
+    "--- a/deleted/security.ts",
+    "+++ /dev/null",
+    "@@ -1,2 +0,0 @@",
+    "-removed safety check",
+    "-removed authority guard",
+    "diff --git a/new/module.ts b/new/module.ts",
+    "new file mode 100644",
+    "index 0000000..4444444",
+    "--- /dev/null",
+    "+++ b/new/module.ts",
+    "@@ -0,0 +1,1 @@",
+    "+new module",
+    "",
+  ].join("\n"));
+
+  assert.ok(refs.has("previous.ts:-1"));
+  assert.ok(refs.has("previous.ts:+1"));
+  assert.ok(refs.has("deleted/security.ts:-1"));
+  assert.ok(refs.has("deleted/security.ts:-2"));
+  assert.ok(refs.has("new/module.ts:+1"));
+  assert.ok(!refs.has("previous.ts:-3"));
 });
 
 test("authenticates every GitHub evidence request without exposing the token", async () => {

@@ -305,14 +305,41 @@ function parseAuditModelResponse(value: unknown): AuditModelVerdict {
   throw new Error("AUDIT_MODEL_RESPONSE_INVALID");
 }
 
-function currentDiffEvidenceRefs(diff: string): ReadonlySet<string> {
+/** @internal Exposes immutable diff evidence parsing for focused regression tests. */
+export function currentDiffEvidenceRefs(diff: string): ReadonlySet<string> {
   const refs = new Set<string>();
-  let currentFile: string | undefined;
+  let oldFile: string | undefined;
+  let newFile: string | undefined;
   let newLine: number | undefined;
   let oldLine: number | undefined;
   for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      oldFile = undefined;
+      newFile = undefined;
+      newLine = undefined;
+      oldLine = undefined;
+      continue;
+    }
+    if (line.startsWith("--- a/")) {
+      oldFile = line.slice("--- a/".length);
+      newLine = undefined;
+      oldLine = undefined;
+      continue;
+    }
+    if (line === "--- /dev/null") {
+      oldFile = undefined;
+      newLine = undefined;
+      oldLine = undefined;
+      continue;
+    }
     if (line.startsWith("+++ b/")) {
-      currentFile = line.slice("+++ b/".length);
+      newFile = line.slice("+++ b/".length);
+      newLine = undefined;
+      oldLine = undefined;
+      continue;
+    }
+    if (line === "+++ /dev/null") {
+      newFile = undefined;
       newLine = undefined;
       oldLine = undefined;
       continue;
@@ -324,12 +351,12 @@ function currentDiffEvidenceRefs(diff: string): ReadonlySet<string> {
       newLine = Number(hunk[3]);
       continue;
     }
-    if (!currentFile || newLine === undefined || oldLine === undefined || line.startsWith("\\")) continue;
+    if (newLine === undefined || oldLine === undefined || line.startsWith("\\")) continue;
     if (line.startsWith("+")) {
-      refs.add(`${currentFile}:+${newLine}`);
+      if (newFile) refs.add(`${newFile}:+${newLine}`);
       newLine += 1;
     } else if (line.startsWith("-")) {
-      refs.add(`${currentFile}:-${oldLine}`);
+      if (oldFile) refs.add(`${oldFile}:-${oldLine}`);
       oldLine += 1;
     } else {
       newLine += 1;

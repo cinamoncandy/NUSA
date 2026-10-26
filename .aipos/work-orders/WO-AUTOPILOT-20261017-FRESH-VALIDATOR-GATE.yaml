@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: CURRENT_MAIN_SYNCED_AIPOS_RECONCILIATION_PENDING_SUCCESSOR_CI_AND_FRESH_VALIDATOR
+status: P1_DIFF_EVIDENCE_PATH_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_CI_AND_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -72,4 +72,35 @@ current_main_sync: "Fresh GitHub verification found protected main 9b6c99cee1750
 local_sync_checkpoint: fa83cb282fcee259f568bc7dd95d515d4f0046b8
 remote_update_plan: "The exact verified tree was published by a non-force expected-head update from e0d1465... to db7fc759.... The pending AIPOS reconciliation successor must be published only after the GitHub Git Database API tree SHA exactly matches its local HEAD^{tree}; create it as a child of db7fc759..., then update the existing PR branch with expected_sha=db7fc759de47c620a3220c0f12baea7121e3a2d4 and force=false. On any mismatch or lease rejection, stop without changing the ref."
 validation_after_sync: "Local implementation tree PASS: pnpm run preflight, pnpm run build, pnpm run typecheck, pnpm run validate:full, pnpm run security:gate, git diff --check, and pnpm run test (1263 isolated test files). AIPOS status-only corrections passed preflight, AIPOS drift, cross-AI conformance, and git diff --check. Previous published exact head db7fc759de47c620a3220c0f12baea7121e3a2d4 passed all six workflows (CI 39395954326, Actual PAPER 39395954357, Capability Guard 39395954343, Activation 39395954362, Transport 39395954331, Read-only Broker 39395954449); these are historical for the AIPOS reconciliation successor. Fresh workflows and separate non-author Validator remain pending on that successor."
-next: "Publish the AIPOS reconciliation successor only after exact tree SHA comparison and expected-head fast-forward from db7fc759de47c620a3220c0f12baea7121e3a2d4. Then obtain fresh workflows on that new exact head and a separate fresh non-author VALIDATOR. Keep Draft. Do not self-review, mark Ready, start Audit/Release, or merge. Avoid self-referential current-head evidence in AIPOS."
+next: "Commit the substantive diff-evidence repair and AIPOS evidence, recheck expected PR head, and non-force push to the existing branch. Then require fresh exact-head workflows and fresh non-author review. Keep Draft; do not self-review, mark Ready, Audit, Release, or merge. Avoid self-referential current-head evidence in AIPOS."
+latest_repair_2026_10_26:
+  repository_verified:
+    protected_main: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
+    pr_2772_head_before_repair: 3eee9bcfb1c71f2a3a4cfeb0f653830636dd8a3b
+    pr_2772_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
+    pr_state: OPEN_DRAFT_MERGEABLE
+  active_review_findings:
+    - "P1 review comment 4377972408: blockers caused solely by removed safety/authority code need valid removed-line evidence refs."
+    - "P1 review comment 4378178003: whole-file deletion uses +++ /dev/null; parser must bind removed lines to --- a/<old path> and reset per-file state at every diff boundary."
+  repair:
+    files:
+      - apps/autopilot/src/auditRunner.ts
+      - apps/autopilot/src/auditRunner.test.ts
+    behavior: "Diff evidence parser tracks old and new file paths independently, clears file/line state at diff --git boundaries, emits deletion refs against the old path, additions against the new path, and cannot leak a prior file path into a deleted-file hunk."
+    safety: "Blocker evidence remains tied to immutable base..head diff lines; missing or mismatched evidence continues to fail closed."
+  predecessor_retry:
+    ci_run: 40345771631
+    attempt: 2
+    result: PASS
+    note: "All validation/coverage jobs succeeded on predecessor 3eee9bcf; historical after the pending repair commit."
+  local_validation:
+    node: 24.19.0
+    build: PASS
+    audit_runner_tests: PASS_34_OF_34
+    independent_audit_contract_tests: PASS_16_OF_16
+    preflight: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS
+    full_test_suite: PASS_1288_ISOLATED_TEST_FILES
+    git_diff_check: PASS
