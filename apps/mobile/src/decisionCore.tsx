@@ -10,6 +10,8 @@ import { fieldFonts } from "./fieldFonts";
 import { readableFont } from "./designSystem";
 
 /**
+ * UNUSED since 2026-10-26 (the Now tab draws WaveCore); kept so the dotted-globe design can be restored. "lime" below is historical: the order colour is now pink.
+ *
  * The decision core, the main motion graphic of "지금" (owner-chosen 2026-10-21): a slowly turning sphere of points joined like a neural
  * mesh. A real new decision sends a wave of light across its surface; a real new PAPER order throws lime sparks out of it; when buying
  * is held the sphere cools to amber and slows. Presentation only: it draws the counts the screen already has and invents nothing.

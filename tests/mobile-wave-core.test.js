@@ -68,3 +68,13 @@ test("the wave sets its blend mode by name; the BlendMode enum crashed the emula
   assert.match(src, /blendMode="plus"/);
   assert.doesNotMatch(src, /BlendMode\./);
 });
+
+test("review fixes: idle flat waves stop the frame loop, ticks age out under reduce-motion, a fill burst draws one tick per fill, order pink is one source", () => {
+  const src = read("waveCore.tsx");
+  assert.match(src, /!liveRef\.current && state\.current\.flat > 0\.99/);
+  assert.match(src, /setInterval\(\(\) => \{ if \(ticks\.current\.length > 0 \|\| fillTicks\.current\.length > 0\)/);
+  assert.match(src, /Array\.from\(\{ length: n \}/);
+  assert.match(src, /Number\.isSafeInteger\(decisionCount\)/);
+  const ds = read("designSystem.ts");
+  assert.match(ds, /pink: calmPalette\.order,/);
+});

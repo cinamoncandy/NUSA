@@ -90,7 +90,6 @@ const styles = StyleSheet.create({
   authorityRail: { minHeight: 32, borderBottomWidth: StyleSheet.hairlineWidth, paddingHorizontal: 2, paddingVertical: 8, gap: 4 },
   authorityBrandRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   authorityDot: { width: 6, height: 6, borderWidth: 1.2, borderRadius: 999 },
-  authorityBrand: { fontSize: labelFont(10), lineHeight: 15, fontWeight: "600", letterSpacing: 1.45 },
   authorityMode: { flex: 1, fontSize: readableFont(13), lineHeight: 18, fontWeight: "600" },
   authorityDetail: { fontSize: readableFont(13), lineHeight: 19 },
   authorityStatus: { minHeight: 24, borderWidth: StyleSheet.hairlineWidth, borderRadius: 999, justifyContent: "center", paddingHorizontal: 10 },

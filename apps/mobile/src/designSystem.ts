@@ -98,7 +98,7 @@ export const calmPalette = Object.freeze({
   line: "#18212B",
   text: "#E8F0F2",
   muted: "#A2ADB8",
-  order: "#FF7AB0",
+  order: "#FF7AC8",
   attention: "#FFC266",
   loss: "#FF5C5C",
 } as const);
@@ -108,7 +108,7 @@ export const wavePalette = Object.freeze({
   blue: "#4F7BFF",
   cyan: "#3FD3FF",
   violet: "#A855FF",
-  pink: "#FF5C8A",
+  pink: calmPalette.order,
   deepBlue: "#5A6EFF",
   lilac: "#BE78FF",
   glow: "#7866FF",

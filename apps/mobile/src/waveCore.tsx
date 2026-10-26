@@ -83,7 +83,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
     lastFills.current = fillCount;
     if (n === 0) return;
     const now = Date.now();
-    fillTicks.current = [...fillTicks.current, now].filter((t) => now - t <= WAVE_HISTORY_MS);
+    fillTicks.current = [...fillTicks.current, ...Array.from({ length: n }, (_, i) => now + i * 260)].filter((t) => now - t <= WAVE_HISTORY_MS);
     if (reducedMotion !== false) { setFrame((k) => k + 1); return; }
     fillAt.current = now;
     state.current.v += 4;
@@ -94,6 +94,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
     let alive = true, last = 0, handle = 0;
     const loop = (ts: number) => {
       if (!alive) return;
+      if (!liveRef.current && state.current.flat > 0.99 && pulses.current.length === 0 && state.current.pink < 0.02) { setFrame((n) => n + 1); return; }
       if (ts - last >= FRAME_MS) {
         const dt = last === 0 ? 0 : Math.min(0.1, (ts - last) / 1000); last = ts;
         const st = state.current, isLive = liveRef.current, now = Date.now();
@@ -109,7 +110,16 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
     };
     handle = requestAnimationFrame(loop);
     return () => { alive = false; cancelAnimationFrame(handle); };
-  }, [reducedMotion, active]);
+  }, [reducedMotion, active, live]);
+
+  useEffect(() => {
+    // Reduce-motion only redraws on events, so age out the last-minute ticks every few seconds while any are left.
+    if (reducedMotion !== false) {
+      const timer = setInterval(() => { if (ticks.current.length > 0 || fillTicks.current.length > 0) setFrame((n) => n + 1); }, 5000);
+      return () => clearInterval(timer);
+    }
+    return undefined;
+  }, [reducedMotion]);
 
   const scene = useMemo(() => {
     const st = state.current, now = Date.now();
@@ -127,7 +137,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
 
   const grey = scene.flat > 0.5;
   const stripY = Math.round(height * 0.86);
-  const label = `판단 파형. ${decisionCount == null ? "판단 수를 받지 못했어요" : `오늘 판단 ${decisionCount.toLocaleString("en-US")}번`}${orderCount == null ? "" : `, 모의 주문 ${orderCount.toLocaleString("en-US")}번`}. 아래 눈금은 최근 1분 동안 늘어난 판단(파랑), 주문(분홍), 체결(흰색)이에요`;
+  const label = `판단 파형. ${decisionCount == null || !Number.isSafeInteger(decisionCount) ? "판단 수를 받지 못했어요" : `오늘 판단 ${decisionCount.toLocaleString("en-US")}번`}${orderCount == null || !Number.isSafeInteger(orderCount) ? "" : `, 모의 주문 ${orderCount.toLocaleString("en-US")}번`}. 아래 눈금은 최근 1분 동안 늘어난 판단(파랑), 주문(분홍), 체결(흰색)이에요`;
   return <View style={{ width, height }} testID={testID} accessible accessibilityLabel={label}>
     <Canvas style={{ width, height }} pointerEvents="none">
       <Rect x={0} y={0} width={width} height={height} opacity={scene.glow * 2}>
@@ -157,10 +167,10 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
       })}
       {scene.fills.map((t, i) => <Rect key={`f${i}`} x={width * 0.04 + width * 0.92 * t.x - 1} y={stripY - 22 * (1 + t.fresh * 0.5)} width={2} height={22 * (1 + t.fresh * 0.5)} color={calmColors.text} opacity={0.6 + 0.4 * t.fresh} />)}
     </Canvas>
-    <Text style={styles.stripLabel} importantForAccessibility="no-hide-descendants">최근 1분</Text>
+    <Text style={[styles.stripLabel, { bottom: Math.max(0, height - stripY - 24) }]} importantForAccessibility="no-hide-descendants">최근 1분 · 앱이 본 시각</Text>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  stripLabel: { position: "absolute", left: 4, bottom: 0, color: calmColors.muted, fontSize: readableFont(11) },
+  stripLabel: { position: "absolute", left: 4, bottom: 2, color: calmColors.muted, fontSize: readableFont(11) },
 });
