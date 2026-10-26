@@ -103,6 +103,18 @@ export const calmPalette = Object.freeze({
   loss: "#FF5C5C",
 } as const);
 
+/** Wave palette (Now tab wave and the app accent, owner-chosen 2026-10-26): blue, cyan and violet light, pink only for my PAPER orders. */
+export const wavePalette = Object.freeze({
+  blue: "#4F7BFF",
+  cyan: "#3FD3FF",
+  violet: "#A855FF",
+  pink: "#FF5C8A",
+  deepBlue: "#5A6EFF",
+  lilac: "#BE78FF",
+  glow: "#7866FF",
+  idle: "#787890",
+} as const);
+
 /** Aura palette (Learning tab, reference direction: near-black ground, one green that glows, grain). Presentation only. */
 export const auraPalette = Object.freeze({
   ground: "#0A0C0A",

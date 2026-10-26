@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { HeartbeatPulse } from "./heartbeatPulse";
 import { splitHeroLines } from "./learningScreenModel";
 import { InstrumentHero, Odometer, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
-import { DecisionCore } from "./decisionCore";
+import { WaveCore } from "./waveCore";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
 import { readableFont } from "./designSystem";
@@ -16,13 +16,15 @@ interface Props {
   readonly decisionCount: number | null;
   /** Today's PAPER order count; each rise throws sparks off the core. */
   readonly orderCount: number | null;
+  /** Today's PAPER fill count; each rise makes the wave lock into one line. */
+  readonly fillCount?: number | null;
   readonly stats: readonly { readonly label: string; readonly value: string; readonly tone: CalmTone }[];
   /** Server-reported time of its last heartbeat (ms). The scan line sweeps when this advances. */
   readonly lastHeartbeatAt?: number | null;
 }
 
 /** "지금" instrument view for every state without the risk gate: hero line, the decision core, the decision odometer, ledger. Presentation only. */
-export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, stats, lastHeartbeatAt = null }: Props) {
+export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, fillCount = null, stats, lastHeartbeatAt = null }: Props) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
   const live = !dim && decisionCount != null;
@@ -30,7 +32,7 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCo
     <InstrumentHero index="01 / 지금" lines={splitHeroLines(headline).map((text) => ({ text, color: calmToneColor(tone) }))} label={headline} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
     <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      {width > 0 ? <DecisionCore tone={live ? "live" : "idle"} decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} width={live ? width : Math.round(width * 0.62)} reducedMotion={reduced} /> : null}
+      {width > 0 ? <WaveCore decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} fillCount={live ? fillCount : null} live={live} width={width} reducedMotion={reduced} /> : null}
       {width > 0 && live ? <HeartbeatPulse lastHeartbeatAt={lastHeartbeatAt} width={width} reducedMotion={reduced} /> : null}
     </View>
     <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
