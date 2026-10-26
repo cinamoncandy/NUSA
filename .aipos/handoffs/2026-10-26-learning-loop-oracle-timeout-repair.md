@@ -9,13 +9,13 @@
 - Orderbook study and data-integrity markers were unavailable from the health-only diagnostic. It did not authenticate `/ready` or verify writer-lease ownership/renewal. Exact-main runtime acceptance remains false; learning loop and performance improvement remain unverified.
 - Existing genuine PAPER elapsed soak run `40270441841` is still in progress on exact main. Do not duplicate, cancel, or treat its in-progress state as acceptance.
 
-## PR #2877 P1 repair
+## PR #2877 current repair
 
-- PR #2877 latest verified checkpoint before this follow-up was `c98c5a1c072976cae36e74f25173f5636262bb23`, base/protected main `de6cb5d56acfec429659301c9c1ed8b424e7935f`; it remained Open/Draft.
-- Fresh review on c98 found two P1s: a 240-minute outer backup job exactly matched 60 minutes of bounded preparation plus a 180-minute backup, leaving no orchestration/step-transition margin; and AIPOS still described predecessor cfbacd4f as current despite c98 checks having completed.
-- This follow-up raises the isolated backup job to 260 minutes (60 preparation + 180 backup + 20 orchestration margin), preserves the 5/20/25/10-minute preparation caps and 180-minute backup cap, and updates regression coverage, runbook, active work order and state. New-head checks are pending until publication.
-- Focused tests: 31/31 PASS with `C:\Program Files\Git\bin` added to PATH for Git Bash. Initial invocation failed only because Bash was absent from PATH. Workflow YAML parse PASS (`js-yaml`), `pnpm run validate` PASS, and `git diff --check` PASS. An ad-hoc parser check using undeclared `yaml` package failed; rerun with the repository's `js-yaml` succeeded. No full suite or host mutation performed.
-- The 260-minute/headroom and AIPOS repairs were published non-force to the existing PR branch. Current exact-head checks are pending; resolve the live head dynamically. Keep PR #2877 Open/Draft, and do not reuse c98 receipts as current-head evidence. Formal Validator, Independent Audit, Release and merge are separate gates.
+- PR #2877 was Open/Draft at reviewed head `1df5305bece93e39a28dbd641bb77bf05ac9561b`, base/protected main `de6cb5d56acfec429659301c9c1ed8b424e7935f`; verify live before publication.
+- Required exact-head workflows passed on 1df. Fresh review found one P2: a predecessor AIPOS state entry still represented the 240-minute outer budget as current, while the reviewed code and work order use 260 minutes.
+- Local AIPOS reconciliation now records 260 minutes (60 preparation + 180 backup + 20 orchestration), marks predecessor 240-minute entries as historical/superseded, and records the P2 plus pending successor validation. Focused Oracle tests 31/31 and `pnpm run preflight` now pass; `pnpm run validate` and `git diff --check` passed; publication and successor exact-head checks remain pending.
+- Next: run focused tests, AIPOS validation, and `git diff --check`; recheck PR/base and publish only non-force if remote remains at 1df; then verify all successor exact-head workflows and fresh review. Keep Draft.
+- Formal Validator, Independent Audit, Release, merge, and separately authorized Oracle host acceptance remain distinct later gates.
 - Do not dispatch Oracle release, install/update the host helper, restart services, or mutate DB/lease. #2770 remains open until governed exact-main runtime acceptance and authentic PAPER evidence are obtained.
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, `realTransferAuthority=false`, `aiAuthority=ZERO_AUTHORITY`.
