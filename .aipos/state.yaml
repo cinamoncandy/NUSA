@@ -152,6 +152,19 @@ current_strategy_intake_placeholder_identity_validated_20261026:
   next: "Confirm the existing PR and base identity; publish one substantive non-force successor; obtain exact-head CI and fresh non-author review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_strategy_intake_recapture_taxonomy_identity_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_REPOSITORY_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: e630650b9be3c8129a6661dc7fd35e7800d03e9a
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  finding: "Fresh review found recapture could relabel durable novelty, inherited taxonomy/plans could pass but disappear during JSON serialization, and news experiment identity omitted source SHA and validation policy identity."
+  fix: "Preserve durable classification/lineage/handoff state on every recapture; require own taxonomy properties and canonical plain plans; bind source SHA and validation policy identity into experiment identity."
+  validation: "Focused TypeScript compile PASS; focused contract/storage tests 27/27 PASS; git diff check PASS. Full repository build/typecheck awaits dependency tree repair (typescript, node, ws, vitest, react packages are incomplete locally); exact-head CI still required."
+  next: "Complete available repository gates, then non-force push the successor to existing Draft #2878 and wait for exact-head CI plus fresh non-author review. Formal Validator/Audit/Release/merge/deployment remain separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_intake_repeat_capture_dedup_20261026:
   work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
   status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI

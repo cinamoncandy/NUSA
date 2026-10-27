@@ -180,17 +180,13 @@ export class SqliteResearchIntelligenceMemoryRepository {
     const fresh = this.authenticatedThisProcess.get(stored.recordId);
     if (fresh && fresh.contentFingerprint === stored.contentFingerprint
       && fresh.sourceVerificationReceipt?.sourceEntryFingerprint === stored.sourceVerificationReceipt?.sourceEntryFingerprint) {
-      // Source recapture restores provenance trust, but it cannot rewrite the durable
-      // classification/lineage established when this record was first stored.
-      if (stored.novelty === "DUPLICATE") {
-        return carryResearchIntelligenceSourceAuthentication(fresh, Object.freeze({
-          ...fresh,
-          novelty: "DUPLICATE" as const,
-          relatedExistingResearch: stored.relatedExistingResearch,
-          axiomHandoffStatus: "DUPLICATE_SUPPRESSED" as const,
-        }));
-      }
-      return fresh;
+      // Source recapture restores provenance trust, not the durable relation decision.
+      return carryResearchIntelligenceSourceAuthentication(fresh, Object.freeze({
+        ...fresh,
+        novelty: stored.novelty,
+        relatedExistingResearch: stored.relatedExistingResearch,
+        axiomHandoffStatus: stored.axiomHandoffStatus,
+      }));
     }
     // The stored checksum can detect accidental corruption but cannot establish who issued it.
     // Preserve the immutable row as history while exposing it as unverified after restart.
@@ -283,7 +279,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
     const semanticInput = { observationIdentity, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity };
     const base = digest(semanticInput);
     const hypothesis = createResearchHypothesis({ hypothesisId: `news-hypothesis-${base.slice(0, 48)}`, candidateId: `news-candidate-${base.slice(0, 48)}`, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity, provenance: { author: "SCOUT_ADVISORY", sourceReferences: [verifiedObservation.sourceUrl, verifiedObservation.contentFingerprint, verifiedObservation.observationIdentity] }, createdAt: input.createdAt });
-    const precommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ hypothesisId: hypothesis.hypothesisId, observationIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan }), candidateIdentity: hypothesis.candidateId, strategyIdentity: hypothesis.candidateId, datasetBinding: { ...input.datasetBinding, newsObservationIdentity: verifiedObservation.observationIdentity }, sourceSha: input.sourceSha, parameterPlan: { hypothesis, newsObservationIdentity: verifiedObservation.observationIdentity, researchIntelligenceRecordId: verifiedObservation.researchIntelligenceRecordId }, costPlan: input.costPlan, regimePlan: { expectedRegime: input.expectedRegime }, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
+    const precommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ hypothesisId: hypothesis.hypothesisId, observationIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan, sourceSha: input.sourceSha, validationPolicyIdentity: input.validationPolicyIdentity }), candidateIdentity: hypothesis.candidateId, strategyIdentity: hypothesis.candidateId, datasetBinding: { ...input.datasetBinding, newsObservationIdentity: verifiedObservation.observationIdentity }, sourceSha: input.sourceSha, parameterPlan: { hypothesis, newsObservationIdentity: verifiedObservation.observationIdentity, researchIntelligenceRecordId: verifiedObservation.researchIntelligenceRecordId }, costPlan: input.costPlan, regimePlan: { expectedRegime: input.expectedRegime }, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
     return Object.freeze({ classification: "RESEARCH_HYPOTHESIS_CANDIDATE" as const, hypothesis, precommit });
   }
 
@@ -315,17 +311,13 @@ export class SqliteResearchIntelligenceMemoryRepository {
         if (!sameCapturedSource) {
           throw new Error("research intelligence record identity conflict");
         }
-        if (existing.novelty === "DUPLICATE") {
-          // The capture authenticates source bytes, not a new relation decision. Keep
-          // the immutable duplicate relation and its original related-record lineage.
-          return carryResearchIntelligenceSourceAuthentication(record, Object.freeze({
-            ...record,
-            novelty: "DUPLICATE" as const,
-            relatedExistingResearch: existing.relatedExistingResearch,
-            axiomHandoffStatus: "DUPLICATE_SUPPRESSED" as const,
-          }));
-        }
-        return record;
+        // Capture authenticates source bytes, not a new relation decision.
+        return carryResearchIntelligenceSourceAuthentication(record, Object.freeze({
+          ...record,
+          novelty: existing.novelty,
+          relatedExistingResearch: existing.relatedExistingResearch,
+          axiomHandoffStatus: existing.axiomHandoffStatus,
+        }));
       }
 
       this.db.connection.prepare(

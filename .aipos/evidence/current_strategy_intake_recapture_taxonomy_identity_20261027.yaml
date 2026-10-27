@@ -1,0 +1,12 @@
+current_strategy_intake_recapture_taxonomy_identity_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_REPOSITORY_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: e630650b9be3c8129a6661dc7fd35e7800d03e9a
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  findings: "Fresh review found stored NEW/INCREMENTAL/REPLICATION classification could be replaced by a repeat capture labeled DUPLICATE; inherited observation taxonomy and plan fields could pass validation while JSON persistence drops them; crypto-news experiment identity omitted source SHA and validation policy identity."
+  fixes: "Every recapture now carries the durable novelty, lineage, and handoff status while restoring only source authentication. News observation classification requires own taxonomy keys and plain input objects; plan validation rejects non-plain/non-canonical objects and inherited plan values. News experiment identity now binds source SHA and validation policy identity."
+  validation: "Targeted TypeScript compile of changed contract/storage files PASS; 27 focused contract and storage tests PASS; git diff --check PASS. Full repository build/typecheck could not be established because the existing node_modules tree is incomplete (typescript and ambient type/module files missing); exact-head CI is required."
+  next: "Refresh protected main and PR identity, record this AIPOS state, run available repository gates, then commit/non-force push only to existing Draft #2878. Require new exact-head CI and fresh non-author review; no Formal Validator, Audit, Release, merge, or Oracle operation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

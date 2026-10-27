@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import test from "node:test";
 import { canonicalResearchJson } from "./researchRuntime";
 import { createResearchPrecommit } from "./researchPrecommit";
-import { classifyCryptoNewsDuplicate, createCryptoNewsResearchObservation, createStrategyReplicationReceipt, normalizeStrategyReplication, strategyReplicationPrecommit, verifyStrategyReplicationPrecommit, verifyStrategyReplicationReceipt, type CryptoNewsResearchInput, type StrategyReplicationInput } from "./researchExternalIntake";
+import { classifyCryptoNewsDuplicate, createCryptoNewsResearchObservation, createStrategyReplicationReceipt, normalizeStrategyReplication, strategyReplicationPrecommit, validateCryptoNewsPrecommitPlans, verifyStrategyReplicationPrecommit, verifyStrategyReplicationReceipt, type CryptoNewsResearchInput, type StrategyReplicationInput } from "./researchExternalIntake";
 import { createResearchIntelligenceRecord } from "./researchIntelligence";
 
 const H = "a".repeat(64), SHA = "b".repeat(40);
@@ -160,6 +160,9 @@ test("precommit requires PIT/OOS, dataset, fee and slippage bindings and cannot 
   assert.throws(() => strategyReplicationPrecommit({ ...valid, costPlan: { feeModelVersion: "fee-v1" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, costPlan: { feeAssumptions: "UNKNOWN", slippageAssumptions: "N/A" }, createdAt: "2026-10-25T00:00:00Z" }), /PRECOMMIT_BINDING_INVALID/);
   assert.throws(() => strategyReplicationPrecommit({ ...valid, createdAt: "2026-10-24T23:59:59Z" }), /PRECOMMIT_BINDING_INVALID/);
+  assert.equal(validateCryptoNewsPrecommitPlans(Object.create({ manifest: "dataset-1" }), evaluationPlan, costPlan), false);
+  assert.equal(validateCryptoNewsPrecommitPlans({ manifest: "dataset-1" }, Object.create(evaluationPlan), costPlan), false);
+  assert.equal(validateCryptoNewsPrecommitPlans({ manifest: "dataset-1" }, evaluationPlan, Object.create(costPlan)), false);
 });
 
 test("replication receipt binds outcome to spec, precommit, dataset and preserves adverse evidence", () => {
@@ -259,6 +262,13 @@ test("news observation factory rejects malformed runtime taxonomy and provenance
 
 test("news observation identity rejects unrecognized runtime fields", () => {
   assert.throws(() => createCryptoNewsResearchObservation({ ...news(), schemaHint: "future" } as never), /NEWS_EVIDENCE_INVALID/);
+  const inheritedTaxonomy = Object.assign(Object.create({ sourceType: "NEWS", eventType: "REGULATION", confidence: "MEDIUM" }), {
+    sourceUrl: "https://example.org/news", publisher: "Example", publishedAt: "2026-10-25T00:00:00Z",
+    retrievedAt: "2026-10-25T00:01:00Z", firstObservedAt: "2026-10-25T00:01:00Z",
+    contentSnapshot: newsSnapshot, contentFingerprint: newsFingerprint,
+    entities: [], assets: [], observedFacts: ["filing"], publisherClaims: [], scoutInferences: [],
+  });
+  assert.throws(() => createCryptoNewsResearchObservation(inheritedTaxonomy), /NEWS_EVIDENCE_INVALID/);
 });
 
 test("strategy replication rejects a modified regime plan even with a recomputed precommit fingerprint", () => {

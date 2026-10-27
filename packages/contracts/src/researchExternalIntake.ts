@@ -141,7 +141,7 @@ function verifyStrategyReplicationSpec(spec: StrategyReplicationSpec, parentSpec
   if (strategyIdentity !== digest(identityMaterial)) throw new Error("STRATEGY_IDENTITY_MISMATCH");
 }
 
-function plainRecord(value: unknown): value is Readonly<Record<string, unknown>> { return value !== null && typeof value === "object" && !Array.isArray(value); }
+function plainRecord(value: unknown): value is Readonly<Record<string, unknown>> { if (value === null || typeof value !== "object" || Array.isArray(value)) return false; try { const prototype = Object.getPrototypeOf(value); return prototype === Object.prototype || prototype === null; } catch { return false; } }
 function isCanonicalJsonValue(value: unknown, ancestors = new Set<object>()): boolean {
   if (value === null || typeof value === "string" || typeof value === "boolean") return true;
   if (typeof value === "number") return Number.isFinite(value);
@@ -185,12 +185,12 @@ function canonicalEvidenceRecord(value: unknown): Readonly<Record<string, unknow
     return undefined;
   }
 }
-function hasKnownText(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => knownText(record[key])); }
-function hasDigest(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => typeof record[key] === "string" && SHA256.test(record[key] as string)); }
+function hasKnownText(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => Object.hasOwn(record, key) && knownText(record[key])); }
+function hasDigest(record: Readonly<Record<string, unknown>>, keys: readonly string[]): boolean { return keys.some((key) => Object.hasOwn(record, key) && typeof record[key] === "string" && SHA256.test(record[key] as string)); }
 function timeWindowBounds(value: unknown): { start: number; end: number } | undefined {
   if (!plainRecord(value)) return undefined;
-  const start = value.startAt ?? value.start ?? value.from;
-  const end = value.endAt ?? value.end ?? value.to;
+  const start = Object.hasOwn(value, "startAt") ? value.startAt : Object.hasOwn(value, "start") ? value.start : value.from;
+  const end = Object.hasOwn(value, "endAt") ? value.endAt : Object.hasOwn(value, "end") ? value.end : value.to;
   // Evaluation windows are PIT evidence boundaries. Date.parse accepts
   // date-only/local strings and normalizes impossible calendar dates, so
   // require the same explicit, calendar-valid timezone-bearing timestamps
@@ -201,8 +201,8 @@ function timeWindowBounds(value: unknown): { start: number; end: number } | unde
 }
 function validTimeWindow(value: unknown): boolean { return timeWindowBounds(value) !== undefined; }
 function validatePrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown, costPlan: unknown): boolean {
-  if (!plainRecord(datasetBinding) || !plainRecord(evaluationPlan) || !plainRecord(costPlan)) return false;
-  if (("pitWindow" in evaluationPlan && !timeWindowBounds(evaluationPlan.pitWindow)) || ("oosWindow" in evaluationPlan && !timeWindowBounds(evaluationPlan.oosWindow))) return false;
+  if (!plainRecord(datasetBinding) || !plainRecord(evaluationPlan) || !plainRecord(costPlan) || !isCanonicalJsonValue(datasetBinding) || !isCanonicalJsonValue(evaluationPlan) || !isCanonicalJsonValue(costPlan)) return false;
+  if ((Object.hasOwn(evaluationPlan, "pitWindow") && !timeWindowBounds(evaluationPlan.pitWindow)) || (Object.hasOwn(evaluationPlan, "oosWindow") && !timeWindowBounds(evaluationPlan.oosWindow))) return false;
   const datasetBound = hasKnownText(datasetBinding, ["manifest", "manifestId", "datasetId"]) || hasDigest(datasetBinding, ["manifestFingerprint", "datasetFingerprint", "datasetContentSha256"]);
   const pitBound = validTimeWindow(evaluationPlan.pitWindow) || knownText(evaluationPlan.pitPolicyVersion);
   const oosBound = validTimeWindow(evaluationPlan.oosWindow) || knownText(evaluationPlan.oosPolicyVersion) || hasDigest(evaluationPlan, ["walkForwardConfigHash"]);
@@ -298,7 +298,7 @@ export function createCryptoNewsResearchObservation(input: CryptoNewsResearchInp
     "scoutInferences", "residualUnknowns", "expectedDirection", "expectedMagnitude", "expectedHorizon",
     "transmissionChannels",
   ]);
-  if (!input || typeof input !== "object" || Reflect.ownKeys(input).some((key) => typeof key !== "string" || !supportedInputFields.has(key))) throw new Error("NEWS_EVIDENCE_INVALID");
+  if (!plainRecord(input) || !["sourceType", "eventType", "confidence"].every((key) => Object.hasOwn(input, key)) || Reflect.ownKeys(input).some((key) => typeof key !== "string" || !supportedInputFields.has(key))) throw new Error("NEWS_EVIDENCE_INVALID");
   if (!input || !text(input.publisher) || !SHA256.test(input.contentFingerprint) || !text(input.contentSnapshot) || !validTimestamp(input.retrievedAt) || !validTimestamp(input.firstObservedAt) || (input.publishedAt != null && !validTimestamp(input.publishedAt))) throw new Error("NEWS_PROVENANCE_INVALID");
   if (!NEWS_SOURCE_TYPES.has(input.sourceType) || !CRYPTO_EVENT_TYPES.has(input.eventType) || !NEWS_CONFIDENCE_LEVELS.has(input.confidence)) throw new Error("NEWS_CLASSIFICATION_INVALID");
   const optionalTextValues: readonly unknown[] = [input.originalPublisher, input.syndicationClusterId, input.expectedDirection, input.expectedMagnitude, input.expectedHorizon];

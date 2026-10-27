@@ -113,6 +113,16 @@ P0 tracks remain separate: exact-main Oracle release run `40178950069` is still 
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
 
+## Fresh exact-head review follow-up — recapture, intake prototypes, and experiment identity, 2026-10-27
+
+Fresh review on PR #2878 head `e630650b9be3c8129a6661dc7fd35e7800d03e9a` found three further findings: a repeat capture could downgrade any durable novelty/lineage to the caller's new classification, inherited crypto-news taxonomy or precommit-plan fields could pass validation although object spread/JSON serialization drops them, and the news precommit experiment identity omitted source SHA and validation policy identity.
+
+The SQLite repository now preserves the stored novelty, related-record lineage, and AXIOM handoff status for every authenticated recapture in both append and read paths. Crypto-news intake requires an ordinary/null-prototype object with own source/event/confidence fields; plan validation requires canonical JSON and checks only own fields. Crypto-news experiment identity now includes `sourceSha` and `validationPolicyIdentity`. Tests exercise repeated NEW capture, inherited taxonomy/plan fields, and identity changes on source/policy variation.
+
+Focused compile of changed contract/storage files PASS; focused contract and storage suite 27/27 PASS; AIPOS YAML (521 files), work-order provenance, and `git diff --check` PASS. Full repository build/typecheck is not yet established: pre-existing local `node_modules` is incomplete (missing TypeScript and several type/runtime packages), so a temporary compiler was used for changed-file compile. Exact-head CI and fresh non-author review remain required. AIPOS state records the current local validation; successor head must be revalidated after push. Formal Validator remains separate; no Audit/Release/merge/Oracle action is claimed.
+
+Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, and `VERIFIED=false`.
+
 ## Fresh exact-head review repairs — exact parent persistence and canonical input identity, 2026-10-26
 
 The PR review of predecessor `088a3b9a18cdd68eae983ecb94d9961317df9853` found three remaining boundary gaps: a variant could embed a later equivalent but unpersisted parent precommit; the adapter verifier accepted a modified `regimePlan` after the public fingerprint was recomputed; and crypto-news observation identity included unknown runtime string or symbol keys that the canonical stored projection later drops.

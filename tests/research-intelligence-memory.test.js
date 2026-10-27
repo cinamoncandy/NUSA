@@ -98,6 +98,8 @@ test("canonical semantic memory suppresses the same research across scout runs",
     assert.equal(second.duplicatesSuppressed, 1);
     assert.equal(second.axiomHandoffs.length, 0);
     assert.equal(memory.list().length, 1);
+    assert.equal(memory.get(memory.list()[0].recordId).novelty, "NEW",
+      "a routine repeat capture must not replace the durable novelty decision");
 
     const semantic = new SqliteResearchSemanticMemoryRepository(db).listSemantic();
     assert.equal(semantic.length, 1);
@@ -455,6 +457,8 @@ test("only the canonical persisted Research Intelligence repository can bind new
     assert.equal(result.precommit.candidateIdentity, result.hypothesis.candidateId);
     assert.equal(result.precommit.datasetBinding.newsObservationIdentity, bound.observationIdentity);
     assert.equal(result.precommit.parameterPlan.hypothesis.provenance.author, "SCOUT_ADVISORY");
+    assert.notEqual(memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, sourceSha: "c".repeat(40) }).precommit.experimentIdentity, result.precommit.experimentIdentity);
+    assert.notEqual(memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, validationPolicyIdentity: "policy-v2" }).precommit.experimentIdentity, result.precommit.experimentIdentity);
     assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, validationPolicyIdentity: "UNKNOWN" }), /HYPOTHESIS_EVIDENCE_INELIGIBLE/);
     assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, datasetBinding: { manifest: "N/A" } }), /HYPOTHESIS_EVIDENCE_INELIGIBLE/);
     assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, "ri:caller-invented", input), /BINDING_INVALID/);
