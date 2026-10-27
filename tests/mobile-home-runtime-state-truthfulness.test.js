@@ -37,7 +37,7 @@ test("a real ERROR runtime state is surfaced as ACTION REQUIRED with an explicit
   assert.equal(projection.attention, "ACTION REQUIRED");
   assert.equal(projection.now, "PAPER RUNTIME ERROR");
   assert.equal(projection.why, "PAPER runtime이 오류를 보고하여 감독자의 확인이 필요합니다.");
-  assert.equal(projection.statusLabel, "PAPER · ERROR");
+  assert.equal(projection.statusLabel, "PAPER · 오류");
 });
 
 test("a real STOPPED/STOPPING runtime state is surfaced as WATCH with an explicit label, never silently blended into QUIET", () => {
@@ -46,7 +46,7 @@ test("a real STOPPED/STOPPING runtime state is surfaced as WATCH with an explici
     assert.equal(projection.attention, "WATCH");
     assert.equal(projection.now, "PAPER RUNTIME STOPPED");
     assert.equal(projection.why, "PAPER runtime이 정지되어 있어 새로운 판단이 생성되지 않습니다.");
-    assert.equal(projection.statusLabel, "PAPER · STOPPED");
+    assert.equal(projection.statusLabel, "PAPER · 멈춤");
   }
 });
 
