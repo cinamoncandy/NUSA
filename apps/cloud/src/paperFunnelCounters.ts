@@ -123,3 +123,22 @@ export function mergeFunnelSnapshots(base: PaperFunnelSnapshot, extra: PaperFunn
   for (const [key, value] of Object.entries(extra.counts)) counts[key] = (counts[key] ?? 0) + value;
   return Object.freeze({ since: base.since, counts: Object.freeze(Object.fromEntries(Object.entries(counts).sort(([a], [b]) => a.localeCompare(b)))) });
 }
+
+/**
+ * Records an ORDER_INTENT through `record` and, only when the recorder counted it as new (its stage total rose), counts the fixed reason code beside it.
+ * A repeated event id is ignored by the recorder, so it adds nothing here either. Display only.
+ */
+export function recordOrderIntentWithReasonCode(
+  recorder: { readonly funnelSnapshot: () => PaperFunnelSnapshot },
+  record: () => void,
+  counters: PaperFunnelCounters,
+  intentStatus: string,
+  resultStatus: string,
+  reason: string | undefined
+): void {
+  const key = `ORDER_INTENT:${intentStatus}`;
+  const before = recorder.funnelSnapshot().counts[key] ?? 0;
+  record();
+  const code = orderIntentFunnelCode(resultStatus, reason);
+  if (code != null && (recorder.funnelSnapshot().counts[key] ?? 0) > before) counters.observeDetail("ORDER_INTENT", intentStatus, code);
+}
