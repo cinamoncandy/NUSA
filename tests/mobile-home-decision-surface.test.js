@@ -83,7 +83,7 @@ test("insufficient evidence stays explicit and never invents confidence", () => 
 test("READ_ONLY recovery failure outranks prior healthy runtime and PAPER result", () => {
   const projection = buildHomeDecisionSurface(fixture({ readOnlyError: true }));
   assert.equal(projection.attention, "ACTION REQUIRED");
-  assert.equal(projection.statusLabel, "PAPER · RECOVERY REQUIRED");
+  assert.equal(projection.statusLabel, "PAPER · 재연결 필요");
   assert.equal(projection.statusTone, "danger");
   assert.equal(projection.now, "RECOVERY REQUIRED");
   assert.equal(projection.risk, "BLOCKED · READ-ONLY RECOVERY REQUIRED");
@@ -97,7 +97,7 @@ test("LOCAL PAPER provenance does not claim cloud runtime evidence", () => {
     health: undefined,
     readyForPaperOperations: false,
   }));
-  assert.equal(projection.statusLabel, "PAPER · LOCAL");
+  assert.equal(projection.statusLabel, "PAPER · 이 기기");
   assert.equal(projection.statusTone, "info");
   assert.equal(projection.risk, "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE");
 });
