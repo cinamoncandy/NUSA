@@ -59,6 +59,7 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
+import { PaperFunnelCounters, mergeFunnelSnapshots, orderIntentFunnelCode } from "./paperFunnelCounters";
 import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
@@ -338,6 +339,7 @@ export function startCloudRuntime(
   const jevMarketMicrostructureLastObservedAt = new Map<string, number>();
   const JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS = 30_000;
 
+  const orderIntentReasonCounters = new PaperFunnelCounters();
   const paperLearningRecorder = new PaperLearningEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository
       ? { persistencePath: config.cloudStateDbPath }
@@ -571,7 +573,11 @@ export function startCloudRuntime(
           }
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
+          const intentKey = `ORDER_INTENT:${intentStatus}`;
+          const intentBefore = paperLearningRecorder.funnelSnapshot().counts[intentKey] ?? 0;
           paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
+          const intentCode = orderIntentFunnelCode(result.status, result.reason ?? result.status);
+          if (intentCode != null && (paperLearningRecorder.funnelSnapshot().counts[intentKey] ?? 0) > intentBefore) orderIntentReasonCounters.observeDetail("ORDER_INTENT", intentStatus, intentCode);
           if (result.status === "DUPLICATE") paperLearningRecorder.record({ cycleId, stage: "IDEMPOTENCY", occurredAt: now, market: ticker.code, status: "SKIP", reason: result.reason ?? "PAPER_DUPLICATE" });
           for (const fill of result.fills) paperLearningRecorder.record({ cycleId, stage: "FILL", occurredAt: fill.filledAt, market: ticker.code, status: "PASS", fill, idSuffix: fill.id });
           paperLearningRecorder.record({ cycleId, stage: "PNL", occurredAt: now, market: ticker.code, status: "PASS", account: result.state, reason: `cash:${result.state.cash};equity:${result.state.equity};realizedPnL:${result.state.realizedPnL};unrealizedPnL:${result.state.unrealizedPnL}` });
@@ -764,7 +770,7 @@ export function startCloudRuntime(
       ...(previousStop === undefined ? {} : { previousStop }),
       ...stallMonitor.snapshot(),
       ...researchLiveness(),
-      paperFunnel: paperLearningRecorder.funnelSnapshot(),
+      paperFunnel: mergeFunnelSnapshots(paperLearningRecorder.funnelSnapshot(), orderIntentReasonCounters.snapshot()),
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
       ...researchExperimentLiveness(),
