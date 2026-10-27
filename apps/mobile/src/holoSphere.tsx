@@ -8,7 +8,7 @@ import { FLOW_COMETS_PER_EDGE, FLOW_COMET_TAIL_POINTS, FLOW_EDGES, FLOW_NODES, F
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends a bright pulse down the chain. Null draws it still. */
   readonly decisionCount: number | null;
-  /** Real PAPER order count; each increase ignites the paper cluster with a lime ring and beam, then it settles. */
+  /** Real PAPER order count; each increase ignites the paper cluster with an order-pink ring and beam, then it settles. */
   readonly fillCount: number | null;
   readonly tone: HoloTone;
   /** Still figure: reduce-motion, or a secondary-tab mark. */
@@ -24,7 +24,7 @@ const LABEL_MIN_SIZE = 220;
 /**
  * NUSA "흐름" (Flow) hero, chosen by the owner on 2026-10-07 from reference videos: hairline data streams flowing into glowing
  * particle clusters, one per stage of the chain market -> research -> risk -> paper -> ledger (holoModel.ts).
- * A runtime decision sends a bright pulse down the chain; a PAPER order ignites the paper cluster with a lime ring and beam and
+ * A runtime decision sends a bright pulse down the chain; a PAPER order ignites the paper cluster with an order-pink ring and beam and
  * lights its hand-off to the ledger; hold / halt tint risk onward amber / red and a halt dims the streams out of risk.
  * Each stream is drawn as one batched path and each cluster as one point batch, so a frame is a few dozen draws.
  * The component name is kept for its callers.
@@ -120,7 +120,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
         set(paints.dot, color, grow * (0.7 + lit * 0.3)); canvas.drawPoints(PointMode.Points, near, paints.dot);
         set(paints.dot, color, grow * (0.32 + lit * 0.3)); canvas.drawPoints(PointMode.Points, far, paints.dot);
       });
-      // A PAPER order: three staggered lime rings, a beam rising from the paper cluster, and sparks thrown outward.
+      // A PAPER order: three staggered order-pink rings, a beam rising from the paper cluster, and sparks thrown outward.
       if (orderAge != null) {
         const foot = holoFillMarker(S), paper = FLOW_NODES[FLOW_PAPER]!;
         paints.line.setStrokeWidth(Math.max(1, S / 260));

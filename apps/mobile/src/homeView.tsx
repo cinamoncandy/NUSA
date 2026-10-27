@@ -373,7 +373,7 @@ const styles = StyleSheet.create({
   journalHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 },
   journalHint: { fontSize: 12 },
   journalRow: { flexDirection: "row", gap: 10, paddingVertical: 11 },
-  journalTime: { width: 42, fontSize: readableFont(11.5), paddingTop: 2 },
+  journalTime: { minWidth: 52, flexShrink: 0, fontSize: readableFont(11.5), paddingTop: 2 },
   journalDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, marginTop: 6 },
   journalBody: { flex: 1, minWidth: 0, gap: 2 },
   journalTitle: { fontSize: 14, lineHeight: 20 },
