@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: P1_WORKSPACE_MANIFEST_AND_DIRECTORY_RESOLUTION_REPAIRED_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_PUBLICATION_AND_REVIEW
+status: P1_REPAIRS_PUBLISHED_AWAITING_FINAL_EXACT_HEAD_WORKFLOWS_AND_FRESH_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -164,7 +164,8 @@ latest_review_successor_findings_2026_10_26:
     full_tests: PASS_1289_ISOLATED_TEST_FILES
     git_diff_check: PASS
   remote:
-    successor_head: "Resolve from the feature branch tip after commit/publication; exact-head remote gates remain pending."
+    published_code_checkpoint: 2ca0dcbed342268b560b741d4e0025409d967ec3
+    final_successor_head: "Resolve from the feature branch tip after this AIPOS state receipt; exact-head workflows for the final tip are pending."
     exact_head_ci: PENDING
     companions: PENDING
     fresh_non_author_review: PENDING
@@ -204,5 +205,5 @@ latest_workspace_manifest_and_directory_resolution_repair_2026_10_27:
     fresh_non_author_review: PENDING
     formal_validator: PENDING
     independent_audit_release: NOT_STARTED
-  next: "Re-fetch protected main and PR #2772; publish only as a non-force fast-forward if the remote head is still 1dc5e2e... and the branch/base contract is still satisfied. Require fresh exact-head workflows and fresh independent review. Keep Draft; do not resolve author threads or start Formal Validator, Audit, Release or merge."
+  next: "Resolve the final live PR head after the AIPOS receipt is published; require all exact-head workflows to complete and obtain a fresh non-author review of that exact SHA. Do not resolve author threads or start Formal Validator, Audit, Release or merge. Keep Draft."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
