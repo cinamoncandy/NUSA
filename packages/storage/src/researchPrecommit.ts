@@ -2,6 +2,7 @@ import type { ResearchPrecommit } from "../../contracts/src/researchPrecommit";
 import { verifyResearchPrecommit } from "../../contracts/src/researchPrecommit";
 import { canonicalResearchJson } from "../../contracts/src/researchRuntime";
 import { verifyStrategyReplicationPrecommit, type StrategyReplicationSpec } from "../../contracts/src/researchExternalIntake";
+import { isCanonicalCryptoNewsResearchPrecommit } from "./researchIntelligenceMemory";
 import type { DatabaseSync } from "node:sqlite";
 
 export interface ResearchPrecommitDatabase { readonly connection: DatabaseSync; transaction<T>(fn: () => T): T; }
@@ -75,6 +76,7 @@ export class SqliteResearchPrecommitRepository {
       } else if (isNewsPrecommit(precommit)) {
         const existingExperiment = this.findExistingNewsExperiment(precommit);
         if (existingExperiment != null) return existingExperiment;
+        if (!isCanonicalCryptoNewsResearchPrecommit(precommit)) throw new Error("NEWS_PRECOMMIT_NOT_CANONICAL");
       }
       const existing = this.get(precommit.fingerprint);
       if (existing != null && canonicalResearchJson(existing) !== canonicalResearchJson(precommit)) throw new Error("PRECOMMIT_IDENTITY_CONFLICT");

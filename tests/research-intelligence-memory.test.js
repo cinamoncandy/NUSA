@@ -70,9 +70,9 @@ function unverifiedRecord(discoveredAt = sourceCapture.capturedAt, patch = {}) {
   });
 }
 
-function record(patch = {}) {
-  const unverified = unverifiedRecord(sourceCapture.capturedAt, patch);
-  return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent);
+function record(patch = {}, capture = sourceCapture) {
+  const unverified = unverifiedRecord(capture.capturedAt, patch);
+  return issueResearchIntelligenceSourceVerificationReceipt(unverified, capture, rawContent);
 }
 
 test("canonical semantic memory suppresses the same research across scout runs", async () => {
@@ -203,7 +203,7 @@ test("SQLite source trust rejects caller claims and requires fresh capture after
   }
 });
 
-test("fresh authenticated recapture preserves durable duplicate classification and lineage", () => {
+test("fresh authenticated recapture preserves durable chronology, classification, and lineage", async () => {
   const db = new SqliteDatabase(":memory:");
   try {
     const memory = new SqliteResearchIntelligenceMemoryRepository(db);
@@ -218,14 +218,29 @@ test("fresh authenticated recapture preserves durable duplicate classification a
     memory.append(duplicate);
 
     // A later canonical source capture starts with the factory's default NEW metadata.
-    const recaptured = record();
+    const originalFetch = globalThis.fetch;
+    let recapturedCapture;
+    globalThis.fetch = async () => new Response(`<feed>${rawContent}</feed>`, {
+      headers: { "content-type": "application/atom+xml" },
+    });
+    try {
+      recapturedCapture = await fetchResearchIntelligenceSourceCapture(
+        "https://export.arxiv.org/api/query?id_list=2603.29086",
+        "ARXIV_API_V1",
+      );
+    } finally { globalThis.fetch = originalFetch; }
+    const recaptured = record({}, recapturedCapture);
+    assert.ok(Date.parse(recaptured.discoveredAt) > Date.parse(authenticated.discoveredAt));
     assert.equal(recaptured.novelty, "NEW");
     const appended = memory.append(recaptured);
+    assert.equal(appended.discoveredAt, authenticated.discoveredAt);
     assert.equal(appended.novelty, "DUPLICATE");
     assert.deepEqual(appended.relatedExistingResearch, ["research-record:canonical-original"]);
     assert.equal(appended.axiomHandoffStatus, "DUPLICATE_SUPPRESSED");
 
     const resolved = memory.get(authenticated.recordId);
+    assert.equal(resolved.discoveredAt, authenticated.discoveredAt);
+    assert.equal(resolved.sourceVerificationReceipt.capturedAt, recapturedCapture.capturedAt);
     assert.equal(resolved.novelty, "DUPLICATE");
     assert.deepEqual(resolved.relatedExistingResearch, ["research-record:canonical-original"]);
     assert.equal(resolved.axiomHandoffStatus, "DUPLICATE_SUPPRESSED");
@@ -463,6 +478,12 @@ test("only the canonical persisted Research Intelligence repository can bind new
     assert.equal(uppercaseSha.precommit.experimentIdentity, result.precommit.experimentIdentity);
     assert.equal(uppercaseSha.precommit.sourceSha, input.sourceSha);
     const precommits = new SqliteResearchPrecommitRepository(db);
+    const { fingerprint: _canonicalFingerprint, ...precommitInput } = result.precommit;
+    const forged = createResearchPrecommit({
+      ...precommitInput,
+      parameterPlan: { ...precommitInput.parameterPlan, researchIntelligenceRecordId: "ri:caller-invented" },
+    });
+    assert.throws(() => precommits.create(forged), /NEWS_PRECOMMIT_NOT_CANONICAL/);
     const firstStored = precommits.create(result.precommit);
     const laterResult = memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, createdAt: new Date(Date.parse(input.createdAt) + 1_000).toISOString() });
     assert.notEqual(laterResult.precommit.fingerprint, firstStored.fingerprint);

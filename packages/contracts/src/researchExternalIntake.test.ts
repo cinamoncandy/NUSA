@@ -90,6 +90,10 @@ test("deserialized strategy specs are revalidated before precommit admission", (
   assert.throws(() => makePrecommit(forgedExit), /RULES_INSUFFICIENT/);
   const malformedPublication = { ...spec, publicationDate: {} as never };
   assert.throws(() => makePrecommit({ ...malformedPublication, strategyIdentity: reidentifyStrategy(malformedPublication) }), /METADATA_INVALID/);
+  for (const publicationDate of ["yesterday", "2026-02-30T00:00:00Z"]) {
+    assert.throws(() => normalizeStrategyReplication(strategy({ publicationDate })), /METADATA_INVALID/);
+  }
+  assert.equal(normalizeStrategyReplication(strategy({ publicationDate: "2026-10-25T00:00:00Z" })).publicationDate, "2026-10-25T00:00:00Z");
   const malformedSourceCode = { ...spec, sourceCodeAvailable: "MAYBE" as never };
   assert.throws(() => makePrecommit({ ...malformedSourceCode, strategyIdentity: reidentifyStrategy(malformedSourceCode) }), /METADATA_INVALID/);
   const malformedLimitations = { ...spec, knownLimitations: "not-an-array" as never };

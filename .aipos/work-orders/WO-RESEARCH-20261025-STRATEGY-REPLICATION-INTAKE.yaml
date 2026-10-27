@@ -8,7 +8,7 @@ parent_issue: 2735
 branch: feat/research-intelligence-precommit-bridge
 base_commit: 4bb02f4655044122a95e3dbb94bba65844c0f0cb
 owner_request: "Prioritize learning, reproducing, and validating already-published strategies before inventing new strategies from scratch."
-first_broken_transition: caller_constructed_trusted_research_intelligence_record_to_canonical_store_and_pit_binding
+first_broken_transition: fresh_source_recapture_to_durable_pit_precommit_authentication
 objective: >-
   Reuse NUSA's existing Reference/Research Intelligence, Hypothesis, Precommit, PIT/OOS,
   and Strategy Governance paths to turn public or otherwise owner-authorized external
@@ -123,4 +123,4 @@ completion_rule: >-
   that any collected external strategy is profitable, does not close the closed-learning loop,
   and does not authorize PAPER activation or LIVE trading by itself.
 next: >-
-  Fresh exact-head review of 987f24b97d09573c4d6c1a31227426e8dd009e15 found three further gaps: repeated crypto-news experiments could persist multiple precommits under one experiment identity when createdAt changed; inherited PIT/OOS policy IDs could authorize incomplete plans; and uppercase source SHA could create a duplicate news experiment identity. The local repair adds durable news-precommit reuse with authority-projection conflict rejection, own-property policy checks, and lowercase source-SHA normalization. Focused changed-file TypeScript compile and contract/storage tests 35/35 pass; preflight and validate:full pass. Local security:gate cannot pass because the existing dependency tree exposes only 41 of 991 lockfile packages (854 missing metadata); do not weaken the gate. Commit and non-force push only to the existing Draft #2878 after fresh main/PR/branch verification; then require new exact-head CI/companions and fresh non-author review. Formal Validator remains separate; no Audit/Release/merge/Oracle mutation.
+  Fresh review on exact predecessor b0283370 found two P1s and one P2: recapture could lose durable first-discovery chronology and receipt binding; caller-created crypto-news precommits could reach durable storage without the canonical PIT binder; and publicationDate accepted arbitrary text. The local successor rebinds the fresh authenticated receipt to durable chronology, allows storage only for canonical binder-produced precommit objects or safe dedup reuse, and strictly validates optional publicationDate. Focused changed-file TypeScript compile, 35/35 tests, preflight, validate:full, AIPOS validation, and diff-check pass. Full build/typecheck/lint cannot run because local TypeScript/ESLint package links are absent; security:gate fails on incomplete license metadata (41/991 packages). Commit and non-force push only to existing Draft #2878 after fresh main/PR/branch verification; then require successor exact-head CI and fresh non-author review. Formal Validator, Audit, Release, merge, deployment, and Oracle runtime acceptance remain separate.

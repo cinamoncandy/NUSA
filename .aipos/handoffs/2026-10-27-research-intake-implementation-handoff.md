@@ -21,6 +21,14 @@
 - Local `security:gate`: license metadata is incomplete in the existing dependency tree (41 of 991 locked packages represented; 854 missing); do not weaken the gate. Exact-head CI remains required.
 - `git diff --check`: run before commit/push.
 
+## Fresh review follow-up — durable chronology and canonical news precommit, 2026-10-27
+
+Fresh review on exact predecessor `b028337047048180e01ab40208ca065cc18fb2a5` identified two P1s and one P2: recapture could change first-discovery chronology while retaining a mismatched receipt binding; a directly constructed news precommit could reach durable storage without the canonical Research Intelligence PIT binder; and `publicationDate` accepted arbitrary text.
+
+The local successor now preserves the durable first-discovery timestamp while internally rebinding only a newly authenticated source receipt; the capture timestamp remains the time of the fresh fetch. News precommits must be the exact object emitted by the canonical persisted-memory binder unless an already-persisted experiment is safely reused. Optional publication dates use the existing strict timestamp validator. Focused changed-file compile and 35/35 contract/storage tests pass; preflight and `validate:full` pass. Local build/typecheck/lint commands cannot resolve absent local TypeScript/ESLint links; local security gate fails only on incomplete dependency license metadata, and no gate was weakened. New exact-head CI and review remain pending.
+
+Next: commit only after fresh `main`/PR/branch verification, non-force push once to existing Draft #2878, and require successor exact-head CI plus fresh non-author review. No Formal Validator, Audit, Release, merge, deployment, or Oracle mutation.
+
 ## Next permitted action
 
 Refresh GitHub main/PR/branch state, then commit and non-force push only to the existing #2878 branch if it remains canonical and the local diff is as described. Require new exact-head CI/companion evidence and one fresh non-author review. Keep the PR Draft and stop before Formal Validator, Audit, Release authorization, merge, deployment, or runtime acceptance.

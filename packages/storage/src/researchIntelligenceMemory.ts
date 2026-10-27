@@ -7,6 +7,7 @@ import { createCryptoNewsResearchObservation, validateCryptoNewsPrecommitPlans, 
 import { createResearchIntelligenceRecord, type ResearchIntelligenceRecord } from "../../contracts/src/researchIntelligence";
 import {
   carryResearchIntelligenceSourceAuthentication,
+  carryResearchIntelligenceSourceAuthenticationWithDurableChronology,
   isResearchIntelligenceSourceRecordAuthenticated,
   validatePersistedResearchIntelligenceSourceReceiptIntegrity,
 } from "../../contracts/src/researchIntelligenceVerificationInternal";
@@ -23,6 +24,11 @@ const decode = (row: Record<string, unknown>): ResearchIntelligenceRecord =>
 
 const digest = (value: unknown): string => createHash("sha256").update(canonicalResearchJson(value), "utf8").digest("hex");
 const sha256 = (value: string): string => createHash("sha256").update(value, "utf8").digest("hex");
+const canonicalNewsPrecommits = new WeakSet<object>();
+
+export function isCanonicalCryptoNewsResearchPrecommit(value: unknown): boolean {
+  return value !== null && typeof value === "object" && canonicalNewsPrecommits.has(value);
+}
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const knownText = (value: unknown): value is string => text(value) && !/^(?:UNKNOWN|N\/A|NOT\s+SPECIFIED)$/i.test(value.trim());
 const validTimestamp = (value: unknown): value is string => {
@@ -181,8 +187,9 @@ export class SqliteResearchIntelligenceMemoryRepository {
     if (fresh && fresh.contentFingerprint === stored.contentFingerprint
       && fresh.sourceVerificationReceipt?.sourceEntryFingerprint === stored.sourceVerificationReceipt?.sourceEntryFingerprint) {
       // Source recapture restores provenance trust, not the durable relation decision.
-      return carryResearchIntelligenceSourceAuthentication(fresh, Object.freeze({
+      return carryResearchIntelligenceSourceAuthenticationWithDurableChronology(fresh, Object.freeze({
         ...fresh,
+        discoveredAt: stored.discoveredAt,
         novelty: stored.novelty,
         relatedExistingResearch: stored.relatedExistingResearch,
         axiomHandoffStatus: stored.axiomHandoffStatus,
@@ -281,6 +288,7 @@ export class SqliteResearchIntelligenceMemoryRepository {
     const sourceSha = input.sourceSha.toLowerCase();
     const hypothesis = createResearchHypothesis({ hypothesisId: `news-hypothesis-${base.slice(0, 48)}`, candidateId: `news-candidate-${base.slice(0, 48)}`, family: input.family, rationale: input.rationale, mechanism: input.mechanism, targetMarket: input.targetMarket, expectedRegime: input.expectedRegime, invalidationCondition: input.invalidationCondition, holdingPeriodMs: input.holdingPeriodMs, capacityAssumptions: input.capacityAssumptions, transactionCostSensitivity: input.transactionCostSensitivity, provenance: { author: "SCOUT_ADVISORY", sourceReferences: [verifiedObservation.sourceUrl, verifiedObservation.contentFingerprint, verifiedObservation.observationIdentity] }, createdAt: input.createdAt });
     const precommit = createResearchPrecommit({ schemaVersion: 1, experimentIdentity: digest({ hypothesisId: hypothesis.hypothesisId, observationIdentity, datasetBinding: input.datasetBinding, evaluationPlan: input.evaluationPlan, costPlan: input.costPlan, sourceSha, validationPolicyIdentity: input.validationPolicyIdentity }), candidateIdentity: hypothesis.candidateId, strategyIdentity: hypothesis.candidateId, datasetBinding: { ...input.datasetBinding, newsObservationIdentity: verifiedObservation.observationIdentity }, sourceSha, parameterPlan: { hypothesis, newsObservationIdentity: verifiedObservation.observationIdentity, researchIntelligenceRecordId: verifiedObservation.researchIntelligenceRecordId }, costPlan: input.costPlan, regimePlan: { expectedRegime: input.expectedRegime }, evaluationPlan: input.evaluationPlan, validationPolicyIdentity: input.validationPolicyIdentity, createdAt: input.createdAt });
+    canonicalNewsPrecommits.add(precommit);
     return Object.freeze({ classification: "RESEARCH_HYPOTHESIS_CANDIDATE" as const, hypothesis, precommit });
   }
 
@@ -313,8 +321,9 @@ export class SqliteResearchIntelligenceMemoryRepository {
           throw new Error("research intelligence record identity conflict");
         }
         // Capture authenticates source bytes, not a new relation decision.
-        return carryResearchIntelligenceSourceAuthentication(record, Object.freeze({
+        return carryResearchIntelligenceSourceAuthenticationWithDurableChronology(record, Object.freeze({
           ...record,
+          discoveredAt: existing.discoveredAt,
           novelty: existing.novelty,
           relatedExistingResearch: existing.relatedExistingResearch,
           axiomHandoffStatus: existing.axiomHandoffStatus,

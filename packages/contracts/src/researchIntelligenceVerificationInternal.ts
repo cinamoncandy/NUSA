@@ -188,7 +188,7 @@ function validateCompleteArxivEntry(
     || record.sourceType !== "ARXIV" || record.title !== title
     || canonicalResearchJson(record.authors) !== canonicalResearchJson([...new Set(authors)])
     || !Number.isFinite(publishedMs) || new Date(publishedMs).toISOString() !== record.publishedAt
-    || record.claimedContribution !== summary || record.discoveredAt !== new Date(capturedAt).toISOString()
+    || record.claimedContribution !== summary || Date.parse(record.discoveredAt) > Date.parse(capturedAt)
     || Date.parse(record.discoveredAt) < publishedMs || rawSha256(rawContent) !== record.rawContentSha256.toLowerCase()
     || canonicalResearchJson(actualInterpretation) !== canonicalResearchJson(expectedInterpretation)) {
     throw new Error("ARXIV_SOURCE_CAPTURE_RECORD_MISMATCH");
@@ -337,7 +337,7 @@ export function validatePersistedResearchIntelligenceSourceReceiptIntegrity(reco
     || receipt.rawContentSha256 !== record.rawContentSha256.toLowerCase()
     || receipt.sourceEntryFingerprint !== receipt.rawContentSha256
     || receipt.sourceEntryBindingFingerprint !== sourceEntryBinding(record)
-    || !Number.isFinite(Date.parse(receipt.capturedAt)) || Date.parse(receipt.capturedAt) !== Date.parse(record.discoveredAt)
+    || !Number.isFinite(Date.parse(receipt.capturedAt)) || Date.parse(receipt.capturedAt) < Date.parse(record.discoveredAt)
     || !["NEW", "INCREMENTAL", "DUPLICATE", "CONTRADICTORY", "REPLICATION", "SUPERSEDED"].includes(record.novelty)
     || !["NOT_READY", "READY_FOR_AXIOM_REVIEW", "ROUTED_TO_AXIOM_REVIEW", "DUPLICATE_SUPPRESSED"].includes(record.axiomHandoffStatus)
     || !Array.isArray(record.relatedExistingResearch)
@@ -375,11 +375,33 @@ export function carryResearchIntelligenceSourceAuthentication<T extends Research
   source: ResearchIntelligenceRecord,
   derived: T,
 ): T {
+  return carrySourceAuthentication(source, derived, false);
+}
+
+/** Re-authenticates a fresh capture while retaining the first persisted discovery time. */
+export function carryResearchIntelligenceSourceAuthenticationWithDurableChronology<T extends ResearchIntelligenceRecord>(
+  source: ResearchIntelligenceRecord,
+  derived: T,
+): T {
+  return carrySourceAuthentication(source, derived, true);
+}
+
+function carrySourceAuthentication<T extends ResearchIntelligenceRecord>(
+  source: ResearchIntelligenceRecord,
+  derived: T,
+  preserveFirstDiscovery: boolean,
+): T {
   const sourceCore = { ...source } as Record<string, unknown>;
   const derivedCore = { ...derived } as Record<string, unknown>;
   for (const key of ["novelty", "relatedExistingResearch", "axiomHandoffStatus"]) {
     delete sourceCore[key];
     delete derivedCore[key];
+  }
+  if (preserveFirstDiscovery) {
+    delete sourceCore.discoveredAt;
+    delete derivedCore.discoveredAt;
+    delete sourceCore.sourceVerificationReceipt;
+    delete derivedCore.sourceVerificationReceipt;
   }
   const allowedNovelty = new Set(["NEW", "DUPLICATE", "INCREMENTAL", "REPLICATION"]);
   const allowedHandoffStatus = new Set(["NOT_READY", "READY_FOR_AXIOM_REVIEW", "DUPLICATE_SUPPRESSED"]);
@@ -388,15 +410,26 @@ export function carryResearchIntelligenceSourceAuthentication<T extends Research
     && canonicalResearchJson(derived.relatedExistingResearch) === canonicalResearchJson([...new Set(derived.relatedExistingResearch)].sort())
     && (derived.novelty !== "DUPLICATE" || derived.axiomHandoffStatus === "DUPLICATE_SUPPRESSED")
     && (derived.axiomHandoffStatus !== "DUPLICATE_SUPPRESSED" || derived.novelty === "DUPLICATE");
+  let authenticatedDerived = derived;
   if (isResearchIntelligenceSourceRecordAuthenticated(source)
     && canonicalResearchJson(sourceCore) === canonicalResearchJson(derivedCore)
+    && (!preserveFirstDiscovery || Date.parse(derived.discoveredAt) <= Date.parse(source.discoveredAt))
     && allowedNovelty.has(derived.novelty)
     && allowedHandoffStatus.has(derived.axiomHandoffStatus)
     && relationsAreCanonical
     && derived.recordId === source.recordId
     && derived.contentFingerprint === source.contentFingerprint
-    && derived.sourceVerificationReceipt?.receiptFingerprint === source.sourceVerificationReceipt?.receiptFingerprint) {
-    issuedSourceRecords.add(derived);
+    && (!preserveFirstDiscovery
+      ? derived.sourceVerificationReceipt?.receiptFingerprint === source.sourceVerificationReceipt?.receiptFingerprint
+      : source.sourceVerificationReceipt?.schemaVersion === 2)) {
+    if (preserveFirstDiscovery) {
+      const receipt = source.sourceVerificationReceipt!;
+      const { receiptFingerprint: _receiptFingerprint, ...receiptCore } = receipt;
+      const reboundCore = Object.freeze({ ...receiptCore, sourceEntryBindingFingerprint: sourceEntryBinding(derived) });
+      const reboundReceipt = Object.freeze({ ...reboundCore, receiptFingerprint: sha256(reboundCore) });
+      authenticatedDerived = Object.freeze({ ...derived, sourceVerificationReceipt: reboundReceipt }) as T;
+    }
+    issuedSourceRecords.add(authenticatedDerived);
   }
-  return derived;
+  return authenticatedDerived;
 }
