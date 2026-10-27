@@ -1,4 +1,5 @@
 import { learningPipelineProjection, type LearningPipelineProjection } from "./learningPipelineStage";
+import { LearningPipelineAlarmTracker, type LearningPipelineAlarmSnapshot } from "./learningPipelineAlarm";
 import { createHash, randomUUID } from "node:crypto";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import {
@@ -168,6 +169,8 @@ export interface CloudDashboardServerOptions {
 export interface CloudDashboardServerHandle {
   readonly port: number;
   readonly host: string;
+  /** Display only: re-evaluates the learning-pipeline alarm from the current liveness (the runtime calls it once a minute). */
+  observeLearningPipeline(): LearningPipelineAlarmSnapshot | undefined;
   stop(): Promise<void>;
 }
 
@@ -299,11 +302,6 @@ function periodEvidence(raw: Record<string, unknown>): Record<string, unknown> {
     if (!Number.isSafeInteger(lastIncrementAt) || Number(lastIncrementAt) < Number(periodStartedAt) || Number(lastIncrementAt) > Number(evaluatedAt)) return {};
   }
   return { periodIdentity, periodStartedAt: Number(periodStartedAt), lastIncrementAt: lastIncrementAt === null ? null : Number(lastIncrementAt) };
-}
-
-/** `learningPipeline` is derived only from the already-public runtime object, so it cannot publish anything `runtime` does not. */
-function publicRuntimeWithPipeline(runtime: CloudRuntimeLivenessSnapshot): { runtime: CloudRuntimeLivenessSnapshot; learningPipeline: LearningPipelineProjection } {
-  return { runtime, learningPipeline: learningPipelineProjection(runtime as unknown as Readonly<Record<string, unknown>>, Date.now()) };
 }
 
 function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
@@ -716,13 +714,14 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         // other side introduced, so the merge keeps both rather than choosing between them.
         // `runtime` appears only when a liveness source is wired, and carries the counters that
         // show whether the continuous PAPER loop is actually ticking.
-        const liveness = options.runtimeLiveness?.();
+        // `learningPipeline` and `learningPipelineAlarm` are derived only from the already-public `runtime` object.
+        const pipeline = observePipeline();
         const runtimeHealth = publicRuntimeHealth(options.runtimeHealth?.());
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : publicRuntimeWithPipeline(publicRuntimeLiveness(liveness))),
+          ...(pipeline ?? {}),
           ...(runtimeHealth === undefined ? {} : { runtimeHealth })
         }));
         return;
@@ -902,6 +901,15 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (!res.headersSent) respond("server_error", dashboardJsonResponse(503, { error: "DASHBOARD_SERVER_UNAVAILABLE" })); else res.destroy();
     }
   });
+  const pipelineAlarm = new LearningPipelineAlarmTracker();
+  const observePipeline = (): { runtime: CloudRuntimeLivenessSnapshot; learningPipeline: LearningPipelineProjection; learningPipelineAlarm: LearningPipelineAlarmSnapshot } | undefined => {
+    const liveness = options.runtimeLiveness?.();
+    if (liveness === undefined) return undefined;
+    const now = Date.now();
+    const runtime = publicRuntimeLiveness(liveness);
+    const learningPipeline = learningPipelineProjection(runtime as unknown as Readonly<Record<string, unknown>>, now);
+    return { runtime, learningPipeline, learningPipelineAlarm: pipelineAlarm.update(learningPipeline, now) };
+  };
   const sockets = new Set<import("node:net").Socket>();
   server.on("connection", (socket) => { sockets.add(socket); socket.on("close", () => sockets.delete(socket)); });
   server.listen(options.port, host);
@@ -910,6 +918,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   return {
     port: options.port,
     host,
+    observeLearningPipeline: () => { try { return observePipeline()?.learningPipelineAlarm; } catch { return undefined; } },
     stop(): Promise<void> {
       if (stopping) return stopping;
       stopping = new Promise((resolve) => {

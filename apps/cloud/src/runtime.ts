@@ -808,6 +808,9 @@ export function startCloudRuntime(
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
+  // Display only: evaluate the learning-pipeline alarm once a minute even when nobody reads /health.
+  const pipelineAlarmTimer = setInterval(() => { handle.observeLearningPipeline(); }, 60_000);
+  pipelineAlarmTimer.unref?.();
   const requirePaperRealizedPeriodProducer = (): PaperRealizedPeriodProducer => {
     if (paperRealizedPeriodProducer == null) throw new Error("PAPER_REALIZED_PERIOD_PERSISTENCE_UNAVAILABLE");
     return paperRealizedPeriodProducer;
@@ -829,7 +832,7 @@ export function startCloudRuntime(
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(pipelineAlarmTimer); clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 
