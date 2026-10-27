@@ -95,6 +95,25 @@ function pruneRetention(protectedDaily = null, protectedWeekly = null) {
   prune("weekly-cloud-state-", WEEKLY_RETENTION, weeklyBucket, protectedWeekly);
 }
 
+// Hash in fixed chunks: reading the whole snapshot at once would hold the full database file in memory, which on the
+// small PAPER host can exceed the available memory and slow the runtime it shares the host with. Same digest, same I/O.
+const DIGEST_CHUNK_BYTES = 1024 * 1024;
+function sha256File(file) {
+  const hash = crypto.createHash("sha256");
+  const buffer = Buffer.allocUnsafe(DIGEST_CHUNK_BYTES);
+  const fd = fs.openSync(file, "r");
+  try {
+    for (;;) {
+      const read = fs.readSync(fd, buffer, 0, buffer.length, null);
+      if (read === 0) break;
+      hash.update(buffer.subarray(0, read));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest("hex");
+}
+
 function verifyAndManifest(output) {
   const checkDb = new DatabaseSync(output, { readOnly: true });
   try {
@@ -103,7 +122,7 @@ function verifyAndManifest(output) {
   } finally {
     checkDb.close();
   }
-  const digest = crypto.createHash("sha256").update(fs.readFileSync(output)).digest("hex");
+  const digest = sha256File(output);
   fs.writeFileSync(`${output}.sha256`, `${digest}  ${path.basename(output)}\n`, { mode: 0o640 });
   return digest;
 }
