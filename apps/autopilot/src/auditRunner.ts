@@ -694,7 +694,7 @@ function localImports(source: string): readonly LocalImport[] {
       add(stringAt(i + 1)!, [], true);
       continue;
     }
-    if (is(i, "require") && is(i + 1, "(") && stringAt(i + 2) !== undefined && is(i + 3, ")")) {
+    if (is(i, "require") && !is(i - 1, ".") && !is(i - 1, "?.") && is(i + 1, "(") && stringAt(i + 2) !== undefined && is(i + 3, ")")) {
       add(stringAt(i + 2)!, [], true);
       continue;
     }

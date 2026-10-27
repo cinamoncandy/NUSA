@@ -91,7 +91,7 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (options.deletedWorkspace && url.includes(`/contents/apps/mobile/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import React from 'react';\nReact.createElement('div');\n");
     if (options.changedJson && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'import { feature } from "./config.json";\nfeature();\n');
     if (options.changedJson && url.includes(`/contents/config.json?ref=${request.headSha}`)) return githubResponse(200, {}, '{"feature":true,"unchangedRequiredKey":"retained"}\n');
-    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.fixtureRequires ? `const stringFixture = 'const { run } = require("../dist/apps/autopilot/src/codingRunner.js");';\n// require("../dist/apps/autopilot/src/codingRunner.js")\nconst templateFixture = \`example: require("../dist/apps/autopilot/src/codingRunner.js")\`;\nconst regexFixture = /require\\("..\\/dist\\/apps\\/autopilot\\/src\\/codingRunner\\.js"\\)/;\nconst { scanText } = require("./security-gate.js");\nscanText();` : options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : options.staticImports ? 'import "./register";\nexport * from "./guard";\nhelper();' : options.commonJs ? 'const { scanText } = require("./security-gate.js");\nscanText();' : options.generatedCommonJs ? 'const { run } = require("../dist/apps/autopilot/src/codingRunner.js");\nrun();' : options.bareBuiltin ? 'const fs = require("fs");\nfs.readFileSync("x");' : 'import { helper } from "./helper";\nfunction unchangedHelper() { return "unchanged-source-definition"; }\nhelper();');
+    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.fixtureRequires ? `const stringFixture = 'const { run } = require("../dist/apps/autopilot/src/codingRunner.js");';\n// require("../dist/apps/autopilot/src/codingRunner.js")\nconst templateFixture = \`example: require("../dist/apps/autopilot/src/codingRunner.js")\`;\nconst regexFixture = /require\\("..\\/dist\\/apps\\/autopilot\\/src\\/codingRunner\\.js"\\)/;\nregistry.require("test-strategy", "1.0.0");\nconst { scanText } = require("./security-gate.js");\nscanText();` : options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : options.staticImports ? 'import "./register";\nexport * from "./guard";\nhelper();' : options.commonJs ? 'const { scanText } = require("./security-gate.js");\nscanText();' : options.generatedCommonJs ? 'const { run } = require("../dist/apps/autopilot/src/codingRunner.js");\nrun();' : options.bareBuiltin ? 'const fs = require("fs");\nfs.readFileSync("x");' : 'import { helper } from "./helper";\nfunction unchangedHelper() { return "unchanged-source-definition"; }\nhelper();');
     if (url.includes(`/contents/helper.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function helper() { return true; }\n");
     if (url.includes(`/contents/helper/index.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export function helper() { return "directory-index"; }\n');
     if (url.includes(`/contents/register.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'registerSideEffect("canonical");\n');
@@ -193,14 +193,16 @@ test("fresh VALIDATOR maps generated dist CommonJS imports to tracked source mod
   assert.ok(result.evidenceRefs.includes(`github:dependency/apps/autopilot/src/codingRunner.ts@${request.headSha}`));
 });
 
-test("fresh VALIDATOR ignores require examples in strings, comments, templates, and regex literals", async () => {
+test("fresh VALIDATOR ignores require examples in strings, comments, templates, regex literals, and member calls", async () => {
   let prompt = "";
   const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
   const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ fixtureRequires: true }), () => 1);
   assert.equal(result.verdict, "PASS");
   assert.match(prompt, /EXACT-HEAD DEPENDENCY apps\/autopilot\/src\/security-gate\.js/);
   assert.match(prompt, /const stringFixture =/);
+  assert.match(prompt, /registry\.require\("test-strategy"/);
   assert.ok(!result.evidenceRefs.some((ref) => ref.includes("codingRunner")));
+  assert.ok(!result.evidenceRefs.some((ref) => ref.includes("test-strategy")));
 });
 
 test("fresh VALIDATOR recognizes bare Node built-ins without treating them as packages", async () => {
