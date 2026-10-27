@@ -1,0 +1,33 @@
+current_ops_oracle_backup_helper_proof_20261026:
+  work_order: WO-OPS-20261026-BACKUP-HELPER-PROOF
+  status: PR_OPEN_DRAFT_GATES_MUST_BE_RECHECKED_BEFORE_AUDIT_RELEASE
+  issue: 2770
+  pull_request: 2885
+  branch: codex/oracle-backup-helper-artifact-20261026
+  authority_impact: production_backup_safety_gate
+  base_sha_last_verified: a49325d4677841ef76c36e9edd7939cc0c204588
+  current_pr_head_at_last_read: 63b1b5607f988fe404e769653bb0d17a61c8f3db
+  current_head_validation: PENDING_AT_TIME_OF_LAST_AIPOS_SYNC
+  previous_validated_head: f20835bd534fa44c7bad5ffe989054ecf27f5b62
+  previous_validated_workflows:
+    ci: 40260651754
+    actual_paper_runtime: 40260651579
+    capability_guard: 40260651635
+    activation_rehearsal: 40260651581
+    transport_readiness: 40260651713
+    read_only_broker: 40260651704
+  previous_validated_workflow_result: ALL_SIX_COMPLETED_SUCCESS
+  previous_non_author_review:
+    result: NO_ACTIONABLE_FINDINGS
+    comment_id: 6407094152
+    exact_head: f20835bd534fa44c7bad5ffe989054ecf27f5b62
+  historical_first_publication:
+    head: bc2d05cc70bfa14cae707406ce85b21e30f70c93
+    workflows: [40257671678, 40257671736, 40257671820, 40257671691, 40257671669, 40257671589]
+    review_comment_id: 6406723607
+  local_validation: 'Focused tests 31/31 PASS; AIPOS YAML/provenance/drift/conformance and diff checks PASS. Build/typecheck/validate:full/security/lint passed on the code-bearing predecessor.'
+  resolved_findings: [P2_STALE_HANDOFF_PUBLICATION_STATE, P2_AUTHORITY_IMPACT_MISCLASSIFICATION, P2_EXACT_HEAD_GATE_SEQUENCE, P2_REVIEW_SHA_POINTER_MISMATCH]
+  runtime_status: UNVERIFIED_PENDING_AUTHORIZED_EXACT_MAIN_DEPLOYMENT_AND_HOST_ACCEPTANCE
+  release_status: PENDING_LIVE_EXACT_HEAD_GATE_RECHECK_THEN_INDEPENDENT_AUDIT_AND_RELEASE
+  next_action: 'Read live protected main and PR head/base. Require all six workflows completed/success and a fresh clean non-author review bound to the same exact live PR SHA. Any head change invalidates earlier receipts. Then and only then request Independent Audit and separately authorized Release. Keep Draft until canonical gates permit transition.'
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

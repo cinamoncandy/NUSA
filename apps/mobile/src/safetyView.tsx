@@ -47,7 +47,7 @@ export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAI
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: calmColors.ground },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
-  list: { paddingHorizontal: 20 },
+  list: { marginTop: 18, paddingHorizontal: 20 },
   section: { marginTop: 16 },
   fold: { marginHorizontal: 20, minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   foldText: { color: calmColors.muted, fontSize: readableFont(13) },

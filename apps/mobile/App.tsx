@@ -193,7 +193,7 @@ function AuthenticatedApp() {
   const [runtimeSnapshot, setRuntimeSnapshot] = useState<MobileRuntimeSnapshot>(() => initialMobileRuntimeSnapshot());
   // Last-known values for the launch screen only; never a live reading. Called before any early return so the hook order never changes.
   useEffect(() => { if (operations.status === "READY") markStartup("firstData"); }, [operations.status]);
-  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null);
+  const cachedSnapshot = useCachedSnapshot(getConfiguredPaperEndpoint() ?? null, operations.status === "READY" ? operations.snapshot : null, appState !== "active");
   const [publicMarkets, setPublicMarkets] = useState<PublicMarketsState>(() => initialPublicMarketsState());
   const [publicRefreshing, setPublicRefreshing] = useState(false);
   const [investmentPercent, setInvestmentPercent] = useState(DEFAULT_SETTINGS.capitalAllocation.investmentPercent);
@@ -204,6 +204,8 @@ function AuthenticatedApp() {
   const watchlistRepository = useMemo(() => new WatchlistRepository(AsyncStorage), []);
   const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const refreshGenerationRef = useRef(0);
+  const supplementalRefreshGenerationRef = useRef(0);
+  const lastSupplementalRefreshKeyRef = useRef<string>("");
   const publicRefreshInFlightRef = useRef<Promise<void> | null>(null);
   const publicRefreshGenerationRef = useRef(0);
   const publicMarketsRef = useRef<PublicMarketsState>(initialPublicMarketsState());
@@ -287,12 +289,6 @@ function AuthenticatedApp() {
       const currentEndpoint = getConfiguredPaperEndpoint();
       if (currentEndpoint !== endpoint || !isPaperConnectionVerified(endpoint)) return;
       setOperations(result);
-      const shadowResult = await loadShadowOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
-      if (generation === refreshGenerationRef.current && getConfiguredPaperEndpoint() === endpoint && isPaperConnectionVerified(endpoint)) setShadowOperations(shadowResult);
-      const realResult = await loadRealReadOnlyOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
-      if (generation === refreshGenerationRef.current && getConfiguredPaperEndpoint() === endpoint && isPaperConnectionVerified(endpoint)) setRealReadOnlyOperations(realResult);
-      const liveResult = await loadLiveReadinessOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
-      if (generation === refreshGenerationRef.current && getConfiguredPaperEndpoint() === endpoint && isPaperConnectionVerified(endpoint)) setLiveReadinessOperations(liveResult);
       if (result.status === "READY") {
         const nextVersion = runtimeCoordinator.current().lastPersistedVersion + 1;
         dispatchRuntime({ type: "RECOVERY_MATCHED", version: nextVersion });
@@ -306,12 +302,46 @@ function AuthenticatedApp() {
     return request;
   }, [credentialSession, dispatchRuntime, runtimeCoordinator]);
 
+  const refreshSupplemental = useCallback((force = false): Promise<void> => {
+    const endpoint = getConfiguredPaperEndpoint();
+    if (endpoint == null || !isPaperConnectionVerified(endpoint)) return Promise.resolve();
+    const surface = paperLearningOpen || activeTab === "Paper" ? "PAPER" : activeTab === "Live" ? "LIVE" : null;
+    if (surface == null) return Promise.resolve();
+    const key = `${endpoint}:${surface}`;
+    if (!force && lastSupplementalRefreshKeyRef.current === key) return Promise.resolve();
+    lastSupplementalRefreshKeyRef.current = key;
+    const generation = ++supplementalRefreshGenerationRef.current;
+    const request = (async () => {
+      if (surface === "PAPER") {
+        // SHADOW and REAL_READ_ONLY are secondary projections. Fetch them only when the PAPER
+        // monitor is actually visible and in parallel, so unavailable PAPER_ONLY surfaces cannot
+        // delay the HOME cold-start path or the canonical PAPER projection. A 503 is retained as
+        // the current unavailable result and is not automatically retried by the 5s PAPER poll.
+        const [shadowResult, realResult] = await Promise.all([
+          loadShadowOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider }),
+          loadRealReadOnlyOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider }),
+        ]);
+        if (generation !== supplementalRefreshGenerationRef.current || getConfiguredPaperEndpoint() !== endpoint || !isPaperConnectionVerified(endpoint)) return;
+        setShadowOperations(shadowResult);
+        setRealReadOnlyOperations(realResult);
+        return;
+      }
+      // LIVE readiness is likewise lazy: HOME/PAPER launch must never wait on a surface that is
+      // informational only and carries no activation authority.
+      const liveResult = await loadLiveReadinessOperations({ baseUrl: endpoint, credentialProvider: credentialSession.credentialProvider });
+      if (generation !== supplementalRefreshGenerationRef.current || getConfiguredPaperEndpoint() !== endpoint || !isPaperConnectionVerified(endpoint)) return;
+      setLiveReadinessOperations(liveResult);
+    })();
+    return request;
+  }, [activeTab, credentialSession, paperLearningOpen]);
+
   const refreshPublicMarkets = useCallback((): Promise<void> => {
     if (publicRefreshInFlightRef.current) return publicRefreshInFlightRef.current;
     const generation = publicRefreshGenerationRef.current;
     const previous = publicMarketsRef.current;
     setPublicRefreshing(true);
-    setPublicMarkets({ ...previous, status: previous.markets === null ? "LOADING" : "STALE", error: null });
+    // A refresh in flight is not a stale feed: keep READY until a request actually fails (STALE is set in the failure branch below).
+    setPublicMarkets({ ...previous, status: previous.markets === null ? "LOADING" : previous.status, error: null });
     const request = (async () => {
       const [tickerResult, candleResult] = await Promise.allSettled([
         loadUpbitPublicMarkets(),
@@ -442,8 +472,18 @@ function AuthenticatedApp() {
   useEffect(() => {
     if (authStatus !== "SIGNED_IN") return;
     // Re-project as soon as a background restore verifies, instead of waiting for the next poll.
-    return subscribePaperSessionVerified(() => { void refresh().catch(() => undefined); });
-  }, [authStatus, refresh]);
+    // Reset the lazy-surface key because the same endpoint now belongs to a newly proven session.
+    return subscribePaperSessionVerified(() => {
+      lastSupplementalRefreshKeyRef.current = "";
+      void Promise.all([refresh(), refreshSupplemental()]).catch(() => undefined);
+    });
+  }, [authStatus, refresh, refreshSupplemental]);
+  useEffect(() => {
+    if (authStatus !== "SIGNED_IN" || appState !== "active") return;
+    // Secondary observation is navigation-driven, not part of the 5s startup/polling critical path.
+    void refreshSupplemental().catch(() => undefined);
+  }, [appState, authStatus, refreshSupplemental]);
+
   useEffect(() => {
     refreshGenerationRef.current += 1;
     if (authStatus !== "SIGNED_IN" || appState !== "active") return;
@@ -484,12 +524,12 @@ function AuthenticatedApp() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      await refresh();
+      await Promise.all([refresh(), refreshSupplemental(true)]);
     } finally {
       await refreshPublicMarkets().catch(() => undefined);
       setRefreshing(false);
     }
-  }, [refresh, refreshPublicMarkets]);
+  }, [refresh, refreshPublicMarkets, refreshSupplemental]);
 
   const entryProfile = getHomeVisualProfile(appTheme.preset);
   if (authStatus === "CHECKING") return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}><View style={[styles.authContent, { padding: entryProfile.screen.horizontalPadding }]}><WaveMark /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View></SafeAreaView>;
@@ -525,11 +565,11 @@ function AuthenticatedApp() {
   return <SafeAreaView style={[styles.container, { backgroundColor: appTheme.colors.background }]}>
     {!homeShellActive ? <View style={[styles.header, { borderBottomColor: appTheme.colors.border }]}><View style={styles.headerInner}><View style={styles.headerBrand}><WaveMark compact /><Text style={[styles.brand, { color: appTheme.colors.text }]}>NUSA</Text></View><Pressable accessibilityLabel="도구" accessibilityRole="button" accessibilityState={{ expanded: utilityMenuOpen, selected: utilityMenuOpen || utilityView !== null }} onPress={() => { if (utilityView !== null) { setUtilityView(null); setUtilityMenuOpen(true); return; } setUtilityMenuOpen((current) => !current); }} style={[styles.utilityButton, { borderColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : "transparent", backgroundColor: utilityMenuOpen || utilityView !== null ? appTheme.colors.primarySoft : "transparent" }]} testID="header-tools-menu"><Text style={[styles.utilityText, { color: utilityMenuOpen || utilityView !== null ? appTheme.colors.primary : appTheme.colors.textMuted }]}>도구</Text></Pressable></View></View> : null}
     {!homeShellActive && utilityMenuOpen ? <View style={[styles.utilityMenu, { backgroundColor: appTheme.colors.surface, borderBottomColor: appTheme.colors.border }]} testID="header-tools-tray"><View style={styles.utilityMenuInner}>{(["NOTIFICATIONS", "SETTINGS"] as const).map((view) => <Pressable key={view} accessibilityLabel={utilityLabels[view]} accessibilityRole="button" onPress={() => { setUtilityMenuOpen(false); setUtilityView(view); }} style={[styles.utilityMenuButton, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID={view === "NOTIFICATIONS" ? "header-notifications" : "header-settings"}><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>{view === "NOTIFICATIONS" ? "알림" : "설정"}</Text></Pressable>)}</View></View> : null}
-    {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: appTheme.colors.border, backgroundColor: appTheme.colors.surfaceSunken }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.textMuted }]}>닫기</Text></Pressable></View></View> : null}
+    {utilityView ? <View style={[styles.utilityNavigation, { borderBottomColor: appTheme.colors.border }]} testID="utility-navigation"><View style={styles.utilityNavigationInner}><Text style={[styles.utilityTitle, { color: appTheme.colors.text }]}>{utilityLabels[utilityView]}</Text><Pressable accessibilityLabel={`${utilityLabels[utilityView]} 닫기`} accessibilityRole="button" onPress={closeUtility} style={[styles.utilityClose, { borderColor: "transparent", backgroundColor: "transparent" }]} testID="utility-close"><Text style={[styles.utilityText, { color: appTheme.colors.text }]}>닫기</Text></Pressable></View></View> : null}
 
     <SafetyLine line={buildSafetyLine({ sessionState: paperSessionState, resuming: shownSessionState !== paperSessionState, runtimeHalted: snapshot?.paperLearning?.runtimeStatus === "HALTED", dataUnconfirmed: !paperProjectionPending && (snapshot == null || snapshot.health !== "HEALTHY") })} />
     <EventBanner ready={!paperProjectionPending && snapshot?.paperLearning != null} sourceKey={getConfiguredPaperEndpoint() ?? ""} events={snapshot?.paperLearning?.events ?? EMPTY_EVENTS} halted={snapshot?.paperLearning?.runtimeStatus === "HALTED"} />
-    <TabTransition transitionKey={`${activeTab}:${detailSurface ?? ""}:${utilityView ?? ""}:${paperLearningOpen ? "learning" : ""}`}>{paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} learningFunnel={snapshot?.operations.heartbeat?.learningFunnel ?? null} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
+    <TabTransition transitionKey={`${activeTab}:${detailSurface ?? ""}:${utilityView ?? ""}:${paperLearningOpen ? "learning" : ""}`}>{paperLearningOpen ? <PaperShadowMonitorView paper={paperLearningState} learningFunnel={snapshot?.operations.heartbeat?.learningFunnel ?? null} learningLoop={snapshot?.operations.heartbeat?.learningLoop ?? null} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setPaperLearningOpen(false)} />
       : requiresDashboardConnection ? <DashboardConnectionRequired reason={notConfigured ?? "PAPER 서버 연결이 필요합니다."} onGoSettings={goSettings} />
       : utilityView === "NOTIFICATIONS" ? <NotificationView repository={settingsRepository} />
       : utilityView === "SETTINGS" ? <SettingsView canonicalEndpoint={getConfiguredPaperEndpoint()} credentialSession={credentialSession} exchangeCash={accountCash} onCloudInvestmentPercentSave={investmentAllocationClient.save} onInvestmentPercentChanged={setInvestmentPercent} onSignOut={handleSignOut} repository={settingsRepository} />
@@ -538,7 +578,7 @@ function AuthenticatedApp() {
       : detailSurface === "Order" ? <OrderHistoryView error={readOnlyError} onRefresh={onRefresh} rawOrders={snapshot?.orders ?? null} refreshing={refreshing} />
       : detailSurface === "Performance" ? <PerformanceView screen={buildPerformanceScreen(paperLearningState.performance, paperLearningState.dataSource === "SERVER_STREAM")} onClose={() => setDetailSurface(null)} />
       : detailSurface === "Risk" || detailSurface === "SystemStatus" || detailSurface === "Help" ? <MoreDetailView destination={detailSurface} onClose={() => setDetailSurface(null)} />
-      : activeTab === "Paper" ? <PaperShadowMonitorView paper={paperLearningState} learningFunnel={snapshot?.operations.heartbeat?.learningFunnel ?? null} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setActiveTab("Home")} />
+      : activeTab === "Paper" ? <PaperShadowMonitorView paper={paperLearningState} learningFunnel={snapshot?.operations.heartbeat?.learningFunnel ?? null} learningLoop={snapshot?.operations.heartbeat?.learningLoop ?? null} shadow={shadowOperations.status === "READY" ? shadowOperations.snapshot : null} shadowReason={shadowOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : shadowOperations.reason} real={realReadOnlyOperations.status === "READY" ? realReadOnlyOperations.snapshot : null} realReason={realReadOnlyOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : realReadOnlyOperations.reason} refreshing={refreshing} onRefresh={onRefresh} onClose={() => setActiveTab("Home")} />
       : activeTab === "Futures" ? <FuturesView futures={stale ? null : (snapshot?.operations.heartbeat as { readonly futures?: unknown } | null | undefined)?.futures ?? null} />
       : activeTab === "Live" ? <LiveReadinessMonitorView snapshot={liveReadinessOperations.status === "READY" ? liveReadinessOperations.snapshot : null} unavailableReason={liveReadinessOperations.status === "READY" ? undefined : paperProjectionPending ? PENDING_REASON : liveReadinessOperations.reason} unavailableKind={paperProjectionPending ? "PENDING" : liveReadinessOperations.status === "NOT_CONFIGURED" ? "SETUP" : "FAILED"} refreshing={refreshing} onRefresh={onRefresh} />
       : activeTab === "More" ? <MoreMenuView heartbeat={stale ? null : snapshot?.operations.heartbeat ?? null} onOpen={(destination: MoreDestination) => {

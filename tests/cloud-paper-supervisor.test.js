@@ -2,12 +2,15 @@
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { EventEmitter } = require("node:events");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const {
   assertPaperOnly,
   readState,
+  runtimeSpawnArgs,
+  start,
   supervisorEnv,
   writeState,
 } = require("../scripts/start-cloud-paper-supervisor.js");
@@ -47,6 +50,50 @@ test("supervisor strips private exchange credentials and emits canonical project
   assert.equal(composed.env.NUSA_PAPER_SUPERVISOR_RESTART_COUNT, "3");
   assert.equal(composed.env.NUSA_PAPER_SUPERVISOR_RESTART_ATTEMPT, "4");
   assert.equal(composed.env.NUSA_PAPER_SUPERVISOR_LAST_EXIT_CODE, "1");
+});
+
+test("supervisor strips NODE_OPTIONS and passes the trusted SQLite preload to its runtime child", () => {
+  const composed = supervisorEnv(safeEnv({ NODE_OPTIONS: "--require=/tmp/untrusted.js" }), { restartCount: 0, lastExit: null }, 1000, 0);
+  assert.equal(composed.env.NODE_OPTIONS, undefined);
+  assert.deepEqual(runtimeSpawnArgs("/opt/nusa/dist/apps/cloud/src/closedLearningProductionRuntime.js", "/opt/nusa/dist/packages/storage/src/sqliteIntegrityBootstrap.js"), [
+    "--require",
+    "/opt/nusa/dist/packages/storage/src/sqliteIntegrityBootstrap.js",
+    "/opt/nusa/dist/apps/cloud/src/closedLearningProductionRuntime.js",
+  ]);
+});
+
+test("legacy Cloud PAPER systemd entrypoint scrubs environment preloads and loads the trusted boundary first", () => {
+  const unit = fs.readFileSync(path.join(__dirname, "../deploy/cloud-paper/nusa-cloud-paper.service"), "utf8");
+  assert.match(unit, /^ExecStart=\/usr\/bin\/env -u NODE_OPTIONS \/usr\/bin\/node --require \/opt\/nusa\/dist\/packages\/storage\/src\/sqliteIntegrityBootstrap\.js \/opt\/nusa\/scripts\/start-cloud-paper-supervisor\.js$/m);
+});
+
+test("supervisor launches the database owner with trusted preload and without inherited NODE_OPTIONS", () => {
+  const beforeTerm = new Set(process.listeners("SIGTERM"));
+  const beforeInt = new Set(process.listeners("SIGINT"));
+  const child = new EventEmitter();
+  child.exitCode = null;
+  child.kill = (signal) => { child.killedWith = signal; };
+  let captured;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-supervisor-preload-"));
+  try {
+    const running = start({
+      env: safeEnv({ NODE_OPTIONS: "--require=/tmp/untrusted.js", NUSA_PAPER_SUPERVISOR_STATE_PATH: path.join(dir, "supervisor.json") }),
+      cwd: "/opt/nusa",
+      runtimePath: "/opt/nusa/dist/apps/cloud/src/closedLearningProductionRuntime.js",
+      bootstrapPath: "/opt/nusa/dist/packages/storage/src/sqliteIntegrityBootstrap.js",
+      spawn: (command, args, options) => { captured = { command, args, options }; return child; },
+      now: () => 1000,
+      setTimeout: () => undefined,
+    });
+    assert.deepEqual(captured.args, ["--require", "/opt/nusa/dist/packages/storage/src/sqliteIntegrityBootstrap.js", "/opt/nusa/dist/apps/cloud/src/closedLearningProductionRuntime.js"]);
+    assert.equal(captured.options.env.NODE_OPTIONS, undefined);
+    running.stop("SIGTERM");
+    assert.equal(child.killedWith, "SIGTERM");
+  } finally {
+    for (const listener of process.listeners("SIGTERM")) if (!beforeTerm.has(listener)) process.removeListener("SIGTERM", listener);
+    for (const listener of process.listeners("SIGINT")) if (!beforeInt.has(listener)) process.removeListener("SIGINT", listener);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("supervisor restart state is persisted atomically and recovered", () => {

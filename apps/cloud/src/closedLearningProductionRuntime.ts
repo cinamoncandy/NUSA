@@ -1,3 +1,4 @@
+import { createLeaseStartupWindow } from "./paperLeaseStartupWindow";
 import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
@@ -126,22 +127,33 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Evidence validation is read-only and can be expensive. Do it before owning the renewable
   // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
-  let longBarTickEvery = 1;
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
-  researchExperiments?.prepareRecovery();
+  let researchExperiments: ReturnType<typeof composeResearchExperiments>;
   try {
-  // Cloud AI durability opens the same canonical SQLite file and performs its own full-file
-  // fail-closed integrity checks. Complete those checks before acquiring the renewable PAPER
-  // writer lease; otherwise a production-sized database can starve the lease heartbeat before
-  // the HTTP listener and closed-learning scheduler become serviceable. This changes ordering
-  // only: AI remains zero-authority and uses the same durable stores.
-  const cloudAiRuntime = createCloudAiRuntime(env);
+  // Cloud AI durability uses the exact canonical SQLite connection that already completed the
+  // full-file startup quick_check. This avoids reopening and rescanning the same production-sized
+  // file while preserving each AI store's table-scoped quick_check and hash-chain replay. Keep this
+  // before research recovery preparation and the renewable PAPER writer lease: its schema
+  // initialization must not invalidate prepared SQLite change-tracking evidence, and its startup
+  // I/O must not starve the lease heartbeat.
+  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteDatabase: database });
+
+  let longBarTickEvery = 1;
+  researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  researchExperiments?.prepareRecovery();
 
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
+  // Timing only: the writer lease is owned from the repository constructor on, and its heartbeat cannot renew until
+  // the event loop turns, so everything composed synchronously below counts against the lease TTL.
+  const leaseWindow = createLeaseStartupWindow(30_000, (line) => console.log(line));
+  const repositoryStartedAt = performance.now();
   const paperRepository = config.paperInitialCapitalKrw === undefined
     ? undefined
     : new SqliteCloudPaperAccountRepository(database, { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) });
+  if (paperRepository != null) {
+    leaseWindow.leaseOwned(performance.now() - repositoryStartedAt);
+    setImmediate(() => leaseWindow.firstLoopTurn());
+  }
   const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
@@ -190,6 +202,23 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     orderBookCollector,
     futuresCollector,
   );
+  // startCloudRuntime performs the last large synchronous composition step before the event loop
+  // can service the repository's interval heartbeat. Re-verify/renew the existing lease at this
+  // handoff so a valid lease that survived composition gets a fresh full TTL for the remaining
+  // bounded startup work. This never revives an expired lease: verifyWriterLease() uses the same
+  // conditional owner/expiry update and fails closed if composition already exceeded the TTL.
+  try {
+    paperRepository?.verifyWriterLease();
+  } catch (error) {
+    // startCloudRuntime has already opened the listener and started repository-owned timers.
+    // If the bounded lease handoff cannot renew a still-valid lease, tear down that partial
+    // runtime before propagating the original fail-closed error to the supervisor.
+    void baseHandle.stop().catch((stopError) => {
+      const detail = stopError instanceof Error ? stopError.message.trim().slice(0, 300) : "UNKNOWN_STOP_ERROR";
+      console.error(`[closed-learning] runtime cleanup after writer lease handoff failure failed: ${detail || "UNKNOWN_STOP_ERROR"}`);
+    });
+    throw error;
+  }
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
   const requireCanonicalPaperAccount = (): PaperAccountState => {

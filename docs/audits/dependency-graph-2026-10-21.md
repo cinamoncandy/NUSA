@@ -252,6 +252,7 @@ Audited: 2026-10-21
 | type | apps/cloud/src/ai/runtime.ts | packages/contracts/src/aiScenarioReasoning.ts |
 | runtime | apps/cloud/src/ai/runtime.ts | packages/storage/src/aiCalibrationDurability.ts |
 | runtime | apps/cloud/src/ai/runtime.ts | packages/storage/src/aiOutcomeAttributionMemory.ts |
+| type | apps/cloud/src/ai/runtime.ts | packages/storage/src/index.ts |
 | runtime | apps/cloud/src/ai/runtime.ts | apps/cloud/src/cloudRuntimeConfig.ts |
 | runtime | apps/cloud/src/ai/runtime.ts | apps/cloud/src/ai/modelProvider.ts |
 | runtime | apps/cloud/src/ai/runtime.ts | apps/cloud/src/ai/multiAgentOrchestrator.ts |
@@ -2496,8 +2497,10 @@ Audited: 2026-10-21
 | runtime | packages/core/src/strategyEngine.ts | packages/core/src/regimePolicy.ts |
 | runtime | packages/core/src/upbitWebSocket.ts | packages/core/src/marketConnectionSupervisor.ts |
 | runtime | packages/storage/src/ai-evaluation-repository.ts | packages/contracts/src/aiEvaluation.ts |
+| runtime | packages/storage/src/aiCalibrationDurability.ts | packages/storage/src/index.ts |
 | runtime | packages/storage/src/aiCalibrationDurability.ts | packages/contracts/src/aiInference.ts |
 | type | packages/storage/src/aiCalibrationDurability.ts | packages/contracts/src/aiCalibrationDurability.ts |
+| runtime | packages/storage/src/aiOutcomeAttributionMemory.ts | packages/storage/src/index.ts |
 | runtime | packages/storage/src/aiOutcomeAttributionMemory.ts | packages/contracts/src/aiInference.ts |
 | type | packages/storage/src/aiOutcomeAttributionMemory.ts | packages/contracts/src/aiOutcomeAttribution.ts |
 | type | packages/storage/src/balance-reconciliation.ts | apps/execution/src/balance-reconciliation.ts |

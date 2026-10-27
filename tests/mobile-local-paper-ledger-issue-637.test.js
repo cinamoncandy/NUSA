@@ -74,7 +74,7 @@ test("#637: Portfolio renders shared LOCAL PAPER only when Cloud PAPER is absent
   assert.match(portfolio, /const localPortfolio = localPaperActive \? buildLocalPortfolio\(localTradingSnapshot, localMarkPrice\) : null/);
   assert.match(portfolio, /const effectiveSnapshot = snapshot \?\? localPortfolio/);
   assert.match(portfolio, /const usingLocalPaper = snapshot === null && localPortfolio !== null/);
-  assert.match(portfolio, /status=\{model \? \(usingLocalPaper \? "LOCAL PAPER" : "PAPER READY"\)/);
+  assert.match(portfolio, /status=\{model \? \(usingLocalPaper \? "이 기기 모의투자" : "서버 연결됨"\)/);
   assert.match(portfolio, /testID="portfolio-supervisor-summary"/);
 });
 

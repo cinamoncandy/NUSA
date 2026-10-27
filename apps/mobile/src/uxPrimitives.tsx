@@ -107,7 +107,7 @@ export function OperationalNotice({ title, detail, tone = "info", actionLabel, o
 const styles = StyleSheet.create({
   screenHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, paddingBottom: 4 },
   screenHeaderCopy: { flex: 1, gap: 5, minWidth: 0 },
-  eyebrow: { fontSize: labelFont(10), fontWeight: "500", letterSpacing: 2.1 },
+  eyebrow: { fontSize: labelFont(11), fontWeight: "500", letterSpacing: 0.1 },
   title: { fontSize: 32, lineHeight: 38, fontWeight: "500", letterSpacing: -1.35 },
   description: { maxWidth: 620, fontSize: 14, lineHeight: 21 },
   headerActions: { alignItems: "flex-end", gap: 8 },
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
   insightPanel: { gap: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, paddingVertical: 16 },
   insightTopline: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 14 },
   insightTitleGroup: { flex: 1, minWidth: 0, gap: 5 },
-  insightEyebrow: { fontSize: labelFont(9), lineHeight: 15, fontWeight: "500", letterSpacing: 1.7 },
+  insightEyebrow: { fontSize: labelFont(11), lineHeight: 16, fontWeight: "500", letterSpacing: 0.1 },
   insightTitle: { fontSize: 18, lineHeight: 24, fontWeight: "700", letterSpacing: -0.35 },
   insightConfidence: { fontSize: 12, lineHeight: 18, fontWeight: "500", fontVariant: ["tabular-nums"] },
   insightThesis: { fontSize: 14, lineHeight: 22 },

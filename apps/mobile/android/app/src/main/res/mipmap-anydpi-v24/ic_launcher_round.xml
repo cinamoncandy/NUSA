@@ -1,12 +1,19 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- NUSA N monogram mark, instrument edition (2026-10-20): a white hairline N with panel corner ticks and one lime decision dot, on near-black. -->
-    <path android:fillColor="#0B0C0E" android:pathData="M18,10h72a8,8 0,0 1,8 8v72a8,8 0,0 1,-8 8h-72a8,8 0,0 1,-8 -8v-72a8,8 0,0 1,8 -8z" />
-    <path android:strokeColor="#FFFFFF" android:strokeAlpha="1" android:strokeWidth="3.91" android:strokeLineCap="square" android:strokeLineJoin="miter" android:fillColor="#00000000" android:pathData="M31.00,81.60 L31.00,28.70 L77.00,79.30 L77.00,26.40" />
-    <path android:strokeColor="#FFFFFF" android:strokeAlpha="0.7" android:strokeWidth="1.84" android:strokeLineCap="square" android:strokeLineJoin="miter" android:fillColor="#00000000" android:pathData="M17.20,31.00 L17.20,17.20 L31.00,17.20" />
-    <path android:strokeColor="#FFFFFF" android:strokeAlpha="0.7" android:strokeWidth="1.84" android:strokeLineCap="square" android:strokeLineJoin="miter" android:fillColor="#00000000" android:pathData="M90.80,77.00 L90.80,90.80 L77.00,90.80" />
-    <path android:fillColor="#B6F04B" android:pathData="M72.17,26.40 a4.83,4.83 0 1,0 9.66,0 a4.83,4.83 0 1,0 -9.66,0Z" />
+    <!-- NUSA wave N mark (owner-chosen 2026-10-26): the N monogram with its diagonal drawn as one wave, stroked cyan to violet to pink (#3FD3FF, #4F7BFF, #A855FF, #FF5C8A) on near-black. -->
+    <path android:fillColor="#0B0C0E" android:pathData="M54,10 a44,44 0 1,0 0.01,0z" />
+    <path android:strokeWidth="7.60" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M34.50,78.00 L34.50,30.00 L35.48,32.14 L36.45,34.25 L37.42,36.32 L38.40,38.33 L39.38,40.24 L40.35,42.05 L41.33,43.75 L42.30,45.31 L43.27,46.73 L44.25,48.00 L45.23,49.13 L46.20,50.11 L47.17,50.95 L48.15,51.65 L49.12,52.24 L50.10,52.73 L51.08,53.12 L52.05,53.45 L53.02,53.74 L54.00,54.00 L54.98,54.26 L55.95,54.55 L56.92,54.88 L57.90,55.27 L58.88,55.76 L59.85,56.35 L60.83,57.05 L61.80,57.89 L62.77,58.87 L63.75,60.00 L64.72,61.27 L65.70,62.69 L66.67,64.25 L67.65,65.95 L68.62,67.76 L69.60,69.67 L70.58,71.68 L71.55,73.75 L72.53,75.86 L73.50,78.00 L73.50,30.00">
+        <aapt:attr name="android:strokeColor">
+            <gradient android:type="linear" android:startX="34.50" android:startY="0" android:endX="73.50" android:endY="0">
+                <item android:offset="0" android:color="#FF3FD3FF" />
+                <item android:offset="0.35" android:color="#FF4F7BFF" />
+                <item android:offset="0.65" android:color="#FFA855FF" />
+                <item android:offset="1" android:color="#FFFF5C8A" />
+            </gradient>
+        </aapt:attr>
+    </path>
 </vector>

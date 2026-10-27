@@ -53,10 +53,10 @@ export function PortfolioView({ snapshot, investmentPercent, error, refreshing, 
   const upbitConnected = upbitStatus === "READY" && upbitSnapshot != null && upbitError == null;
 
   return <ScrollView style={{ backgroundColor: theme.colors.background }} contentContainerStyle={[styles.content, { maxWidth: tablet ? 1080 : 720 }]} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false} testID="portfolio-screen">
-    <AuthorityRail detail="PAPER 자산 · 실계좌와 분리 · LIVE 없음" status={model ? (usingLocalPaper ? "LOCAL PAPER" : "PAPER READY") : error ? "DEGRADED" : "UNAVAILABLE"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
-    <ScreenLead eyebrow="포트폴리오" title="PAPER 자산과 결과" detail="Equity와 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인합니다." badge="PAPER" badgeTone="primary" />
+    <AuthorityRail detail="PAPER 자산 · 실계좌와 분리 · LIVE 없음" status={model ? (usingLocalPaper ? "이 기기 모의투자" : "서버 연결됨") : error ? "일부 불가" : "받지 못함"} tone={model ? "success" : "warning"} testID="portfolio-authority-rail" />
+    <ScreenLead eyebrow="포트폴리오" title="모의투자 자산과 결과" detail="총자산과 누적 손익을 먼저 보고, 자본 배분·노출·회계 근거를 아래에서 확인해요." badge="모의투자" badgeTone="primary" />
     {error ? <StateNotice title="PAPER 자산 정보 일부 불완전" detail={error} tone="danger" /> : null}
-    {!model ? <StateNotice title="PAPER 자산 정보 없음" detail="PAPER 서버에 연결하거나 LOCAL PAPER 결과가 생성되면 자산과 손익을 표시합니다. 모르는 값은 0으로 표시하지 않습니다." tone="warning" /> : null}
+    {!model ? <StateNotice title="모의투자 자산 정보 없음" detail="서버에 연결하거나 이 기기에서 모의투자 결과가 생기면 자산과 손익을 보여줘요. 모르는 값은 0으로 표시하지 않습니다." tone="warning" /> : null}
     <MetricStrip testID="portfolio-supervisor-summary" items={[{ label: "PAPER 자산", value: money(model?.totalEquity) }, { label: "총 손익", value: signedMoney(model?.totalPnl), tone: model == null ? "neutral" : model.totalPnl >= 0 ? "success" : "danger" }, { label: "현금", value: money(model?.cash) }, { label: "보유 비중", value: money(model?.assetValue) }]} />
     <View style={tablet ? styles.columns : styles.stack}>
     {model && allocation ? <IntelligenceSection style={tablet ? styles.column : undefined} title="자본 배분" kicker="자본" tone="primary" testID="portfolio-allocation-rail">

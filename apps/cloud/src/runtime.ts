@@ -42,6 +42,7 @@ import {
   type PersonalPaperRuntimeHeartbeat,
   type PersonalPaperLossLimit,
   type PersonalPaperLearningFunnel,
+  type PersonalPaperLearningLoop,
   type PersonalPaperTodayRealized
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
@@ -58,6 +59,7 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
+import { PaperFunnelCounters, mergeFunnelSnapshots, recordOrderIntentWithReasonCode } from "./paperFunnelCounters";
 import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
@@ -286,6 +288,32 @@ export function startCloudRuntime(
       return { learningFunnel: Object.freeze({ configurations, discoveryPasses, holdoutPasses, cyclesEvaluated, evaluatedAt: Date.now() }) };
     } catch { return {}; }
   };
+  // Display only: measured learning-loop numbers for the app. Each value is copied only when it is a safe integer in range and consistent with its
+  // partners; otherwise that field is left out. Never an input to Risk, qualification or Research.
+  const learningLoopHeartbeat = (): { learningLoop?: PersonalPaperLearningLoop } => {
+    try {
+      const status = closedLearningStatus?.() as Record<string, unknown> | null | undefined;
+      const meta = status?.metaLearning as Record<string, unknown> | undefined;
+      const evidence = status?.evidence as Record<string, unknown> | undefined;
+      const nonNeg = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined);
+      const signed = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) && Math.abs(v) <= 10_000_000 ? v : undefined);
+      const pct = (v: unknown): number | undefined => { const n = nonNeg(v); return n != null && n <= 100 ? n : undefined; };
+      const out: Record<string, number> = {};
+      const put = (key: string, value: number | undefined) => { if (value !== undefined) out[key] = value; };
+      put("experiments", nonNeg(meta?.experiments)); put("configurations", nonNeg(meta?.configurations));
+      put("discoveryPasses", nonNeg(meta?.discoveryPasses)); put("holdoutPasses", nonNeg(meta?.holdoutPasses));
+      put("overfitRatePercent", pct(meta?.overfitRatePercent)); put("paperPeriodsConsumed", nonNeg(meta?.paperPeriodsConsumed));
+      put("paperNetBp", signed(meta?.paperNetBp)); put("paperExcessBp", signed(meta?.paperExcessBp));
+      put("shadowSince", nonNeg(evidence?.shadowSince)); put("shadowTrades", nonNeg(evidence?.shadowTrades)); put("shadowWins", nonNeg(evidence?.shadowWins));
+      put("shadowGrossGainBp", nonNeg(evidence?.shadowGrossGainBp)); put("shadowGrossLossBp", nonNeg(evidence?.shadowGrossLossBp)); put("shadowFeeBp", nonNeg(evidence?.shadowFeeBp));
+      // Consistency: a part cannot exceed its whole. An inconsistent pair is dropped rather than drawn.
+      if (out.discoveryPasses != null && out.configurations != null && out.discoveryPasses > out.configurations) { delete out.discoveryPasses; delete out.holdoutPasses; }
+      if (out.holdoutPasses != null && out.discoveryPasses != null && out.holdoutPasses > out.discoveryPasses) delete out.holdoutPasses;
+      if (out.shadowWins != null && out.shadowTrades != null && out.shadowWins > out.shadowTrades) { delete out.shadowWins; }
+      if (Object.keys(out).length === 0) return {};
+      return { learningLoop: Object.freeze({ ...out, evaluatedAt: Date.now() }) as PersonalPaperLearningLoop };
+    } catch { return {}; }
+  };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
@@ -301,7 +329,7 @@ export function startCloudRuntime(
     const research = researchProgress != null
       ? { researchCollection: researchProgress }
       : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
-    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat() });
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat() });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
@@ -311,6 +339,7 @@ export function startCloudRuntime(
   const jevMarketMicrostructureLastObservedAt = new Map<string, number>();
   const JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS = 30_000;
 
+  const orderIntentReasonCounters = new PaperFunnelCounters();
   const paperLearningRecorder = new PaperLearningEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository
       ? { persistencePath: config.cloudStateDbPath }
@@ -544,7 +573,14 @@ export function startCloudRuntime(
           }
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
-          paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
+          recordOrderIntentWithReasonCode(
+            paperLearningRecorder,
+            () => paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status }),
+            orderIntentReasonCounters,
+            intentStatus,
+            result.status,
+            result.reason ?? result.status
+          );
           if (result.status === "DUPLICATE") paperLearningRecorder.record({ cycleId, stage: "IDEMPOTENCY", occurredAt: now, market: ticker.code, status: "SKIP", reason: result.reason ?? "PAPER_DUPLICATE" });
           for (const fill of result.fills) paperLearningRecorder.record({ cycleId, stage: "FILL", occurredAt: fill.filledAt, market: ticker.code, status: "PASS", fill, idSuffix: fill.id });
           paperLearningRecorder.record({ cycleId, stage: "PNL", occurredAt: now, market: ticker.code, status: "PASS", account: result.state, reason: `cash:${result.state.cash};equity:${result.state.equity};realizedPnL:${result.state.realizedPnL};unrealizedPnL:${result.state.unrealizedPnL}` });
@@ -737,7 +773,7 @@ export function startCloudRuntime(
       ...(previousStop === undefined ? {} : { previousStop }),
       ...stallMonitor.snapshot(),
       ...researchLiveness(),
-      paperFunnel: paperLearningRecorder.funnelSnapshot(),
+      paperFunnel: mergeFunnelSnapshots(paperLearningRecorder.funnelSnapshot(), orderIntentReasonCounters.snapshot()),
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
       ...researchExperimentLiveness(),

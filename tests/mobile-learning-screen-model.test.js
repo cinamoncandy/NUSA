@@ -37,3 +37,15 @@ test("missing server data never shows results or healthy", () => {
 test("halted is red", () => {
   assert.equal(buildLearningScreen({ ...base, status: "HALTED", latestRisk: null }).tone, "LOSS");
 });
+
+test("a long Korean hero sentence splits at a space near the middle and short text stays whole", () => {
+  const { splitHeroLines } = require("../dist/apps/mobile/src/learningScreenModel.js");
+  assert.deepEqual(splitHeroLines("모의투자로 배우는 중이에요"), ["모의투자로", "배우는 중이에요"]);
+  assert.deepEqual(splitHeroLines("학습 정보를 받지 못했어요"), ["학습 정보를", "받지 못했어요"]);
+  assert.deepEqual(splitHeroLines("학습이 멈춰 있어요"), ["학습이", "멈춰 있어요"], "a tie goes to the earlier space");
+  assert.deepEqual(splitHeroLines("멈춤"), ["멈춤"]);
+  assert.deepEqual(splitHeroLines("가나다라마바사아자차카타"), ["가나다라마바사아자차카타"], "no space, nothing to split");
+  assert.deepEqual(splitHeroLines(""), [""]);
+  // the words are unchanged: joining the lines gives the same text back
+  for (const t of ["모의투자로 배우는 중이에요", "학습이 잠시 쉬고 있어요", "학습에 오류가 있어요"]) assert.equal(splitHeroLines(t).join(" "), t);
+});

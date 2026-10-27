@@ -110,7 +110,7 @@ export function buildFuturesScreen(raw: unknown, limits: FuturesLimits, nowMs: n
   const snap = parseFuturesSnapshot(raw);
   const status: FuturesRow[] = [
     { label: "모의 선물 거래", value: snap == null ? "시작 전" : snap.positions.length === 0 ? "대기 중" : "진행 중", tone: snap == null ? "MUTED" : "NORMAL", hint: snap == null ? "검증을 통과한 선물 전략이 아직 없어요" : undefined },
-    { label: "실거래", value: "잠김 · 영구", tone: "ORDER", hint: "선물도 모의투자만 할 수 있어요" },
+    { label: "실거래", value: "잠김 · 영구", tone: "NORMAL", hint: "선물도 모의투자만 할 수 있어요" },
     { label: "전략 검증", value: "홀드아웃 실패", tone: "ATTENTION", hint: "사전 등록 연구 1건 · 2026-10-20 기록 · 같은 가설은 다시 돌리지 않아요" },
   ];
   if (snap == null) {
