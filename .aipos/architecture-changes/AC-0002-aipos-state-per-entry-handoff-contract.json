@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "id": "AC-0002-aipos-state-per-entry-handoff-contract",
+  "title": "Handoff contract reads .aipos/state.d/*.yaml alongside .aipos/state.yaml",
+  "stage": "APPROVAL",
+  "proposal": {
+    "status": "COMPLETE",
+    "summary": "New AIPOS state entries are written one per file under .aipos/state.d (PR #2709) so parallel PRs stop editing the same state.yaml lines. Step 2 of the AI handoff contract must therefore tell every AI to read .aipos/state.d/*.yaml as well as .aipos/state.yaml."
+  },
+  "impact_analysis": {
+    "status": "COMPLETE",
+    "affected_paths": [
+      ".aipos/AI_HANDOFF_CONTRACT.md"
+    ],
+    "affected_capabilities": [
+      "aipos_recovery_reading_list"
+    ],
+    "safety_sensitive": false,
+    "constitutional_change": false,
+    "protected_boundaries": [],
+    "analysis": "One line in step 2 of the handoff reading list changes from reading state.yaml to reading state.yaml and every state.d/*.yaml. No validator, authority, safety, risk, execution, credential or LIVE path changes. Every existing state.yaml entry stays where it is; validators read fixed control keys by name and none of them list all entries (checked by the non-author review). Reverting the line restores the previous reading list."
+  },
+  "architecture_review": {
+    "status": "APPROVED",
+    "decision": "APPROVED",
+    "reviewers": [
+      "non-author-validator-session"
+    ],
+    "evidence_refs": [
+      "https://github.com/cinamoncandy/NUSA/pull/2709#issuecomment-6443355208"
+    ]
+  },
+  "migration_plan": {
+    "status": "COMPLETE",
+    "compatibility": "Additive. state.yaml keeps every existing entry; state.d adds new entries only; scripts/aipos-state-insert.js --inline keeps the old behaviour.",
+    "steps": [
+      "Merge PR #2709 (script, tests, contract line, AGENTS.md and CLAUDE.md lines).",
+      "New entries are added with scripts/aipos-state-insert.js, which writes .aipos/state.d/<key>.yaml."
+    ]
+  },
+  "approval": {
+    "status": "APPROVED",
+    "approved_by": [
+      "repository-owner"
+    ],
+    "evidence_refs": [
+      "https://github.com/cinamoncandy/NUSA/pull/2709#issuecomment-6443300265"
+    ],
+    "authority_type": "HUMAN"
+  },
+  "rollback": {
+    "status": "READY",
+    "triggers": [
+      "Any AI or validator misses a state entry because it read state.yaml only, or a consumer breaks on state.d."
+    ],
+    "procedure": [
+      "Revert the PR #2709 merge commit.",
+      "Move any .aipos/state.d/*.yaml entries back into .aipos/state.yaml with scripts/aipos-state-insert.js --inline."
+    ]
+  },
+  "history": [
+    {
+      "stage": "PROPOSAL",
+      "observed_at": "2026-10-14T10:00:00Z"
+    },
+    {
+      "stage": "IMPACT_ANALYSIS",
+      "observed_at": "2026-10-27T13:20:00Z"
+    },
+    {
+      "stage": "ARCHITECTURE_REVIEW",
+      "observed_at": "2026-10-27T13:41:00Z"
+    },
+    {
+      "stage": "MIGRATION_PLAN",
+      "observed_at": "2026-10-27T14:20:00Z"
+    },
+    {
+      "stage": "APPROVAL",
+      "observed_at": "2026-10-27T14:21:00Z"
+    }
+  ]
+}
