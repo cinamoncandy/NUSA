@@ -433,7 +433,9 @@ export class ExecutionCoordinator {
           if (current.executionId !== request.executionId) return json({ acquired: false, reason: "EXECUTION_ID_CONFLICT", record: current }, 409);
           if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
         }
-        if (current.state === "LEASED" && current.leaseExpiresAt > request.now) return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
+        if ((current.state === "LEASED" || current.state === "HANDED_OFF") && current.leaseExpiresAt > request.now) {
+          return json({ acquired: false, reason: "LEASE_ACTIVE", record: current }, 409);
+        }
         // A rate-limit resume is not a new attempt. A record written before counting existed was acquired once.
         if (request.maxAcquisitions !== undefined && current.state !== "WAITING_RATE_LIMIT" && (current.acquisitionCount ?? 1) >= request.maxAcquisitions) {
           return json({ acquired: false, reason: "ATTEMPT_LIMIT_REACHED", record: current }, 409);
@@ -530,7 +532,12 @@ export class ExecutionCoordinator {
           if (request.now < current.stop.nextRetryAt) return json({ acquired: false, reason: "WAITING_RATE_LIMIT", nextRetryAt: current.stop.nextRetryAt, record: current }, 409);
         }
         if (current.executionId === request.executionId && current.state === "LEASED" && current.leaseExpiresAt > request.now) {
-          const record: ExecutionRecord = Object.freeze({ ...current, state: "HANDED_OFF", updatedAt: request.now });
+          const record: ExecutionRecord = Object.freeze({
+            ...current,
+            state: "HANDED_OFF",
+            leaseExpiresAt: request.leaseExpiresAt,
+            updatedAt: request.now,
+          });
           await storage.put("execution", record);
           return json({ acquired: true, handoff: true, record }, 201);
         }

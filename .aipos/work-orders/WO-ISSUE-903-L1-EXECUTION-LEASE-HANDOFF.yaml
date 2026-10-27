@@ -1,0 +1,66 @@
+id: WO-ISSUE-903-L1-EXECUTION-LEASE-HANDOFF
+title: "Issue #903 close the scheduled producer to consumer lease handoff race"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P1
+owner: codex
+repository: cinamoncandy/NUSA
+issue: 903
+pull_request: 2039
+base_branch: main
+base_commit: e7f8a426a57a08339eae3778ca50de6512d6acd9
+implementation_branch: agent/903-canonical-portfolio-autopilot
+objective: "Preserve one durable execution lease across asynchronous producer-to-consumer handoff so a competing producer cannot reacquire while a consumer is running."
+architecture_impact:
+  acknowledged: true
+  analysis: "Repairs the existing ExecutionCoordinator state machine used by the #903 scheduled coding producer and authenticated consumer. No queue, scheduler, worker, or authority path is added."
+  references:
+    - apps/autopilot/src/executionCoordinator.ts
+    - apps/autopilot/src/executionCoordinator.test.ts
+    - apps/autopilot/src/scheduledEvolutionCoding.attemptCap.test.ts
+scope:
+  - reject acquire while an unexpired HANDED_OFF execution lease is active
+  - renew the same execution lease to the authenticated consumer's requested bounded expiry during LEASED to HANDED_OFF transition
+  - prove competing producer and duplicate consumer suppression using the existing coordinator
+prohibited:
+  - new_execution_state_or_queue
+  - new_scheduler_or_consumer
+  - lease_ttl_or_heartbeat_safety_weakening
+  - authority_expansion
+  - production_or_broker_mutation
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  paper_only: true
+acceptance:
+  - an unexpired HANDED_OFF record blocks another acquire for the same dedupe identity
+  - consumer handoff persists the requested consumer execution expiry, not the shorter producer expiry
+  - duplicate delivery remains fail-closed and does not replace the owner execution identity
+  - expired leases retain existing bounded acquisition semantics
+  - canonical transition remains LEASED -> HANDED_OFF -> RELEASED or DISPATCHED -> COMPLETED
+  - focused coordinator and scheduled attempt-cap tests pass without weakening assertions
+validation:
+  - pnpm run preflight
+  - node --test dist/apps/autopilot/src/executionCoordinator.test.js dist/apps/autopilot/src/scheduledEvolutionCoding.attemptCap.test.js
+  - pnpm run build
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - git diff --check
+evidence:
+  local_validation:
+    node: "v24.19.0"
+    preflight: PASS
+    focused_tests: "38/38 PASS via compiled dist tests"
+    build_typecheck: PASS
+    full_test_suite: "PASS_1285_ISOLATED_FILES"
+    validate_full: PASS
+    security_gate: PASS
+    lint: "PASS_0_ERRORS_45_EXISTING_WARNINGS"
+    git_diff_check: PASS
+  exact_head_ci: PENDING_SUCCESSOR_SHA
+  fresh_non_author_review: PENDING_SUCCESSOR_SHA
+  formal_validator: PENDING
+next: "Push this local validated repair to the existing PR branch, then obtain exact-head CI and fresh non-author review. Formal Validator must remain separate; L2 queue work is gated on formal L1 acceptance."
