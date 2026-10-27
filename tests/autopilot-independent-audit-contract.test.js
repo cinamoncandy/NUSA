@@ -83,7 +83,7 @@ test("Audit treats repository diff as untrusted data rather than model instructi
 
 test("Audit supplies deterministic current added-line refs without weakening blocker validation", () => {
   assert.match(auditRunner, /BEGIN CURRENT ADDED-LINE EVIDENCE REFS/);
-  assert.match(auditRunner, /\.\.\.\[\.\.\.currentDiffEvidenceRefs\(diff\)\]\.sort\(\)/);
+  assert.match(auditRunner, /\.\.\.\[\.\.\.currentDiffEvidenceRefs\(diff, changedFiles\)\]\.sort\(\)/);
   assert.match(auditRunner, /Never invent or transform an evidenceRef/);
   assert.match(auditRunner, /AUDIT_VERDICT_BLOCKER_EVIDENCE_NOT_CURRENT/);
   assert.match(auditRunner, /!currentRefs\.has\(finding\.evidenceRef\)/);

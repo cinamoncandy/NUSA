@@ -147,6 +147,41 @@ test("Git C-quoted octal paths decode to UTF-8 evidence references and malformed
   assert.throws(() => currentDiffEvidenceRefs('diff --git "a/src/\\777.ts" "b/src/\\777.ts"\n@@ -0,0 +1 @@\n+bad\n'), /VALIDATOR_DIFF_PATH_INVALID/);
 });
 
+test("unquoted diff paths with spaces and embedded ' b/' resolve only against exact pull-file metadata", () => {
+  const path = "src/foo b/bar.ts";
+  const diff = `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -0,0 +1 @@\n+export const value = true;\n`;
+  const files = [{ filename: path, status: "modified" as const }];
+  assert.deepEqual([...currentDiffEvidenceRefs(diff, files)], [`${path}:+1`]);
+  assert.throws(() => currentDiffEvidenceRefs(diff, [{ filename: "src/bar.ts", status: "modified" }]), /VALIDATOR_DIFF_PATH_LIST_MISMATCH/);
+  assert.throws(() => currentDiffEvidenceRefs(diff), /VALIDATOR_DIFF_PATH_AMBIGUOUS/);
+});
+
+test("diff blocks are matched as a path set rather than relying on pull-files API ordering", () => {
+  const diff = "diff --git a/first file.ts b/first file.ts\n@@ -0,0 +1 @@\n+one\ndiff --git a/second b/part.ts b/second b/part.ts\n@@ -0,0 +1 @@\n+two\n";
+  const apiFiles = [
+    { filename: "second b/part.ts", status: "modified" as const },
+    { filename: "first file.ts", status: "modified" as const },
+  ];
+  assert.deepEqual([...currentDiffEvidenceRefs(diff, apiFiles)], ["first file.ts:+1", "second b/part.ts:+1"]);
+});
+
+test("unquoted rename, add, and delete headers bind both sides to pull-file metadata", () => {
+  const renameDiff = "diff --git a/old dir/foo b/part.ts b/new dir/foo b/part.ts\n--- a/old dir/foo b/part.ts\n+++ b/new dir/foo b/part.ts\n@@ -1 +1 @@\n-old\n+new\n";
+  const renamed = [{ filename: "new dir/foo b/part.ts", previousFilename: "old dir/foo b/part.ts", status: "renamed" as const }];
+  assert.deepEqual([...currentDiffEvidenceRefs(renameDiff, renamed)], ["old dir/foo b/part.ts:-1", "new dir/foo b/part.ts:+1"]);
+
+  const path = "dir with space/file.ts";
+  const addDiff = `diff --git a/${path} b/${path}\n--- /dev/null\n+++ b/${path}\n@@ -0,0 +1 @@\n+added\n`;
+  assert.deepEqual([...currentDiffEvidenceRefs(addDiff, [{ filename: path, status: "added" }])], [`${path}:+1`]);
+  const deleteDiff = `diff --git a/${path} b/${path}\n--- a/${path}\n+++ /dev/null\n@@ -1 +0,0 @@\n-removed\n`;
+  assert.deepEqual([...currentDiffEvidenceRefs(deleteDiff, [{ filename: path, status: "removed" }])], [`${path}:-1`]);
+});
+
+test("unsafe unquoted diff paths fail closed", () => {
+  const unsafe = "diff --git a/src/../secret.ts b/src/../secret.ts\n@@ -0,0 +1 @@\n+bad\n";
+  assert.throws(() => currentDiffEvidenceRefs(unsafe, [{ filename: "src/../secret.ts", status: "modified" }]), /VALIDATOR_REPOSITORY_PATH_INVALID/);
+});
+
 test("fresh VALIDATOR fails closed on a changed source import that escapes the repository", async () => {
   let aiCalled = false;
   const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };

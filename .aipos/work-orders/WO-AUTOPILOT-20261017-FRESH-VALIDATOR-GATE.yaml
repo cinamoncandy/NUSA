@@ -238,6 +238,58 @@ latest_current_main_reconvergence_2026_10_27:
   next: "Review 5661999625 on 48501bb1 found four P1s (4384900108-4384900114); repairs and regression tests are local. Complete AIPOS/diff checks, then publish only to the existing PR branch with expected-head 48501bb1a76fa7baa5881cc619a84b932088a0f2 and force=false. Obtain fresh successor CI/companions and review; preserve Draft and unresolved threads."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+latest_unquoted_diff_path_repair_2026_10_27:
+  repository_verified:
+    protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+    pr_2772_head_before_repair: ef58af74c03ff504ac82f89def26e3c2e279280a
+    pr_2772_base: e7f8a426a57a08339eae3778ca50de6512d6acd9
+    pr_state: OPEN_DRAFT_MERGEABLE
+    github_api_authentication: UNAVAILABLE_FOR_THIS_SESSION
+  review_finding:
+    review_receipt: 5665534229
+    comment: 4387534372
+    severity: P1
+    summary: "Unquoted diff --git parsing used the last ' b/' substring and could split inside filenames such as foo b/bar.ts, preventing reliable equality with the pull-files changed path set."
+  repair:
+    files:
+      - apps/autopilot/src/auditRunner.ts
+      - apps/autopilot/src/validatorRunner.test.ts
+    behavior: "Enumerate valid unquoted path-boundary candidates and select exactly one by matching the entire old/new path pair against GitHub filename and previous_filename metadata. Match all diff blocks to the API file set independent of ordering; validate add/remove/rename/modified paths and fail closed on mismatch, ambiguity, malformed or unsafe paths. Validator/Audit evidence references use the same resolved path identity."
+  tests:
+    embedded_b_slash_and_spaces: PASS
+    metadata_order_independence: PASS
+    rename_add_delete: PASS
+    unsafe_path_and_metadata_mismatch: PASS
+    c_quoted_utf8_and_octal: PASS
+  local_validation:
+    node: 24.19.0
+    build: PASS
+    validator_runner: PASS_25_OF_25
+    audit_runner: PASS_34_OF_34
+    audit_contract: PASS_16_OF_16
+    preflight: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS_0_UNMITIGATED_0_SECRETS
+    lint: PASS_0_ERRORS_45_EXISTING_WARNINGS
+    full_test_suite: PASS_1290_ISOLATED_TEST_FILES
+    diff_check: PASS
+    first_full_suite_attempt: "Exposed obsolete audit contract fixture expectations: old call signature and missing GitHub status metadata; repaired the test fixtures/expectation without changing policy or behavior, then the full suite passed."
+  aipos:
+    state_entry: current_autopilot_validator_unquoted_diff_paths_20261027
+    state_inserted_with: node_scripts_aipos_state_insert
+    yaml_validation: PASS
+    drift: PASS
+    cross_ai_conformance: PASS
+  publication:
+    successor_head: PENDING
+    exact_head_workflows: PENDING
+    fresh_non_author_review: PENDING
+    formal_validator: PENDING
+    audit_release_merge: NOT_STARTED
+  next: "Recheck authenticated PR/main metadata. If PR #2772 still points to ef58af74... with current main/base verified, publish one substantive non-force successor on the existing branch; then require exact-head workflows and one fresh non-author review. Keep Draft and do not resolve author-side threads."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 latest_fresh_review_findings_2026_10_27:
   reviewed_head: cc2516a2c3307ebde8a44c9e8486380e021ea410
   base: e16dbb052942bc498f8b0093c775569cbbfb1550
