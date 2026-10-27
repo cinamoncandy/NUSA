@@ -674,7 +674,14 @@ async function fetchExactBlobPaths(request: ValidatorRunnerRequest, token: strin
 }
 
 function resolveBlobModulePath(base: string, blobPaths: ReadonlySet<string>): string | undefined {
-  const candidates = [base, ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"].map((ext) => `${base}${ext}`), ...["index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs", "index.cjs", "index.json"].map((name) => `${base}/${name}`)];
+  const moduleCandidates = (candidateBase: string) => [candidateBase, ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"].map((ext) => `${candidateBase}${ext}`), ...["index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs", "index.cjs", "index.json"].map((name) => `${candidateBase}/${name}`)];
+  const candidates = moduleCandidates(base);
+  if (base.startsWith("dist/")) {
+    const trackedBase = base.slice("dist/".length);
+    candidates.push(...moduleCandidates(trackedBase));
+    const sourceStem = trackedBase.replace(/\.(?:mjs|cjs|js|jsx)$/i, "");
+    candidates.push(`${sourceStem}.ts`, `${sourceStem}.tsx`, `${sourceStem}.js`, `${sourceStem}.jsx`);
+  }
   return candidates.find((candidate) => blobPaths.has(candidate));
 }
 

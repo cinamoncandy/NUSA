@@ -4064,7 +4064,7 @@ current_autopilot_fresh_validator_audit_context_20261026:
     validate_full: PASS
     security_gate: PASS
     lint: PASS_0_ERRORS_45_WARNINGS
-    full_tests: PASS_1289_ISOLATED_TEST_FILES
+    full_tests: PASS_1290_ISOLATED_TEST_FILES
     git_diff_check: PASS
   remote:
     exact_head: PENDING_COMMIT
@@ -4356,4 +4356,66 @@ current_research_breakout_walkforward:
   authority_impact: none
   finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Re-applying the unchanged rule to 383 days of never-seen prior data reproduced the failure (2-3 positive windows, DOWN-window averages -8% to -19%, UP-window averages +7% to +9%): regime-dependent, not an edge. Not promotion evidence; no candidate is proposed for deployment."
   next: "Pre-register a regime-signal variant (no entry on a down signal) and evaluate it only on new forward data (for example the next 60 days) before any Research experiment."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_validator_dependency_context_successor:
+  work_order: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
+  status: SIX_FRESH_REVIEW_P1_REPAIRS_LOCALLY_VALIDATED_AWAITING_PUBLICATION
+  branch: fix/validator-evidence-gate-2760
+  pull_request: 2772
+  protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+  predecessor_head: 6834c074dbb81de797531661f2fd79695b68cc6c
+  exact_head_review: 5662107852
+  findings:
+    - comment: 4384990162
+      severity: P1
+      summary: "Generated dist/ CommonJS imports could not resolve to tracked source context."
+      repair: "Exact tracked-tree resolution maps bounded dist/ module paths to tracked source candidates; no generated artifact is accepted as dependency evidence."
+    - comment: 4384990165
+      severity: P1
+      summary: "Deleted workspace importer dependency classification used only head package manifests."
+      repair: "Workspace manifest tree selection, fetch, cache key, and evidence identity are bound to the exact source ref; deleted importers use protected base."
+  local_validation:
+    node: 24.19.0
+    build: PASS
+    typecheck: PASS
+    preflight: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_WARNINGS
+    focused_tests: PASS_24_OF_24
+    full_tests: PASS_1290_ISOLATED_TEST_FILES
+    diff_check: PASS
+  next: "Finish full tests and AIPOS checks; then re-fetch current main and PR. Publish one substantive non-force successor only if remote #2772 still points at 6834c074...; exact-head workflows and a new fresh non-author review must follow."
+  formal_validator: PENDING
+  audit_release_merge: NOT_STARTED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_autopilot_validator_dist_source_successor:
+  work_order: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
+  status: LOCAL_VALIDATION_PASS_AWAITING_NON_FORCE_PUBLICATION
+  branch: fix/validator-evidence-gate-2760
+  pull_request: 2772
+  protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+  remote_predecessor_head: 4bfa47cbcf026747af9ddab8ca40c5300c016cd0
+  predecessor_review_head: 6834c074dbb81de797531661f2fd79695b68cc6c
+  predecessor_review: 5662107852
+  predecessor_findings: 2_P1_REPAIRED
+  code_change: "Bounded static CommonJS resolution maps dist/ import targets only to exact-head tracked source blobs; missing counterparts fail closed. Deleted importer manifests and evidence remain bound to the exact importer ref."
+  local_validation:
+    node: 24.19.0
+    focused_tests: PASS_24_OF_24
+    build: PASS
+    typecheck: PASS
+    preflight: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_WARNINGS
+    full_tests: PASS_1290_ISOLATED_TEST_FILES
+    aipos_drift_conformance: PASS
+    diff_check: PASS
+  remote_predecessor_ci: PASS_ALL_17_CHECK_RUNS_ON_4bfa47cb
+  current_successor_review: PENDING
+  formal_validator: PENDING
+  next: "Fresh verify current main and PR head, then publish the validated substantive successor non-force only if expected remote head remains 4bfa47cb...; require exact-head workflows and a fresh independent review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

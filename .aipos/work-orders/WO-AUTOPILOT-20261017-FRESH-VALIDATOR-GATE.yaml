@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: BASE_MANIFEST_AND_EXACT_BUILTIN_COMPLETION_LOCALLY_VALIDATED
+status: DIST_TRACKED_SOURCE_MAPPING_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -330,4 +330,73 @@ latest_base_manifest_completion_20261027:
   tests: "37/37 focused PASS, including all four prior reproductions, deleted-source external packages, same-path base/head manifest cache separation, mixed source identities, missing data and invalid builtin names/subpaths."
   validation: "Node24.18.0 preflight/build/typecheck/validate:full/security PASS; lint0errors/45existingwarnings; focused37/37 and full1290 isolated test files PASS."
   next: "No publication until local gates PASS and remote expected head rechecked; new head invalidates predecessor CI/review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_review_successor_findings_2026_10_27:
+  repository_verified:
+    protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+    pr_2772_head: 6834c074dbb81de797531661f2fd79695b68cc6c
+    pr_base: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+    pr_state: OPEN_DRAFT_MERGEABLE
+    exact_head_ci: 40447293615_PASS
+    required_companions: PASS
+    fresh_review_receipt: 5662107852
+  findings:
+    - comment: 4384990162
+      severity: P1
+      summary: "Static CommonJS imports in tracked scripts may target generated dist/ outputs absent from the Git tree; dependency inspection must map only to an exact tracked source counterpart or fail closed."
+      repair: "Exact-tree module resolution maps dist/ paths to bounded tracked source candidates; generated outputs themselves are never accepted as evidence."
+    - comment: 4384990165
+      severity: P1
+      summary: "Deleted workspace importers were classified using head manifests, so deleting a workspace package manifest and importer could hide dependency context."
+      repair: "Manifest discovery, fetch, cache identity, and evidence refs now use the exact importer ref; deleted importers use the PR base tree."
+  regression_tests:
+    generated_dist_commonjs_maps_to_tracked_source: PASS
+    deleted_importer_uses_base_workspace_manifest: PASS
+    focused_validator_and_authority_tests: PASS_24_OF_24
+  local_validation:
+    node: 24.19.0
+    build: PASS
+    typecheck: PASS
+    preflight: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_WARNINGS
+    full_tests: PASS_1289_ISOLATED_TEST_FILES
+    diff_check: PENDING
+    aipos_drift_and_conformance: PENDING_AFTER_RECEIPT_UPDATE
+  remote:
+    successor_head: PENDING_COMMIT
+    exact_head_workflows: PENDING
+    fresh_non_author_review: PENDING
+    formal_validator: PENDING
+    audit_release_merge: NOT_STARTED
+  next: "Complete full tests and AIPOS checks, re-fetch main and PR #2772. Publish one substantive successor only if the remote head remains 6834c074... using expected-head protection and force=false; require new exact-head CI/companions and fresh review. Keep Draft and review threads unresolved."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_publication_checkpoint_2026_10_27:
+  protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+  remote_pr_head: 4bfa47cbcf026747af9ddab8ca40c5300c016cd0
+  remote_exact_head_workflows: PASS_ALL_17_CHECK_RUNS
+  remote_fresh_non_author_review: PENDING
+  remaining_p1_repair: "Tracked CommonJS scripts may statically require a generated dist/ path absent from the exact Git tree."
+  repair: "Static dist/ specifiers resolve only to deterministic candidates present as tracked blobs in the exact head tree; no dist artifact is fetched as evidence."
+  regression: "Generated dist CommonJS import resolves to tracked codingRunner.ts; dependency evidence is exact-head bound."
+  local_validation:
+    node: 24.19.0
+    focused_validator_and_authority_tests: PASS_24_OF_24
+    build: PASS
+    typecheck: PASS
+    preflight: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_EXISTING_WARNINGS
+    full_tests: PASS_1290_ISOLATED_TEST_FILES
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    diff_check: PASS
+  successor_publication: PENDING_REMOTE_HEAD_RECHECK
+  next: "Recheck protected main and #2772 head; publish one non-force successor only if main remains 2a804889... and the existing PR ref remains 4bfa47cb..., then wait for all exact-head workflows and obtain a fresh non-author review. Keep Draft; no author thread resolution, Formal Validator substitution, Audit, Release, merge, or Oracle mutation."
+  formal_validator: PENDING
+  audit_release_merge: NOT_STARTED
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
