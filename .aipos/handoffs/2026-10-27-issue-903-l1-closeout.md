@@ -1,32 +1,30 @@
 # Issue #903 L1 closeout handoff — 2026-10-27
 
-## Current work
+## Canonical work
 
-PR #2039 (`agent/903-canonical-portfolio-autopilot`) was OPEN / Draft / mergeable at exact head `f695ae8a91179c005024df81693747771d90c4f2`, based on protected main `e7f8a426a57a08339eae3778ca50de6512d6acd9`. Fresh Codex review on that SHA completed with two P1 findings:
+PR #2039 is the existing canonical PR on branch `agent/903-canonical-portfolio-autopilot`, based on protected main `e7f8a426a57a08339eae3778ca50de6512d6acd9`. Resolve the current head from the remote branch and GitHub PR metadata every time; do not use a static SHA as the current head.
 
-1. `ExecutionCoordinator.acquire` rejected only active `LEASED` records, permitting a competing producer to overwrite an active `HANDED_OFF` consumer lease.
-2. Consumer handoff changed state to `HANDED_OFF` but retained the producer's shorter lease expiry instead of the authenticated consumer's requested bounded expiry.
+The code repair was published as `f68344e08d493a6db1ec1b397ae1feafcfba2c55`. On that predecessor SHA, exact-head CI run `40503929579` and all five required companions passed. Local focused, full-suite, preflight, build, validate:full, security, and lint checks also passed.
 
-## Local repair
+## Review findings
 
-The existing execution coordinator now rejects unexpired `LEASED` and `HANDED_OFF` records on acquire and persists the requested expiry when transitioning `LEASED -> HANDED_OFF`. Tests cover duplicate consumer suppression, competing producer suppression, and lease renewal. No new state, queue, scheduler, consumer, or authority was introduced.
+Fresh review of `f68344e0` found three P1 threads:
 
-## Validation
+1. `ExecutionCoordinator.acquire` must block an active `HANDED_OFF` lease from competing producer acquisition.
+2. Consumer handoff must persist the authenticated consumer's bounded expiry rather than retain the shorter producer expiry.
+3. This AIPOS handoff/state/work-order copy still said the repair was uncommitted and needed a push, even though `f68344e0` was already published.
 
-- Node 24.19 preflight: PASS
-- build/typecheck: PASS
-- focused coordinator + scheduled attempt-cap: 38/38 PASS
-- full `pnpm test`: 1,285 isolated test files PASS
-- `validate:full`: PASS
-- `security:gate`: PASS, zero secrets/advisories
-- lint: PASS, 0 errors and 45 existing warnings
-- `git diff --check`: PASS
+The first two are implemented in `ExecutionCoordinator` and covered by regression tests. This successor metadata diff replaces the stale local-only instruction with remote-head resolution and explicit predecessor evidence. All three threads remain open for independent review; no author-side resolution was performed.
 
-Generated validation audit files were preserved outside the repository at `/workspace/evidence/nusa-903-l1-20261027/validation-artifacts/` and are not source changes.
+## Validation and gate freshness
 
-## Gates
+The exact CI and companion results above belong only to predecessor `f68344e0`. Any successor SHA created to correct these records requires fresh exact-head CI, five companion workflows, and non-author review. The Codex review on `f68344e0` is completed with findings and is not acceptance for a successor.
 
-Current source has local changes only until committed/pushed. Once pushed, all previous exact-head CI/review evidence is historical. Require successor exact-head CI and fresh non-author review. Formal Validator remains pending and must be separate; no Ready, Audit, Release, merge, Oracle mutation, or L2 implementation before L1 formal acceptance. The existing PR #2039 HOLD remains active.
+Formal Validator remains pending and must be a separate session. No Ready, Audit, Release, merge, Oracle mutation, or L2 implementation before formal L1 acceptance. PR #2039 remains Draft/HOLD.
+
+## Next action
+
+After this recovery-record correction is published, fetch the remote implementation branch and PR head afresh; run the required exact-head CI and companions, then request one fresh non-author review of that exact SHA. Keep L2 gated on Formal Validator acceptance for L1.
 
 ## Safety
 
