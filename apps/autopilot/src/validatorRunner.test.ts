@@ -45,19 +45,21 @@ const githubResponse = (status: number, payload: unknown, textValue?: string) =>
   async text() { return textValue ?? JSON.stringify(payload); },
 });
 
-function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; mobileManifest?: boolean; directoryImport?: boolean; truncatedTree?: boolean } = {}) {
+function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; mobileManifest?: boolean; directoryImport?: boolean; staticImports?: boolean; truncatedTree?: boolean } = {}) {
   let pullReads = 0;
   const sourcePath = options.mobileManifest ? "apps/mobile/a.ts" : "a.ts";
   const diff = options.deletedSource
     ? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import { helper } from './helper';\n-helper();\n"
+    : options.staticImports
+      ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -0,0 +1,3 @@\n+import "./register";\n+export * from "./guard";\n+helper();\n`
     : options.mobileManifest
       ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -1,2 +1,2 @@\n import React from "react";\n-React.createElement("div");\n+React.createElement("span");\n`
     : "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
   const protocol = "# NUSA /grill-me protocol\n" + "adversarial exact-head fail-closed independent validation. ".repeat(8);
-  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"])];
+  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"]), ...(options.staticImports ? ["register.ts", "guard.ts"] : [])];
   return (async (input: string) => {
     const url = String(input);
-    if (url.includes(`/commits/${request.headSha}`)) return githubResponse(200, { tree: { sha: "d".repeat(40) } });
+    if (url.includes(`/git/commits/${request.headSha}`)) return githubResponse(200, { tree: { sha: "d".repeat(40) } });
     if (url.includes(`/git/trees/${"d".repeat(40)}?recursive=1`)) return githubResponse(200, { truncated: options.truncatedTree ?? false, tree: [...blobPaths.map((path) => ({ path, type: "blob" })), ...(options.directoryImport ? [{ path: "helper", type: "tree" }] : [])] });
     if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, [{ filename: options.mobileManifest ? sourcePath : "a.ts", status: options.deletedSource ? "removed" : "modified" }]);
     if (url.includes(`/pulls/${request.prNumber}`)) {
@@ -71,9 +73,11 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (url.includes(`/contents/apps/mobile/package.json?ref=${request.headSha}`)) return githubResponse(200, {}, '{"dependencies":{"react":"^19.0.0"}}\n');
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(404, {});
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import { helper } from './helper';\nhelper();\n");
-    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : 'import { helper } from "./helper";\nhelper();');
+    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : options.staticImports ? 'import "./register";\nexport * from "./guard";\nhelper();' : 'import { helper } from "./helper";\nfunction unchangedHelper() { return "unchanged-source-definition"; }\nhelper();');
     if (url.includes(`/contents/helper.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function helper() { return true; }\n");
     if (url.includes(`/contents/helper/index.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export function helper() { return "directory-index"; }\n');
+    if (url.includes(`/contents/register.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'registerSideEffect("canonical");\n');
+    if (url.includes(`/contents/guard.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export const guard = "canonical";\n');
     if (url.includes(`/contents/helper?ref=${request.headSha}`) || url.includes(`/contents/helper/`)) return githubResponse(404, {});
     if (url.includes(`/contents/helper.`)) return githubResponse(404, {});
     throw new Error(`unexpected fetch ${url}`);
@@ -96,6 +100,8 @@ test("fresh VALIDATOR independently reviews exact head using protected-base gril
   assert.match(prompt, /BEGIN BOUNDED EXACT-HEAD DEPENDENCY CONTEXT/);
   assert.match(prompt, /helper.ts @ a{40}/);
   assert.match(prompt, /export function helper\(\)/);
+  assert.match(prompt, /BEGIN CHANGED SOURCE a\.ts @ HEAD a{40}/);
+  assert.match(prompt, /unchanged-source-definition/);
   assert.ok(result.evidenceRefs.includes(`github:dependency/helper.ts@${request.headSha}`));
 });
 
@@ -118,7 +124,8 @@ test("fresh VALIDATOR classifies dependencies from deterministic source workspac
   const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
   const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ mobileManifest: true }), () => 1);
   assert.equal(result.verdict, "PASS");
-  assert.match(prompt, /No changed-line-referenced direct relative dependencies were identified/);
+  assert.match(prompt, /BEGIN CHANGED SOURCE apps\/mobile\/a\.ts/);
+  assert.match(prompt, /React\.createElement\("span"\)/);
   assert.ok(result.evidenceRefs.includes(`github:dependency-manifest/apps/mobile/package.json@${request.headSha}`));
 });
 
@@ -130,6 +137,20 @@ test("fresh VALIDATOR resolves a directory import to a bounded index file, never
   assert.match(prompt, /EXACT-HEAD DEPENDENCY helper\/index\.ts/);
   assert.match(prompt, /directory-index/);
   assert.ok(result.evidenceRefs.includes(`github:dependency/helper/index.ts@${request.headSha}`));
+});
+
+test("fresh VALIDATOR includes full changed source and resolves side-effect and star imports", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ staticImports: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.match(prompt, /BEGIN CHANGED SOURCE a\.ts/);
+  assert.match(prompt, /BEGIN EXACT-HEAD DEPENDENCY register\.ts/);
+  assert.match(prompt, /registerSideEffect\("canonical"\)/);
+  assert.match(prompt, /BEGIN EXACT-HEAD DEPENDENCY guard\.ts/);
+  assert.match(prompt, /export const guard = "canonical"/);
+  assert.ok(result.evidenceRefs.includes(`github:dependency/register.ts@${request.headSha}`));
+  assert.ok(result.evidenceRefs.includes(`github:dependency/guard.ts@${request.headSha}`));
 });
 
 test("fresh VALIDATOR fails closed when the exact-head Git tree is truncated", async () => {

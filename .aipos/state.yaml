@@ -4144,8 +4144,8 @@ current_autopilot_fresh_validator_gate_20261026:
   issue: 2760
   pull_request: 2772
   branch: fix/validator-evidence-gate-2760
-  status: P1_REPAIRS_PUBLISHED_AWAITING_FINAL_EXACT_HEAD_WORKFLOWS_AND_FRESH_REVIEW
-  protected_main: 81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+  status: THREE_FRESH_REVIEW_P1_REPAIRS_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
+  protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
   predecessor_pr_head: 3349af9d56a3fe3a536a742514241a8e88d2ca98
   predecessor_pr_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
   exact_head_review:
@@ -4176,7 +4176,6 @@ current_autopilot_fresh_validator_gate_20261026:
     git_diff_check: PASS
     exact_head_ci: PENDING
     fresh_review: PENDING
-  next: "Re-fetch PR #2772 and protected main, commit the dependency-context repair/AIPOS evidence, then non-force update the existing branch only if expected head still matches 3349af9d56a3fe3a536a742514241a8e88d2ca98. Require fresh exact-head workflows and independent review; keep Draft and leave threads unresolved for adjudication."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
   latest_successor_20261027:
     predecessor_pr_head: 1dc5e2e224946cb8dd950b776b13194ac98d4c9e
@@ -4184,22 +4183,21 @@ current_autopilot_fresh_validator_gate_20261026:
     local_branch: codex/pr2772-workspace-dependency-resolution
     published_code_checkpoint: 2ca0dcbed342268b560b741d4e0025409d967ec3
     final_successor_checkpoint: "Resolve exact SHA from the remote feature branch after this state receipt commit; final-tip workflows and fresh review are pending."
-    main_sync: "CLEAN_ORDINARY_MERGE_OF_81e8fe4dc74572d934fa5cbaf724aeef43e591f1, followed by clean ordinary merge of protected main e16dbb052942bc498f8b0093c775569cbbfb1550; no conflicts and no changed-path overlap."
+    main_sync: "Clean ordinary merge of main 81e8fe4d, then e16dbb05, then current protected main 2a80488981d13f96552fae8d7c9161a6b3fcb1e9; latest merge has no conflicts and mobile-only changed paths do not overlap the Autopilot PR."
     findings: "P1 #4383248962 and #4383248970 repaired with exact-head workspace manifest ancestry and blob-only Git-tree module resolution; truncated/oversized tree fails closed."
     validation: "Node 24.19.0: build/typecheck/preflight/validate:full/security:gate PASS; lint 0 errors/45 existing warnings; full suite 1,289 isolated test files PASS after rerunning with Git Bash in PATH; validatorRunner 12/12; diff-check PASS."
-    remote_gates: "Code checkpoint 2ca0dcbe was non-force fast-forwarded to the existing PR branch. Protected main e16dbb052942bc498f8b0093c775569cbbfb1550 was then merged into the branch without conflicts; the predecessor e507ce07... CI/review evidence is historical for the resulting successor. Publish only by expected-head non-force update, then require fresh exact-head workflows and non-author review. Formal Validator, Audit and Release have not started. PR remains Draft."
+    remote_gates: "Code checkpoints were non-force fast-forwarded to the existing PR branch. Review 5661915785 on cc2516a2 reported P1 comments 4384830160, 4384830164 and 4384830171. Their repairs and current-main merge are local; cc2516a2 checks and review are historical for the successor. Publish only by expected-head non-force update, then require fresh exact-head workflows and non-author review. Formal Validator, Audit and Release have not started. PR remains Draft."
     current_main_reconvergence:
-      protected_main: e16dbb052942bc498f8b0093c775569cbbfb1550
-      predecessor_pr_head: e507ce07f47d9dfe2737ea0253dd08252c8f6f99
-      predecessor_pr_base: 81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+      protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+      predecessor_pr_head: cc2516a2c3307ebde8a44c9e8486380e021ea410
+      predecessor_pr_base: e16dbb052942bc498f8b0093c775569cbbfb1550
       merge_method: ORDINARY_NON_FORCE_MERGE
       conflicts: 0
-      changed_main_paths: "apps/cloud/src/paperFunnelCounters.ts; apps/cloud/src/runtime.ts; tests/paper-funnel-counters.test.js"
+      changed_main_paths: "apps/mobile/src/waveCore.tsx; apps/mobile/src/waveCoreModel.ts"
       path_overlap: NONE
-      predecessor_ci_and_review: HISTORICAL_AFTER_SUCCESSOR
-      next: "Expected-head non-force publish to existing PR #2772 branch; then exact-head CI/companions and fresh non-author review."
-    next: "Verify the current feature-branch tip on GitHub after publication, wait for exact-head workflows, and obtain fresh independent review for that SHA. Preserve Draft and unresolved review threads; Formal Validator, Audit, Release and merge remain gated."
-    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+      predecessor_ci_and_review: "cc2516a2 exact-head CI PASS and fresh review 5661915785; historical after successor publication"
+      review_p1s: "4384830160, 4384830164, 4384830171 repaired locally; focused regression 19/19 PASS"
+  next: "Publish the locally validated successor to existing PR #2772 only if the remote head is still cc2516a2c3307ebde8a44c9e8486380e021ea410; then wait for exact-head workflows and fresh independent review. Formal Validator, Audit, Release and merge remain gated."
 
 current_autopilot_light_task_gate:
   work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE

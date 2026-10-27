@@ -1,10 +1,10 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: CURRENT_MAIN_RECONVERGENCE_MERGED_LOCALLY_AWAITING_SUCCESSOR_PUBLICATION_AND_VALIDATION
+status: THREE_FRESH_REVIEW_P1_REPAIRS_VALIDATED_LOCALLY_AWAITING_SUCCESSOR_PUBLICATION_AND_VALIDATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: e16dbb052942bc498f8b0093c775569cbbfb1550
+base_commit: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
 branch: fix/validator-evidence-gate-2760
 issue: 2760
 authority_impact: release_governance_fail_closed
@@ -73,7 +73,7 @@ current_main_sync: "Fresh GitHub verification found protected main 9b6c99cee1750
 local_sync_checkpoint: fa83cb282fcee259f568bc7dd95d515d4f0046b8
 remote_update_plan: "The exact verified tree was published by a non-force expected-head update from e0d1465... to db7fc759.... The pending AIPOS reconciliation successor must be published only after the GitHub Git Database API tree SHA exactly matches its local HEAD^{tree}; create it as a child of db7fc759..., then update the existing PR branch with expected_sha=db7fc759de47c620a3220c0f12baea7121e3a2d4 and force=false. On any mismatch or lease rejection, stop without changing the ref."
 validation_after_sync: "Local implementation tree PASS: pnpm run preflight, pnpm run build, pnpm run typecheck, pnpm run validate:full, pnpm run security:gate, git diff --check, and pnpm run test (1263 isolated test files). AIPOS status-only corrections passed preflight, AIPOS drift, cross-AI conformance, and git diff --check. Previous published exact head db7fc759de47c620a3220c0f12baea7121e3a2d4 passed all six workflows (CI 39395954326, Actual PAPER 39395954357, Capability Guard 39395954343, Activation 39395954362, Transport 39395954331, Read-only Broker 39395954449); these are historical for the AIPOS reconciliation successor. Fresh workflows and separate non-author Validator remain pending on that successor."
-next: "Protected main e16dbb052942bc498f8b0093c775569cbbfb1550 was merged ordinarily into the existing PR branch without conflicts. Finish local verification and publish the resulting successor only with expected-head protection and force=false; then require fresh exact-head workflows and a fresh non-author review. Keep Draft; do not self-review, mark Ready, Audit, Release, or merge."
+next: "Fresh review 5661915785 found three P1s on predecessor cc2516a2...; the exact Git tree API, complete changed-source context, and static side-effect/star import repairs now pass focused tests and local validation. Protected main 2a80488981d13f96552fae8d7c9161a6b3fcb1e9 was merged ordinarily into the existing branch without conflicts. Publish one successor only with expected-head protection and force=false, then require fresh exact-head workflows and non-author review. Keep Draft; do not self-review, mark Ready, Audit, Release, or merge."
 latest_repair_2026_10_26:
   repository_verified:
     protected_main: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
@@ -209,17 +209,16 @@ latest_workspace_manifest_and_directory_resolution_repair_2026_10_27:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 latest_current_main_reconvergence_2026_10_27:
-  protected_main: e16dbb052942bc498f8b0093c775569cbbfb1550
-  predecessor_pr_head: e507ce07f47d9dfe2737ea0253dd08252c8f6f99
-  predecessor_pr_base: 81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+  protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+  predecessor_pr_head: cc2516a2c3307ebde8a44c9e8486380e021ea410
+  predecessor_pr_base: e16dbb052942bc498f8b0093c775569cbbfb1550
   pr_state: OPEN_DRAFT_MERGEABLE
   main_only_paths:
-    - apps/cloud/src/paperFunnelCounters.ts
-    - apps/cloud/src/runtime.ts
-    - tests/paper-funnel-counters.test.js
+    - apps/mobile/src/waveCore.tsx
+    - apps/mobile/src/waveCoreModel.ts
   path_overlap: NONE
   synchronization: "Ordinary merge of current protected main into the existing #2772 branch completed locally without conflicts. No force push or protected-main mutation."
-  previous_exact_head_evidence: "e507ce07 exact-head CI/companion results and any review are historical after successor publication."
+  previous_exact_head_evidence: "cc2516a2 CI/companion results and review 5661915785 are historical after successor publication."
   successor: "Current local branch contains the main merge and AIPOS update; resolve the final SHA from Git/GitHub after publication."
   validation:
     node: 24.19.0
@@ -229,12 +228,56 @@ latest_current_main_reconvergence_2026_10_27:
     validate_full: PASS
     security_gate: PASS
     lint: PASS_0_ERRORS_45_WARNINGS
-    focused_tests: PASS_52_OF_52
+    focused_tests: PASS_19_OF_19
     diff_check: PASS
   remote:
     exact_head_workflows: PENDING_PUBLICATION
     fresh_non_author_review: PENDING
     formal_validator: PENDING
     audit_release_merge: NOT_STARTED
-  next: "Complete diff checks, then publish only to the existing PR branch with exact expected-head e507ce07... and force=false. Obtain fresh successor CI/companions and non-author review; preserve Draft and unresolved threads."
+  next: "Complete final AIPOS/diff checks, then publish only to the existing PR branch with exact expected-head cc2516a2... and force=false. Obtain fresh successor CI/companions and non-author review; preserve Draft and unresolved threads."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_fresh_review_findings_2026_10_27:
+  reviewed_head: cc2516a2c3307ebde8a44c9e8486380e021ea410
+  base: e16dbb052942bc498f8b0093c775569cbbfb1550
+  review_receipt: 5661915785
+  finding_comments:
+    - id: 4384830160
+      severity: P1
+      finding: "Use the Git database commit endpoint because the REST commit response nests tree under commit.tree."
+      repair: "Fetch /git/commits/{sha}; validate top-level tree SHA before recursive tree retrieval."
+    - id: 4384830164
+      severity: P1
+      finding: "The exact-head changed-source response was bounded but omitted from model context for non-deleted source, hiding unchanged same-file definitions."
+      repair: "Include the complete bounded changed source body with exact-head provenance in the validator context."
+    - id: 4384830171
+      severity: P1
+      finding: "Static side-effect imports and export-star dependencies were not classified or retrieved."
+      repair: "Parse side-effect imports and export-star forms and include their exact-head file dependencies; fail closed when unresolved."
+  main_reconvergence:
+    protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+    predecessor_pr_head: cc2516a2c3307ebde8a44c9e8486380e021ea410
+    main_delta_paths: "apps/mobile/src/waveCore.tsx; apps/mobile/src/waveCoreModel.ts"
+    path_overlap: NONE
+    merge_method: ORDINARY_NON_FORCE_MERGE
+    conflicts: 0
+  validation:
+    node: 24.19.0
+    preflight: PASS
+    build: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_EXISTING_WARNINGS
+    validator_runner_tests: PASS_12_OF_12
+    focused_governance_tests: PASS_19_OF_19
+    diff_check: PENDING_FINAL
+  remote:
+    successor_head: PENDING_COMMIT
+    exact_head_workflows: PENDING_PUBLICATION
+    fresh_non_author_review: PENDING
+    formal_validator: PENDING
+    audit_release_merge: NOT_STARTED
+  next: "Re-run AIPOS preflight and final diff checks, then publish the existing branch with expected-head cc2516a2... and force=false. Require fresh successor CI/companions and review; preserve Draft and unresolved threads."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
