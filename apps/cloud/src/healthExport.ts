@@ -9,6 +9,8 @@
 
 export const HEALTH_EXPORT_DEFAULT_INTERVAL_MS = 5 * 60_000;
 export const HEALTH_EXPORT_MIN_INTERVAL_MS = 60_000;
+/** One hour. Node clamps a timer delay above 2^31-1 ms to 1 ms, so an unbounded interval could turn into a tight loop. */
+export const HEALTH_EXPORT_MAX_INTERVAL_MS = 60 * 60_000;
 export const HEALTH_EXPORT_TIMEOUT_MS = 5_000;
 export const HEALTH_EXPORT_MAX_BYTES = 64 * 1024;
 
@@ -25,9 +27,9 @@ export function healthExportConfig(env: Readonly<Record<string, string | undefin
   if (!rawUrl || !token || !/^[A-Za-z0-9._~+/=-]{16,512}$/.test(token)) return null;
   let url: URL;
   try { url = new URL(rawUrl); } catch { return null; }
-  if (url.protocol !== "https:" || url.username !== "" || url.password !== "" || url.hash !== "") return null;
+  if (url.protocol !== "https:" || url.username !== "" || url.password !== "" || url.hash !== "" || url.search !== "") return null;
   const rawInterval = Number(env.NUSA_HEALTH_EXPORT_INTERVAL_MS ?? HEALTH_EXPORT_DEFAULT_INTERVAL_MS);
-  const intervalMs = Number.isSafeInteger(rawInterval) && rawInterval >= HEALTH_EXPORT_MIN_INTERVAL_MS ? rawInterval : HEALTH_EXPORT_DEFAULT_INTERVAL_MS;
+  const intervalMs = Number.isSafeInteger(rawInterval) && rawInterval >= HEALTH_EXPORT_MIN_INTERVAL_MS && rawInterval <= HEALTH_EXPORT_MAX_INTERVAL_MS ? rawInterval : HEALTH_EXPORT_DEFAULT_INTERVAL_MS;
   return Object.freeze({ url: url.toString(), token, intervalMs });
 }
 
@@ -47,7 +49,7 @@ export function healthExportRecord(body: unknown): string | null {
 
 export interface HealthExportDependencies {
   readonly readLocalHealth: () => Promise<unknown>;
-  readonly post: (url: string, init: { method: "POST"; headers: Record<string, string>; body: string; signal: AbortSignal; redirect: "error" }) => Promise<{ readonly ok: boolean }>;
+  readonly post: (url: string, init: { method: "POST"; headers: Record<string, string>; body: string; signal: AbortSignal; redirect: "error" }) => Promise<{ readonly ok: boolean; readonly body?: { cancel(): Promise<void> } | null }>;
   readonly onResult?: (result: "SENT" | "SKIPPED_INVALID_HEALTH" | "FAILED") => void;
 }
 
@@ -70,6 +72,8 @@ export async function exportHealthOnce(config: HealthExportConfig, deps: HealthE
           redirect: "error",
         });
         outcome = response.ok ? "SENT" : "FAILED";
+        // Nothing is read back: release the connection without reading the response body.
+        try { await response.body?.cancel(); } catch { /* display only */ }
       } finally {
         clearTimeout(timer);
       }

@@ -16,6 +16,10 @@ test("export is off unless an https URL without credentials and a plain token ar
   assert.equal(m.healthExportConfig({ NUSA_HEALTH_EXPORT_URL: "not a url", NUSA_HEALTH_EXPORT_TOKEN: TOKEN }), null);
   const config = m.healthExportConfig({ NUSA_HEALTH_EXPORT_URL: "https://store.example/append", NUSA_HEALTH_EXPORT_TOKEN: TOKEN, NUSA_HEALTH_EXPORT_INTERVAL_MS: "1000" });
   assert.equal(config.intervalMs, m.HEALTH_EXPORT_DEFAULT_INTERVAL_MS, "an interval below the minimum falls back to the default");
+  const huge = m.healthExportConfig({ NUSA_HEALTH_EXPORT_URL: "https://store.example/append", NUSA_HEALTH_EXPORT_TOKEN: TOKEN, NUSA_HEALTH_EXPORT_INTERVAL_MS: "2147483648" });
+  assert.equal(huge.intervalMs, m.HEALTH_EXPORT_DEFAULT_INTERVAL_MS, "an interval above the maximum (which Node would clamp to 1 ms) falls back to the default");
+  assert.ok(m.HEALTH_EXPORT_MAX_INTERVAL_MS < 2 ** 31 - 1);
+  assert.equal(m.healthExportConfig({ NUSA_HEALTH_EXPORT_URL: "https://store.example/append?key=x", NUSA_HEALTH_EXPORT_TOKEN: TOKEN }), null, "a query string is refused");
 });
 
 test("the record carries only observedAt, runtime and learningPipeline from the public /health body", () => {
@@ -32,9 +36,10 @@ test("one attempt posts the record with a bearer token, refuses redirects, and n
   const calls = [];
   const outcome = await m.exportHealthOnce({ url: "https://store.example/append", token: TOKEN, intervalMs: 60000 }, {
     readLocalHealth: async () => health,
-    post: async (url, init) => { calls.push({ url, init }); return { ok: true }; },
+    post: async (url, init) => { calls.push({ url, init }); return { ok: true, body: { cancel: async () => { calls.push("cancelled"); } } }; },
   });
   assert.equal(outcome, "SENT");
+  assert.equal(calls[1], "cancelled", "the response body is released without being read");
   assert.equal(calls[0].init.headers.authorization, `Bearer ${TOKEN}`);
   assert.equal(calls[0].init.redirect, "error");
   assert.doesNotMatch(calls[0].init.body, /capabilities|runtimeHealth|passwordSignIn/);
