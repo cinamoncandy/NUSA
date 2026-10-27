@@ -1,0 +1,55 @@
+id: WO-ARCH-20261027-STATE-DB-SPLIT
+title: Move high-volume research raw data out of the PAPER state database
+status: DESIGN_PROPOSED_NEEDS_FORMAL_VALIDATION_AND_OWNER_APPROVAL
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2770
+authority_impact: none
+objective: >-
+  Keep the PAPER account, fill ledger and writer lease in a small state database whose backup, integrity check and
+  writes do not compete with research raw-data collection, so releases are short, the runtime is not starved, and a
+  research collector fault cannot slow the PAPER loop.
+evidence:
+  shared_database: >-
+    apps/cloud/src/closedLearningProductionRuntime.ts builds the PAPER account repository and the
+    MarketMicrostructureRecorder (SqliteMarketMicrostructureStore) on the same `database` (one SQLite file,
+    NUSA_CLOUD_STATE_DB_PATH) in the same process.
+  same_file_tables:
+    paper_state: [cloud_paper_accounts, cloud_paper_account_history, cloud_paper_fill_ledger, cloud_paper_writer_leases, paper_realized_periods]
+    research_raw: [research_orderbook_samples, research_trade_ticks, research_futures_marks, research_futures_funding, research_futures_klines, paper_public_market_observations, research_closed_candles]
+  observed_2026_10_26: 'order-book samples > 4.21M, trade ticks > 876k, state database about 957 MiB, host 1 vCPU / 954 MB memory, / 90% used (run 40275442510).'
+  observed_2026_10_27: 'release backup 04:17:49Z..06:12:57Z (about 1 h 55 min, run 40448780153) under the 1 MiB/s I/O cap; read-only diagnosis cancelled twice with no step recorded.'
+  related: [PR 2900 (streamed backup digest), PR 2902 (off-path health export), PR 2899 (first broken stage), PR 2907 (stall alarm)]
+  not_established: 'Whether research writes cause the event-loop stalls or the writer-lease loss is not proven; table sizes are not measured per table.'
+design:
+  - 'Phase 0 (read-only): measure per-table size with the SQLite dbstat virtual table through the approved read-only diagnosis; no host change.'
+  - 'Phase 1: a separate research database file (for example NUSA_RESEARCH_DB_PATH) owned by the existing research stores; new research raw rows go there. The PAPER state database keeps only PAPER and governance tables. One store per table, no dual writes, no second truth source.'
+  - 'Phase 2: existing research rows are copied in bounded batches with a row-count and digest check per table; the originals stay until a restore drill passes; deletion only through the approved path after that.'
+  - 'Phase 3: backup policy per file. The PAPER state database keeps the verified pre-release backup; the research database gets its own cadence and retention, so a release backs up only the small file.'
+  - 'Phase 4: optionally run research collection in its own lower-priority process (Nice and I/O weight) so a collector fault or burst cannot stall the PAPER loop.'
+  - 'Release read-back: a release counts as converged only when the runtime-reported sourceCommitSha equals the released main SHA, read from outside the host (WO-OPS-20261027-HOST-INDEPENDENT-HEALTH).'
+exclusions:
+  - No change to PAPER account, fill ledger or writer-lease semantics, TTL, heartbeat or takeover.
+  - No deletion or rewrite of historical research or PAPER evidence; copies are verified before anything is retired.
+  - No synthetic candles, ticks or fills; a gap stays a gap.
+  - No risk, threshold, loss-limit or capital change; no LIVE authority.
+  - No host mutation, migration run or deploy from a Claude session; execution goes through the approved server path.
+acceptance:
+  - The PAPER state database backup takes minutes, not hours, measured on the host.
+  - Research collection running or failing does not change PAPER loop latency beyond a stated bound (measured).
+  - Every moved table has matching row counts and digests between source and destination before retirement.
+  - Restart and replay of the PAPER loop are unchanged (existing replay and lease tests pass).
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'Design record only; no code, schema, workflow or host change in this publication.'
+precommit_review: 'Not yet requested.'
+publication_blockers:
+  - 'Persistence-owner change: needs formal validator review and owner approval before Phase 1.'
+  - 'Phase 0 needs the read-only diagnosis to run (currently cancelled on the busy host).'
+next: Formal review of this design; then Phase 0 measurement; then one PR per phase.
