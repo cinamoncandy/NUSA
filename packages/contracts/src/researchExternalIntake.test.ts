@@ -163,6 +163,18 @@ test("precommit requires PIT/OOS, dataset, fee and slippage bindings and cannot 
   assert.equal(validateCryptoNewsPrecommitPlans(Object.create({ manifest: "dataset-1" }), evaluationPlan, costPlan), false);
   assert.equal(validateCryptoNewsPrecommitPlans({ manifest: "dataset-1" }, Object.create(evaluationPlan), costPlan), false);
   assert.equal(validateCryptoNewsPrecommitPlans({ manifest: "dataset-1" }, evaluationPlan, Object.create(costPlan)), false);
+  const originalPit = Object.getOwnPropertyDescriptor(Object.prototype, "pitPolicyVersion");
+  const originalOos = Object.getOwnPropertyDescriptor(Object.prototype, "oosPolicyVersion");
+  try {
+    Object.defineProperty(Object.prototype, "pitPolicyVersion", { configurable: true, value: "pit-v1" });
+    Object.defineProperty(Object.prototype, "oosPolicyVersion", { configurable: true, value: "oos-v1" });
+    assert.equal(validateCryptoNewsPrecommitPlans({ manifest: "dataset-1" }, { latencyAssumptions: "modeled", missingDataPolicy: "reject" }, costPlan), false);
+  } finally {
+    if (originalPit) Object.defineProperty(Object.prototype, "pitPolicyVersion", originalPit);
+    else delete (Object.prototype as { pitPolicyVersion?: string }).pitPolicyVersion;
+    if (originalOos) Object.defineProperty(Object.prototype, "oosPolicyVersion", originalOos);
+    else delete (Object.prototype as { oosPolicyVersion?: string }).oosPolicyVersion;
+  }
 });
 
 test("replication receipt binds outcome to spec, precommit, dataset and preserves adverse evidence", () => {

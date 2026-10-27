@@ -204,8 +204,8 @@ function validatePrecommitPlans(datasetBinding: unknown, evaluationPlan: unknown
   if (!plainRecord(datasetBinding) || !plainRecord(evaluationPlan) || !plainRecord(costPlan) || !isCanonicalJsonValue(datasetBinding) || !isCanonicalJsonValue(evaluationPlan) || !isCanonicalJsonValue(costPlan)) return false;
   if ((Object.hasOwn(evaluationPlan, "pitWindow") && !timeWindowBounds(evaluationPlan.pitWindow)) || (Object.hasOwn(evaluationPlan, "oosWindow") && !timeWindowBounds(evaluationPlan.oosWindow))) return false;
   const datasetBound = hasKnownText(datasetBinding, ["manifest", "manifestId", "datasetId"]) || hasDigest(datasetBinding, ["manifestFingerprint", "datasetFingerprint", "datasetContentSha256"]);
-  const pitBound = validTimeWindow(evaluationPlan.pitWindow) || knownText(evaluationPlan.pitPolicyVersion);
-  const oosBound = validTimeWindow(evaluationPlan.oosWindow) || knownText(evaluationPlan.oosPolicyVersion) || hasDigest(evaluationPlan, ["walkForwardConfigHash"]);
+  const pitBound = validTimeWindow(evaluationPlan.pitWindow) || hasKnownText(evaluationPlan, ["pitPolicyVersion"]);
+  const oosBound = validTimeWindow(evaluationPlan.oosWindow) || hasKnownText(evaluationPlan, ["oosPolicyVersion"]) || hasDigest(evaluationPlan, ["walkForwardConfigHash"]);
   const pitWindow = timeWindowBounds(evaluationPlan.pitWindow), oosWindow = timeWindowBounds(evaluationPlan.oosWindow);
   const windowsAreDisjoint = !pitWindow || !oosWindow || oosWindow.start > pitWindow.end;
   const latencyBound = hasKnownText(evaluationPlan, ["latencyAssumptions", "latencyModelVersion", "latencyPolicyVersion"]);

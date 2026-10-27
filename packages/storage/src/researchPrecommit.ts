@@ -8,6 +8,7 @@ export interface ResearchPrecommitDatabase { readonly connection: DatabaseSync; 
 
 type StrategyPlan = { readonly strategySpec?: unknown; readonly parentStrategySpec?: unknown; readonly parentStrategyPrecommit?: unknown };
 type StrategyPrecommit = ResearchPrecommit & { readonly parameterPlan: StrategyPlan };
+type NewsPlan = { readonly hypothesis?: unknown; readonly newsObservationIdentity?: unknown; readonly researchIntelligenceRecordId?: unknown };
 type StoredPrecommitRow = { readonly fingerprint: string; readonly payload_json: string; readonly experiment_identity?: string };
 
 function isStrategySpec(value: unknown): value is StrategyReplicationSpec {
@@ -17,6 +18,12 @@ function isStrategySpec(value: unknown): value is StrategyReplicationSpec {
 function isStrategyPrecommit(value: ResearchPrecommit): value is StrategyPrecommit {
   const plan = value.parameterPlan as StrategyPlan | undefined;
   return plan != null && typeof plan === "object" && isStrategySpec(plan.strategySpec);
+}
+
+function isNewsPrecommit(value: ResearchPrecommit): boolean {
+  const plan = value.parameterPlan as NewsPlan | undefined;
+  return plan != null && typeof plan === "object" && Object.hasOwn(plan, "hypothesis")
+    && Object.hasOwn(plan, "newsObservationIdentity") && Object.hasOwn(plan, "researchIntelligenceRecordId");
 }
 
 function strategyAuthorityProjection(precommit: ResearchPrecommit): string {
@@ -41,6 +48,18 @@ function strategyAuthorityProjection(precommit: ResearchPrecommit): string {
   });
 }
 
+function newsAuthorityProjection(precommit: ResearchPrecommit): string {
+  const { fingerprint: _fingerprint, createdAt: _createdAt, ...core } = precommit;
+  const plan = precommit.parameterPlan as NewsPlan & Record<string, unknown>;
+  const hypothesis = plan.hypothesis as Record<string, unknown>;
+  const { createdAt: _hypothesisCreatedAt, ...stableHypothesis } = hypothesis;
+  return canonicalResearchJson({
+    ...core,
+    sourceSha: precommit.sourceSha.toLowerCase(),
+    parameterPlan: { ...plan, hypothesis: stableHypothesis },
+  });
+}
+
 export class SqliteResearchPrecommitRepository {
   public constructor(private readonly db: ResearchPrecommitDatabase) {
     db.connection.exec("CREATE TABLE IF NOT EXISTS research_precommits (fingerprint TEXT PRIMARY KEY, experiment_identity TEXT NOT NULL, payload_json TEXT NOT NULL, created_at TEXT NOT NULL)");
@@ -52,6 +71,9 @@ export class SqliteResearchPrecommitRepository {
       this.validateStrategyLineage(precommit);
       if (isStrategyPrecommit(precommit)) {
         const existingExperiment = this.findExistingStrategyExperiment(precommit);
+        if (existingExperiment != null) return existingExperiment;
+      } else if (isNewsPrecommit(precommit)) {
+        const existingExperiment = this.findExistingNewsExperiment(precommit);
         if (existingExperiment != null) return existingExperiment;
       }
       const existing = this.get(precommit.fingerprint);
@@ -99,6 +121,20 @@ export class SqliteResearchPrecommitRepository {
       if (row.experiment_identity !== precommit.experimentIdentity) throw new Error("PRECOMMIT_EXPERIMENT_IDENTITY_CONFLICT");
       const existing = this.get(row.fingerprint);
       if (existing == null || !isStrategyPrecommit(existing) || strategyAuthorityProjection(existing) !== expectedProjection) throw new Error("PRECOMMIT_EXPERIMENT_IDENTITY_CONFLICT");
+      canonical ??= existing;
+    }
+    return canonical;
+  }
+
+  private findExistingNewsExperiment(precommit: ResearchPrecommit): ResearchPrecommit | null {
+    const rows = this.db.connection.prepare("SELECT fingerprint, experiment_identity, payload_json FROM research_precommits WHERE experiment_identity = ? ORDER BY created_at, fingerprint").all(precommit.experimentIdentity) as StoredPrecommitRow[];
+    if (rows.length === 0) return null;
+    const expectedProjection = newsAuthorityProjection(precommit);
+    let canonical: ResearchPrecommit | null = null;
+    for (const row of rows) {
+      if (row.experiment_identity !== precommit.experimentIdentity) throw new Error("PRECOMMIT_EXPERIMENT_IDENTITY_CONFLICT");
+      const existing = this.get(row.fingerprint);
+      if (existing == null || !isNewsPrecommit(existing) || newsAuthorityProjection(existing) !== expectedProjection) throw new Error("PRECOMMIT_EXPERIMENT_IDENTITY_CONFLICT");
       canonical ??= existing;
     }
     return canonical;

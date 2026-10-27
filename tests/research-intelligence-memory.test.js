@@ -20,6 +20,7 @@ const {
 const {
   SqliteDatabase,
   SqliteResearchIntelligenceMemoryRepository,
+  SqliteResearchPrecommitRepository,
 } = require("../dist/packages/storage/src/index.js");
 const {
   SqliteResearchSemanticMemoryRepository,
@@ -27,6 +28,7 @@ const {
 const {
   createCryptoNewsResearchObservation,
 } = require("../dist/packages/contracts/src/researchExternalIntake.js");
+const { createResearchPrecommit } = require("../dist/packages/contracts/src/researchPrecommit.js");
 const { canonicalResearchJson } = require("../dist/packages/contracts/src/researchRuntime.js");
 
 const rawContent = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><published>2026-03-30T17:55:21Z</published><title>Canonical market microstructure test source</title><summary>Canonical test source capture: market microstructure and algorithmic trading.</summary><author><name>NUSA Test</name></author></entry>";
@@ -457,6 +459,20 @@ test("only the canonical persisted Research Intelligence repository can bind new
     assert.equal(result.precommit.candidateIdentity, result.hypothesis.candidateId);
     assert.equal(result.precommit.datasetBinding.newsObservationIdentity, bound.observationIdentity);
     assert.equal(result.precommit.parameterPlan.hypothesis.provenance.author, "SCOUT_ADVISORY");
+    const uppercaseSha = memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, sourceSha: input.sourceSha.toUpperCase() });
+    assert.equal(uppercaseSha.precommit.experimentIdentity, result.precommit.experimentIdentity);
+    assert.equal(uppercaseSha.precommit.sourceSha, input.sourceSha);
+    const precommits = new SqliteResearchPrecommitRepository(db);
+    const firstStored = precommits.create(result.precommit);
+    const laterResult = memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, createdAt: new Date(Date.parse(input.createdAt) + 1_000).toISOString() });
+    assert.notEqual(laterResult.precommit.fingerprint, firstStored.fingerprint);
+    assert.equal(laterResult.precommit.experimentIdentity, firstStored.experimentIdentity);
+    assert.equal(precommits.create(laterResult.precommit).fingerprint, firstStored.fingerprint);
+    assert.equal(db.connection.prepare("SELECT COUNT(*) AS count FROM research_precommits WHERE experiment_identity = ?").get(firstStored.experimentIdentity).count, 1);
+    const { fingerprint: _fingerprint, ...newsPrecommit } = firstStored;
+    const plan = newsPrecommit.parameterPlan;
+    const conflicting = createResearchPrecommit({ ...newsPrecommit, parameterPlan: { ...plan, hypothesis: { ...plan.hypothesis, rationale: "Different content under the same experiment identity" } } });
+    assert.throws(() => precommits.create(conflicting), /PRECOMMIT_EXPERIMENT_IDENTITY_CONFLICT/);
     assert.notEqual(memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, sourceSha: "c".repeat(40) }).precommit.experimentIdentity, result.precommit.experimentIdentity);
     assert.notEqual(memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, validationPolicyIdentity: "policy-v2" }).precommit.experimentIdentity, result.precommit.experimentIdentity);
     assert.throws(() => memory.cryptoNewsResearchPrecommit(observation, sourceRecord.recordId, { ...input, validationPolicyIdentity: "UNKNOWN" }), /HYPOTHESIS_EVIDENCE_INELIGIBLE/);
