@@ -4144,8 +4144,8 @@ current_autopilot_fresh_validator_gate_20261026:
   issue: 2760
   pull_request: 2772
   branch: fix/validator-evidence-gate-2760
-  status: P1_EXACT_HEAD_DEPENDENCY_CONTEXT_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_CI_AND_REVIEW
-  protected_main: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
+  status: P1_WORKSPACE_MANIFEST_AND_DIRECTORY_RESOLUTION_REPAIRED_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_PUBLICATION_AND_REVIEW
+  protected_main: 81e8fe4dc74572d934fa5cbaf724aeef43e591f1
   predecessor_pr_head: 3349af9d56a3fe3a536a742514241a8e88d2ca98
   predecessor_pr_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
   exact_head_review:
@@ -4178,6 +4178,17 @@ current_autopilot_fresh_validator_gate_20261026:
     fresh_review: PENDING
   next: "Re-fetch PR #2772 and protected main, commit the dependency-context repair/AIPOS evidence, then non-force update the existing branch only if expected head still matches 3349af9d56a3fe3a536a742514241a8e88d2ca98. Require fresh exact-head workflows and independent review; keep Draft and leave threads unresolved for adjudication."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  latest_successor_20261027:
+    predecessor_pr_head: 1dc5e2e224946cb8dd950b776b13194ac98d4c9e
+    predecessor_pr_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
+    local_branch: codex/pr2772-workspace-dependency-resolution
+    local_successor_checkpoint: "Resolve exact successor SHA from this isolated branch tip after commit; remote publication and checks are separate pending gates."
+    main_sync: CLEAN_ORDINARY_MERGE_OF_81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+    findings: "P1 #4383248962 and #4383248970 repaired with exact-head workspace manifest ancestry and blob-only Git-tree module resolution; truncated/oversized tree fails closed."
+    validation: "Node 24.19.0: build/typecheck/preflight/validate:full/security:gate PASS; lint 0 errors/45 existing warnings; full suite 1,289 isolated test files PASS after rerunning with Git Bash in PATH; validatorRunner 12/12; diff-check PASS."
+    remote_gates: "No successor publication, exact-head remote CI, fresh non-author review, Formal Validator, Audit or Release receipt yet. PR remains Draft."
+    next: "Fresh-check protected main, PR head/base, and branch protection; publish only by non-force expected-head update if the canonical base contract is satisfied. Keep Draft and await fresh exact-head workflows and independent review."
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_autopilot_light_task_gate:
   work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE

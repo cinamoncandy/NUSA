@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: P1_EXACT_HEAD_DEPENDENCY_CONTEXT_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_CI_AND_REVIEW
+status: P1_WORKSPACE_MANIFEST_AND_DIRECTORY_RESOLUTION_REPAIRED_LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_PUBLICATION_AND_REVIEW
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -164,11 +164,45 @@ latest_review_successor_findings_2026_10_26:
     full_tests: PASS_1289_ISOLATED_TEST_FILES
     git_diff_check: PASS
   remote:
-    successor_head: PENDING_COMMIT
+    successor_head: "Resolve from the feature branch tip after commit/publication; exact-head remote gates remain pending."
     exact_head_ci: PENDING
     companions: PENDING
     fresh_non_author_review: PENDING
     formal_validator: PENDING
     audit_release_merge: NOT_STARTED
   next: "Finish full local validation, re-fetch PR #2772 and protected main, then non-force push only if the remote head still equals 6bbe976f1ee544505caf80516cf15d9ee95ec35d. Keep Draft; no author thread resolution, Formal Validator substitution, Audit, Release, merge, or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_workspace_manifest_and_directory_resolution_repair_2026_10_27:
+  status: LOCAL_VALIDATION_PASS_AWAITING_SUCCESSOR_PUBLICATION
+  protected_main: 81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+  predecessor_pr_head: 1dc5e2e224946cb8dd950b776b13194ac98d4c9e
+  predecessor_pr_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
+  main_reconciliation: "Ordinary non-force merge of origin/main 81e8fe4dc74572d934fa5cbaf724aeef43e591f1 completed cleanly in an isolated worktree; no conflicts. GitHub still reports the PR base SHA as 54cfb219..., so re-check that relationship before publishing."
+  findings_repaired:
+    - "P1 #4383248962: dependency classification used only repository-root package.json. Validator now loads bounded, exact-head package.json files on the deterministic source-directory ancestor chain, root-to-nearest, and aggregates declared dependency sections. Missing/malformed manifests fail closed; no caller-selected manifest or repository-wide upload."
+    - "P1 #4383248970: raw contents lookup could return a directory listing as a successful import result. Validator now gets the exact-head commit tree, rejects truncated/oversized trees, distinguishes blobs from directories, and selects only deterministic bounded file/extension/index candidates. Directory listings cannot enter model context."
+  tests:
+    workspace_local_manifest_dependency_classification: PASS
+    directory_import_resolves_index_blob: PASS
+    truncated_tree_fails_before_model: PASS
+    validator_runner_suite: PASS_12_OF_12
+  validation:
+    node: 24.19.0
+    build: PASS
+    typecheck: PASS
+    preflight: PASS
+    validate_full: PASS
+    security_gate: PASS_0_UNMITIGATED_0_SECRETS
+    lint: PASS_0_ERRORS_45_EXISTING_WARNINGS
+    full_tests: PASS_1289_ISOLATED_TEST_FILES
+    diff_check: PASS
+    initial_environment_failure: "First full-test attempt stopped because bash was absent from PATH; rerun with installed Git Bash on PATH passed all 1,289 isolated test files."
+  remote:
+    successor_head: PENDING_COMMIT
+    exact_head_workflows: PENDING
+    fresh_non_author_review: PENDING
+    formal_validator: PENDING
+    independent_audit_release: NOT_STARTED
+  next: "Re-fetch protected main and PR #2772; publish only as a non-force fast-forward if the remote head is still 1dc5e2e... and the branch/base contract is still satisfied. Require fresh exact-head workflows and fresh independent review. Keep Draft; do not resolve author threads or start Formal Validator, Audit, Release or merge."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

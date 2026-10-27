@@ -131,6 +131,8 @@ const MAX_CHANGED_FILES = 300;
 const MAX_CONTEXT_SOURCE_FILES = 24;
 const MAX_CONTEXT_SOURCE_CHARS = 240_000;
 const MAX_CONTEXT_DEPENDENCIES = 24;
+const MAX_CONTEXT_PACKAGE_MANIFESTS = 16;
+const MAX_CONTEXT_GIT_TREE_ENTRIES = 20_000;
 const MAX_CONTEXT_DEPENDENCY_FILE_CHARS = 96_000;
 const MAX_CONTEXT_DEPENDENCY_CHARS = 180_000;
 const MAX_FINDINGS = 40;
@@ -622,6 +624,43 @@ async function fetchExactHeadDependency(path: string, request: ValidatorRunnerRe
   return content;
 }
 
+async function fetchExactHeadBlobPaths(request: ValidatorRunnerRequest, token: string, fetchImpl: FetchImpl): Promise<ReadonlySet<string>> {
+  const repository = request.repository.split("/").map(encodeURIComponent).join("/");
+  const commitResponse = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/commits/${encodeURIComponent(request.headSha)}`, { method: "GET", headers: githubHeaders("application/vnd.github+json", token) });
+  if (commitResponse.status !== 200) throw new Error(`VALIDATOR_TREE_COMMIT_HTTP_${commitResponse.status}`);
+  let commit: Record<string, unknown>;
+  try { commit = object(await commitResponse.json(), "VALIDATOR_TREE_COMMIT_INVALID"); }
+  catch { throw new Error("VALIDATOR_TREE_COMMIT_INVALID"); }
+  let commitTree: Record<string, unknown>;
+  try { commitTree = object(commit.tree, "VALIDATOR_TREE_COMMIT_INVALID"); }
+  catch { throw new Error("VALIDATOR_TREE_COMMIT_INVALID"); }
+  const treeSha = typeof commitTree.sha === "string" && SHA40.test(commitTree.sha) ? commitTree.sha : undefined;
+  if (!treeSha) throw new Error("VALIDATOR_TREE_SHA_INVALID");
+  const treeResponse = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/git/trees/${treeSha}?recursive=1`, { method: "GET", headers: githubHeaders("application/vnd.github+json", token) });
+  if (treeResponse.status !== 200) throw new Error(`VALIDATOR_TREE_HTTP_${treeResponse.status}`);
+  let treePayload: Record<string, unknown>;
+  try { treePayload = object(await treeResponse.json(), "VALIDATOR_TREE_INVALID"); }
+  catch { throw new Error("VALIDATOR_TREE_INVALID"); }
+  if (treePayload.truncated !== false || !Array.isArray(treePayload.tree)) throw new Error("VALIDATOR_TREE_INCOMPLETE");
+  if (treePayload.tree.length > MAX_CONTEXT_GIT_TREE_ENTRIES) throw new Error("VALIDATOR_TREE_ENTRY_LIMIT_EXCEEDED");
+  const blobPaths = new Set<string>();
+  for (const rawEntry of treePayload.tree) {
+    let entry: Record<string, unknown>;
+    try { entry = object(rawEntry, "VALIDATOR_TREE_ENTRY_INVALID"); }
+    catch { throw new Error("VALIDATOR_TREE_ENTRY_INVALID"); }
+    if (entry.type !== "blob") continue;
+    if (typeof entry.path !== "string") throw new Error("VALIDATOR_TREE_ENTRY_INVALID");
+    const path = validateRepositoryPath(entry.path);
+    blobPaths.add(path);
+  }
+  return blobPaths;
+}
+
+function resolveBlobModulePath(base: string, blobPaths: ReadonlySet<string>): string | undefined {
+  const candidates = [base, ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"].map((ext) => `${base}${ext}`), ...["index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs", "index.cjs", "index.json"].map((name) => `${base}/${name}`)];
+  return candidates.find((candidate) => blobPaths.has(candidate));
+}
+
 async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, changedPaths: readonly string[], diff: string, token: string, fetchImpl: FetchImpl): Promise<{ readonly context: string; readonly evidenceRefs: readonly string[] }> {
   const changes = diffFileChanges(diff);
   if (changes.linesByPath.size !== changedPaths.length || changedPaths.some((path) => !changes.linesByPath.has(path))) throw new Error("VALIDATOR_DIFF_PATH_LIST_MISMATCH");
@@ -631,25 +670,41 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
   const dependencyPaths = new Set<string>();
   const evidenceRefs: string[] = [];
   const sourceContextParts: string[] = [];
-  let declaredPackages: ReadonlyMap<string, string> | undefined;
-  const loadDeclaredPackages = async (): Promise<ReadonlyMap<string, string>> => {
-    if (declaredPackages) return declaredPackages;
-    const manifestText = await fetchExactHeadDependency("package.json", request, token, fetchImpl);
-    if (manifestText === null) throw new Error("VALIDATOR_PACKAGE_MANIFEST_MISSING");
+  const blobPaths = await fetchExactHeadBlobPaths(request, token, fetchImpl);
+  evidenceRefs.push(`github:tree/${request.headSha}`);
+  const manifestCache = new Map<string, ReadonlyMap<string, string>>();
+  const loadDeclaredPackages = async (sourcePath: string): Promise<ReadonlyMap<string, string>> => {
+    const sourceDirectory = sourcePath.split("/").slice(0, -1);
+    if (sourceDirectory.length + 1 > MAX_CONTEXT_PACKAGE_MANIFESTS) throw new Error("VALIDATOR_PACKAGE_MANIFEST_LIMIT_EXCEEDED");
+    const manifestPaths = ["package.json"];
+    for (let length = 1; length <= sourceDirectory.length; length += 1) manifestPaths.push(`${sourceDirectory.slice(0, length).join("/")}/package.json`);
+    const applicable = manifestPaths.filter((path) => blobPaths.has(path));
+    if (!blobPaths.has("package.json")) throw new Error("VALIDATOR_PACKAGE_MANIFEST_MISSING");
     let manifest: Record<string, unknown>;
-    try { manifest = object(JSON.parse(manifestText), "VALIDATOR_PACKAGE_MANIFEST_INVALID"); }
-    catch { throw new Error("VALIDATOR_PACKAGE_MANIFEST_INVALID"); }
     const packages = new Map<string, string>();
-    for (const section of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
-      const entries = manifest[section];
-      if (entries === undefined) continue;
-      if (!entries || typeof entries !== "object" || Array.isArray(entries)) throw new Error("VALIDATOR_PACKAGE_MANIFEST_INVALID");
-      for (const [name, version] of Object.entries(entries)) {
-        if (typeof version !== "string") throw new Error("VALIDATOR_PACKAGE_MANIFEST_INVALID");
-        packages.set(name, version);
+    for (const path of applicable) {
+      let manifestPackages = manifestCache.get(path);
+      if (!manifestPackages) {
+        const manifestText = await fetchExactHeadDependency(path, request, token, fetchImpl);
+        if (manifestText === null) throw new Error("VALIDATOR_PACKAGE_MANIFEST_MISSING");
+        try { manifest = object(JSON.parse(manifestText), "VALIDATOR_PACKAGE_MANIFEST_INVALID"); }
+        catch { throw new Error("VALIDATOR_PACKAGE_MANIFEST_INVALID"); }
+        const parsed = new Map<string, string>();
+        for (const section of ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"]) {
+          const entries = manifest[section];
+          if (entries === undefined) continue;
+          if (!entries || typeof entries !== "object" || Array.isArray(entries)) throw new Error("VALIDATOR_PACKAGE_MANIFEST_INVALID");
+          for (const [name, version] of Object.entries(entries)) {
+            if (typeof version !== "string") throw new Error("VALIDATOR_PACKAGE_MANIFEST_INVALID");
+            parsed.set(name, version);
+          }
+        }
+        manifestPackages = parsed;
+        manifestCache.set(path, manifestPackages);
       }
+      for (const [name, version] of manifestPackages) packages.set(name, version);
+      evidenceRefs.push(`github:dependency-manifest/${path}@${request.headSha}`);
     }
-    declaredPackages = packages;
     return packages;
   };
   for (const sourcePath of sourcePaths) {
@@ -671,28 +726,27 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
       if (!imported.specifier.startsWith(".")) {
         if (imported.specifier.startsWith("node:")) continue;
         const packageName = imported.specifier.startsWith("@") ? imported.specifier.split("/").slice(0, 2).join("/") : imported.specifier.split("/")[0];
-        const packages = await loadDeclaredPackages();
+        const packages = await loadDeclaredPackages(sourcePath);
         const version = packages.get(packageName);
         if (version?.startsWith("workspace:")) throw new Error("VALIDATOR_WORKSPACE_DEPENDENCY_CONTEXT_UNSUPPORTED");
         if (version) continue;
         throw new Error("VALIDATOR_DEPENDENCY_IMPORT_UNCLASSIFIED");
       }
       const base = resolveRelativeBase(sourcePath, imported.specifier);
-      const candidates = [base, ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"].map((ext) => `${base}${ext}`), ...["index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs", "index.cjs", "index.json"].map((name) => `${base}/${name}`)];
-      if (candidates.some((candidate) => changedPaths.includes(candidate))) continue;
-      dependencyPaths.add(validateRepositoryPath(candidates[0]));
+      const resolvedPath = resolveBlobModulePath(base, blobPaths);
+      if (!resolvedPath) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
+      if (changedPaths.includes(resolvedPath)) continue;
+      dependencyPaths.add(validateRepositoryPath(resolvedPath));
     }
   }
   if (dependencyPaths.size > MAX_CONTEXT_DEPENDENCIES) throw new Error("VALIDATOR_DEPENDENCY_COUNT_EXCEEDED");
   const contextParts: string[] = [...sourceContextParts];
-  if (declaredPackages) evidenceRefs.push(`github:dependency-manifest/package.json@${request.headSha}`);
   let totalChars = 0;
   for (const path of [...dependencyPaths].sort()) {
-    const base = path;
-    const candidates = [base, ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"].map((ext) => `${base}${ext}`), ...["index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs", "index.cjs", "index.json"].map((name) => `${base}/${name}`)];
-    let content: string | null = null; let resolvedPath: string | undefined;
-    for (const candidate of candidates) { content = await fetchExactHeadDependency(candidate, request, token, fetchImpl); if (content !== null) { resolvedPath = candidate; break; } }
-    if (content === null || resolvedPath === undefined) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
+    const resolvedPath = blobPaths.has(path) ? path : undefined;
+    if (!resolvedPath) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
+    const content = await fetchExactHeadDependency(resolvedPath, request, token, fetchImpl);
+    if (content === null) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
     totalChars += content.length;
     if (totalChars > MAX_CONTEXT_DEPENDENCY_CHARS) throw new Error("VALIDATOR_DEPENDENCY_CONTEXT_TOO_LARGE");
     contextParts.push(`--- BEGIN EXACT-HEAD DEPENDENCY ${resolvedPath} @ ${request.headSha} ---\n${content}\n--- END EXACT-HEAD DEPENDENCY ${resolvedPath} ---`);

@@ -45,15 +45,21 @@ const githubResponse = (status: number, payload: unknown, textValue?: string) =>
   async text() { return textValue ?? JSON.stringify(payload); },
 });
 
-function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean } = {}) {
+function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; mobileManifest?: boolean; directoryImport?: boolean; truncatedTree?: boolean } = {}) {
   let pullReads = 0;
+  const sourcePath = options.mobileManifest ? "apps/mobile/a.ts" : "a.ts";
   const diff = options.deletedSource
     ? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import { helper } from './helper';\n-helper();\n"
+    : options.mobileManifest
+      ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -1,2 +1,2 @@\n import React from "react";\n-React.createElement("div");\n+React.createElement("span");\n`
     : "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
   const protocol = "# NUSA /grill-me protocol\n" + "adversarial exact-head fail-closed independent validation. ".repeat(8);
+  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"])];
   return (async (input: string) => {
     const url = String(input);
-    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, [{ filename: "a.ts", status: options.deletedSource ? "removed" : "modified" }]);
+    if (url.includes(`/commits/${request.headSha}`)) return githubResponse(200, { tree: { sha: "d".repeat(40) } });
+    if (url.includes(`/git/trees/${"d".repeat(40)}?recursive=1`)) return githubResponse(200, { truncated: options.truncatedTree ?? false, tree: [...blobPaths.map((path) => ({ path, type: "blob" })), ...(options.directoryImport ? [{ path: "helper", type: "tree" }] : [])] });
+    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, [{ filename: options.mobileManifest ? sourcePath : "a.ts", status: options.deletedSource ? "removed" : "modified" }]);
     if (url.includes(`/pulls/${request.prNumber}`)) {
       pullReads += 1;
       return githubResponse(200, { state: "open", changed_files: 1, head: { sha: options.staleSecondPull && pullReads > 1 ? "c".repeat(40) : request.headSha, repo: { full_name: request.repository } }, base: { sha: request.baseSha, repo: { full_name: request.repository } } });
@@ -62,10 +68,12 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (url.includes(`/compare/${request.baseSha}...${request.headSha}`)) return githubResponse(200, {}, diff);
     if (url.includes("/contents/docs/GRILL_ME_PROTOCOL.md?ref=")) return githubResponse(200, {}, protocol);
     if (url.includes(`/contents/package.json?ref=${request.headSha}`)) return githubResponse(200, {}, "{}\n");
+    if (url.includes(`/contents/apps/mobile/package.json?ref=${request.headSha}`)) return githubResponse(200, {}, '{"dependencies":{"react":"^19.0.0"}}\n');
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(404, {});
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import { helper } from './helper';\nhelper();\n");
-    if (url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(200, {}, options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : 'import { helper } from "./helper";\nhelper();');
+    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : 'import { helper } from "./helper";\nhelper();');
     if (url.includes(`/contents/helper.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function helper() { return true; }\n");
+    if (url.includes(`/contents/helper/index.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export function helper() { return "directory-index"; }\n');
     if (url.includes(`/contents/helper?ref=${request.headSha}`) || url.includes(`/contents/helper/`)) return githubResponse(404, {});
     if (url.includes(`/contents/helper.`)) return githubResponse(404, {});
     throw new Error(`unexpected fetch ${url}`);
@@ -102,6 +110,32 @@ test("fresh VALIDATOR fails closed when a changed line uses an unresolved reposi
   let aiCalled = false;
   const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
   await assert.rejects(executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ aliasImport: true })), /VALIDATOR_DEPENDENCY_IMPORT_UNCLASSIFIED/);
+  assert.equal(aiCalled, false);
+});
+
+test("fresh VALIDATOR classifies dependencies from deterministic source workspace manifests", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ mobileManifest: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.match(prompt, /No changed-line-referenced direct relative dependencies were identified/);
+  assert.ok(result.evidenceRefs.includes(`github:dependency-manifest/apps/mobile/package.json@${request.headSha}`));
+});
+
+test("fresh VALIDATOR resolves a directory import to a bounded index file, never a listing", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ directoryImport: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.match(prompt, /EXACT-HEAD DEPENDENCY helper\/index\.ts/);
+  assert.match(prompt, /directory-index/);
+  assert.ok(result.evidenceRefs.includes(`github:dependency/helper/index.ts@${request.headSha}`));
+});
+
+test("fresh VALIDATOR fails closed when the exact-head Git tree is truncated", async () => {
+  let aiCalled = false;
+  const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  await assert.rejects(executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ truncatedTree: true })), /VALIDATOR_TREE_INCOMPLETE/);
   assert.equal(aiCalled, false);
 });
 
