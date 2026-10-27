@@ -4,7 +4,7 @@ import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
 import { isRepairableMainWorkflowFailure } from "./repairableWorkflowRun";
-import { acquirePersistentExecution, admitActiveWip, createEvolutionLearningMemoryStorage, markPersistentExecutionDispatched, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { acquirePersistentExecution, admitActiveWip, createEvolutionLearningMemoryStorage, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 import { DurableEvolutionLearningMemory } from "./evolveDurableLearningMemory";
 
 const CODING_PROVIDER = "workers-ai";
@@ -320,17 +320,6 @@ export async function runScheduledEvolutionCoding(
 
   const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
   if (dispatched.status === "DISPATCHED") {
-    try {
-      await markPersistentExecutionDispatched(coordinator, {
-        dedupeKey: bridge.request.dedupeKey,
-        executionId: bridge.request.executionId,
-        now: input.now,
-      });
-    } catch {
-      // The remote dispatch may already be accepted. Keep the persistent lease
-      // fail-closed so a replay cannot silently create a second execution.
-      return result("ABSTAINED", "persistent-execution-dispatch-reconciliation-failed", signals.map((signal) => signal.id));
-    }
     return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
   }
   if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));
