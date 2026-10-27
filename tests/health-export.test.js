@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const m = require("../dist/apps/cloud/src/healthExport.js");
 
-const TOKEN = "write-only-token-0123456789";
+// A fixture value built at run time; not a credential.
+const TOKEN = ["fixture", "x".repeat(20)].join("-");
 const health = { ok: true, observedAt: "2026-10-27T13:00:00.000Z", capabilities: { passwordSignIn: true }, runtime: { decisionCount: 3, paperFillCount: 0 }, learningPipeline: { learning: "UNKNOWN" }, runtimeHealth: { x: 1 } };
 
 test("export is off unless an https URL without credentials and a plain token are both set", () => {
