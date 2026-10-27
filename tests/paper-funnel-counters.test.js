@@ -102,7 +102,7 @@ test("the runtime counts the reason code beside the recorder, keeps the recorded
   const fs = require("node:fs");
   const runtime = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
   assert.match(runtime, /stage: "ORDER_INTENT", occurredAt: now, market: ticker\.code, status: intentStatus, reason: result\.reason \?\? result\.status \}\)/);
-  assert.match(runtime, /orderIntentReasonCounters\.observeDetail\("ORDER_INTENT", intentStatus, intentCode\)/);
+  assert.match(runtime, /recordOrderIntentWithReasonCode\(\s*paperLearningRecorder,/);
   assert.match(runtime, /paperFunnel: mergeFunnelSnapshots\(paperLearningRecorder\.funnelSnapshot\(\), orderIntentReasonCounters\.snapshot\(\)\)/);
 });
 
@@ -116,4 +116,20 @@ test("merging adds only detail counts and keeps the base since", () => {
   assert.equal(m.since, 5);
   assert.equal(m.counts["ORDER_INTENT:FAIL"], 1);
   assert.equal(m.counts["ORDER_INTENT:FAIL:FAILED_UNCODED_REASON"], 1);
+});
+
+test("recording the same order intent twice counts its reason code once, and the recorded reason is unchanged", () => {
+  const { PaperFunnelCounters, mergeFunnelSnapshots, recordOrderIntentWithReasonCode } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  const recorder = new PaperLearningEventRecorder({ persistencePath: ":memory:" });
+  const counters = new PaperFunnelCounters();
+  const cycleId = paperLearningCycleId("KRW-XRP", 1_791_259_039_230);
+  const input = { cycleId, stage: "ORDER_INTENT", occurredAt: 1_791_259_039_232, market: "KRW-XRP", status: "FAIL", reason: "paper account persistence failed" };
+  let recorded;
+  for (let i = 0; i < 2; i += 1) {
+    recordOrderIntentWithReasonCode(recorder, () => { recorded = recorder.record(input); }, counters, "FAIL", "FAILED", input.reason);
+  }
+  const counts = mergeFunnelSnapshots(recorder.funnelSnapshot(), counters.snapshot()).counts;
+  assert.equal(counts["ORDER_INTENT:FAIL"], 1);
+  assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
+  assert.equal(recorded.reason, "paper account persistence failed");
 });
