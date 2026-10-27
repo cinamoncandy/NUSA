@@ -6,7 +6,6 @@ import { createResearchPrecommit } from "../../contracts/src/researchPrecommit";
 import { createCryptoNewsResearchObservation, validateCryptoNewsPrecommitPlans, type CryptoNewsHypothesisInput, type CryptoNewsResearchInput, type CryptoNewsResearchObservation } from "../../contracts/src/researchExternalIntake";
 import { createResearchIntelligenceRecord, type ResearchIntelligenceRecord } from "../../contracts/src/researchIntelligence";
 import {
-  carryResearchIntelligenceSourceAuthentication,
   carryResearchIntelligenceSourceAuthenticationWithDurableChronology,
   isResearchIntelligenceSourceRecordAuthenticated,
   validatePersistedResearchIntelligenceSourceReceiptIntegrity,

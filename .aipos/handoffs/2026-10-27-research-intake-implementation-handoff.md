@@ -29,6 +29,10 @@ The local successor now preserves the durable first-discovery timestamp while in
 
 Next: commit only after fresh `main`/PR/branch verification, non-force push once to existing Draft #2878, and require successor exact-head CI plus fresh non-author review. No Formal Validator, Audit, Release, merge, deployment, or Oracle mutation.
 
+## Exact-head CI repair — unused import, 2026-10-27
+
+Exact-head CI on `3f79b8d1412eade7f566713eefca6d03a5e23de9` reported two failures (`actual-paper-runtime` and `discover-public-research`) from the same strict compile error: after replacing the old chronology helper, its import remained unused. The reported missing artifacts were downstream of that compile failure. Removed only the unused import; focused compile with unused checks, the 35 contract/storage tests, preflight, `validate:full`, and diff-check pass. This local repair is not yet committed or published. Next: refresh base/PR/branch and publish one non-force successor to existing Draft #2878, then verify new exact-head CI and request one fresh non-author review.
+
 ## Next permitted action
 
 Refresh GitHub main/PR/branch state, then commit and non-force push only to the existing #2878 branch if it remains canonical and the local diff is as described. Require new exact-head CI/companion evidence and one fresh non-author review. Keep the PR Draft and stop before Formal Validator, Audit, Release authorization, merge, deployment, or runtime acceptance.
