@@ -21,7 +21,8 @@ current_strategy_parameter_boundary_20261013:
 
 current_research_run_fingerprint_20261016:
   work_order: WO-RESEARCH-20261016-RUN-FINGERPRINT
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2737
   branch: codex/research-run-fingerprint-20261016
   validation: "Implementation6959b529:48 focused tests and1231 isolated files PASS; build/typecheck/validate:full/security/lint PASS24 existing warnings. Fresh exact-implementation non-author review0P0/0P1/0P2."
   next: "Finish suite then exact-head CI/Audit/Release; schema1 consistency only, not whole A-grade approval."
@@ -47,7 +48,8 @@ current_research_holdout_boundary_20261013:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_regime_research_resume_20261013:
   work_order: WO-RESEARCH-20261013-REGIME-RESUME
-  status: CANDIDATE_ADAPTER_LOCAL_VALIDATED
+  status: COMPLETED
+  merged_pr: 2658
   validation: "35 focused tests,build,typecheck,validate:full,security,lint PASS;15 existing warnings. Research-only adapter, no deployed binding or candidate outcome claimed."
   branch: codex/research-regime-resume-20261013
   owner_authorization: "Explicit research resume; PAPER/SHADOW only."
@@ -62,7 +64,8 @@ current_learning_candidate_blocker_20261013:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_browser_performance_20261013:
   work_order: WO-OPS-20261013-BROWSER-PERFORMANCE
-  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  status: COMPLETED
+  merged_pr: 2657
   branch: codex/browser-performance-evidence-20261013
   validation: "2 Node tests and7 real Chromium tests PASS; validate:full/security/lint PASS,15 existing warnings. Numeric synthetic observation in work order."
   next: "Independent review then exact-head canonical CI/Audit/Release; not integrated yet."
@@ -70,7 +73,8 @@ current_browser_performance_20261013:
 
 current_upbit_socket_retirement_20261014:
   work_order: WO-OPS-20261014-UPBIT-SOCKET-RETIREMENT
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2689
   branch: codex/upbit-retired-socket-error-20261014
   validation: "Red retirement reproduced; exact-source pin repaired without promotion. Canonical base equality gate required merge2904e335:22 focused tests,1214 isolated files,build/typecheck/validate:full/security/lint PASS,24 existing warnings. Fresh review no findings. OldheadCI38494839917PASS not current approval."
   next: "Exact-head canonical CI/Audit/Release; no active error or authority relaxation."
@@ -78,7 +82,8 @@ current_upbit_socket_retirement_20261014:
 
 current_verification_first_20261013:
   work_order: WO-OPS-20261013-VERIFICATION-FIRST
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2656
   branch: codex/verification-first-20261013
   owner_request: "AIPOS first, then implementation."
   validation: "6 actual Chromium E2E and7 Node guard/CI tests PASS; build/typecheck/validate:full/security/lint and action pin/input validators PASS,15 existing warnings. Independent review3 P2 corrected, fresh review no findings."
@@ -87,7 +92,8 @@ current_verification_first_20261013:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_baseline_recovery_20261012:
   work_order: WO-LEARNING-20261012-BASELINE-ROLLOVER-RECOGNITION
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2655
   branch: codex/research-baseline-rollover-20261012
   observed_runtime: "2026-10-13 09:08 KST: source4a26f767, hourly3600000, healthOK,1968 ticks,10 realized periods,0 actual cycles. Research10 completed sessions; baseline bootstrap still blocks."
   prior_hourly_deployment: "38218434560 PASS, actual runtime revision verified."
@@ -97,7 +103,8 @@ current_research_baseline_recovery_20261012:
 
 current_learning_fatal_shutdown_20261015:
   work_order: WO-OPS-20261015-LEARNING-FATAL-SHUTDOWN
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2722
   branch: codex/learning-fatal-shutdown-20261015
   evidence: "Red daemon fatal cases timed out with residual handle; corrected wiring15 tests/build/typecheck/fullvalidators/security/lint PASS(24 existing warnings), full1225 isolated files PASS. Fresh review PASS and2 overlap probes. Not deployment or historic root-cause proof."
   next: "Full gates/suite, fresh independent review, canonical CI/Audit/Release then approved PAPER deployment; not proof of historic outage root cause."
@@ -115,7 +122,8 @@ current_learning_hourly_recovery_20261012:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_learning_upgrade_20261012:
   work_order: WO-LEARNING-20261012-PROGRESS-TRUTH
-  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_FRESH_CI
+  status: COMPLETED
+  merged_pr: 2622
   branch: codex/learning-loop-progress-20261012
   base_sha: 957ef5385969f4f12b1310c4519c8654f3a67aed
   pull_request: 2622
@@ -129,7 +137,8 @@ current_learning_upgrade_20261012:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_repair_context_20261012:
   work_order: WO-AUDIT-20261012-REPAIR-CONTEXT
-  status: MERGED_PENDING_WORKER_DEPLOYMENT
+  status: COMPLETED
+  merged_pr: 2623
   pull_request: 2623
   merge_commit: 957ef5385969f4f12b1310c4519c8654f3a67aed
   ci: "38209662232 and companions PASS; independent38-test code review no actionable findings; canonical Audit38210084371 PASS and expected-head merge. Post-merge CI38210177372 ongoing."
@@ -176,7 +185,8 @@ current_learning_completion_20261012:
 
 current_aipos_state_add_dashdash:
   work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2673
   branch: claude/aipos-state-add-dashdash
   authority_impact: none
   finding: "Follow-up to the name-order state insert: the documented `pnpm run aipos:state-add -- <entry.yaml>` passed the `--` separator as the file name and failed with ENOENT; the script now skips it. Found while recording the Autopilot coding-off decision."
@@ -185,7 +195,8 @@ current_aipos_state_add_dashdash:
 
 current_aipos_state_insert_order:
   work_order: WO-AIPOS-20261013-STATE-INSERT-ORDER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2669
   branch: claude/aipos-state-insert
   authority_impact: none
   finding: "Merge bottleneck: almost every PR appended to the end (or the top) of .aipos/state.yaml, so each merge left the other open PRs in conflict (71 state.yaml commits across 60 merges since 2026-10-10). New entries now go through scripts/aipos-state-insert.js, which places them before the entry whose name comes next in name order; six parallel additions to a copy of the real file merged with no conflict. AGENTS.md step 6 tells every agent to use it."
@@ -194,7 +205,8 @@ current_aipos_state_insert_order:
 
 current_android_paper_runtime_truth_p0:
   work_order: WO-P0-20261003-ANDROID-PAPER-RUNTIME-TRUTH
-  status: CANONICAL_BRANCH_RECOVERED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2504
   branch: fix/android-paper-runtime-truth-p0
   base_sha: dc8bb65bf90f662199a2d32ed34d053efb8dbd8c
   first_broken_transition: "Android authenticated PAPER read -> actionable first-failure evidence"
@@ -234,7 +246,8 @@ current_autopilot_runtime_proof_cron_propagation:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_audit_dispatch_recovery:
   work_order: WO-AUTOPILOT-20261001-AUDIT-DISPATCH-RECOVERY
-  status: LATEST_MAIN_SYNCED_PENDING_VALIDATION
+  status: COMPLETED
+  merged_pr: 2428
   branch: codex/audit-exact-head-dedupe
   base_sha: 1a320be30ac6e69445a2ed6961da56fa462f28bc
   authority_impact: none
@@ -244,7 +257,8 @@ current_autopilot_audit_dispatch_recovery:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_canonical_domain_bridge:
   work_order: WO-20260929-JEV-CANONICAL-DOMAIN-BRIDGE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2387
   branch: codex/jev-domain-bridge
   base_sha: d8590b3c8c54df5780dd661863d0ec740c9ed0f4
   authority_impact: none
@@ -253,7 +267,8 @@ current_jev_canonical_domain_bridge:
   verification: "build, focused Jev regressions, validate:full, security gate, typecheck, lint, and 1090-file clean full test passed; independent Audit and CI remain required."
 current_paper_cancelled_fill_risk:
   work_order: WO-PAPER-20261001-CANCELLED-FILL-RISK
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2418
   branch: codex/paper-cancelled-fill-risk
   base_sha: 51ece7a3c74e715f9407a6d8b8f51ff8a2140376
   first_broken_transition: cancelled_partial_fill_to_realized_loss_risk_reconstruction
@@ -263,7 +278,8 @@ current_paper_cancelled_fill_risk:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_release_target_settle:
   work_order: WO-OPS-20260930-ANDROID-RELEASE-TARGET-SETTLE
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2405
   branch: codex/android-stable-release-settle
   base_sha: 8427d07115925a0adfc4b6bf2f7a575326085cf7
   authority_impact: release-control
@@ -361,7 +377,8 @@ current_issue_2118_coverage_shard_rebalance:
 
 current_autopilot_wip_release_on_finish:
   work_order: WO-AUTOPILOT-20261013-WIP-RELEASE-ON-FINISH
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2671
   branch: claude/autopilot-wip-release-on-finish
   authority_impact: none
   finding: "The GitHub Actions coding backend never released its active-WIP claim (completeActiveWip is only on the legacy /coding/execute path), so each attempt held the single slot until the 60-minute expiry. The execution consumer now calls an authenticated /coding/wip-release when its attempt ends, freeing the slot at once; the expiry remains the fallback. maxConcurrent stays 1 until successful coding throughput can be measured."
@@ -391,7 +408,8 @@ current_autopilot_worker_deploy_scope:
 
 current_paper_deployment_replay_20261015:
   work_order: WO-OPS-20261015-PAPER-DEPLOYMENT-REPLAY
-  status: VERIFYING
+  status: COMPLETED
+  merged_pr: 2730
   branch: codex/paper-deployment-exact-replay-20261015
   evidence: "Red already-open replay reproduced;28 focused/36 with coordinator and1229 isolated files PASS. Build/typecheck/fullvalidators/security/index PASS;lint PASS24 warnings. Fresh non-author review P2 fixture corrected, no remaining findings. Exact-head CI pending."
   next: "Complete suite/review before draft PR/exact-head CI; no production receipt or actual qualified candidate claimed."
@@ -399,7 +417,8 @@ current_paper_deployment_replay_20261015:
 
 current_paper_exchange_minimum_order:
   work_order: WO-PAPER-20260930-EXCHANGE-MINIMUM-ORDER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2400
   branch: claude/nusa-repository-j93sd8-paper-min-order
   authority_impact: paper-accounting-and-risk-sizing
   scope: "Cloud PAPER BUY below the Upbit KRW 5,000 minimum is raised to KRW 5,050 within a 60% equity ceiling and available cash, else fails closed (owner decision option A, 2026-09-30)."
@@ -407,7 +426,8 @@ current_paper_exchange_minimum_order:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_security_fast_uri_backport:
   work_order: WO-SECURITY-20260929-FAST-URI
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2375
   branch: codex/security-fast-uri-3-1-8
   base_sha: 6de0b9e61557b58d94301ed17ecc530210c0976a
   first_broken_transition: post_merge_security_gate_to_dependency_audit
@@ -419,7 +439,8 @@ current_security_fast_uri_backport:
   remaining: commit_then_exact_head_CI_then_independent_Audit_then_Release
 current_autopilot_runtime_provider_wait:
   work_order: WO-AUTOPILOT-20260929-ORACLE-PROVIDER-WAIT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2372
   branch: codex/autopilot-runtime-provider-wait
   pull_request: 2372
   base_sha: 4b15ff9501676cf5ff85ae958b625676ae34ad43
@@ -430,7 +451,8 @@ current_autopilot_runtime_provider_wait:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_capacity_efficiency:
   work_order: WO-AUTOPILOT-20260929-CAPACITY-EFFICIENCY
-  status: MERGED_VERIFIED_RUNTIME_EVIDENCE_PENDING
+  status: COMPLETED
+  merged_pr: 2378
   branch: codex/autopilot-provider-wait-cost-efficiency
   pull_request: 2378
   base_sha: ea54b66274a238b37c36b66d227003f6246b7392
@@ -451,26 +473,30 @@ current_paper_capital_5000_account:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_presentation_boundary:
   work_order: WO-UI-20260928-PRESENTATION-BOUNDARY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2354
   branch: claude/nusa-repository-j93sd8-ui-boundary
   depends_on_pull_request: 2351
   authority_impact: none
   design_status: field-v1-INTERIM_full-redesign-planned-see-docs-UI_ARCHITECTURE
 current_paper_challenger_policy_default:
   work_order: WO-PAPER-20260928-CHALLENGER-POLICY-DEFAULT-ON
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2363
   branch: claude/nusa-repository-j93sd8-challenger-default
   authority_impact: paper-governance
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-observe-PAPER-cycles
 current_autopilot_scheduler_budget:
   work_order: WO-AUTOPILOT-20260928-SCHEDULER-GITHUB-BUDGET
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2365
   branch: claude/nusa-repository-j93sd8-scheduler-budget
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-verify-scheduled-status-dispatches
 current_autopilot_audit_malformed_retry:
   work_order: WO-AUTOPILOT-20260928-AUDIT-MALFORMED-RETRY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2366
   branch: claude/nusa-repository-j93sd8-audit-retry-malformed
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
@@ -484,7 +510,8 @@ next_ui_work:
   remaining: open-PR-after-2354-merges_then-CI-Audit-Release
 current_mobile_field_structure:
   work_order: WO-UI-20260928-FIELD-STRUCTURE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2351
   branch: claude/nusa-repository-j93sd8-field-structure
   depends_on_pull_request: 2350
   authority_impact: none
@@ -492,20 +519,23 @@ current_mobile_field_structure:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_paper_tabs_icon:
   work_order: WO-UI-20260928-PAPER-TABS-ICON
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2353
   branch: claude/nusa-repository-j93sd8-paper-tabs-icon
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_evidence_digest_convergence:
   work_order: WO-RESEARCH-20260929-EVIDENCE-DIGEST-CONVERGENCE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2376
   branch: claude/nusa-repository-j93sd8-research-cost-hash
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
 current_runtime_restart_forensics:
   work_order: WO-OPS-20260928-RUNTIME-RESTART-FORENSICS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2374
   branch: claude/nusa-repository-j93sd8-runtime-forensics
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-read-health-lastError
@@ -515,7 +545,8 @@ current_paper_period_disposition_20261016:
   work_order: WO-OPS-20261016-PERIOD-DISPOSITION
   branch: codex/paper-period-disposition-20261016
   base_sha: 67630b806996a0774fa41d772e61de6192493a84
-  status: REBASED_PENDING_FOCUSED_VALIDATION_CI_AND_FRESH_REVIEW
+  status: COMPLETED
+  merged_pr: 2742
   authority: PAPER_ONLY
   scope: "Existing pending-store immutable INELIGIBLE contract only; runtime activation remains gated."
   runtime_evidence: "main 67630b80 health/readiness PASS after restart/replay; 170 fills/170 unique ids, 169 attributed and 1 INCOMPLETE cost fill; 21 realized periods; learning cycles 0."
@@ -524,7 +555,8 @@ current_paper_period_disposition_20261016:
 
 current_paper_readiness_finite_20261015:
   work_order: WO-OPS-20261015-PAPER-READINESS-FINITE
-  status: VERIFYING
+  status: COMPLETED
+  merged_pr: 2729
   branch: codex/paper-readiness-finite-evidence-20261015
   evidence: "Malformed PnL red reproduced;13 focused tests/build/typecheck/validate:full/security/index PASS; lint PASS24 existing warnings. Fresh non-author review no concrete findings, independently13 tests PASS. Remote gates pending."
   impact: "Prevent false account-change readiness proof, not trading or profit-performance change."
@@ -533,32 +565,37 @@ current_paper_readiness_finite_20261015:
 
 current_paper_restart_loop_stale_snapshot:
   work_order: WO-OPS-20260929-PAPER-RESTART-LOOP-STALE-SNAPSHOT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2377
   branch: claude/nusa-repository-j93sd8-legacy-replay
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-health-stable
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_execution_clock_skew:
   work_order: WO-PAPER-20260929-EXECUTION-CLOCK-SKEW
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2382
   branch: claude/nusa-repository-j93sd8-clock-skew
 current_research_snapshot_on_demand_refresh:
   work_order: WO-OPS-20260929-RESEARCH-SNAPSHOT-ON-DEMAND-REFRESH
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2380
   branch: claude/nusa-repository-j93sd8-research-refresh
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_owner_baseline_strategy:
   work_order: WO-PAPER-20260929-OWNER-BASELINE-STRATEGY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2384
   branch: claude/nusa-repository-j93sd8-owner-baseline
   authority_impact: paper_strategy_execution
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-paper-orders
 current_paper_owner_baseline_period:
   work_order: WO-PAPER-20261001-OWNER-BASELINE-PERIOD
   pull_request: 2419
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2419
   branch: fix/paper-owner-baseline-period
   base_sha: 6b100d5e4805d89a43fd0a43270f0f94e4a1732f
   authority_impact: none
@@ -568,34 +605,39 @@ current_paper_owner_baseline_period:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_capital_10000_account:
   work_order: WO-PAPER-20260929-CAPITAL-10000-ACCOUNT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2383
   branch: claude/nusa-repository-j93sd8-paper-capital-10000
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-account-10000
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_retire_legacy_account:
   work_order: WO-PAPER-20260929-RETIRE-LEGACY-ACCOUNT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2385
   branch: claude/nusa-repository-j93sd8-retire-legacy-account
   authority_impact: paper_persistence
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release_then-verify-retirement
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_codex_dedicated_account:
   work_order: WO-AUTOPILOT-20260929-CODEX-DEDICATED-ACCOUNT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2398
   branch: claude/nusa-repository-j93sd8-codex-no-local-build
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge-of-no-local-build-prompt_then-one-autopilot-codex-coding-dispatch-must-open-an-autopilot-codex-PR-without-PAPER-502
 current_host_memory_research_limits:
   work_order: WO-OPS-20260929-HOST-MEMORY-RESEARCH-LIMITS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2386
   branch: claude/nusa-repository-j93sd8-refresh-memory
   authority_impact: none
   remaining: runners-back-online_then-exact-head-CI_then-Audit_then-Release-merge_then-Oracle-PAPER-release
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_grounded_fail:
   work_order: WO-20260928-AUDIT-GROUNDED-FAIL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2352
   branch: claude/nusa-repository-j93sd8-audit-grounded-fail
   authority_impact: audit-validation-tightening
   unblocks_pull_request: 2351
@@ -604,42 +646,48 @@ current_audit_grounded_fail:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_theme:
   work_order: WO-UI-20260928-FIELD-THEME
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2350
   branch: claude/nusa-repository-j93sd8-field-theme
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_lime_theme:
   work_order: WO-UI-20260930-LIME-THEME
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2406
   branch: claude/nusa-repository-j93sd8-ui-refresh
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_decision_outcome:
   work_order: WO-OBS-20260930-DECISION-OUTCOME
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2408
   branch: claude/nusa-repository-j93sd8-decision-outcome
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-Oracle-exact-main-release_then-read-/health
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ui_why_no_order:
   work_order: WO-UI-20260930-WHY-NO-ORDER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2412
   branch: claude/nusa-repository-j93sd8-why-no-order
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-app-build_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_field_screens:
   work_order: WO-UI-20260928-FIELD-SCREENS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2349
   branch: claude/nusa-repository-j93sd8-field-screens
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_intelligence_field:
   work_order: WO-UI-20260928-INTELLIGENCE-FIELD
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2347
   branch: claude/nusa-repository-j93sd8-intelligence-field
   authority_impact: none
   scope: owner-approved-home-intelligence-field-motion
@@ -647,7 +695,8 @@ current_mobile_intelligence_field:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_workers_ai_native_provider:
   work_order: WO-20260927-JEV-WORKERS-AI-NATIVE-PROVIDER
-  status: MERGED_VERIFIED_RUNTIME_EVIDENCE_PENDING
+  status: COMPLETED
+  merged_pr: 2345
   pull_request: 2345
   branch: feat/jev-workers-ai-native-provider
   base_sha: 056e8236658d5f379fa9a0a2a42e82e994110a99
@@ -663,7 +712,8 @@ current_jev_workers_ai_native_provider:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_jev_shadow_runtime_config:
   work_order: WO-20260928-JEV-NATIVE-RUNTIME-SHADOW
-  status: REAL_SHADOW_RECEIPT_PENDING_PROVIDER_STATE_UNVERIFIED
+  status: COMPLETED
+  merged_pr: 2355
   pull_request: 2355
   branch: codex/jev-shadow-runtime-config
   base_sha: 7c480e962b3b50fe2a724267c168a0aa8280adfc
@@ -697,7 +747,8 @@ current_jev_domain_observation_contract:
   remaining: fresh-exact-head-CI_then_independent-Audit_after-nextRetryAt_then_Release_then_merge
 current_provider_backpressure:
   work_order: WO-20260927-PROVIDER-BACKPRESSURE
-  status: IN_PROGRESS
+  status: COMPLETED
+  merged_pr: 2338
   implementation_status: RECONVERGED_PENDING_EXACT_HEAD_VALIDATION
   issue: 2185
   parent_pr: 2336
@@ -729,7 +780,8 @@ current_jev_coding_model_tiering:
   parent_pr: 2331
   parent_merge_commit: 1b058a1d26e14125afb51cc2d87a49a662044130
   pull_request: 2334
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2334
   branch: feat/ai-capacity-jev-model-tiering
   base_sha: 958912f8a37544b780a554d9e214600b109b4869
   latest_main_sync_commit: 56d7045125a3c938b04ac9beaf99c12da08eac91
@@ -742,7 +794,8 @@ current_jev_coding_model_tiering:
 current_ai_provider_reliability:
   work_order: WO-20260927-AI-PROVIDER-RELIABILITY
   issue: 1997
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2336
   branch: feat/1997-provider-reliability
   base_sha: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
   first_broken_transition: provider_failure_to_provider_neutral_health_and_circuit_state
@@ -753,7 +806,8 @@ current_ai_provider_reliability:
   remaining: exact-head-CI_then-independent-Audit-then-Release
 current_audit_recovery_bounded_retry:
   work_order: WO-20260927-AUDIT-RECOVERY-BOUNDED-RETRY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2332
   branch: fix/audit-recovery-bounded-audit-retry
   base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
   observed_audit_run: 36287106676
@@ -766,7 +820,8 @@ current_audit_recovery_bounded_retry:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_recovery_pagination_fix:
   work_order: WO-20260926-AUDIT-RECOVERY-PAGINATION-FIX
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2328
   branch: fix/audit-recovery-gh-pagination
   base_sha: 0921f0514a47e3f3313645a654e258cf8f3ab485
   implementation_head: 30b378c2afcedb796f6f33e59bc92aee1192ec6f
@@ -779,7 +834,8 @@ current_audit_recovery_pagination_fix:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_oracle_paper_startup_readiness:
   work_order: WO-20260919-ORACLE-READINESS-STARTUP
-  status: IMPLEMENTED_LOCAL
+  status: COMPLETED
+  merged_pr: 2036
   branch: codex/paper-server-readiness
   base_sha: a89ab75e3d590f1c13198a504abaaf482c26fc2d
   finding: "The Oracle release readiness probe ran before the supervised Cloud PAPER runtime bound localhost:41731, causing a false rollback despite the process reaching listen state moments later."
@@ -803,7 +859,8 @@ current_bounded_investment_learning:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_first_read_connection_recovery:
   work_order: WO-20260908-CONNECTION-FIRST-READ-RECOVERY
-  status: IMPLEMENTED_LOCAL
+  status: COMPLETED
+  merged_pr: 1788
   branch: codex/session-connect-recovery
   validation: "22 focused/regression tests; typecheck/lint/security/architecture/safety/AI guard PASS. CI pending."
   remaining: "Independent CI/Audit/Release and actual device verification; Upbit persistence policy handled by PR 1786."
@@ -824,7 +881,8 @@ current_audit_dispatch_payload_limit:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_ready_for_review_audit_dedupe_repair:
   work_order: WO-ISSUE-903-EVENT-REPLAY-HARDENING
-  status: IMPLEMENTED_LOCAL
+  status: COMPLETED
+  merged_pr: 1956
   branch: codex/issue-1955
   pull_request: 1956
   base_head: d9b707a64be4dfea29d04e17eb6f95e7cd543931
@@ -847,7 +905,8 @@ current_oracle_codex_dev_runner:
 
 current_research_source_commit_identity_guard:
   work_order: WO-20260908-RESEARCH-SOURCE-COMMIT-MISMATCH
-  status: LOCAL_VALIDATED_CI_PENDING
+  status: COMPLETED
+  merged_pr: 1778
   branch: fix/research-source-commit-mismatch
   base_sha: 2cbb07f989a7c278790e218c25a8b08904348c04
   finding: "Cloud Research accepted NUSA_SOURCE_COMMIT_SHA by precedence even when it contradicted NUSA_SOURCE_COMMIT, allowing stale source provenance to be recorded."
@@ -898,7 +957,8 @@ current_research_horizon_slice:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_rate_limit_availability_hardening:
   decision: ADR-0016
-  status: IMPLEMENTED_LOCAL
+  status: COMPLETED
+  merged_pr: 1790
   branch: claude/nusa-repository-j93sd8
   base_sha: 307b535727a209c1b9ed57b6599b579c8e97bad0
   scope: "Cloud dashboard rate-limit availability hardening; no LIVE, credential, accounting, or production-mutation surface touched."
@@ -951,7 +1011,8 @@ current_release_api_read_recovery_20261014:
 
 current_renderer_navigation_containment:
   decision: ADR-0017
-  status: IMPLEMENTED_LOCAL
+  status: COMPLETED
+  merged_pr: 1790
   branch: claude/nusa-repository-j93sd8
   scope: "Electron renderer navigation containment; defense-in-depth on the existing preload boundary. No LIVE, credential, accounting, or production-mutation surface touched."
   findings:
@@ -963,7 +1024,8 @@ current_renderer_navigation_containment:
   unverified: "pnpm run preflight and pnpm test could not run here: scripts/check-runtime.js requires Node >= 24 and this environment provides 22.22.2. No Electron GUI smoke was run, so the policy is verified by unit test and static wiring assertion rather than by a live window."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_android_receipt_noise_reduction:
-  status: IMPLEMENTED_LOCAL
+  status: COMPLETED
+  merged_pr: 1790
   authority_impact: none
   branch: claude/nusa-repository-j93sd8
   scope: "CI notification noise only (.github/workflows/android-stable-release.yml). No application code, safety gate, or authority boundary touched."
@@ -974,7 +1036,8 @@ current_android_receipt_noise_reduction:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_upbit_bridge_credential_persistence:
   decision: ADR-0018
-  status: IMPLEMENTED_LOCAL
+  status: COMPLETED
+  merged_pr: 1790
   branch: claude/nusa-repository-j93sd8
   scope: "Mobile Upbit READ_ONLY bridge credential persistence. No LIVE, order, transfer, or production-mutation surface touched."
   reported_symptom: "Owner reported the Upbit READ_ONLY connection authenticating successfully and then coming undone by itself."
@@ -989,7 +1052,8 @@ project: nusa
 updated_at: "2026-10-02T17:53:30+09:00"
 current_execution_target:
   work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
-  status: VERIFYING
+  status: COMPLETED
+  merged_pr: 2464
   branch: codex/autopilot-repeat-failure-stop
   base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
   pull_request: 2464
@@ -1001,7 +1065,8 @@ current_execution_target:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_audit_exact_head_binding:
   work_order: WO-20260927-AUDIT-EXACT-HEAD-BINDING
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2343
   branch: fix/audit-exact-head-binding
   base_sha: e1a9f3ccb2cbc463344a18d322821ac80c82ded7
   implementation_head: pending
@@ -1023,7 +1088,8 @@ latest_autopilot_normalized_apply_failure:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_repeated_deterministic_failure_stop:
   work_order: WO-AUTOPILOT-20261002-REPEATED-DETERMINISTIC-STOP
-  status: VERIFYING
+  status: COMPLETED
+  merged_pr: 2464
   branch: codex/autopilot-repeat-failure-stop
   base_sha: 3b9c74185307e8019be925dd7ea9157e79edeca4
   pull_request: 2464
@@ -1045,7 +1111,8 @@ current_design_claude_v1_20261014:
 
 current_deterministic_coding_patches:
   work_order: WO-20260927-AUTOPILOT-DETERMINISTIC-CODING-PATCHES
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2324
   branch: codex/autopilot-build-retry
   base_sha: c50840a4371e421b0c6ca4042d0dbd6635ffa6c0
   implementation_head: 486f3c411901291ec5908cf92d63439e0e057337
@@ -1056,7 +1123,8 @@ current_deterministic_coding_patches:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_autopilot_worker_github_credential_sync:
   work_order: WO-20260927-AUTOPILOT-WORKER-GITHUB-CREDENTIAL-SYNC
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2325
   branch: codex/autopilot-worker-token-sync
   base_sha: f35b0ad935ca469a283cae1e4658075ca9cd82a7
   implementation_head: 17288b2c6a25a12f696e0efa183d84cf0469f663
@@ -2234,7 +2302,8 @@ current_comparable_evaluator_failure_slice:
 
 current_closed_loop_convergence_support_20261019:
   work_order: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
-  status: LATEST_MAIN_5084744_LOCAL_GATES_PASS_PENDING_REMOTE_SYNC_AND_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2808
   pr: 2808
   branch: codex/pending-disposition-main-20261018
   pre_sync_head: 070294b019638472933a35799fef77e493f04b6e
@@ -2300,7 +2369,8 @@ current_closed_loop_convergence_support_20261019:
 
 current_cloudflare_runtime_github_credential_preflight:
   work_order: WO-20260927-PR2067-RUNTIME-GITHUB-CREDENTIAL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2067
   pull_request: 2067
   branch: fix/2029-credential-preflight-current-main
   base_sha: 8c77a70f1ceba5b0d7bac46d90cfe25400dd5893
@@ -2313,7 +2383,8 @@ current_cloudflare_runtime_github_credential_preflight:
 
 current_research_replay_segmented_persistence:
   work_order: WO-ISSUE-1543-RESEARCH-REPLAY-SEGMENTED-PERSISTENCE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 1842
   pull_request: 1842
   branch: fix/research-replay-segmented-persistence-1543
   base_sha: 3596397971acd93d3da383d08344f7dfffdff77f
@@ -2327,7 +2398,8 @@ current_research_replay_segmented_persistence:
 
 current_pr1991_review_hardening:
   work_order: WO-20260927-PR1991-REVIEW-HARDENING
-  status: IN_PROGRESS
+  status: COMPLETED
+  merged_pr: 1991
   pull_request: 1991
   branch: fix/1892-qualification-survival-gates
   base_sha: 3e23eccc70776d2cb932b7a819bdb92389d0e374
@@ -2340,7 +2412,8 @@ current_pr1991_review_hardening:
 
 current_autopilot_workspace_dirty:
   work_order: WO-AUTOPILOT-20261013-WORKSPACE-DIRTY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2670
   branch: claude/autopilot-workspace-dirty
   authority_impact: none
   finding: "After the stale-WIP fix the first real backlog dispatch (run 38375920359, issue #2118) failed with CODING_RUNTIME_WORKSPACE_DIRTY before any proposal: the freshness step added on 2026-10-12 writes artifacts/autopilot-execution/cited-workflow-runs.json, which unlike its siblings was not git-ignored. It is now ignored; the clean check stays fail-closed for every other path."
@@ -2349,7 +2422,8 @@ current_autopilot_workspace_dirty:
 
 current_autopilot_zero_credit_mode:
   work_order: WO-20260929-PR2393-ZERO-CREDIT-AUTOPILOT
-  status: IN_PROGRESS
+  status: COMPLETED
+  merged_pr: 2393
   pull_request: 2393
   branch: fix/autopilot-zero-credit-mode
   base_sha: 61aaa2c47dcd6d92d15a39eba627a11542f2bfef
@@ -2372,41 +2446,47 @@ current_paper_orderbook_snapshot_refresh:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_decision_rings:
   work_order: WO-UI-20261001-DECISION-RINGS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2422
   branch: claude/nusa-repository-j93sd8-home-field-cleanup
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_paper_fill_lineage:
   work_order: WO-TEST-20261001-PAPER-FILL-LINEAGE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2421
   branch: claude/nusa-repository-j93sd8-lineage-test
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; open gaps are market-observation id and decision-reason retention in the intent
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_logo_contour_n:
   work_order: WO-UI-20261001-LOGO-CONTOUR-N
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2425
   branch: claude/nusa-repository-j93sd8-logo-contour-n
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; owner plans a later logo renewal
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_paper_tabs:
   work_order: WO-UI-20261001-PAPER-TABS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2429
   branch: claude/nusa-repository-j93sd8-paper-tabs
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; renewal slices done for HOME, LIVE, More and PAPER tab chrome
 current_mobile_live_gates:
   work_order: WO-UI-20261001-LIVE-GATES
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2423
   branch: claude/nusa-repository-j93sd8-live-redesign
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are HOME below the rings, PAPER and More
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_fast_startup:
   work_order: WO-UI-20261001-FAST-STARTUP
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2431
   branch: claude/nusa-repository-j93sd8-fast-startup
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-startup-check
@@ -2414,7 +2494,8 @@ current_mobile_fast_startup:
 
 current_paper_cost_evidence_20261016:
   work_order: WO-OPS-20261016-PAPER-COST-EVIDENCE
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_AND_REVIEW
+  status: COMPLETED
+  merged_pr: 2741
   branch: codex/paper-cost-evidence-20261016
   issue: 2589
   authority_impact: paper_evidence_admission
@@ -2424,20 +2505,23 @@ current_paper_cost_evidence_20261016:
 
 current_paper_daily_loss_streak:
   work_order: WO-PAPER-20261001-DAILY-LOSS-STREAK
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2432
   branch: claude/nusa-repository-j93sd8-daily-loss-streak
   authority_impact: paper_risk_policy
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-approved-deploy_then-health-recheck
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_recovering_quiet:
   work_order: WO-UI-20261001-RECOVERING-QUIET
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2433
   branch: claude/nusa-repository-j93sd8-recovering-home
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
 current_mobile_background_cache_resume_20261025:
   work_order: WO-UI-20261025-BACKGROUND-CACHE-RESUME
-  status: IMPLEMENTED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2876
   branch: fix/mobile-background-cache-resume
   authority_impact: none
   finding: "Existing mobile lifecycle already suspends polling/WebSocket in background and immediately revalidates/refreshes on foreground, but the presentation cache was throttled to one save per minute and did not guarantee the newest READY snapshot was persisted before Android suspension."
@@ -2447,38 +2531,44 @@ current_mobile_background_cache_resume_20261025:
 
 current_mobile_contour_core:
   work_order: WO-UI-20261001-CONTOUR-CORE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2424
   branch: claude/nusa-repository-j93sd8-contour-core
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-visual-check
 current_mobile_home_plain:
   work_order: WO-UI-20261001-HOME-PLAIN
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2426
   branch: claude/nusa-repository-j93sd8-home-below
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slices are PAPER and More
 current_mobile_more_groups:
   work_order: WO-UI-20261001-MORE-GROUPS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2427
   branch: claude/nusa-repository-j93sd8-more-renewal
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge; next renewal slice is the PAPER tab
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_mobile_recovery_bound:
   work_order: WO-UI-20261001-RECOVERY-BOUND
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2435
   branch: claude/nusa-repository-j93sd8-recovery-bound
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
 current_mobile_hermes_clone:
   work_order: WO-UI-20261001-HERMES-CLONE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2437
   branch: claude/nusa-repository-j93sd8-structuredclone
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
 current_mobile_tab_contour:
   work_order: WO-UI-20261001-TAB-CONTOUR
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2438
   branch: claude/nusa-repository-j93sd8-tabs-contour
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
@@ -2497,71 +2587,83 @@ current_mobile_now_risk_gate_particles_20261020:
 
 current_mobile_paper_body:
   work_order: WO-UI-20261001-PAPER-BODY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2439
   branch: claude/nusa-repository-j93sd8-paper-body
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
 current_mobile_more_contour:
   work_order: WO-UI-20261001-MORE-CONTOUR
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2440
   branch: claude/nusa-repository-j93sd8-more-contour
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
 current_ui_whole_app_rule:
   work_order: WO-DOC-20261001-UI-WHOLE-APP
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2441
   branch: claude/nusa-repository-j93sd8-ui-whole-app
   authority_impact: none
   rule: "UI/UX changes apply to the whole app (owner, 2026-10-01)."
 current_mobile_attractor:
   work_order: WO-UI-20261001-ATTRACTOR
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2443
   branch: claude/nusa-repository-j93sd8-attractor
   authority_impact: none
   remaining: exact-head-CI_incl_mobile-native_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
 current_mobile_plain_labels:
   work_order: WO-UI-20261001-PLAIN-LABELS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2444
   branch: claude/nusa-repository-j93sd8-plain-labels
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-More-detail-screen-copy-pass
 current_mobile_detail_copy:
   work_order: WO-UI-20261001-DETAIL-COPY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2445
   branch: claude/nusa-repository-j93sd8-detail-copy
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 current_mobile_session_timeout:
   work_order: WO-UI-20261001-SESSION-TIMEOUT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2447
   branch: claude/nusa-repository-j93sd8-session-timeout
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-HUMAN_ENVIRONMENT_ONLY-device-check
 current_mobile_holo_sphere:
   work_order: WO-UI-20261002-HOLO-SPHERE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2448
   branch: claude/nusa-repository-j93sd8-holo-sphere
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-four-tab-layout-redesign
 current_mobile_safety_line:
   work_order: WO-UI-20261002-SAFETY-LINE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2449
   branch: claude/nusa-repository-j93sd8-safety-line
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-server-journal-and-equity-history-projections
 current_mobile_performance:
   work_order: WO-UI-20261002-PERFORMANCE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2452
   branch: claude/nusa-repository-j93sd8-performance
 current_mobile_journal:
   work_order: WO-UI-20261002-JOURNAL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2450
   branch: claude/nusa-repository-j93sd8-journal
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 current_mobile_home_simplify:
   work_order: WO-UI-20261002-HOME-SIMPLIFY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2453
   branch: claude/nusa-repository-j93sd8-home-simplify
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
@@ -2569,7 +2671,8 @@ current_mobile_home_simplify:
 
 current_ops_backup_retention_buckets_20261021:
   work_order: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
-  status: VALIDATOR_P1_REPAIRED_PENDING_FRESH_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2852
   issue: 1949
   branch: WO-OPS-20261021-BACKUP-RETENTION-BUCKETS
   base_sha: 345539210a96f9dd4292b848318043fe23afc7f4
@@ -2626,7 +2729,8 @@ current_ops_oracle_backup_helper_proof_20261026:
 
 current_ops_oracle_backup_io_throttle_20261025:
   work_order: WO-OPS-20261025-ORACLE-BACKUP-IO-THROTTLE
-  status: HISTORICAL_CHECKPOINT_SUPERSEDED_BY_2CBE7D2
+  status: COMPLETED
+  merged_pr: 2874
   issue: 2770
   pull_request: 2874
   follow_up_pull_request: 2877
@@ -2698,7 +2802,8 @@ current_ops_oracle_backup_prep_timeout_reconciled_20261026:
 
 current_ops_oracle_health_guard_lock:
   work_order: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
-  status: SYNCHRONIZED_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2818
   issue: 1949
   pull_request: 2818
   branch: ops/health-guard-source-1949
@@ -2728,7 +2833,8 @@ current_ops_oracle_health_guard_lock:
 
 current_ops_oracle_lease_handoff:
   work_order: WO-OPS-20261025-LEASE-HANDOFF
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2875
   issue: 2770
   branch: fix/2770-lease-handoff
   separate_backup_io_pr: 2874
@@ -2738,7 +2844,8 @@ current_ops_oracle_lease_handoff:
 
 current_ops_oracle_stability_rollback_20261019:
   work_order: WO-OPS-20261019-ORACLE-STABILITY-ROLLBACK
-  status: NATURAL_RELEASE_ROUTE_PROOF_FAILURE_REPRODUCED_MINIMAL_FIX_PENDING_FRESH_EXACT_HEAD_VALIDATION
+  status: COMPLETED
+  merged_pr: 2845
   branch: fix/oracle-readiness-route-proof-2770
   issue: 2770
   previous_pull_request: 2819
@@ -2762,7 +2869,8 @@ current_ops_oracle_stability_rollback_20261019:
 
 current_ops_oracle_stage_space:
   work_order: WO-OPS-20261018-ORACLE-STAGE-SPACE
-  status: VALIDATOR_P1_REPAIRED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2805
   branch: WO-OPS-20261018-ORACLE-STAGE-SPACE
   issue: 2791
   pull_request: 2805
@@ -2776,7 +2884,8 @@ current_ops_oracle_stage_space:
 
 current_ops_paid_overflow_off_20261014:
   work_order: WO-OPS-20261014-PAID-OVERFLOW-OFF
-  status: LOCAL_HARDENING_VALIDATED_PENDING_FRESH_CI
+  status: COMPLETED
+  merged_pr: 2699
   branch: claude/p4-paid-overflow-off
   base_commit: 99b219a960a86d7c5400cc158972461cec65e3b5
   base_validation: "Fresh133runtime/36workflow-probe andallrecordedgatesPASS aftermainmerge. Full1218 priorbasePASS;currentfullshardCIstillrequired."
@@ -2786,56 +2895,66 @@ current_ops_paid_overflow_off_20261014:
 
 current_ops_preflight_runtime_unchanged:
   work_order: WO-OPS-20261002-PREFLIGHT-RUNTIME-UNCHANGED
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2459
   branch: claude/nusa-repository-j93sd8-preflight-delta
   authority_impact: deployment-control
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-trusted-preflight-closes-P0-1461
 current_mobile_event_banner:
   work_order: WO-UI-20261002-EVENT-BANNER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2456
   branch: claude/nusa-repository-j93sd8-event-banner
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge_then-owner-decision-on-FCM-push
 current_mobile_resume_grace:
   work_order: WO-UI-20261002-RESUME-GRACE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2458
   branch: claude/nusa-repository-j93sd8-resume-grace
 current_mobile_safety_truth:
   work_order: WO-UI-20261002-SAFETY-TRUTH
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2457
   branch: claude/nusa-repository-j93sd8-safety-truth
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 current_mobile_warm_resume:
   work_order: WO-UI-20261002-WARM-RESUME
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2461
   branch: claude/nusa-repository-j93sd8-warm-resume
   authority_impact: session-projection
   remaining: exact-head-CI_then-Audit_then-Release-merge
 current_mobile_grace_notice:
   work_order: WO-UI-20261002-GRACE-NOTICE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2462
   branch: claude/nusa-repository-j93sd8-grace-notice
 current_ci_robustness:
   work_order: WO-OPS-20261002-CI-ROBUSTNESS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2463
   branch: claude/nusa-repository-j93sd8-ci-robustness
   authority_impact: none
   remaining: exact-head-CI_then-Audit_then-Release-merge
 current_daily_reset:
   work_order: WO-UI-20261002-DAILY-RESET
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2465
   branch: claude/nusa-repository-j93sd8-daily-reset
   authority_impact: none
 current_learning_line:
   work_order: WO-UI-20261002-LEARNING-LINE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2466
   branch: claude/nusa-repository-j93sd8-learning-line
   authority_impact: none
 
 current_research_cloud_identity_20261016:
   work_order: WO-RESEARCH-20261016-CLOUD-IDENTITY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2740
   branch: codex/research-cloud-identity-20261016
   validation: "Implementationbe449577:2 RED codec tests,53 focused tests/1232 isolated files/build/typecheck/validate:full/security/lint PASS24 existing warnings. Fresh independent committed-head review0P0/0P1/1P2(unbound-input API precondition)."
   next: "Draft PR/exact-head CI/Audit/Release; consistency only, not authentication/precommit/A-grade approval."
@@ -2871,7 +2990,8 @@ current_ops_sqlite_attestation_nonforgeability_20261021:
 
 current_ops_sqlite_resolver_pin_20261022:
   work_order: WO-OPS-20261021-SQLITE-ATTESTATION-NONFORGEABILITY
-  status: RECOVERY_RECORD_P1_CORRECTED_PENDING_SUCCESSOR_EXACT_HEAD_GATES
+  status: COMPLETED
+  merged_pr: 2855
   branch: fix/sqlite-integrity-attestation-2770
   issue: 2770
   pull_request: 2855
@@ -2901,33 +3021,38 @@ current_ops_sqlite_resolver_pin_20261022:
   next: "Resolve the current PR #2855 head and exact-head workflows dynamically. Require fresh non-author review with no current actionable P0/P1 and a separate formal NUSA Validator receipt bound to that exact SHA with P0/P1/P2 and explicit ACCEPTED. Only then proceed to Independent Audit, Release authorization, protected merge, and exact-main Oracle acceptance. Do not repeat the candidate-bootstrap source repair or recovery-record commit/push; keep Draft/HOLD and do not mutate Oracle."
 current_optimizer_core:
   work_order: WO-RESEARCH-20261002-OPTIMIZER-CORE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2468
   branch: claude/nusa-repository-j93sd8-optimizer-core
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
 current_research_session_planner:
   work_order: WO-RESEARCH-20261002-SESSION-PLANNER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2469
   branch: claude/nusa-repository-j93sd8-research-planner
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   depends_on: claude/nusa-repository-j93sd8-optimizer-core
 current_research_candle_aggregator:
   work_order: WO-RESEARCH-20261002-CANDLE-AGGREGATOR
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2470
   branch: claude/nusa-repository-j93sd8-candle-aggregator
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
 current_research_candle_store:
   work_order: WO-RESEARCH-20261002-CANDLE-STORE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2471
   branch: claude/nusa-repository-j93sd8-candle-store
   authority_impact: persistence-schema-additive
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   deploy: not_deployed_owner_approval_required
 current_research_candle_collector:
   work_order: WO-RESEARCH-20261002-CANDLE-COLLECTOR
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2472
   branch: claude/nusa-repository-j93sd8-candle-collector
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
@@ -2959,14 +3084,16 @@ current_research_holdout_ledger:
   deploy: not_deployed_owner_approval_required
 current_research_evaluator_runner:
   work_order: WO-RESEARCH-20261002-EVALUATOR-RUNNER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2475
   branch: claude/nusa-repository-j93sd8-evaluators
   authority_impact: none
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
 
 current_research_meta_learner_20261013:
   work_order: WO-RESEARCH-20261013-META-LEARNER
-  status: LOCAL_VALIDATED_PENDING_CI
+  status: COMPLETED
+  merged_pr: 2676
   branch: claude/research-meta-learner
   finding: "Research ledger plus a fixed-policy meta-learner fed by backtests and live PAPER shadow evidence. Meta-loop ran 4 chosen experiments today: all-KRW 60m ML v1 (design flaw -> retry rule learned), v2, daily, daily+external (Korea premium); all fail with no skill (picks below the market average). 12 experiments, 186 configurations, 0 holdout passes. The learner also learned that external history is free to test."
   next: "Runtime meta-learning now evaluates the ledger, live runtime Research and live shadow on every tick (/health closedLearningLoop.metaLearning, advisory). Steering runtime Research by it needs the owner to reverse the record-only decision. Next data: order book and trades (#2679)."
@@ -2974,7 +3101,8 @@ current_research_meta_learner_20261013:
 
 current_research_microstructure_recorder_20261013:
   work_order: WO-RESEARCH-20261013-MICROSTRUCTURE-RECORDER
-  status: LOCAL_VALIDATED_PENDING_CI
+  status: COMPLETED
+  merged_pr: 2679
   branch: claude/research-microstructure-recorder
   finding: "Every data type with history is exhausted (0/189 holdout); order book and trades have no Upbit history. Added a research-only recorder of the already-streamed public order book and trades with /health counters."
   next: "CI, Audit, Release, deploy; verify counters on /health; collect, then pre-register an order-book/trade-flow study."
@@ -2990,70 +3118,81 @@ current_research_ohlcv_catalog_20261013:
 
 current_research_orchestrator_composition:
   work_order: WO-RESEARCH-20261002-ORCHESTRATOR-COMPOSITION
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2475
   branch: claude/nusa-repository-j93sd8-evaluators
   authority_impact: research-evidence-only
   parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
   deploy: not_deployed_flag_default_off_owner_approval_required
 current_ops_release_prune:
   work_order: WO-OPS-20261002-RELEASE-PRUNE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2478
   branch: claude/nusa-repository-j93sd8-release-main-drift
   authority_impact: release-pipeline-hygiene
   finding: "Release runs 88/89 failed in the host backup step: No space left on device. No workflow pruned old releases."
   deploy: not_deployed_owner_approval_required
 current_ui_buy_signal_line:
   work_order: WO-UI-20261002-BUY-SIGNAL-LINE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2480
   branch: claude/nusa-repository-j93sd8-buy-signal-line
   authority_impact: none
   deploy: not_deployed_owner_approval_required
 current_ui_launch_grace:
   work_order: WO-UI-20261002-LAUNCH-GRACE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2481
   branch: claude/nusa-repository-j93sd8-cold-start
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_ui_launch_grace_verified:
   work_order: WO-UI-20261003-LAUNCH-GRACE-VERIFIED
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2483
   branch: claude/nusa-repository-j93sd8-launch-verified
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_ui_window_counts:
   work_order: WO-UI-20261003-WINDOW-COUNTS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2484
   branch: claude/nusa-repository-j93sd8-window-counts
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
 current_ui_feed_diagnostics:
   work_order: WO-UI-20261003-FEED-DIAGNOSTICS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2485
   branch: claude/nusa-repository-j93sd8-feed-diagnostics
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
 current_ui_why_no_trade:
   work_order: WO-UI-20261003-WHY-NO-TRADE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2486
   branch: claude/nusa-repository-j93sd8-why-no-trade
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
 current_ui_cached_launch:
   work_order: WO-UI-20261003-CACHED-LAUNCH
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2488
   branch: claude/nusa-repository-j93sd8-cached-launch
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_paper_baseline_multi_market:
   work_order: WO-PAPER-20261003-BASELINE-MULTI-MARKET
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2487
   branch: claude/nusa-repository-j93sd8-baseline-markets
   authority_impact: execution_exposure_paper_only
   deploy: not_deployed_server_deploy_required
 
 current_ui_now_loss_limit_20261014:
   work_order: WO-UI-20261014-NOW-LOSS-LIMIT
-  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  status: COMPLETED
+  merged_pr: 2701
   branch: claude/now-tab-loss-limit
   validation: "Review fix: RISK gateway byte-identical to main (requalification blob test PASS after commit); 8 loss-limit tests PASS. Earlier P&L revision withdrawn."
   next: "Exact-head CI and fresh-session review; today's P&L outside RISK as its own work order."
@@ -3061,7 +3200,8 @@ current_ui_now_loss_limit_20261014:
 
 current_ui_now_today_realized_20261014:
   work_order: WO-UI-20261014-NOW-TODAY-REALIZED
-  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  status: COMPLETED
+  merged_pr: 2706
   branch: claude/now-today-realized
   validation: "4 P&L unit tests, 10 Now-tab tests, 397 related tests and RISK requalification tests PASS; architecture findings=0; mobile lint PASS."
   next: "Retarget to main after #2701 merges; fresh-session review."
@@ -3069,90 +3209,105 @@ current_ui_now_today_realized_20261014:
 
 current_ui_research_progress:
   work_order: WO-UI-20261003-RESEARCH-PROGRESS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2489
   branch: claude/nusa-repository-j93sd8-research-progress
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
 current_ui_korean_connection_label:
   work_order: WO-UI-20261003-KOREAN-CONNECTION-LABEL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2492
   branch: claude/nusa-repository-j93sd8-ui-labels
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_paper_orderbook_renew:
   work_order: WO-PAPER-20261003-ORDERBOOK-RENEW
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2491
   branch: claude/nusa-repository-j93sd8-orderbook-renew
   authority_impact: market_data_health_paper_only
 current_research_candle_backfill:
   work_order: WO-RESEARCH-20261003-CANDLE-BACKFILL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2490
   branch: claude/nusa-repository-j93sd8-candle-backfill
   authority_impact: research_evidence_only
   deploy: not_deployed_server_deploy_required
 current_ui_traded_coin:
   work_order: WO-UI-20261003-TRADED-COIN
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2493
   branch: claude/nusa-repository-j93sd8-traded-coin
   authority_impact: none
   deploy: not_deployed_server_and_app_build_required
 current_ui_home_polish:
   work_order: WO-UI-20261003-HOME-POLISH
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2494
   branch: claude/nusa-repository-j93sd8-design-polish
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_paper_observation_cap:
   work_order: WO-PAPER-20261003-OBSERVATION-CAP
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2495
   branch: claude/nusa-repository-j93sd8-observation-cap
   authority_impact: execution_exposure_paper_only
   deploy: not_deployed_server_deploy_required
 current_autopilot_reconverge:
   work_order: WO-AUTOPILOT-20261003-RECONVERGE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2496
   branch: claude/autopilot-productivity
   authority_impact: autopilot_pr_branch_maintenance_only
   deploy: none_needed
 current_autopilot_codex_hourly:
   work_order: WO-AUTOPILOT-20261003-CODEX-HOURLY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2498
   branch: claude/autopilot-codex-hourly
   authority_impact: autopilot_schedule_only
   deploy: none_needed
 current_ui_motion_reveal:
   work_order: WO-UI-20261003-MOTION-REVEAL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2497
   branch: claude/ui-motion-polish
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_autopilot_codex_on_close:
   work_order: WO-AUTOPILOT-20261003-CODEX-ON-CLOSE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2500
   branch: claude/autopilot-codex-on-close
   authority_impact: autopilot_schedule_only
   deploy: none_needed
 current_paper_owner_markets:
   work_order: WO-PAPER-20261003-OWNER-MARKETS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2499
   branch: claude/paper-markets-config
   authority_impact: execution_exposure_paper_only
   deploy: not_deployed_server_deploy_required
 current_autopilot_codex_state_wording:
   work_order: WO-AUTOPILOT-20261003-CODEX-STATE-WORDING
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2502
   branch: claude/autopilot-contract-state-wording
   authority_impact: autopilot_prompt_only
   deploy: none_needed
 current_ui_halt_reason:
   work_order: WO-UI-20261005-HALT-REASON
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2505
   branch: claude/paper-halt-reason
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_ops_host_diagnose:
   work_order: WO-OPS-20261005-HOST-DIAGNOSE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2507
   branch: claude/oracle-host-diagnose
   authority_impact: production_host_read_only
   deploy: none_needed
@@ -3164,35 +3319,40 @@ current_ui_hanji_ink:
   deploy: not_deployed_new_app_build_required
 current_ui_cold_future:
   work_order: WO-UI-20261005-COLD-FUTURE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2509
   branch: claude/ui-cold-future
   authority_impact: none
   supersedes: WO-UI-20261005-HANJI-INK
   deploy: not_deployed_new_app_build_required
 current_ui_motion_orbit:
   work_order: WO-UI-20261005-MOTION-ORBIT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2510
   branch: claude/ui-motion-orbit
   authority_impact: none
   depends_on: PR 2509 (cold-future skin)
   deploy: not_deployed_new_app_build_required
 current_ui_crystal_glass:
   work_order: WO-UI-20261005-CRYSTAL-GLASS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2512
   branch: claude/ui-crystal-glass
   authority_impact: none
   depends_on: PR 2510 (motion)
   deploy: not_deployed_new_app_build_required
 current_ui_crystal_followup:
   work_order: WO-UI-20261005-CRYSTAL-FOLLOWUP
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2513
   branch: claude/ui-crystal-followup
   authority_impact: none
   follows: PR 2512
   deploy: not_deployed_new_app_build_required
 current_ui_liquid_rings:
   work_order: WO-UI-20261005-LIQUID-RINGS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2514
   branch: claude/ui-liquid-rings
   authority_impact: none
   supersedes: crystal hero (WO-UI-20261005-CRYSTAL-GLASS figure)
@@ -3201,7 +3361,8 @@ current_ui_liquid_rings:
 
 current_ui_safety_futures_rows_20261014:
   work_order: WO-UI-20261014-SAFETY-FUTURES-ROWS
-  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  status: COMPLETED
+  merged_pr: 2705
   branch: claude/safety-futures-rows
   validation: "Safety/presentation/calm UI tests PASS; architecture findings=0; mobile lint PASS."
   next: "Retarget to main after #2703 merges; fresh-session review."
@@ -3209,14 +3370,16 @@ current_ui_safety_futures_rows_20261014:
 
 current_ui_startup_timing:
   work_order: WO-UI-20261005-STARTUP-TIMING
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2516
   branch: claude/startup-timing
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 
 current_research_qualification_identity_20261016:
   work_order: WO-RESEARCH-20261016-QUALIFICATION-IDENTITY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2738
   branch: codex/research-qualification-identity-20261016
   validation: "Implementation72bffc02:2 RED regressions,59 focused tests/1231 isolated files/build/typecheck/validate:full/security/lint PASS24 existing warnings. Restricted-network security failure retained; same gate with network access PASS. Fresh committed-head non-author review0P0/0P1/0P2."
   next: "Finish gates/review then exact-head CI/Audit/Release. Receipt is consistency only, not precommit/authentication or A-grade approval."
@@ -3224,57 +3387,66 @@ current_research_qualification_identity_20261016:
 
 current_research_refresh_memory:
   work_order: WO-PAPER-20261005-RESEARCH-REFRESH-MEMORY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2515
   branch: claude/research-refresh-memory
   authority_impact: resource_guard_threshold_only
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_learning_collection_reason:
   work_order: WO-PAPER-20261005-LEARNING-COLLECTION-REASON
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2519
   branch: claude/learning-collection-reason
   authority_impact: diagnostics_only
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_persistence_failure_detail:
   work_order: WO-PAPER-20261005-PERSISTENCE-FAILURE-DETAIL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2517
   branch: claude/persistence-failure-detail
   authority_impact: diagnostics_only
 current_ui_core_burst:
   work_order: WO-UI-20261005-CORE-BURST
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2518
   branch: claude/ui-core-burst
   authority_impact: none
   supersedes: liquid rings hero (WO-UI-20261005-LIQUID-RINGS figure)
   deploy: not_deployed_new_app_build_required
 current_ui_hero_harmony:
   work_order: WO-UI-20261005-HERO-HARMONY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2521
   branch: claude/ui-hero-harmony
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_enable_research_collection:
   work_order: WO-PAPER-20261005-ENABLE-RESEARCH-COLLECTION
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2520
   branch: claude/enable-research-collection
   authority_impact: research_collection_enablement
   owner_approval: "2026-10-05 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_ui_hero_emerald:
   work_order: WO-UI-20261005-HERO-EMERALD
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2522
   branch: claude/ui-hero-emerald
   authority_impact: none
   deploy: not_deployed_new_app_build_required
 current_ledger_reconciliation_detail:
   work_order: WO-PAPER-20261006-LEDGER-RECONCILIATION-DETAIL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2523
   branch: claude/ledger-reconciliation
   authority_impact: diagnostics_only
   finding: "PAPER halt cause read from the owner's screen 2026-10-05: persistence failed with PAPER_LEDGER_RECONCILIATION_REQUIRED (account state vs fill ledger)"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_ledger_rounding_tolerance:
   work_order: WO-PAPER-20261006-LEDGER-ROUNDING-TOLERANCE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2525
   branch: claude/ledger-rounding-tolerance
   authority_impact: accounting_integrity_tolerance
   owner_approval: "2026-10-05 in chat"
@@ -3282,7 +3454,8 @@ current_ledger_rounding_tolerance:
 
 current_diagnose_health_freshness_20261015:
   work_order: WO-OPS-20261015-DIAGNOSE-HEALTH-FRESHNESS
-  status: IN_PROGRESS
+  status: COMPLETED
+  merged_pr: 2718
   branch: codex/diagnose-health-context-20261015
   finding: "Stale-response fix2717 merged but actual dispatch422 rejected jobenv runner.temp. New minimal step-level RUNNER_TEMP correction passes6tests/full validation/security/workflow validators/lint; fresh review pending."
   recovery: "Canonical PAPER Release38659917246 PASS/DEPLOYED72f9c9e0, two fresh HEALTHY public probes,ticks3->4. Diagnostic2717 merged but actual dispatch HTTP422; follow-up resolves RUNNER_TEMP only inside steps."
@@ -3291,27 +3464,31 @@ current_diagnose_health_freshness_20261015:
 
 current_diagnose_health_probe:
   work_order: WO-OPS-20261006-DIAGNOSE-HEALTH-PROBE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2524
   branch: claude/diagnose-health-probe
   authority_impact: none
   deploy: no_runtime_change
 current_fill_remainder_tolerance:
   work_order: WO-PAPER-20261006-FILL-REMAINDER-TOLERANCE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2526
   branch: claude/order-fill-remainder-tolerance
   authority_impact: execution_order_lifecycle_tolerance
   owner_approval: "2026-10-05 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_fill_lifecycle_match:
   work_order: WO-PAPER-20261006-FILL-LIFECYCLE-MATCH
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2527
   branch: claude/order-fill-lifecycle-match
   authority_impact: execution_order_lifecycle_tolerance
   finding: "#2526 caused a new halt (paper order lifecycle reconciliation mismatch) because the settled lifecycle did not equal the saved order record; corrected here"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_stall_metrics:
   work_order: WO-OPS-20261006-STALL-METRICS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2529
   branch: claude/health-stall-metrics
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
@@ -3328,7 +3505,8 @@ current_futures_binance_public_probe_20261014:
 
 current_futures_paper_core_20261014:
   work_order: WO-FUTURES-20261014-PAPER-CORE
-  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  status: COMPLETED
+  merged_pr: 2703
   branch: claude/futures-paper-core
   validation: "Pre-review P1/P2 fixed; 16 futures tests PASS; tsc and validators PASS."
   next: "Review, CI, merge; then futures research after the B0 probe answer. Not wired to runtime."
@@ -3336,7 +3514,8 @@ current_futures_paper_core_20261014:
 
 current_futures_research_prereg_20261014:
   work_order: WO-FUTURES-20261014-RESEARCH-PREREG
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2712
   branch: claude/futures-research-preregistration
   finding: "One rule pre-registered before any futures history is seen: 4h regime (SMA200) breakout N=50 long/short, owner limits, real funding; holdout = last 365 days evaluated once; pass needs positive net at 1x and 2x costs, >=30 trades, 3/5 symbols, profitable shorts in DOWN months, DD<=20%, no liquidation."
   next: "Data download workflow, then frozen data with hashes, then one holdout evaluation."
@@ -3356,42 +3535,48 @@ current_handoff_main_20261014_afternoon:
 
 current_health_error_class:
   work_order: WO-OPS-20261006-HEALTH-ERROR-CLASS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2528
   branch: claude/health-error-class
   authority_impact: none
   owner_approval: "2026-10-06 in chat"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_security_dep_patches:
   work_order: WO-OPS-20261006-SECURITY-DEP-PATCHES
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2530
   branch: claude/security-dep-patches
   authority_impact: none
   finding: "Security gate failed on two newly published high advisories (source-map-js, compression); pinned to the patched releases"
   deploy: no_runtime_change
 current_diagnose_light:
   work_order: WO-OPS-20261006-DIAGNOSE-LIGHT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2531
   branch: claude/diagnose-light
   authority_impact: none
   finding: "Host diagnosis walked the 11 GB release directory (over a minute of disk I/O) on the host it measures; removed so stall readings are not inflated by the probe"
   deploy: no_runtime_change
 current_research_health_not_paper:
   work_order: WO-PAPER-20261006-RESEARCH-HEALTH-NOT-PAPER
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2533
   branch: claude/research-health-not-paper
   authority_impact: health_classification_display
   owner_approval: "2026-10-06 in chat"
   finding: "Research DEGRADED/STALE (still gathering data) made the whole PAPER snapshot DEGRADED, a permanent amber banner after #2520; only research FAIL_CLOSED may affect PAPER health"
 current_health_research_status:
   work_order: WO-OPS-20261006-HEALTH-RESEARCH-STATUS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2532
   branch: claude/health-research-status
   authority_impact: none
   finding: "Learning tile still shows no reason; the server's own research collection status is not readable from outside; publish a fixed code plus two counts on /health"
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_research_progress_time_validation:
   work_order: WO-PAPER-20261006-RESEARCH-PROGRESS-TIME-VALIDATION
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2535
   branch: claude/research-progress-time-validation
   authority_impact: none
   finding: "Research progress times (epoch ms) were validated against the 100,000,000 count cap, so every real progress object was dropped by the app and the learning tile showed plain 'not received' while the server collected 18265 of 15840 candles"
@@ -3406,7 +3591,8 @@ current_ui_hero_flow_field:
   deploy: not_deployed_new_app_build_required
 current_ui_startup_warmup:
   work_order: WO-UI-20261006-STARTUP-WARMUP
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2539
   branch: claude/startup-warmup
   authority_impact: none
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
@@ -3436,7 +3622,8 @@ current_dataset_v2_write_20261018:
 
 current_evidence_verifier_20261018:
   work_order: WO-DATA-20261018-PAPER-GOVERNANCE-IDENTITY
-  status: VERIFYING
+  status: COMPLETED
+  merged_pr: 2804
   branch: codex/paper-policy-fingerprint-verify
   base_sha: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
   pr: 2804
@@ -3467,7 +3654,8 @@ current_evidence_verifier_20261018:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_decision_funnel:
   work_order: WO-PAPER-20261006-DECISION-FUNNEL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2540
   branch: claude/decision-funnel
   authority_impact: none
   owner_approval: "2026-10-06 in chat (master directive: PAPER performance and closed-loop convergence, P0-B/P0-C)"
@@ -3475,7 +3663,8 @@ current_decision_funnel:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_ui_hero_batched_drawing:
   work_order: WO-UI-20261006-HERO-BATCHED-DRAWING
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2538
   branch: claude/hero-batched-drawing
   authority_impact: none
   owner_approval: "2026-10-06 in chat (performance not satisfying on build 1.0.495)"
@@ -3483,7 +3672,8 @@ current_ui_hero_batched_drawing:
   deploy: not_deployed_new_app_build_required
 current_ui_calm_redesign:
   work_order: WO-UI-20261006-CALM-REDESIGN
-  status: IN_PROGRESS
+  status: COMPLETED
+  merged_pr: 2541
   branch: claude/ux-redesign-plan
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('그냥 다 새로 다시 해줘 개선하지말고', '니가 새롭게 디자인해봐', '진행해')"
@@ -3498,7 +3688,8 @@ current_ui_hero_ridge:
 
 current_paper_loss_policy_20261015:
   work_order: WO-POLICY-20261015-PAPER-LOSS-LIMIT
-  status: IMPLEMENTED_LOCAL_VERIFYING_NOT_DEPLOYED
+  status: COMPLETED
+  merged_pr: 2731
   branch: codex/paper-loss-limit-policy-20261015
   owner_decision: "PAPER 제한 해제; Cloud spot consecutive-loss veto only, not counter reset."
   evidence: "60 focused tests and13 requalification/registry tests PASS. Final frozen1230 isolated files PASS; build/typecheck/fullvalidators/security PASS;lint PASS24 warnings. Review2 P1 fixed, fresh review no remaining findings. Exact-head CI pending, no operational policy change."
@@ -3507,7 +3698,8 @@ current_paper_loss_policy_20261015:
 
 current_paper_loss_session_counts:
   work_order: WO-PAPER-20261006-LOSS-SESSION-COUNTS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2543
   branch: claude/risk-loss-session
   authority_impact: none
   owner_approval: "2026-10-06 in chat (master directive step 6, '알아서해줘')"
@@ -3515,14 +3707,16 @@ current_paper_loss_session_counts:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_paper_loss_attribution:
   work_order: WO-PAPER-20261006-LOSS-ATTRIBUTION
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2545
   branch: claude/loss-attribution
   authority_impact: none
   owner_approval: "2026-10-06 in chat (master directive step 6, '계속해')"
   finding: "10:53 UTC: todayCompletedSells=3, todayLosingSells=3, streak=limit 3. Publishes today's completed/losing sells per opening strategy family (fixed codes) from the fill ledger; risk gate untouched"
 current_paper_wait_reason_codes:
   work_order: WO-PAPER-20261006-WAIT-REASON-CODES
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2544
   branch: claude/wait-reason-codes
   authority_impact: none
   owner_approval: "2026-10-06 in chat (master directive step 5, '계속해')"
@@ -3530,14 +3724,16 @@ current_paper_wait_reason_codes:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_research_experiment_counts:
   work_order: WO-RESEARCH-20261006-EXPERIMENT-COUNTS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2547
   branch: claude/research-experiment-counts
   authority_impact: none
   owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
   finding: "Experiment outcomes were journal-only; publishes bounded cumulative outcome counts so the Research -> Candidate N+1 link can be located in runtime evidence"
 current_paper_minute_bar_strategy:
   work_order: WO-PAPER-20261006-MINUTE-BAR-STRATEGY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2546
   branch: claude/minute-bar-strategy
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('2번으로 진행해')"
@@ -3545,21 +3741,24 @@ current_paper_minute_bar_strategy:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_ui_touch_visual_calm:
   work_order: WO-UI-20261006-TOUCH-VISUAL-CALM
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2550
   branch: claude/fix-touch-visual-calm
   authority_impact: none
   owner_approval: "2026-10-06 in chat (master directive; regression from #2541)"
   finding: "touch-visual failed on every PR since #2541 because it waited for replaced testIDs; re-keyed on the calm-v1 screens and tied to the presenters"
 current_ops_deploy_receipt_result:
   work_order: WO-OPS-20261006-DEPLOY-RECEIPT-RESULT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2548
   branch: claude/deploy-receipt-result
   authority_impact: none
   owner_approval: "2026-10-06 in chat (master directive section 27, P1)"
   finding: "A superseded release skipped all host steps but showed success; the final step now records deploymentResult (DEPLOYED / SKIPPED_MAIN_MOVED / FAILED / FAILED_ACTIVATION_IDENTITY)"
 current_learning_loop_status:
   work_order: WO-LEARNING-20261006-LOOP-STATUS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2549
   branch: claude/closed-learning-loop-status
   authority_impact: none
   owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
@@ -3567,7 +3766,8 @@ current_learning_loop_status:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_learning_stalled_period_reopen:
   work_order: WO-LEARNING-20261006-STALLED-PERIOD-REOPEN
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2551
   branch: claude/closed-learning-stall-reopen
   authority_impact: none
   owner_approval: "2026-10-06 in chat (91% -> 100% master directive, '계속해')"
@@ -3583,7 +3783,8 @@ current_research_longer_timeframes_proposal:
 
 current_research_startup_recovery_20261015:
   work_order: WO-OPS-20261015-RESEARCH-STARTUP-RECOVERY
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2732
   branch: codex/paper-startup-research-recovery-20261015
   evidence: "Frozen implementation9027cbf0:35 focused tests and1231 isolated files PASS; build/typecheck/validate:full/security/lint PASS(24 existing warnings). Review P1 same-connection stale READY reproduced and corrected with total_changes plus data_version; fresh committed-head review PASS0/0/0. Interrupted earlier suite not counted."
   next: "Complete frozen full suite and fresh review before draft PR. No TTL/reset/ownership weakening; actual deployment and host initiating cause remain unverified."
@@ -3599,14 +3800,16 @@ current_research_strategy_catalog_20261013:
 
 current_research_timeframe_comparison:
   work_order: WO-RESEARCH-20261006-TIMEFRAME-COMPARISON
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2554
   branch: claude/research-timeframe-comparison
   authority_impact: none
   owner_approval: "2026-10-06 in chat ('제안서 구현 승인')"
   finding: "Research experiments now also run on 15m/60m bars aggregated from stored 1m candles (research evidence only)"
 current_ops_clear_recovered_market_reject:
   work_order: WO-OPS-20261006-CLEAR-RECOVERED-MARKET-REJECT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2553
   branch: claude/clear-recovered-market-reject
   authority_impact: none
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
@@ -3617,7 +3820,8 @@ current_runtime_startup_evidence_invalidation_20261015:
   work_order: WO-OPS-20261015-STARTUP-EVIDENCE-INVALIDATION
   branch: fix/paper-startup-evidence-invalidation-20261015
   base_sha: 10c153464b40326a061e548cf44abfb479d07fc0
-  status: LOCAL_VALIDATED_DRAFT_REVIEW_AND_CI_PENDING
+  status: COMPLETED
+  merged_pr: 2733
   validation_source_head: b11828bfe22f487b63cda5c61b944b41dff9271c
   validation: "170/170 focused; full TS emit/root/mobile typecheck; validate:full/index/JS lint/security PASS. Exact programme inputs verified; no runtime acceptance claimed."
   first_broken_transition: locally validated startup repair -> fresh non-author review and exact-head CI
@@ -3632,7 +3836,8 @@ current_runtime_writer_cause_20261016:
   original_base_sha: 67630b806996a0774fa41d772e61de6192493a84
   latest_main_reconvergence_base: 3659e45e011032b71e37896eed7c3aef2580c153
   implementation_merge_commit: 1ae09a01865f4856ae1e1cdb63e8ccc1bd976824
-  status: LATEST_MAIN_LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_REVIEW
+  status: COMPLETED
+  merged_pr: 2739
   first_broken_transition: exact-main restart/replay -> stable PAPER listener and writer-lease recovery
   scope: 'Diagnostic precondition only; initiating runtime lease failure cause remains unproven. Writer first-cause retention is merged with current liveness/startup recovery locally; no authority or recovery policy is widened.'
   local_validation: '31/31 focused PASS; typecheck/build/preflight/validate:full/security PASS; lint 0 errors and 26 pre-existing warnings; PAPER_ADAPTER blob 1113297fa143b4e26318e3c57152bdf2d620ddb6 exact-source check PASS.'
@@ -3641,7 +3846,8 @@ current_runtime_writer_cause_20261016:
 
 current_safety_gate_evidence_states_20261013:
   work_order: WO-UI-20261013-SAFETY-GATE-EVIDENCE-STATES
-  status: LOCAL_VALIDATED_PENDING_CI
+  status: COMPLETED
+  merged_pr: 2675
   branch: claude/safety-gates-evidence-states
   finding: "Safety gates showed PASS on stale evidence; now PASS/FAIL/BLOCKED/STALE/CHECKING with per-source freshness."
   next: "Exact-head CI, Audit, Release; then check the deployed app shows the new states."
@@ -3649,21 +3855,24 @@ current_safety_gate_evidence_states_20261013:
 
 current_sec_shell_quote_advisory:
   work_order: WO-SEC-20261006-SHELL-QUOTE-ADVISORY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2555
   branch: claude/shell-quote-advisory
   authority_impact: none
   owner_approval: "2026-10-06 in chat (전체업무 완전수렴 마스터 작업지시서)"
   finding: "CI Security gate red on all heads: new critical shell-quote advisory 1241332; overridden to patched 1.11.0"
 current_ops_rollover_reason_codes:
   work_order: WO-OPS-20261007-ROLLOVER-REASON-CODES
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2557
   branch: claude/rollover-reason-codes
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘')"
   finding: "/health showed rollover BLOCKED without a reason; blocked reasons now lead with the error code so rolloverReason is published"
 current_learning_period_market_binding:
   work_order: WO-LEARNING-20261007-PERIOD-MARKET-BINDING
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2556
   branch: claude/period-benchmark-evidence
   authority_impact: none
   owner_approval: "2026-10-07 in chat (Learning Period Benchmark Evidence Break 완전수렴)"
@@ -3671,14 +3880,16 @@ current_learning_period_market_binding:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_ops_health_research_intervals:
   work_order: WO-OPS-20261007-HEALTH-RESEARCH-INTERVALS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2559
   branch: claude/health-research-intervals
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘', '다음')"
   finding: "/health now reports research experiment ticks per bar length so 15m/60m production runs are verifiable"
 current_ops_health_source_sha:
   work_order: WO-OPS-20261007-HEALTH-SOURCE-SHA
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2558
   branch: claude/health-source-sha
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('니 판단으로 누사를 최고로 업그레이드 시켜줘', '다음')"
@@ -3686,7 +3897,8 @@ current_ops_health_source_sha:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_learning_evidence_correlation:
   work_order: WO-LEARNING-20261007-EVIDENCE-CORRELATION
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2560
   branch: claude/health-learning-correlation
   authority_impact: none
   owner_approval: "2026-10-07 in chat (Learning Loop 핵심 7단계 완전수렴 작업지시서, '해')"
@@ -3694,7 +3906,8 @@ current_learning_evidence_correlation:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_research_interval_recovery:
   work_order: WO-RESEARCH-20261007-INTERVAL-RECOVERY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2561
   branch: claude/research-interval-recovery
   authority_impact: none
   owner_approval: "2026-10-07 in chat (Learning Loop 7단계 작업지시서, '계속해')"
@@ -3702,7 +3915,8 @@ current_research_interval_recovery:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_ops_health_ledger_fingerprint:
   work_order: WO-OPS-20261007-HEALTH-LEDGER-FINGERPRINT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2563
   branch: claude/health-ledger-fingerprint
   authority_impact: none
   owner_approval: "2026-10-07 in chat (Ledger 금액 기준 restart/recovery 증명)"
@@ -3710,7 +3924,8 @@ current_ops_health_ledger_fingerprint:
 
 current_research_candle_evidence_receipt_20261025:
   work_order: WO-RESEARCH-20261025-CANDLE-EVIDENCE-RECEIPT
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2879
   branch: fix/candle-aggregation-provenance-2815
   issue: 2815
   pull_request: 2879
@@ -3721,7 +3936,8 @@ current_research_candle_evidence_receipt_20261025:
 
 current_research_candle_gap_fill:
   work_order: WO-RESEARCH-20261007-CANDLE-GAP-FILL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2562
   branch: claude/research-candle-gap-fill
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('알아서 제일 좋은 결정해')"
@@ -3729,35 +3945,40 @@ current_research_candle_gap_fill:
   deploy: requires_paper_deploy_after_merge_owner_standing_approval
 current_autopilot_codex_outcome:
   work_order: WO-AUTOPILOT-20261007-CODEX-OUTCOME
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2564
   branch: claude/autopilot-codex-outcome
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('다른 최우선 작업')"
   finding: "Scheduled Codex runs ended green with no patch (weekly ChatGPT limit, host deferral); each run now records its outcome so zero-completion runs are visible"
 current_ui_motion_fast_light:
   work_order: WO-UI-20261007-MOTION-FAST-LIGHT
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2565
   branch: claude/ui-motion-fast-light
   authority_impact: none
   owner_approval: "2026-10-07 in chat (chose option 'a' on the motion preview)"
   finding: "App-wide animation retuned to the faster, lighter fieldMotion set; device feel is HUMAN_ENVIRONMENT_ONLY"
 current_ui_hero_flow_streams:
   work_order: WO-UI-20261007-HERO-FLOW-FIELD
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2570
   branch: claude/hero-flow-field
   authority_impact: none
   owner_approval: "2026-10-07 in chat (reference videos, then '해' on the prototype)"
   finding: "The shared hero becomes a flow field of hairline streams into particle clusters for the canonical chain; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
 current_research_rsi_family:
   work_order: WO-RESEARCH-20261007-RSI-FAMILY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2569
   branch: claude/research-strategy-breadth
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('1번해')"
   finding: "Research tested only SMA crossover variants and all failed after costs; an RSI mean-reversion family (pre-committed grid) now runs under the same gates as its own experiment family"
 current_research_failure_reasons:
   work_order: WO-RESEARCH-20261007-FAILURE-REASONS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2568
   branch: claude/failed-strategy-memory
   authority_impact: none
   owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
@@ -3775,75 +3996,86 @@ current_strategy_validation_20261016:
 
 current_ui_app_icon_flow:
   work_order: WO-UI-20261007-APP-ICON-FLOW
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2573
   branch: claude/app-icon-flow
   authority_impact: none
   owner_approval: "2026-10-07 in chat (icon comparison, reply '새 아이콘')"
   finding: "The app icon family (Android adaptive, themed, splash, legacy PNGs, desktop SVG/PNG/ICO) is redrawn as hairline streams funnelling into a glowing cluster; the desktop icon moves off the retired flame design; device look is HUMAN_ENVIRONMENT_ONLY"
 current_research_donchian_family:
   work_order: WO-RESEARCH-20261007-DONCHIAN-FAMILY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2572
   branch: claude/research-donchian
   authority_impact: none
   owner_approval: "2026-10-07 in chat ('해' after the short-term trading question)"
   finding: "A Donchian breakout (momentum) family with a pre-committed grid now runs beside SMA and RSI under the same Research gates; DONCHIAN_BREAKOUT is a new research DSL entry rule with no look-ahead"
 current_ui_hero_flow_dynamic:
   work_order: WO-UI-20261007-HERO-FLOW-DYNAMIC
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2574
   branch: claude/hero-flow-dynamic
   authority_impact: none
   owner_approval: "2026-10-07 in chat (v2 prototype, reply '좋아')"
   finding: "The flow hero gains comets with tails, differential swirl and breathing clusters, landing rings and order sparks as pure functions of time; device look and frame time are HUMAN_ENVIRONMENT_ONLY"
 current_autopilot_runner_failure_identity:
   work_order: WO-AUTOPILOT-20261007-RUNNER-FAILURE-IDENTITY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2578
   branch: claude/coding-runner-named-failure-reason
   authority_impact: none
   owner_approval: "2026-10-07 in chat (Autopilot completion convergence master work order)"
   finding: "The evolve discovery failure reason carries no run id, so the coding runner rejected a really failed run as not successful; the named identity is now accepted when commit and failed conclusion match the GitHub-verified run"
 current_learning_rollover_wall_clock:
   work_order: WO-LEARNING-20261007-ROLLOVER-WALL-CLOCK
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2577
   branch: claude/rollover-wall-clock
   authority_impact: closed-learning-period-close-trigger
   owner_approval: "2026-10-07 in chat (rollover basis changed to the clock)"
   finding: "A consecutive-loss halt stops fills so the canonical account updatedAt never crossed the KST day and the rollover waited; the wall clock now only decides the day passed, the period still closes at the canonical account boundary"
 current_learning_retire_mixed_binding_period:
   work_order: WO-LEARNING-20261007-RETIRE-MIXED-BINDING-PERIOD
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2579
   branch: claude/retire-mixed-binding-period
   authority_impact: closed-learning-period-lifecycle
   owner_approval: "2026-10-07 in chat (option 1: retire the mixed period unscored and start a fresh one)"
   finding: "After the wall-clock rollover the open KRW-XRP period reached the reconciler and failed CANDIDATE_BINDING_MIXED, which fail-closed correctly but blocked the loop forever; the period is now retired unscored and the loop continues in a fresh period"
 current_risk_kst_trading_day:
   work_order: WO-RISK-20261007-KST-TRADING-DAY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2581
   branch: claude/risk-kst-trading-day
   authority_impact: risk-trading-day-definition-and-display-evidence
   owner_approval: "2026-10-07 in chat ('더 좋은 쪽' delegating the UTC-vs-KST choice)"
   finding: "The cloud PAPER risk adapter used a local UTC day while CanonicalRiskSafetyGate and the learning rollover use Asia/Seoul; it now uses the canonical tradingDayKey, the threshold stays 3, and the loss session publishes period identity, start and last increment on /health (issue 2575 items 2-4)"
 current_learning_durable_cycle_health:
   work_order: WO-LEARNING-20261008-DURABLE-CYCLE-HEALTH
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2582
   branch: claude/health-durable-learning-cycle
   authority_impact: none
   finding: "cyclesEvaluated, lastCycleStatus/Outcome and the cycle identities on /health were process memory, so a deploy erased the proof of the last lap; the cycle identities, lastCycleOutcome and two new integers (cyclesRecorded, lastCycleRecordedAt) are now also read from the durable ledger (display only, one replay, withdrawn if the ledger is unreadable). lastCycleStatus, deployments and cyclesEvaluated stay per-process and are not restored"
 current_learning_last_blocked_reason:
   work_order: WO-LEARNING-20261008-LAST-BLOCKED-REASON
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2583
   branch: claude/health-last-blocked-reason
   authority_impact: none
   finding: "After #2581 the replacement period closed (realizedPeriods=2) but the durable ledger holds no cycle (cyclesRecorded=0); the BLOCKED reason of the failed cycle was overwritten within one tick. /health now keeps lastBlockedReason/lastBlockedAt (per process, code only)"
 current_strategy_baseline_code_identity:
   work_order: WO-STRATEGY-20261008-BASELINE-CODE-IDENTITY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2584
   branch: claude/baseline-code-identity
   authority_impact: strategy-identity-in-binding-fingerprint
   owner_approval: "2026-10-08 in chat ('2')"
   finding: "The owner baseline strategy codeSha was the deployed commit, so every deploy changed the binding fingerprint and mixed the open learning period; it is now a fixed implementation identity (the first deploy changes the fingerprint once; the reconciler guard and Risk 3/3 are untouched)"
 current_autopilot_runner_readiness:
   work_order: WO-AUTOPILOT-20261008-RUNNER-READINESS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2587
   branch: claude/autopilot-runner-preflight
   authority_impact: none
   finding: "INTERFACE_READY results now name what the runner lacks (engine, zero-credit mode, GitHub token) via a presence-only readiness check; no behavior change (P0 step 3; bounded recovery, checkpoint/resume, canary and receipts remain)"
@@ -3867,13 +4099,15 @@ current_learning_paper_rule_replay_20261013:
 
 current_learning_pending_order_attribution_test:
   work_order: WO-LEARNING-20261008-PENDING-ORDER-ATTRIBUTION-TEST
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2588
   branch: claude/pending-order-attribution-test
   authority_impact: none
   finding: "Tests pin that a continued working order keeps its creating binding (no silent relabel); the cross-period fill gap for a continued order with no current decision remains open and needs a design decision"
 current_learning_durable_blocked_reason:
   work_order: WO-LEARNING-20261008-DURABLE-BLOCKED-REASON
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2590
   branch: claude/durable-cycle-failure
   authority_impact: none
   finding: "The last closed-learning BLOCKED/ERROR reason is now also written as a bare code beside the Cloud state and seeds /health after a restart; the unrecorded cycle's own cause is still unknown and this makes the next failure readable"
@@ -3893,7 +4127,8 @@ current_issue_2589_restart_safe_resume:
   work_order: WO-ISSUE-2589-RESTART-SAFE-CYCLE-RESUME
   issue: 2589
   parent_work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
-  status: LOCAL_VALIDATED_GOVERNED_GATES_PENDING
+  status: COMPLETED
+  merged_pr: 2600
   branch: fix/2589-restart-safe-cycle-resume
   base_sha: 5bc350c8dae8e7b633a7d18944fc760998b7019f
   implementation_head: e844d4369b4600432a20a1ae647178048caf1119
@@ -3904,20 +4139,23 @@ current_issue_2589_restart_safe_resume:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_research_failure_history:
   work_order: WO-RESEARCH-20261008-FAILURE-HISTORY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2591
   branch: claude/research-failure-history
   authority_impact: none
   finding: "Failed Research challengers now have a deterministic per-variant failure history and a REPEAT_<reason> display count recomputed from the durable ledger; this informs Research N+1 but does not steer it (adaptive scheduling was offered and declined by the owner)"
 current_research_sma_cost_note:
   work_order: WO-RESEARCH-20261008-SMA-COST-NOTE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2592
   branch: claude/research-note-sma-cost-screen
   authority_impact: none
   finding: "A frozen-input, reproducible public-candle replay shows the tested SMA settings lost before and after fees in a 72-79 hour falling window (1-minute bars worst because of fees); the note keeps the risk-gate observation separate and records what was not determined"
 
 current_learning_process_exit_20261015:
   work_order: WO-ISSUE-2589-CLOSED-LEARNING-FAILURE-EVIDENCE
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2716
   branch: codex/learning-crash-replay-20261015
   evidence: "109 focused tests, build/typecheck/validate:full/aipos:index/security:gate and lint:scripts PASS (24 existing warnings). Fresh non-author review no P0/P1/P2. Temporary SQLite survives nonzero exit and three process replays with one receipt, zero cycles; not production acceptance."
   next: "Repository gates, fresh non-author review and canonical CI/Audit/Release; do not inject production failures or invent qualified candidates."
@@ -3944,7 +4182,8 @@ current_learning_baseline_observation_20261013:
 
 current_learning_baseline_shadow:
   work_order: WO-LEARNING-20261008-BASELINE-SHADOW
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2593
   branch: claude/risk-blocked-shadow
   authority_impact: display-and-analysis-only-no-order-no-ledger-no-risk-input
   finding: "While the consecutive-loss halt censors the PAPER ledger, a shadow of the baseline rule on the same minute bars keeps producing hypothetical round trips with fees (counts and basis points on /health) so learning and the 3/4/5 limit comparison have uncensored outcomes; not PAPER evidence"
@@ -3992,7 +4231,8 @@ current_issue_1605_market_observation_retention:
   work_order: WO-ISSUE-1605-MARKET-OBSERVATION-RETENTION
   issue: 1605
   pull_request: 2617
-  status: REVIEW_REPAIR_PENDING_EXACT_HEAD_CI
+  status: COMPLETED
+  merged_pr: 2617
   branch: fix/1605-protect-market-observation-retention
   base_sha: a99da735cdd5b040b24ab24d7933a99fa5ebec2f
   first_broken_transition: "public market observation persistence -> durable retention across pending/open-period lifetime"
@@ -4023,7 +4263,8 @@ current_autopilot_2595_decision_diagnostics:
   current_main_build_typecheck_validation_head: c1f59727db893d9c5aaa40653e986dcf02f7c1d4
   published_head_binding: REQUIRE_FRESH_EXACT_HEAD_CI_AUDIT_RELEASE_IN_CANONICAL_PR_RECEIPT
   prior_increment_head_sha: ec0ec87b9986751c1b6af642dc488be1aa91aa2e
-  status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI_PASS_EXACT_HEAD_GATES_PENDING
+  status: COMPLETED
+  merged_pr: 2619
   first_broken_transition: "locally validated diagnostics increment -> fresh exact-head CI and independent Audit"
   validation: "Current-main be703b22: dispatcher/consumer and canonical Autopilot suite 143/143 PASS; full build, typecheck and preflight PASS. Prior unchanged diagnostics paths: validate:full and changed-file lint PASS. YAML/provenance PASS. PR2619 first CI 38129284192 failed on a non-secret test credential fixture; explicit example-key placeholder repair passed dispatcher/consumer 50/50, lint and security gate (zero findings). Independent review repair: effective terminal recovery STOP retained separately from rejected diagnostics; valid provider retry/exhaustion retains transport and upstream HTTP status. Dispatcher/consumer 52/52 PASS; focused changed-file lint and preflight PASS. Fresh exact-head CI remains required."
   next_permitted_action: "Publish the locally validated diagnostics residual on the existing diagnostics branch; independent Audit, canonical Release and naturally eligible canary remain required."
@@ -4064,7 +4305,8 @@ current_market_data_ticker_rejection_2068:
   branch: market-data/2022-2034-evidence
   work_order: WO-DATA-2068-TICKER-PERSISTENCE-REGRESSION
   base_sha: ca4f897dd476d1238682a38d618c9569bac19e52
-  status: REVIEW_REPAIR_PENDING_CURRENT_HEAD_GATES
+  status: COMPLETED
+  merged_pr: 2068
   first_broken_transition: rejected_ticker_to_durable_canonical_observation_regression_evidence
   repair: "Bind surviving row timestamp/price and exact canonical source fingerprint to the accepted fixture; rejected future/foreign fixtures cannot substitute for it."
   evidence_scope: "Synthetic regression fixtures only; no actual acceptance claim."
@@ -4073,21 +4315,24 @@ current_market_data_ticker_rejection_2068:
 
 current_research_sma_60m_oos:
   work_order: WO-RESEARCH-20261012-SMA-60M-OOS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2633
   branch: claude/research-sma-oos-60m
   authority_impact: none
   finding: "On 117 days of public 60-minute candles, slow SMA settings that looked good in-sample (+16%) were all negative on the held-out 39 days (about -2.7%) after fees; fewer trades reduce fee loss but show no edge. Not promotion evidence."
 
 current_autopilot_preflight_credit_posture:
   work_order: WO-AUTOPILOT-20261012-PREFLIGHT-CREDIT-POSTURE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2635
   branch: claude/preflight-credit-posture
   authority_impact: none
   finding: "After #2632 the deploy gate passes, but the trusted Credential Preflight still hardcoded zeroCreditMode ENFORCED; it now derives the expectation from the deploy workflow's NUSA_ZERO_CREDIT_MODE."
 
 current_autopilot_coding_off:
   work_order: WO-AUTOPILOT-20261013-CODING-OFF
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2672
   branch: claude/autopilot-coding-off
   authority_impact: none
   owner_decision: "2026-10-13: option A. Keep the deterministic Audit, release bot and reconverge; turn Autopilot coding off; development is done by Claude sessions. Answers redesign decision 3."
@@ -4097,14 +4342,16 @@ current_autopilot_coding_off:
 
 current_autopilot_completion_receipt_design:
   work_order: WO-AUTOPILOT-20261012-COMPLETION-RECEIPT-DESIGN
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2636
   branch: claude/autopilot-completion-receipt
   authority_impact: none
   finding: "A design proposes one immutable completion receipt composed from existing evidence, remediation, execution-state and release-completion components; VALID_NO_ACTION never counts as verified useful completion. The four owner decisions took the recommended defaults (existing coordinator record, worker-runtime-scope required, release-app approval as Audit source, count-only exposure later); no receipt exists and the verified-completion flag stays false."
 
 current_docs_claude_handoff:
   work_order: WO-DOCS-20261012-CLAUDE-HANDOFF
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2640
   branch: claude/claude-handoff
   pull_request: 2640
   authority_impact: none
@@ -4115,14 +4362,16 @@ current_docs_claude_handoff:
 
 current_autopilot_light_task_gate:
   work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2643
   branch: claude/autopilot-light-task-gate-impl
   authority_impact: none
   finding: "A coding proposal or exact-edit patch over 150 added plus removed lines is now rejected as CODING_PROPOSAL_TOO_LARGE (existing reason, classification and bounded retry); the existing single-file rule already exceeds the design's 3-file default. Needs a Worker deploy to take effect."
 
 current_docs_handoff_evening_decisions:
   work_order: WO-DOCS-20261012-HANDOFF-EVENING-DECISIONS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2647
   branch: claude/handoff-evening-decisions
   authority_impact: none
   handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
@@ -4132,7 +4381,8 @@ current_docs_handoff_evening_decisions:
 
 current_docs_handoff_research_status:
   work_order: WO-DOCS-20261013-HANDOFF-RESEARCH-STATUS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2649
   branch: claude/handoff-research-status
   authority_impact: none
   handoff_file: .aipos/handoffs/2026-10-12-claude-handoff.md
@@ -4153,7 +4403,8 @@ current_ops_claude_centered_decisions_20261014:
 
 current_ops_claude_centered_redesign:
   work_order: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2650
   revision: 2
   branch: claude/claude-centered-redesign
   pull_request: 2650
@@ -4166,7 +4417,8 @@ current_ops_claude_centered_redesign:
 
 current_ops_open_pr_inventory:
   work_order: WO-OPS-20261013-OPEN-PR-INVENTORY
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2653
   branch: claude/open-pr-inventory
   authority_impact: none
   parent: WO-OPS-20261013-CLAUDE-CENTERED-REDESIGN
@@ -4178,7 +4430,8 @@ current_ops_open_pr_inventory:
 
 current_docs_assistant_handoff_20261013:
   work_order: WO-DOCS-20261013-ASSISTANT-HANDOFF
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2654
   branch: claude/handoff-2026-10-13
   authority_impact: none
   handoff_file: .aipos/handoffs/2026-10-13-assistant-handoff.md
@@ -4188,7 +4441,8 @@ current_docs_assistant_handoff_20261013:
 
 current_autopilot_reconverge_audited_prs:
   work_order: WO-AUTOPILOT-20261013-RECONVERGE-AUDITED-PRS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2668
   branch: claude/reconverge-audited-prs
   authority_impact: none
   finding: "Release bottleneck: Audit declines a green PR as stale whenever another merge moves main first (#2651 and #2652 on 2026-10-13), and the reconverge step only updated autopilot/* branches. It now also merges current main into same-repository PRs whose current head Audit attempted within 24 hours, with every existing guard kept; PRs Audit never attempted are untouched."
@@ -4197,7 +4451,8 @@ current_autopilot_reconverge_audited_prs:
 
 current_autopilot_repair_attempt_cap:
   work_order: WO-AUTOPILOT-20261013-REPAIR-ATTEMPT-CAP
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2652
   branch: claude/autopilot-repair-attempt-cap
   pull_request: 2652
   authority_impact: none
@@ -4208,7 +4463,8 @@ current_autopilot_repair_attempt_cap:
 
 current_autopilot_repair_target_allowlist:
   work_order: WO-AUTOPILOT-20261013-REPAIR-TARGET-ALLOWLIST
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2651
   branch: claude/autopilot-repair-target-allowlist
   pull_request: 2651
   authority_impact: none
@@ -4218,14 +4474,16 @@ current_autopilot_repair_target_allowlist:
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 current_risk_loss_limit_comparison_tool:
   work_order: WO-RISK-20261008-LOSS-LIMIT-COMPARISON-TOOL
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2586
   branch: claude/loss-limit-comparison
   authority_impact: none
   finding: "Added an offline deterministic comparison of consecutive-loss limits over a completed-sell sequence (tooling only, threshold stays 3); no real comparison exists yet because the ledger sequence is owner-authenticated, so issue 2575 item 5 remains open"
 
 current_owner_decisions_20261013:
   work_order: WO-DOCS-20261013-OWNER-DECISIONS
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2666
   branch: docs/owner-decisions-20261013
   authority_impact: none
   owner_approval: "2026-10-13 in chat: owner adopted the assisting session's recommendation for all four open decisions, which was status quo on every one."
@@ -4237,14 +4495,16 @@ current_owner_decisions_20261013:
 
 current_autopilot_stale_wip_claim:
   work_order: WO-AUTOPILOT-20261013-STALE-WIP-CLAIM
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2667
   branch: claude/autopilot-wip-bottleneck
   authority_impact: none
   finding: "Autopilot bottleneck: scheduled backlog coding was refused with WIP_LIMIT_REACHED on 116 of 120 ticks (07:05-09:03 UTC 2026-10-13) because an active-WIP claim is released only on successful coding; failed or unconsumed dispatches kept the single slot forever. Claims older than 60 minutes are now released at the next admission."
   next: "After merge and Worker deploy, confirm /scheduled/status shows dispatches again; the three-attempt ceiling bounds repeats."
 current_research_breakout_walkforward:
   work_order: WO-RESEARCH-20261013-BREAKOUT-WALKFORWARD
-  status: READY_FOR_REVIEW
+  status: COMPLETED
+  merged_pr: 2648
   branch: claude/research-breakout-walkforward
   authority_impact: none
   finding: "Over six consecutive 42-day windows, long-only breakouts (N=20/50/100) failed the pre-registered pass rule: 2-3 positive windows, negative average in DOWN windows, and 2x-cost survival in only 2 windows. The earlier all-positive last third came almost entirely from one +17% rally window. Re-applying the unchanged rule to 383 days of never-seen prior data reproduced the failure (2-3 positive windows, DOWN-window averages -8% to -19%, UP-window averages +7% to +9%): regime-dependent, not an edge. Not promotion evidence; no candidate is proposed for deployment."
