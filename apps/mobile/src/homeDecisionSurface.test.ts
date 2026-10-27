@@ -23,7 +23,7 @@ describe("home decision surface attention", () => {
     const surface = buildHomeDecisionSurface(healthyInput({ accountSource: "LOCAL" }));
 
     assert.equal(surface.attention, "WATCH");
-    assert.equal(surface.statusLabel, "PAPER · LOCAL");
+    assert.equal(surface.statusLabel, "PAPER · 이 기기");
     assert.equal(surface.risk, "INSUFFICIENT · PAPER RUNTIME EVIDENCE UNAVAILABLE");
     assert.equal(surface.primaryAction, "MARKETS");
   });
@@ -50,7 +50,7 @@ describe("home decision surface attention", () => {
       readOnlyError: true,
     }));
 
-    assert.equal(surface.statusLabel, "PAPER · RECOVERY REQUIRED");
+    assert.equal(surface.statusLabel, "PAPER · 재연결 필요");
     assert.equal(surface.statusTone, "danger");
     assert.equal(surface.now, "RECOVERY REQUIRED");
     assert.equal(surface.risk, "BLOCKED · READ-ONLY RECOVERY REQUIRED");
@@ -62,8 +62,8 @@ describe("home decision surface attention", () => {
       disconnected: true,
     }));
 
-    assert.equal(surface.statusLabel, "PAPER · RECOVERY REQUIRED");
-    assert.notEqual(surface.statusLabel, "PAPER · RUNNING");
+    assert.equal(surface.statusLabel, "PAPER · 재연결 필요");
+    assert.notEqual(surface.statusLabel, "PAPER · 실행 중");
     assert.equal(surface.statusTone, "danger");
     assert.equal(surface.now, "PAPER LINK REQUIRED");
     assert.equal(surface.risk, "BLOCKED · PAPER LINK REQUIRED");
