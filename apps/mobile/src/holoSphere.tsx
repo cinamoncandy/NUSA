@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, PointMode, Skia, StrokeCap, createPicture, type SkPicture, type SkPoint } from "@shopify/react-native-skia";
 import { fieldFonts } from "./fieldFonts";
-import { calmPalette } from "./designSystem";
+import { calmPalette, labelFont } from "./designSystem";
 import { FLOW_COMETS_PER_EDGE, FLOW_COMET_TAIL_POINTS, FLOW_EDGES, FLOW_NODES, FLOW_PAPER, FLOW_SPARKS, HOLO_COLORS, HOLO_ORDER_MS, buildFlowField, easeOutCubic, flowAmbientComet, flowArrivalRing, flowBreath, flowClockSec, flowClusterPoint, flowCometProgress, flowCometStrand, flowEdgeGlow, flowEdgeOpen, flowLabelPlacement, flowNodeColor, flowNodeGlow, flowOrderRing, flowParticleSwirl, flowParticleTwinkle, flowPulsePosition, flowSpark, flowStrandCurve, flowStrandPoint, flowTailLight, flowTailProgress, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, tickHolo, type HoloTone, type Rgb } from "./holoModel";
 
 export interface HoloSphereProps {
@@ -187,5 +187,5 @@ const styles = StyleSheet.create({
   stage: { alignItems: "center", justifyContent: "center" },
   label: { position: "absolute", flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 2, paddingHorizontal: 4, backgroundColor: "rgba(8,10,14,0.78)" },
   labelDot: { width: 5, height: 5, borderRadius: 3 },
-  labelText: { fontSize: 10, color: calmPalette.text },
+  labelText: { fontSize: labelFont(10), color: calmPalette.text },
 });

@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Canvas, Circle, Path, Skia } from "@shopify/react-native-skia";
 import { useTheme } from "./ThemeProvider";
 import { fieldFonts } from "./fieldFonts";
+import { labelFont } from "./designSystem";
 import type { EquityPoint } from "./performanceModel";
 
 const HEIGHT = 110;
@@ -36,4 +37,4 @@ export function EquityChart({ points }: Readonly<{ points: readonly EquityPoint[
   </View>;
 }
 
-const styles = StyleSheet.create({ wrap: { gap: 6, marginTop: 4 }, caption: { fontSize: 11 } });
+const styles = StyleSheet.create({ wrap: { gap: 6, marginTop: 4 }, caption: { fontSize: labelFont(11) } });
