@@ -13,15 +13,15 @@ Measured on `main` on 2026-10-27, unless stated otherwise.
 | Area | Measurement |
 | --- | --- |
 | Product code (excluding tests) | cloud 50.5k lines (357 files), desktop 32.6k, scripts 26.8k, packages 23.3k, mobile 19.4k, autopilot 13.4k |
-| Cloud modules reached in production | 165 of 301 top-level `apps/cloud/src` modules are reachable by static import from `runtime.ts` plus the 22 cloud files that scripts, deploy, workflows and other apps reference. **136 (about 45%) are not reached.** Static analysis only, so dynamic loading could reach a few more. |
-| Persistence | 143 SQLite tables. PAPER account, fill ledger and writer lease share one file and one process with research raw data (more than 4.2M order-book samples and 876k trade ticks on 2026-10-26). |
+| Cloud modules reached in production | Of 301 top-level `apps/cloud/src` modules, a static import closure (import, export-from, `import()`, `require`) leaves **108 to 141 unreached (about 36–47%)**, depending on the entry set: 141 from every host systemd unit (the host starts at `closedLearningProductionRuntime.ts`), 108 when every non-test reference from desktop, mobile, autopilot and validators also counts. About 33 of the host-unreached modules are product surfaces (desktop, mobile, autopilot), not dead code, and 20 `live*` modules are fail-closed LIVE-blocking boundaries that must stay. Numbers from the non-author review on PR #2909; the census script is committed with the phase 4 census. |
+| Persistence | About 130–160 SQLite tables, counted from literal `CREATE TABLE` names in non-test source (some tables are named through templates; the exact count needs `sqlite_master` on the host). PAPER account, fill ledger and writer lease share one file and one process with research raw data (more than 4.2M order-book samples and 876k trade ticks on 2026-10-26). |
 | Host | 1 vCPU, 954 MB memory, `/` 90% used. The runtime, research collection, backups and the self-hosted diagnosis runner all run on it. |
 | Process | 1,306 test files, 49 `validate-*` scripts, 39 workflows, 519 work orders, 681 AIPOS files, 396 docs. 639 workflow runs on 2026-10-27; each PR head update starts 6 PR workflows. |
 | Outcome | Every order intent failed from 2026-10-18 to 2026-10-27 (4,824 of 4,824). Research candles were stale for more than a week because a collector error was swallowed (#2815). Neither was raised by the system. Fixes reached the host 9 days late. A release took about 2 h, and its result could not be read back. |
 
 ## 2. Diagnosis
 
-1. **Most of the effort goes around the core loop, not into it.** About 45% of the cloud modules, many governance
+1. **Most of the effort goes around the core loop, not into it.** Roughly 36–47% of the cloud modules (by entry-set definition), many governance
    layers and parallel generations (`V10`, `10X-S`, stacked learning-chain PRs #2792–#2800) are never executed.
    Meanwhile the one loop that matters (market → decision → order → fill → learning) was broken for 9 days unnoticed.
    Unexecuted code still costs review, CI and agent attention on every change, and it invites a second truth source.
@@ -75,10 +75,10 @@ Measured on `main` on 2026-10-27, unless stated otherwise.
 | --- | --- | --- |
 | 0 | Observe: merge #2899, #2907, #2902; one approved release; read the running SHA and the first broken stage back | `/health` shows the real first broken stage; alarm lines appear in the journal |
 | 1 | Fix the core loop first: root-cause `ORDER_INTENT_FAILING` from the coded reasons (#2892) and restore genuine PAPER fills; no synthetic fill, no gate relaxation | `paperFillCount` rises from real decisions |
-| 2 | Split `research.db` from `paper-state.db` (WO-ARCH-20261027-STATE-DB-SPLIT) | release backup takes minutes; trading latency is unaffected by research load |
-| 3 | Run research collection in its own low-priority process | a collector crash leaves trading running |
-| 4 | Code census: list each unreached module with its owner and the reason it exists; attic or delete per module through governed PRs | build and required CI cover only reachable code plus kept libraries |
-| 5 | Risk-proportional CI: required set per path class, with safety gates unchanged | fewer runs per PR with the same safety coverage |
+| 2 | Split `research.db` from `paper-state.db` (WO-ARCH-20261027-STATE-DB-SPLIT, which owns the details) | release backup takes minutes; trading latency is unaffected by research load; rollback: point the research stores back at the state file, originals kept until a restore drill passes; free disk on the order of the database size confirmed first (`/` was 90% used) |
+| 3 | Run research collection in its own low-priority process (phase 4 of WO-ARCH-20261027-STATE-DB-SPLIT; tracked there, not twice) | a collector crash leaves trading running; rollback: run the collectors in-process again |
+| 4 | Code census: list each unreached module with its owner and the reason it exists; attic or delete per module through governed PRs. LIVE-blocking boundaries (`live*`) and their test suites, and product-surface modules used by desktop, mobile or autopilot, are listed by name as **kept** | build and required CI cover only reachable code plus kept libraries; no LIVE-blocking test is dropped |
+| 5 | Risk-proportional CI: required set per path class, with safety gates unchanged. Changes governed workflows and required checks, so it needs its own owner approval and Audit sign-off | fewer runs per PR; every safety and LIVE-blocking check still required on every path that can reach execution, risk, ledger or authority |
 | 6 | Walking-skeleton learning: one honest end-to-end cycle from real fills and a real manifest, then grow the governed chain on top | one recorded cycle with real evidence; performance stays UNPROVEN until measured |
 
 ## 5. Not in scope
