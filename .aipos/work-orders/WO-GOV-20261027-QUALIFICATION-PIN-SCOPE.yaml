@@ -1,0 +1,49 @@
+id: WO-GOV-20261027-QUALIFICATION-PIN-SCOPE
+title: Keep display-only code out of qualification-pinned module entrypoints
+status: PROPOSED_NEEDS_FORMAL_VALIDATOR_AND_OWNER_REVIEW
+priority: P2
+owner: nusa-development
+repository: cinamoncandy/NUSA
+authority_impact: none
+objective: >-
+  Stop display-only and observability edits from invalidating a module qualification, without weakening the
+  qualification rule that any change to a canonical module source must be re-qualified.
+evidence:
+  pin_source: apps/cloud/src/moduleQualificationV1.ts (MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1)
+  pin_check: apps/cloud/src/module10XS.test.ts (committedGitBlobSha(canonicalEntrypoint) must equal sourceBlobSha)
+  incident: >-
+    PR 2892 (2026-10-26) added a display-only funnel code to apps/cloud/src/paperLearningObservability.ts, the REVIEW
+    canonical entrypoint pinned at blob 714b2f35. module10XS failed in CI (coverage-core-3, test). The change had to be
+    re-implemented outside the pinned file (runtime.ts plus paperFunnelCounters.ts) and merged that way.
+options:
+  - id: A_CONVENTION_ONLY
+    summary: >-
+      No rule change. Display, observability and /health projection code lives in separate modules that the pinned
+      entrypoint does not need; new display work goes there by default. Optionally, a follow-up refactor moves
+      existing display-only code out of a pinned entrypoint, which is itself a source change and is re-qualified once.
+    governance: Uses the existing rule as is; no validator or qualification change.
+  - id: B_FUNCTION_LEVEL_PIN
+    summary: Pin a hash of the decision functions (AST) instead of the whole file.
+    governance: Changes what qualification evidence means; needs formal validator and owner approval; not recommended now.
+recommendation: A. It removes the friction without touching qualification semantics.
+scope:
+  - Record the convention in the architecture notes for module owners (documentation only).
+  - Any move of existing code out of a pinned file is a separate PR that is re-qualified, never a hash edit to make CI pass.
+exclusions:
+  - No edit to MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1 or the module10XS check to make a change pass.
+  - No qualification status change, no Level-10 claim, no relaxation of any gate.
+acceptance:
+  - A display-only change to the PAPER funnel or /health does not touch a pinned entrypoint.
+  - module10XS keeps failing on any edit to a pinned entrypoint (unchanged).
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'Design record only; no code or rule change in this publication.'
+precommit_review: 'Not yet requested.'
+publication_blockers:
+  - 'Option B would need formal validator and owner approval; option A needs only review of this record.'
+next: Review this record; if A is accepted, follow it for new display work.
