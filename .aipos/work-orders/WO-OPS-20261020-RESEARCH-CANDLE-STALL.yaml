@@ -1,0 +1,17 @@
+id: WO-OPS-20261020-RESEARCH-CANDLE-STALL
+title: "Research 1m candle series stalled since 2026-10-17; disk accounting"
+status: PARTIALLY_RESOLVED
+found: "2026-10-20 while triaging the 90%-full host disk. dataIntegrity: candleMaxLatestAgeMs ~70 h; experiments SKIPPED_DATASET_MANIFEST_MANIFEST_NOT_FOUND; closed-learning lastBlockedReason TICK_ERROR."
+root_cause: "Commit 11cf0b4db (2026-10-17) made aggregateClosedCandles refuse a batch with more than one sourceFingerprint. Every ticker observation carries its own per-message fingerprint, so every candle collection pass threw and researchExperimentComposition discarded the error. No 1m research candle was written after 10-17."
+fix: "PR #2828 (deployed d9a5470db): only Upbit REST candles (with raw-source receipts and volume) write the 1m series; the ticker collect step is a no-op; fillRecentGaps reaches the newest closed minute; gap pass hourly. Verified on the host: researchCandleCount 34074 -> 38126 (03:21 UTC) -> 38164 (04:02 UTC); the head advances every minute."
+remaining_blocker: "Dataset manifests are still not materialized (experiments still SKIPPED at the 03:43 tick). Candles written by the ticker collector before 10-17 are in the 12-day window without volume or raw-source receipts. backfillMarket only re-records an existing row if it is byte-identical to the REST page (including volume) and fillRecentGaps never overwrites, so those rows never gain receipts and backfill keeps returning INCOMPLETE SOURCE_RECEIPTS_INCOMPLETE. Code-derived and consistent with the 10-18 log (87 pages, recorded=0); the DB itself is unreadable to the runner. They leave the window by themselves about 12 days after the last ticker candle (~10-30)."
+owner_options:
+  - "A (recommended, no action): wait; experiments resume on their own once the window has moved past the legacy rows. The experiments have produced only FAIL_* so far, so little is lost."
+  - "B: a one-time, owner-run removal of ticker-origin 1m candles from the host state DB so backfill can re-fetch them with receipts. Destructive research-data change; needs a reviewed script and a fresh backup. Not done."
+not_a_problem:
+  - "futuresCollector fundingStored/klinesStored 0: the counters count NEW rows; the data was already stored; failures=0; two symbols (BTC, ETH) so 2 marks per round."
+  - "closedLearningLoop lastBlockedReason TICK_ERROR: lastBlockedAt is 01:04 UTC 10-20, before the restart; no new block since (ticks keep running)."
+  - "Event-loop stalls (max 7.9 s): at startup and when the diagnosis' own du walks run on the 1-vCPU host (a stall at 03:23 UTC coincided with a diagnosis run). Not progressive."
+disk_accounting_2026_10_20: "df: 41 of 45 GB used (90%). Accounted: releases 4.8 GB, swap files 6.2 GB, runner dirs 0.7+0.9 GB, snapd 0.5 GB, /var cache+log 0.3 GB, /var/lib other 0.8 GB = ~14 GB. ~26 GB is in places the runner cannot read: /var/lib/nusa (state DB), /var/backups/nusa (daily x7 + weekly x4 = 11 DB copies per the backup step), /home and /tmp (du timed out). Likely the DB and its 11 backups; unverified. Owner can check with: sudo du -sh /var/lib/nusa /var/backups/nusa /home /tmp. Backup retention lives in the root-owned release helper (deploy/oracle/nusa-release-step.sh); changing it needs the owner to reinstall the helper. No deletion done."
+tooling: "PR #2829 added a per-directory disk step to oracle-host-diagnose (read-only, 25 s per directory)."
+not_changed: "No risk limit, threshold or capital. PAPER only, liveAuthority=NONE, aiAuthority=ZERO_AUTHORITY."

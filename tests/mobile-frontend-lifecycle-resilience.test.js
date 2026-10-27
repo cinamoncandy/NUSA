@@ -38,7 +38,7 @@ test("automatic PAPER polling runs only while signed in and foregrounded and nev
 
 test("manual refresh always releases its visual busy state", () => {
   const app = source();
-  assert.match(app, /const onRefresh = useCallback\(async \(\) => \{[\s\S]*setRefreshing\(true\);[\s\S]*try \{[\s\S]*await refresh\(\);[\s\S]*\} finally \{[\s\S]*setRefreshing\(false\);/);
+  assert.match(app, /const onRefresh = useCallback\(async \(\) => \{[\s\S]*setRefreshing\(true\);[\s\S]*try \{[\s\S]*await Promise\.all\(\[refresh\(\), refreshSupplemental\(true\)\]\);[\s\S]*\} finally \{[\s\S]*setRefreshing\(false\);/);
 });
 
 test("utility shell controls honor the 48px system touch target", () => {

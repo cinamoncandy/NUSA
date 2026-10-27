@@ -37,3 +37,37 @@ PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZER
 - PR2689 socket retirement fix merged47b6da7a; exact-head CI38495486276 and postCI38496114940 PASS. Release38495999097 Audit PASS, merge succeeded, but post-merge read failed with unexpected JSON EOF; entire Release run is FAIL, not claimed PASS.
 - Later Oracle38508906721PASS/sourcec9b96f8e contains47b6da7a. Public health2026-10-14T05:15:33.952Z HEALTHY,lastErrornull; learningcycles0,ResearchholdoutPasses0. Physical initiating cause of prior staging outages remains UNVERIFIED.
 - WO-OPS-20261014-RELEASE-API-READ-RECOVERY implements bounded GET-only recovery in existing Release step.19 focused/1217 isolated files and all recorded gates PASS at base785807df; fresh non-author P1 SHA-validation finding fixed. Latest-main synchronization/CI/Audit/Release pending; no approval, merge authority, paid overflow, LIVE or Risk-policy change.
+
+## Afternoon update (2026-10-14, ~06:40 UTC)
+Re-verify on GitHub before acting.
+
+### Merged today
+- #2698 operating model rev 3 + P2 documents, #2700 design v1, #2704 this handoff.
+- #2699 paid GPT-4.1 overflow off. Another session widened it: zero-credit is now enforced unless explicitly `false` (missing/malformed values no longer allow paid calls). After the Worker deploy, record `/health` `zeroCreditMode=ENFORCED` in `WO-OPS-20261014-PAID-OVERFLOW-OFF` (not yet observed from this sandbox: proxy 403).
+- #2702 Binance futures public data probe. Owner's run 38520735288 on `nusa-paper-host`: ping, premiumIndex, fundingRate and 4h klines all http=200, exchange time fresh. B0 passes; recorded in `WO-FUTURES-20261014-BINANCE-PUBLIC-PROBE`.
+- #2701 Now tab consecutive-loss line.
+
+### Open (all reviewed by a fresh session unless noted)
+| PR | State | Next |
+|---|---|---|
+| #2703 futures contract/simulator/risk gate | ready, CI green on 3d90367 | Release bot merge. Then retarget #2705 to main, merge main, mark ready. |
+| #2705 Safety tab futures rows (+20% margin row) | draft, stacked on #2703 | as above |
+| #2706 Now tab today's realized P&L (fill-cap fail-closed) | ready, base main | Release bot merge |
+| #2709 state entries per file under `.aipos/state.d/` | draft, **needs a fresh-session review** | review, then ready |
+
+### Owner decisions today (in addition to the morning list)
+- Keep the current calm design; add only the futures part. A full redesign is the owner's later task (mockup for reference only: https://claude.ai/artifact/RqBkk5mcs1pPFHYn3Rp9PU).
+- Night autonomous development every day 01:07-08:07 KST (routine `trig_01H4VbjDAaYCmFqA621bm6DZ`); 08:xx run leaves a short Korean morning summary.
+- Progress messages to the owner in Korean.
+
+### Lessons recorded
+- The RISK requalification test reads the committed HEAD blob: run it after committing, never before.
+- CI coverage shards also run on Windows: path assertions must normalize separators.
+- A `test` job failure on an old head after a newer push is the aggregate of a cancelled run, not a real failure.
+- A passing guard test proves little until it is shown to fail on an injected violation.
+
+### Next safe actions
+1. Finish the stacks above as they merge (retarget, merge main, re-verify, mark ready).
+2. After #2703 merges: futures B4 research on live public data with funding in costs (pre-register first; PAPER only, no keys, no orders).
+3. Design C remaining: learning and Autopilot status lines on the Now tab (Autopilot needs a server-side read of the Worker health).
+4. After #2709 merges: new state entries use `.aipos/state.d/`.

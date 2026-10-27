@@ -41,8 +41,8 @@ export function parseCache<T>(raw: string | null, now: number, endpoint: string,
   }
 }
 
-export function shouldSaveCache(lastSavedAt: number | null, now: number): boolean {
-  return lastSavedAt == null || !Number.isFinite(lastSavedAt) || now - lastSavedAt >= CACHE_MIN_SAVE_INTERVAL_MS || now < lastSavedAt;
+export function shouldSaveCache(lastSavedAt: number | null, now: number, force = false): boolean {
+  return force || lastSavedAt == null || !Number.isFinite(lastSavedAt) || now - lastSavedAt >= CACHE_MIN_SAVE_INTERVAL_MS || now < lastSavedAt;
 }
 
 export function staleLabel(savedAt: number, now: number): string {

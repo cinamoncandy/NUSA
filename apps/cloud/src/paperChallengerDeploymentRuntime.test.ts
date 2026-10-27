@@ -7,6 +7,7 @@ import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperChallengerDeploymentRuntime, type QualifiedPaperChallengerArtifact } from "./paperChallengerDeploymentRuntime";
 import type { PaperResearchLineage } from "./paperResearchLineage";
 import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
+import type { PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
 
 type EvolutionRecord = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
 const HASH = "a".repeat(64);
@@ -105,6 +106,58 @@ const governanceFor = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe("PaperChallengerDeploymentRuntime", () => {
+  it("replays an already-open exact deployment after receipt interruption without resetting observations", () => {
+    const ledger = new MemoryLedger();
+    const bindings = new PaperChallengerBindingLedger(ledger);
+    let open: PersistedPaperRealizedPeriodPlan | undefined;
+    let opens = 0;
+    let authorized = true;
+    const create = (decisionFingerprint = governanceApproval.approval.decisionFingerprint) => new PaperChallengerDeploymentRuntime({
+      artifacts: { read: () => artifact }, bindings,
+      periods: {
+        listRealizedPeriods: () => [], listOpenPeriods: () => open == null ? [] : [open],
+        nextPeriodIndex: () => 0,
+        openPeriodFromCanonicalAccount: (input) => {
+          opens += 1;
+          open = { ...input, schemaVersion: 1, observationIds: ["preserved-observation"], observations: [{ observationId: "preserved-observation", observedAt: input.periodStartAt, status: "WAIT" }] };
+          return open;
+        },
+      },
+      readCanonicalPaperAccount: () => account(),
+      governance: { requireExecutableChallenger: (request) => {
+        if (!authorized) throw new Error("PAPER_CHALLENGER_GOVERNANCE_APPROVAL_UNAVAILABLE");
+        return governanceFor({ approval: { ...governanceApproval.approval, decisionFingerprint } }).requireExecutableChallenger(request);
+      } },
+    });
+    const input = { cycleId: "interrupted-cycle", decision, authority: "PAPER_RESEARCH_ONLY" as const, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const };
+    const first = create().deploy(input);
+    const original = open;
+    const records = ledger.records.length;
+    assert.deepEqual(create().deploy(input), first);
+    assert.equal(opens, 1);
+    assert.equal(open, original);
+    assert.equal(ledger.records.length, records);
+    authorized = false;
+    assert.throws(() => create().deploy(input), /GOVERNANCE_APPROVAL_UNAVAILABLE/);
+    authorized = true;
+    assert.throws(() => create("e".repeat(64)).deploy(input), /conflict/);
+    assert.equal(ledger.records.length, records, "a changed Governance decision must not append another activation");
+    open = { ...open!, market: "KRW-XRP" };
+    assert.throws(() => create().deploy(input), /conflict|already open/);
+    open = { ...original!, periodStartAt: original!.periodStartAt + 1 };
+    assert.throws(() => create().deploy(input), /conflict/);
+    open = { ...original!, advisory: { ...original!.advisory, generatedAt: new Date(999).toISOString() } };
+    assert.throws(() => create().deploy(input), /conflict/);
+    open = { ...original!, candidateProvenance: [{ ...original!.candidateProvenance[0]!, datasetContentSha256: "e".repeat(64) }] };
+    assert.throws(() => create().deploy(input), /conflict/);
+    assert.equal(opens, 1);
+    assert.equal(ledger.records.length, records);
+    open = original;
+    ledger.records.length = 0;
+    assert.throws(() => create().deploy(input), /conflict/);
+    assert.equal(opens, 1);
+    assert.equal(ledger.records.length, 0, "missing binding must not be recreated by receipt recovery");
+  });
   it("preflights canonical rollover baseline before any binding mutation and retires only once", () => {
     const start = Date.UTC(2026, 9, 12);
     const original = buildOwnerBaselinePaperPeriodInput({ market: "KRW-BTC", periodIndex: 5, periodStartAt: start, sourceCommitSha: "a".repeat(40) });
@@ -119,6 +172,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
         artifacts: { read: () => artifact }, bindings,
         periods: {
           listRealizedPeriods: () => [], listOpenPeriods: () => retired === 0 ? [open] : [],
+          nextPeriodIndex: () => 0,
           retireOpenPeriodForReplacement: () => { retired++; return open; },
           openPeriodFromCanonicalAccount: input => { opened++; return { ...input, schemaVersion: 1, observationIds: [], observations: [] }; },
         },
@@ -148,6 +202,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
       bindings,
       periods: {
         listRealizedPeriods: () => Object.freeze([]),
+        nextPeriodIndex: () => 41,
         openPeriodFromCanonicalAccount: (input) => {
           opens.push(input);
           return Object.freeze({ ...input, schemaVersion: 1 as const, observationIds: Object.freeze([]), observations: Object.freeze([]) });
@@ -163,11 +218,13 @@ describe("PaperChallengerDeploymentRuntime", () => {
     assert.equal(receipt.productionMutationAllowed, false);
     assert.equal(receipt.aiAuthority, "ZERO_AUTHORITY");
     assert.equal(opens.length, 1);
+    assert.equal((opens[0] as { periodIndex: number }).periodIndex, 41, "deployment uses the canonical reserved index allocator");
     const active = bindings.current("KRW-BTC", 2_000);
     assert.equal(active?.binding.candidateId, "challenger-a");
     assert.equal(active?.binding.datasetContentSha256, HASH);
     assert.deepEqual(active?.binding.candidateStrategy?.parameters, { shortPeriod: 2, longPeriod: 3 });
     assert.deepEqual(active?.researchLineage, researchLineage);
+    assert.deepEqual(active?.governanceAuthorization, { ...governanceApproval, evidenceFingerprintSha256: active!.binding.bindingFingerprintSha256 });
     assert.deepEqual(new PaperChallengerBindingLedger(ledger).lineage("KRW-BTC", 2_000), researchLineage);
   });
 
@@ -175,7 +232,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const runtime = new PaperChallengerDeploymentRuntime({
       artifacts: { read: () => undefined },
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
-      periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
+      periods: { listRealizedPeriods: () => [], nextPeriodIndex: () => 0, openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
       governance: governanceFor(),
     });
@@ -186,7 +243,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const runtime = new PaperChallengerDeploymentRuntime({
       artifacts: { read: () => Object.freeze({ ...artifact, researchDecisionReference: "different" }) },
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
-      periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
+      periods: { listRealizedPeriods: () => [], nextPeriodIndex: () => 0, openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
       governance: governanceFor(),
     });
@@ -197,7 +254,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const runtime = new PaperChallengerDeploymentRuntime({
       artifacts: { read: () => Object.freeze({ ...artifact, candidateStrategy: undefined }) },
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
-      periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
+      periods: { listRealizedPeriods: () => [], nextPeriodIndex: () => 0, openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
       governance: governanceFor(),
     });
@@ -208,7 +265,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const runtime = new PaperChallengerDeploymentRuntime({
       artifacts: { read: () => Object.freeze({ ...artifact, researchLineage: undefined }) },
       bindings: new PaperChallengerBindingLedger(new MemoryLedger()),
-      periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
+      periods: { listRealizedPeriods: () => [], nextPeriodIndex: () => 0, openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
       governance: governanceFor(),
     });
@@ -221,7 +278,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const runtime = new PaperChallengerDeploymentRuntime({
       artifacts: { read: () => artifact },
       bindings,
-      periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: (input) => Object.freeze({ ...input, schemaVersion: 1 as const, observationIds: Object.freeze([]), observations: Object.freeze([]) }) },
+      periods: { listRealizedPeriods: () => [], nextPeriodIndex: () => 0, openPeriodFromCanonicalAccount: (input) => Object.freeze({ ...input, schemaVersion: 1 as const, observationIds: Object.freeze([]), observations: Object.freeze([]) }) },
       readCanonicalPaperAccount: () => account(),
       governance: governanceFor(),
     });
@@ -230,7 +287,7 @@ describe("PaperChallengerDeploymentRuntime", () => {
     const replay = new PaperChallengerDeploymentRuntime({
       artifacts: { read: () => conflicting },
       bindings,
-      periods: { listRealizedPeriods: () => [], openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
+      periods: { listRealizedPeriods: () => [], nextPeriodIndex: () => 0, openPeriodFromCanonicalAccount: () => { throw new Error("must not open"); } },
       readCanonicalPaperAccount: () => account(),
       governance: governanceFor(),
     });
@@ -248,6 +305,7 @@ describe("PaperChallengerDeploymentRuntime Strategy Governance gate", () => {
       bindings,
       periods: {
         listRealizedPeriods: () => Object.freeze([]),
+        nextPeriodIndex: () => 0,
         openPeriodFromCanonicalAccount: (input) => {
           opens.push(input);
           return Object.freeze({ ...input, schemaVersion: 1 as const, observationIds: Object.freeze([]), observations: Object.freeze([]) });

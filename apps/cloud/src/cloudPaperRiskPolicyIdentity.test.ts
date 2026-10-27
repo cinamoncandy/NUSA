@@ -12,6 +12,10 @@ describe("cloud PAPER risk policy identity", () => {
   });
 
   it("changes when any risk limit changes and rejects invalid limits", () => {
+    assert.notEqual(cloudPaperRiskPolicyFingerprint({ ...CLOUD_PAPER_RISK_LIMITS, consecutiveLossLimitEnabled: true }), CLOUD_PAPER_RISK_POLICY_FINGERPRINT);
+    for (const invalid of [null, "false", 0]) {
+      assert.throws(() => cloudPaperRiskPolicyFingerprint({ ...CLOUD_PAPER_RISK_LIMITS, consecutiveLossLimitEnabled: invalid } as never), /risk limit/);
+    }
     assert.notEqual(cloudPaperRiskPolicyFingerprint({ ...CLOUD_PAPER_RISK_LIMITS, maxOrderNotional: CLOUD_PAPER_RISK_LIMITS.maxOrderNotional + 1 }), CLOUD_PAPER_RISK_POLICY_FINGERPRINT);
     assert.throws(() => cloudPaperRiskPolicyFingerprint({ ...CLOUD_PAPER_RISK_LIMITS, maxOrderNotional: Number.NaN }), /risk limit/);
   });

@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
-const EXPECTED_RISK_BLOB = "392175413cb7843889d47331fad1b997d3bdf838";
+const EXPECTED_RISK_BLOB = "4a7ef23803b0d9ed132276a772cc2838bbe17126";
 
 function committedGitBlobSha(path: string): string {
   return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
@@ -57,7 +57,7 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.match(source, /consecutiveLossCount: lossState\.consecutiveLossCount, sessionPeakEquity/, "the decision still uses the same streak");
   });
 
-  it("verifies the complete PAPER risk envelope is unchanged", () => {
+  it("verifies owner-approved Cloud loss-veto removal and every other risk limit unchanged", () => {
     assert.deepEqual(CLOUD_PAPER_RISK_LIMITS, {
       maxOrderNotional: 2_000_000,
       maxPositionNotional: 2_000_000,
@@ -71,6 +71,7 @@ describe("RISK exact-source re-qualification evidence", () => {
       maxDailySellNotional: 2_000_000,
       maxDailyLoss: 1_000_000,
       maxConsecutiveLosses: 3,
+      consecutiveLossLimitEnabled: false,
       maxSessionDrawdownRatio: 0.2,
       maxPriceDeviationRatio: 0.05
     });

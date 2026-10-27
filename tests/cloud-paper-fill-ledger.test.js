@@ -83,6 +83,41 @@ test("durable PAPER fill ledger appends a fill exactly once across replay and re
   }
 });
 
+test("restart with an existing canonical fill ledger does not rescan all account history before the lease heartbeat can start", () => {
+  const f = fixture();
+  try {
+    const result = f.loop.processTick(tick());
+    assert.equal(result.status, "FILLED");
+    f.repository.close();
+    f.db.close();
+
+    const reopenedDb = new SqliteDatabase(f.databasePath);
+    let nowCalls = 0;
+    let constructorPhase = true;
+    const now = () => {
+      nowCalls += 1;
+      if (constructorPhase) return nowCalls === 1 ? 1_000 : 121_001;
+      return 1_001;
+    };
+    const reopenedRepository = new SqliteCloudPaperAccountRepository(reopenedDb, {
+      ownerId: "restart-writer",
+      now,
+      leaseDurationMs: 30_000,
+      heartbeatIntervalMs: 10_000,
+    });
+    constructorPhase = false;
+    try {
+      assert.equal(nowCalls, 1);
+      assert.equal(reopenedRepository.loadFills().length, 1);
+    } finally {
+      reopenedRepository.close();
+      reopenedDb.close();
+    }
+  } finally {
+    fs.rmSync(f.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  }
+});
+
 test("restart fails closed when durable PAPER fill ledger bytes are tampered", () => {
   const f = fixture();
   try {

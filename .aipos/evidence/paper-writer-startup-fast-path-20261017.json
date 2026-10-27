@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-17T06:14:00Z",
+  "workOrder": "WO-OPS-20261017-PAPER-WRITER-STARTUP-FAST-PATH",
+  "pullRequest": 2744,
+  "branch": "fix/paper-writer-startup-lease-20261017",
+  "protectedMainAtObservation": "58a8e4fbb32fcc8dee018bd6563982e4e3ba0a8c",
+  "implementationHeadBeforeAiposRecord": "540312118f8edbcf9dec32bd0ff08d1ff171d6b2",
+  "runtimeObservation": {
+    "host": "nusa-vcn",
+    "currentRelease": "a4661cc20c47dd3968c3a3575369262c657e3bc1",
+    "observedAt": "2026-10-17T06:04:37Z",
+    "listener": "UNAVAILABLE_OUTSIDE_BRIEF_STARTUP_WINDOW",
+    "localHealthHttp": 0,
+    "naturalFailure": "PAPER_WRITER_LEASE_LOST",
+    "earlierNaturalFailure": "PAPER_WRITER_CLOCK_ANOMALY",
+    "sequence": [
+      "runtime process starts",
+      "historical PAPER startup work runs for roughly two minutes",
+      "listener becomes available briefly on 127.0.0.1:41731",
+      "Research experiment recovery reaches READY",
+      "closed-learning scheduler verifies writer lease",
+      "PAPER_WRITER_LEASE_LOST is raised fail-closed",
+      "runtime shuts down and supervisor restarts"
+    ],
+    "syntheticFailureInjected": false
+  },
+  "change": {
+    "files": [
+      "apps/cloud/src/paperTradingExecutionLoop.ts",
+      "tests/cloud-paper-fill-ledger.test.js",
+      "apps/cloud/src/paperTradingExecutionLoop.requalification.test.ts",
+      "apps/cloud/src/moduleQualificationV1.ts"
+    ],
+    "statement": "Use the already-canonical non-empty fill ledger as the bounded startup truth; validate the ledger and current resumable account plus embedded quote/depth/cost receipts instead of replaying all historical account snapshots. Keep full replay only for the empty-ledger backfill case.",
+    "duplicateEngine": false,
+    "leasePolicyChanged": false,
+    "riskChanged": false,
+    "qualificationChanged": false,
+    "capitalChanged": false
+  },
+  "validation": {
+    "gitDiffCheck": "PASS",
+    "implementationHeadCompanions": {
+      "Actual PAPER Public-Market Runtime Evidence": "SUCCESS",
+      "Restricted LIVE Activation Rehearsal": "SUCCESS",
+      "Restricted LIVE Transport Credential Readiness": "SUCCESS",
+      "Restricted LIVE Capability Surface Guard": "SUCCESS",
+      "Read-only Broker Credential Integration": "SUCCESS"
+    },
+    "implementationHeadCiAtRecordTime": "IN_PROGRESS",
+    "finalAiposHeadExactCi": "PENDING",
+    "freshNonAuthorReview": "PENDING",
+    "audit": "PENDING",
+    "release": "PENDING",
+    "exactMainRuntimeAcceptance": "PENDING"
+  },
+  "learningImpact": {
+    "firstBrokenTransition": "canonical PAPER state restore -> writer lease heartbeat/liveness -> sustained Realized PAPER production",
+    "historicalOwnerBaselinePeriodsRetrofitted": false,
+    "qualifiedClosedLearningCycleClaimed": false,
+    "syntheticCandidateClaimed": false,
+    "performanceImprovement": "UNPROVEN",
+    "verified": false
+  },
+  "safety": {
+    "mode": "PAPER_ONLY",
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  }
+}

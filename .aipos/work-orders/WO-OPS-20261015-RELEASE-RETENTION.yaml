@@ -1,0 +1,27 @@
+id: WO-OPS-20261015-RELEASE-RETENTION
+title: "Keep fewer old releases on the PAPER host (RELEASE_RETENTION 4 to 2)"
+status: IN_PROGRESS
+priority: P2
+owner: ops
+repository: cinamoncandy/NUSA
+base_branch: main
+objective: "The PAPER host root disk is 91% full (41G of 45G, 4.5G free; diagnoses 38662550145, 38677518426). Seven releases of about 1.6 GB (about 11 GB) are kept: active, rollback, RELEASE_RETENTION=4 recent, plus the one being staged. Reduce the recent count so a deploy cannot fill the disk."
+first_broken_transition: "release disk growth is bounded only by RELEASE_RETENTION=4, too high for the 45 GB root disk"
+scope:
+  - RELEASE_RETENTION 4 to 2 in deploy/oracle/nusa-release-step.sh (the prune verb already runs at the start of every release; validation, symlink and 40-hex guards unchanged)
+  - runbook text and the pinned test updated
+prohibited:
+  - any change to what prune validates or never touches (state, backups)
+  - removing the active or the rollback release
+  - host mutation outside the existing release workflow
+acceptance:
+  - after the next release the host keeps active, rollback and at most 2 recent releases (about 3 to 5 GB freed)
+  - rollback stays possible (previous release preserved)
+validation:
+  local: "oracle-paper-release-workflow tests pass (20). preflight NOT RUN (Node 22 sandbox)."
+remaining: "CI, non-author review, Audit/Release, then the next release prunes; read the effect with a diagnosis (release dir count, df)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

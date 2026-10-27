@@ -17,14 +17,14 @@ function losingRoundTrips(offset) {
   return fills;
 }
 
-function evaluate(fills, onGateway) {
+function evaluate(fills, onGateway, consecutiveLossLimitEnabled = true) {
   const db = new SqliteDatabase(':memory:');
   try {
     const state = { version: 1, initialCapital: 100_000, cash: 99_997, equity: 99_997, realizedPnL: -3, unrealizedPnL: 0,
       positions: [], orders: fills.map((fill) => ({ ...fill, id: fill.orderId, status: 'FILLED' })),
       fills: [...fills].reverse(), processedIdempotencyKeys: [], updatedAt: NOW };
     const gateway = new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 100_000, sourceCommitSha: 'a'.repeat(40),
-      limits: { ...CLOUD_PAPER_RISK_LIMITS, maxDailyLoss: 1_000_000, maxSameSideStreak: 100, maxOrdersPerMinute: 1_000, maxOrdersPerSecond: 1_000, maxDailyBuyNotional: 1e12, maxDailySellNotional: 1e12 } });
+      limits: { ...CLOUD_PAPER_RISK_LIMITS, consecutiveLossLimitEnabled, maxDailyLoss: 1_000_000, maxSameSideStreak: 100, maxOrdersPerMinute: 1_000, maxOrdersPerSecond: 1_000, maxDailyBuyNotional: 1e12, maxDailySellNotional: 1e12 } });
     const result = gateway.evaluate({ path: 'STRATEGY', commandId: 'next', signalId: 'next', clientOrderId: 'next', strategyId: 'bound-candidate',
       market: 'KRW-BTC', side: 'BUY', quantity: 1, price: 100, now: NOW, observedAt: NOW, maximumMarketAgeMs: 30_000,
       killSwitchActive: false, openP0: false, overallHealth: 'HEALTHY', state });
@@ -37,6 +37,16 @@ test('three losing sells today still trip the consecutive-loss limit', () => {
   assert.ok(evaluate(losingRoundTrips(60_000)).reasonCodes.includes('CONSECUTIVE_LOSS_LIMIT'));
 });
 
+test('owner-disabled PAPER veto preserves the real loss streak without blocking on it', () => {
+  let session;
+  const result = evaluate(losingRoundTrips(60_000), (g) => { session = g.lossSession(); }, false);
+  assert.equal(result.status, 'ALLOW');
+  assert.equal(result.reasonCodes.includes('CONSECUTIVE_LOSS_LIMIT'), false);
+  assert.equal(session.consecutiveLossCount, 3);
+  assert.equal(session.todayLosingSells, 3);
+  assert.equal(session.consecutiveLossLimitEnabled, false);
+});
+
 test('a losing streak from a previous trading day no longer blocks today', () => {
   const result = evaluate(losingRoundTrips(DAY));
   assert.equal(result.reasonCodes.includes('CONSECUTIVE_LOSS_LIMIT'), false, JSON.stringify(result.reasonCodes));
@@ -45,7 +55,7 @@ test('a losing streak from a previous trading day no longer blocks today', () =>
 test('the loss-limit counts behind a decision are published for display: today only, integers only', () => {
   let session;
   evaluate(losingRoundTrips(60_000), (gateway) => { session = gateway.lossSession(); });
-  assert.deepEqual(session, { evaluatedAt: NOW, consecutiveLossCount: 3, maxConsecutiveLosses: CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses, todayCompletedSells: 3, todayLosingSells: 3,
+  assert.deepEqual(session, { evaluatedAt: NOW, consecutiveLossCount: 3, maxConsecutiveLosses: CLOUD_PAPER_RISK_LIMITS.maxConsecutiveLosses, consecutiveLossLimitEnabled: true, todayCompletedSells: 3, todayLosingSells: 3,
     periodIdentity: '2026-10-01', periodStartedAt: Date.parse('2026-10-01T00:00:00+09:00'), lastIncrementAt: NOW - 60_000 - 60_000 + 1_000 });
   evaluate(losingRoundTrips(DAY), (gateway) => { session = gateway.lossSession(); });
   assert.equal(session.todayCompletedSells, 0, 'yesterday\'s sells are not today\'s');
@@ -64,7 +74,7 @@ function evaluateAt(now, fills) {
       positions: [], orders: fills.map((fill) => ({ ...fill, id: fill.orderId, status: 'FILLED' })),
       fills: [...fills].reverse(), processedIdempotencyKeys: [], updatedAt: now };
     const gateway = new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 100_000, sourceCommitSha: 'a'.repeat(40),
-      limits: { ...CLOUD_PAPER_RISK_LIMITS, maxDailyLoss: 1_000_000, maxSameSideStreak: 100, maxOrdersPerMinute: 1_000, maxOrdersPerSecond: 1_000, maxDailyBuyNotional: 1e12, maxDailySellNotional: 1e12 } });
+      limits: { ...CLOUD_PAPER_RISK_LIMITS, consecutiveLossLimitEnabled: true, maxDailyLoss: 1_000_000, maxSameSideStreak: 100, maxOrdersPerMinute: 1_000, maxOrdersPerSecond: 1_000, maxDailyBuyNotional: 1e12, maxDailySellNotional: 1e12 } });
     const result = gateway.evaluate({ path: 'STRATEGY', commandId: 'next', signalId: 'next', clientOrderId: 'next', strategyId: 'bound-candidate',
       market: 'KRW-BTC', side: 'BUY', quantity: 1, price: 100, now, observedAt: now, maximumMarketAgeMs: 30_000,
       killSwitchActive: false, openP0: false, overallHealth: 'HEALTHY', state });

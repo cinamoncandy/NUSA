@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { ClosedLearningInitialPaperBootstrap } from "./closedLearningInitialPaperBootstrap";
 import type { ClosedLearningResearchReplayResult } from "./closedLearningResearchWorkerClient";
 import { buildOwnerBaselinePaperPeriodInput } from "./ownerBaselinePaperPeriod";
+import { bindResearchQualificationIdentity } from "../../../packages/contracts/src/researchQualificationIdentity";
 
 const ORIGINAL = "a".repeat(64);
 const REPLAY = "b".repeat(64);
@@ -20,14 +21,14 @@ function replayResult(deployable = true): ClosedLearningResearchReplayResult {
     operation: "REPLAY_PAPER_EVIDENCE",
     originalRunFingerprintSha256: ORIGINAL,
     replayRunFingerprintSha256: REPLAY,
-    qualification: {
+    qualification: bindResearchQualificationIdentity(REPLAY, {
       schemaVersion: 1,
       candidates: [{ candidateId: "candidate-a", outcome: "QUALIFIED_FOR_LEAGUE", reasons: [], summary: "qualified" }],
       coverage: { candidateCount: 1, qualifiedCount: 1, insufficientCount: 0, rejectedCount: 0 },
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
-    },
+    }),
     deployment: deployable ? {
       schemaVersion: 1,
       status: "DEPLOYABLE",

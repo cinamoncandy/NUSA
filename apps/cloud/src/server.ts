@@ -107,6 +107,7 @@ export interface CloudRuntimeLivenessSnapshot {
   /** Research-only microstructure recorder counters (see marketMicrostructureRecorder.ts). */
   readonly dataIntegrity?: Readonly<Record<string, string | number>>;
   readonly orderBookCollector?: { readonly rounds: number; readonly markets: number; readonly samplesStored: number; readonly failures: number; readonly rejected?: number; readonly lastRoundAt?: number };
+  readonly futuresCollector?: { readonly rounds: number; readonly marksStored: number; readonly fundingStored: number; readonly klinesStored: number; readonly failures: number; readonly rejected: number; readonly lastRoundAt?: number };
   readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly rejectedRows?: number; readonly lastRecordedAt?: number };
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
@@ -117,7 +118,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
-  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly consecutiveLossLimitEnabled?: boolean; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }
 
 export interface CloudReadinessSnapshot {
@@ -353,6 +354,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     ? {
         paperLossSession: {
           ...Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])),
+          ...(typeof rawLoss.consecutiveLossLimitEnabled === "boolean" ? { consecutiveLossLimitEnabled: rawLoss.consecutiveLossLimitEnabled } : {}),
           ...periodEvidence(rawLoss),
         },
       }
@@ -401,7 +403,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
   let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
   const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
-  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason", "lastErrorClass"] as const;
   if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
     && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
     const loop: Record<string, string | number | Record<string, string | number>> = {};
@@ -493,6 +495,13 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   if (rawCollector != null && typeof rawCollector === "object" && ["rounds", "markets", "samplesStored", "failures"].every((key) => Number.isSafeInteger(rawCollector[key]) && Number(rawCollector[key]) >= 0)) {
     orderBookCollector = { orderBookCollector: { rounds: Number(rawCollector.rounds), markets: Number(rawCollector.markets), samplesStored: Number(rawCollector.samplesStored), failures: Number(rawCollector.failures), ...(Number.isSafeInteger(rawCollector.rejected) && Number(rawCollector.rejected) >= 0 ? { rejected: Number(rawCollector.rejected) } : {}), ...(Number.isSafeInteger(rawCollector.lastRoundAt) && Number(rawCollector.lastRoundAt) > 0 ? { lastRoundAt: Number(rawCollector.lastRoundAt) } : {}) } };
   }
+  // Public futures collector: non-negative integer counters and one timestamp only.
+  const rawFutures = source.futuresCollector as Record<string, unknown> | null | undefined;
+  let futuresCollector: { futuresCollector?: Record<string, number> } = {};
+  const futuresKeys = ["rounds", "marksStored", "fundingStored", "klinesStored", "failures", "rejected"];
+  if (rawFutures != null && typeof rawFutures === "object" && futuresKeys.every((key) => Number.isSafeInteger(rawFutures[key]) && Number(rawFutures[key]) >= 0)) {
+    futuresCollector = { futuresCollector: { ...Object.fromEntries(futuresKeys.map((key) => [key, Number(rawFutures[key])])), ...(Number.isSafeInteger(rawFutures.lastRoundAt) && Number(rawFutures.lastRoundAt) > 0 ? { lastRoundAt: Number(rawFutures.lastRoundAt) } : {}) } };
+  }
   // Stored-data integrity probe: a fixed status plus non-negative integers only.
   const rawIntegrity = source.dataIntegrity as Record<string, unknown> | null | undefined;
   let dataIntegrity: { dataIntegrity?: Record<string, string | number> } = {};
@@ -518,7 +527,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     : {};
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
-  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...futuresCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

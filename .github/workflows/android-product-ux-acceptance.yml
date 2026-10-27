@@ -138,8 +138,12 @@ jobs:
 
           tap "tab-More"; capture 05-more
           tap_after_scroll "more-PaperEvidence"; capture 06-paper
+          # Evidence only: look at the lower part of the Learning summary (aura cards), then return to the top so the details control stays tappable.
+          adb shell input swipe 540 1750 540 520 450; sleep 1; capture 06b-learning-lower
+          adb shell input swipe 540 1750 540 520 450; sleep 1; capture 06c-learning-lowest
+          for _ in 1 2 3; do adb shell input swipe 540 520 540 1750 450; sleep 1; done
           # calm-v1: the PAPER evidence opens on the 학습 summary; the full read-only monitor is behind 자세히 보기.
-          tap "learning-details"; capture 07-paper-evidence-open
+          tap_after_scroll "learning-details"; capture 07-paper-evidence-open
           tap "tab-More"; capture 08-more-return
           tap_after_scroll "more-Portfolio"; capture 09-portfolio
           tap "header-tools-menu"; tap "header-settings"; capture 10-settings

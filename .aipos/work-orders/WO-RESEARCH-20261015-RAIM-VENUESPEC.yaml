@@ -1,0 +1,33 @@
+id: WO-RESEARCH-20261015-RAIM-VENUESPEC
+title: "RAIM regime-adaptive market-making research: VenueSpec gate (step 2 of the validation order)"
+status: IN_PROGRESS
+priority: P2
+owner: research
+repository: cinamoncandy/NUSA
+base_branch: main
+objective: "Decide with cost-aware independent evidence whether regime-adaptive market making improves NUSA risk-adjusted performance. Profitability is not assumed; a net-loss result is preserved and the candidate rejected."
+first_broken_transition: "No VenueSpec exists, and collected data is top-of-book plus 5-level depth sums only (no queue position, no order events), so fills/queue cannot be simulated without UNKNOWN assumptions. Checked 2026-10-15: no market-making code, no duplicate open PR."
+scope:
+  - research_only_venue_spec_with_UNKNOWN_default
+  - fail_closed_gate_blocking_simulation_while_required_fields_unknown
+prohibited:
+  - order_placement_or_new_execution_engine
+  - risk_limit_change
+  - authority_escalation
+  - invented_fees_tick_sizes_or_profitability
+remaining_transitions:
+  - verify_upbit_krw_spec_from_dated_official_source (PARTIAL 2026-10-15: tick bands and 5,000 KRW minimum VERIFIED from https://docs.upbit.com/kr/docs/krw-market-info raw page; listed KRW fee 0.05% (5 bp) VERIFIED from the official Strategy Toolkit reference, as one rate with no maker/taker split; support-center fee page 403 and NOT read; quantity step, maker/taker split, rebate, cancel limits, sequence rules still UNKNOWN. Runtime per-pair fees come from the orders/chance API (bid_fee, ask_fee, maker_bid_fee, maker_ask_fee) and are NOT verified.)
+  - data_integrity_and_lookahead_check_for_fill_inputs (DONE for existing rows, WO data-integrity probe)
+  - conservative_fill_queue_cancel_simulator (DONE 2026-10-15: researchMarketMakingSim.ts; fills only strictly through the quote after a latency, never at the touch; cancel/replace on every book; spot, no shorting; min notional enforced; runs only under explicit SINGLE_LISTED_FEE / QUANTITY_STEP_IGNORED assumptions and always reports independent=false)
+  - deterministic_regime_classifier_and_inventory_aware_quote_candidate (DONE 2026-10-15: researchRegimeQuoting.ts; constants pre-registered and untuned; past books only; ambiguous/insufficient/illiquid => no quote)
+  - baseline_vs_candidate_same_input_comparison (HARNESS DONE: compareOnSameInput, verdict INSUFFICIENT below 30 fills each; NOT RUN on real data yet)
+  - pre_registered_host_study_on_stored_books_and_trades (DONE as code 2026-10-15: scripts/run-raim-study.js, window 2026-10-25..10-29 evaluated once, nothing fitted, runs in nusa-research after the integrity probe, prints RAIM_STUDY and writes raim-study-result.json; NOT RUN on real data until the window is collected; ledger/meta-learner consumption NOT wired; design note - like run-orderbook-study.js, stored books are one top-of-book sample per market per minute, so quotes refresh at most once a minute and trades are the only fill source)
+  - pit_walk_forward_and_independent_holdout
+  - governance_then_paper_reconciliation
+verified: false
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+review_2026_10_15: "Independent fresh review PASS_WITH_NOTES, no P0. Fixed - study written once (never re-run or overwritten after a final result), books and trades bounded to the top 20 markets, DATA_INVALID distinct from BLOCKED_SPEC, leftover inventory valued at last bid net of fee, fills counted per filled order, no look-ahead in the spread-capture reference mid, fee scope and selection effect documented. Not fixed (documented) - queue assumption beyond strictly-through plus latency, tick bands are global rather than per pair."

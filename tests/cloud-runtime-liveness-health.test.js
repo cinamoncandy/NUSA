@@ -313,8 +313,8 @@ test("the previous stop reason is published only as a coded value and never as f
   }, 41889);
 });
 
-test("/health publishes the loss-limit counts as five non-negative integers, and nothing when any is malformed", async () => {
-  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4 };
+test("/health publishes loss counts and the explicit enforcement policy without private data", async () => {
+  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, consecutiveLossLimitEnabled: false, todayCompletedSells: 5, todayLosingSells: 4 };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: session }) }, async (handle) => {
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.deepEqual(body.runtime.paperLossSession, session);
@@ -588,4 +588,14 @@ test("/health publishes the stored-data integrity result as a status plus non-ne
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "GOOD", candleFuture: 0 } }) }, async (handle) => {
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, undefined);
   }, 42353);
+});
+
+test("/health publishes the public futures collector counters as non-negative integers only", async () => {
+  const good = { rounds: 3, marksStored: 6, fundingStored: 4, klinesStored: 4, failures: 1, rejected: 0, lastRoundAt: 1_791_900_000_000 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, futuresCollector: { ...good, note: "x" } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.futuresCollector, good);
+  }, 42390);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, futuresCollector: { ...good, rounds: -1 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.futuresCollector, undefined);
+  }, 42391);
 });

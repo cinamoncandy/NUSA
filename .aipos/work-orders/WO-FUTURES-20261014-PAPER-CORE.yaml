@@ -1,0 +1,40 @@
+id: WO-FUTURES-20261014-PAPER-CORE
+title: "B1-B3: PAPER-only Binance USD-M futures contract, deterministic simulator and futures risk gate"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/futures-paper-core
+parent: WO-DESIGN-20261014-CLAUDE-DESIGN-V1
+authority_impact: none
+owner_approval: "2026-10-14 in chat: 'add Binance futures', design v1 accepted 'all as recommended' (futures limits 2x, isolated, 25% liquidation distance, consecutive-loss 3), then 'do everything yourself'."
+objective: "A separate PAPER futures domain whose accounting and risk rules are tested before any market data or runtime wiring exists."
+change:
+  - "packages/contracts/src/paperFutures.ts: positions, account, ledger, order intent, cost profile, owner limits (2x, 25%, 3 losses, 5% daily loss, 20% margin per position) and PAPER authority constants."
+  - "apps/cloud/src/futures/paperFuturesSimulator.ts: pure isolated-margin simulator (adverse slippage, taker fee, liquidation price, liquidation, funding, reduce-only, idempotent order ids)."
+  - "apps/cloud/src/futures/paperFuturesRiskGate.ts: futures-only gate; reduce-only exposure cuts always allowed; new exposure must pass stale-mark, isolated-only, leverage, liquidation-distance, position-margin, consecutive-loss (KST day) and daily-loss checks; limits can only be tightened."
+not_changed: "Nothing is wired into the runtime, no market data is fetched, no credential exists, and the Upbit spot gateway, ledger and limits are untouched."
+review_corrections: "2026-10-14 independent pre-review: (P1) funding could drive isolated margin negative with a stale liquidation price; the liquidation price is now derived from current margin, recomputed on funding and partial close, and funding liquidates at once when the mark has crossed it; liquidations never book a gain. (P2) reserved funding:/liq: id prefixes rejected, liquidation ids de-duplicated, time validated; the gate rejects invalid quantity and flips itself and checks liquidation distance on the resulting position; remaining notes documented in the gate header."
+stated_simplifications:
+  - "Liquidation price omits tiered maintenance amounts. At 2x a fresh position sits about 50% from liquidation, so the 25% floor is a backstop that bites after funding erodes margin."
+  - "The losing streak counts each losing close, so a trade closed in several losing slices counts more than once (safe side). Daily loss is realized only."
+  - "One position per symbol; flipping through zero in one order is rejected."
+  - "maxDailyLossRatio 5% and maxPositionMarginRatio 20% are conservative defaults chosen with the accepted limits; the owner may only tighten them."
+non_author_review: "2026-10-14 /grill-me (comment 6161810205) on dbf1a02c7: no blocking findings. Non-blocking 1 (funding debt beyond margin) documented in the simulator model notes; 2 (flip tolerance) fixed with a shared PAPER_FUTURES_QUANTITY_EPS and a float-dust test; 3 kept as a wiring prerequisite below."
+wiring_prerequisites:
+  - "startOfDayEquity must come from the futures ledger and mark price/time from source-stamped public data, never caller-computed values (review item 3)."
+next:
+  - "B0 data probe (#2702) result decides live-data PAPER vs stored-data research."
+  - "B4: futures research with funding in costs; B5 shadow; B6 screen."
+no_network_guard: "apps/cloud/src/futures/paperFuturesNoNetwork.test.ts walks every relative import from the futures sources transitively (reaching paperTradingDay.ts and contracts risk-safety-integration.ts), fails on any package or non-allowlisted Node built-in (allowlist: node:crypto), and scans every reached file for fetch, URLs, exchange names/SDKs, sockets, keys, secrets and process.env, reporting file:line and the line text. Verified to fail on an injected network call in a transitively imported module and on an injected node:util import."
+verification_commands:
+  - "npx tsc -p tsconfig.json"
+  - "node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/futures/*.test.js"
+  - "node scripts/validate-safety-architecture.js && node scripts/validate-architecture.js && node scripts/validate-architecture-surfaces.js"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  credentials: NONE
+  fail_closed: true

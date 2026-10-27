@@ -16,7 +16,7 @@ const open = (filename) => {
 
 test("migration 027 exists and a holdout is claimed once, then refused", () => {
   const { db, ledger } = open();
-  assert.equal(db.migrationResult.currentVersion, "029_research_trade_ticks_by_content");
+  assert.equal(db.migrationResult.currentVersion, "032_research_orderbook_study_rows");
   assert.equal(ledger.isUsed(key()), false);
   assert.equal(ledger.claim(key(), "eval-1", 5 * M), "CLAIMED");
   assert.equal(ledger.isUsed(key()), true);

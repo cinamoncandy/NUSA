@@ -87,14 +87,14 @@ function replayResult(deployment: ClosedLearningResearchReplayResult["deployment
     operation: "REPLAY_PAPER_EVIDENCE",
     originalRunFingerprintSha256: ORIGINAL,
     replayRunFingerprintSha256: REPLAY,
-    qualification: Object.freeze({
+    qualification: bindResearchQualificationIdentity(REPLAY, Object.freeze({
       schemaVersion: 1,
       candidates,
       coverage: Object.freeze({ candidateCount: candidates.length, qualifiedCount: candidates.length, insufficientCount: 0, rejectedCount: 0 }),
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
-    }),
+    })),
     deployment,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
@@ -212,3 +212,4 @@ describe("ClosedLearningProductionResearchAdapter", () => {
     assert.throws(() => badClock.evaluate(identity), /clock/);
   });
 });
+import { bindResearchQualificationIdentity } from "../../../packages/contracts/src/researchQualificationIdentity";

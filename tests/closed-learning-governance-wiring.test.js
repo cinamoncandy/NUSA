@@ -19,7 +19,7 @@ test("serialized production learning verifies its writer lease before bootstrap 
   const guard = tick.indexOf("paperRepository?.verifyWriterLease()");
   const bootstrap = tick.indexOf("await runClosedLearningBootstrapAsync()");
   assert.ok(guard >= 0 && bootstrap > guard);
-  assert.match(tick, /catch\(\(error: unknown\) => \{ loopStatus\.observeError\(Date\.now\(\)\); persistLastBlocked\(\); throw error; \}\)/);
+  assert.match(tick, /catch\(\(error: unknown\) => \{ loopStatus\.observeError\(Date\.now\(\), tickErrorClass\(error\)\); persistLastBlocked\(\); throw error; \}\)/);
   assert.match(tick, /recordRuntimeFailure\(config\.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error\)/);
   assert.match(tick, /void handle\.stop\(\)/);
 });

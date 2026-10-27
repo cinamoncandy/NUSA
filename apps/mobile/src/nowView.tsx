@@ -7,14 +7,17 @@ import type { PublicCandle } from "./chartViewModel";
 import { buildHomeFieldInput } from "./homeFieldInput";
 import { buildIntelligenceField } from "./intelligenceFieldModel";
 import { haltCauseFromSnapshot } from "./haltReasonModel";
+import { buildLossLimitLine, buildTodayRealizedLine } from "./lossLimitModel";
 import { describePaperOrderReason } from "./paperOrderReason";
 import { explainDecision } from "./whyNoTradeModel";
 import { useDailyCounts } from "./useDailyCounts";
-import { chooseDailyCounts } from "./dailyResetModel";
+import { chooseDailyCounts, partialWindowNote } from "./dailyResetModel";
 import { staleLabel } from "./cachedSnapshotModel";
-import { DecisionRings } from "./decisionRings";
+import { InstrumentEquity, InstrumentNow } from "./instrumentNow";
 import { buildNowScreen } from "./nowScreenModel";
-import { CalmBigNumber, CalmHeadline, CalmStats } from "./uiKit";
+import { buildRiskGate } from "./riskGateModel";
+import { RiskGateFlow } from "./riskGateFlow";
+import { buildDecisionTerrain } from "./decisionTerrainModel";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
@@ -54,6 +57,8 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const account = snapshot?.portfolio?.account ?? null;
   const totalPnl = account == null ? null : (account.realizedPnl ?? account.position.realizedPnl) + account.unrealizedPnl;
   const orderReason = blocked ? null : describePaperOrderReason(heartbeat?.lastPaperDecisionOutcome);
+  const todayRealized = blocked ? null : buildTodayRealizedLine(heartbeat?.todayRealized, Date.now());
+  const lossLimit = blocked ? null : buildLossLimitLine(heartbeat?.lossLimit, Date.now(), haltCause != null || field.phase === "HALTED");
   const model = buildNowScreen({
     phase: field.phase,
     phaseHeadline: field.headline,
@@ -68,23 +73,25 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     paperOrderCount: heartbeat?.paperOrderCount ?? null,
     fillCount: heartbeat?.paperFillCount ?? null,
   });
-  const ringsStatus = field.phase === "HALTED" ? { title: field.headline, detail: field.detail, tone: "halt" as const } : null;
-  const heroMarket = Array.isArray(heartbeat?.tradedMarkets) && typeof heartbeat?.tradedMarkets[0] === "string" ? heartbeat.tradedMarkets[0] as string : null;
+  // The main motion graphic: today's decision terrain from the server's display-only trace (nothing drawn while stale or blocked).
+  const traceSource: { readonly decisionCount?: unknown; readonly decisionTrace?: unknown } | null = heartbeat ?? null;
+  const rawLossLimit: { readonly consecutiveLossCount?: unknown; readonly maxConsecutiveLosses?: unknown; readonly periodStartedAt?: unknown; readonly limitReachedAt?: unknown } | null = heartbeat?.lossLimit ?? null;
+  // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
+  const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount, consecutiveLossCount: rawLossLimit?.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit?.maxConsecutiveLosses, periodStartedAt: rawLossLimit?.periodStartedAt, limitReachedAt: rawLossLimit?.limitReachedAt, now: Date.now() });
+  const terrain = buildDecisionTerrain({ trace: blocked ? null : traceSource?.decisionTrace, now: Date.now(), limitReachedAt: blocked ? null : rawLossLimit?.limitReachedAt });
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
       <Text style={styles.brand}>NUSA</Text>
-      <CalmHeadline tone={model.tone} text={model.headline} sub={model.sub} />
-      <View style={model.dim ? styles.dim : undefined} testID="now-hero">
-        <DecisionRings status={ringsStatus} decisionCount={blocked ? null : dailyCounts.decisionCount} paperOrderCount={blocked ? null : dailyCounts.paperOrderCount} marketLabel={heroMarket} />
-      </View>
-      <View style={styles.block}>
-        <CalmBigNumber value={model.equity} caption={model.delta ?? undefined} captionTone={model.deltaTone} dim={model.dim} />
-      </View>
+      {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} terrain={terrain} decisionCount={dailyCounts.decisionCount} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} orderCount={blocked ? null : dailyCounts.paperOrderCount} fillCount={blocked ? null : heartbeat?.paperFillCount ?? null} stats={model.stats} lastHeartbeatAt={blocked ? null : heartbeat?.lastHeartbeatAt ?? null} />}
+      <InstrumentEquity value={model.equity} caption={model.delta} tone={model.deltaTone} dim={model.dim} />
+      {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
+      {lossLimit == null || gate ? null : <View style={styles.why} testID="now-loss-limit">
+        <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
+      </View>}
       {model.why == null ? null : <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.why} testID="now-why">
         <Text style={styles.whyText}>{model.why} <Text style={styles.link}>왜요?</Text></Text>
       </Pressable>}
-      <View style={[styles.block, model.dim ? styles.dim : undefined]}><CalmStats items={model.stats} /></View>
       <Text style={styles.footnote}>숫자는 서버가 시작된 뒤부터 센 값이에요</Text>
       {needsSetup ? <Pressable accessibilityRole="button" onPress={onGoSettings} style={styles.setup} testID="now-setup">
         <Text style={styles.setupText}>연결 설정 열기 →</Text>
@@ -98,7 +105,6 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 32, width: "100%", maxWidth: 720, alignSelf: "center" },
   brand: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 5, paddingHorizontal: 20, paddingTop: 18 },
   dim: { opacity: 0.55 },
-  block: { paddingHorizontal: 20, marginTop: 6 },
   why: { marginHorizontal: 20, marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   whyText: { color: calmColors.text, fontSize: readableFont(15), lineHeight: 23 },
   link: { color: calmColors.muted, textDecorationLine: "underline" },

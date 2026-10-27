@@ -11,8 +11,8 @@ test("Portfolio is framed as NUSA operating supervision, not a personal trading 
   assert.match(source, /testID="portfolio-authority-rail"/);
   assert.match(source, /detail="PAPER 자산 · 실계좌와 분리 · LIVE 없음"/);
   assert.match(source, /eyebrow="포트폴리오"/);
-  assert.match(source, /title="PAPER 자산과 결과"/);
-  assert.match(source, /badge="PAPER"/);
+  assert.match(source, /title="모의투자 자산과 결과"/);
+  assert.match(source, /badge="모의투자"/);
   assert.match(source, /testID="portfolio-supervisor-summary"/);
   assert.doesNotMatch(source, /eyebrow="MY ISLAND"/);
 });

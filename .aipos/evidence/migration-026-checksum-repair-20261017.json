@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-17T05:42:43.000Z",
+  "workOrder": "WO-OPS-20261017-MIGRATION-026-CHECKSUM-REPAIR",
+  "scope": "restore applied migration 026_research_closed_candles to its deployed bytes and deliver the volume column through a new additive migration so the Cloud PAPER runtime boots on the Oracle host again",
+  "branch": "codex/fix-026-migration-checksum-20261017",
+  "base": {
+    "protectedMainSha256": "1524c15fb16b96e8d06b1c304ba12fae888c01dc",
+    "reason": "protected main carries the defect: PR 2743 merged at 2026-10-17T04:19:31Z and its tree mutated migration 026"
+  },
+  "incident": {
+    "detectedBy": "Oracle PAPER Release run 39002973665",
+    "failedStep": "Atomically activate exact release and prove both runtimes",
+    "runtimeError": "database migration checksum mismatch: 026_research_closed_candles",
+    "throwSite": "packages/storage/src/migrationRunner.js runMigrations, called from new SqliteDatabase during startClosedLearningProductionRuntime",
+    "readinessOutcome": "startup_readiness FAIL after 300 attempts, last error connect ECONNREFUSED 127.0.0.1:41731",
+    "recordedResult": "deploymentResult=FAILED with currentRelease=/opt/nusa/releases/a4661cc20c47dd3968c3a3575369262c657e3bc1",
+    "failClosedBehaviour": "activation switched the symlink to 1524c15f, the runtime refused to boot, and the release step reverted current to the previous healthy release a4661cc2. The host never ran a partial or inconsistent schema, and the authority quadruple stayed intact: liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY.",
+    "authorityQuadrupleIntact": true,
+    "schemaRewritten": false,
+    "databaseDirectlyEdited": false
+  },
+  "rootCause": {
+    "commit": "11cf0b4d",
+    "subject": "feat: bind cloud research to canonical dataset manifests",
+    "committedAt": "2026-10-17T00:30:14+09:00",
+    "file": "packages/storage/src/index.ts",
+    "change": "added the line '  volume REAL CHECK (volume IS NULL OR volume >= 0),' inside the inline migration 026_research_closed_candles",
+    "whyItIsFatal": "schema_migrations stores a checksum per applied migration, and migrationRunner refuses to construct a database whose recorded checksum no longer matches the code, so every already-deployed database refused to boot",
+    "whyValidationMissedIt": "the guard only engages against a database that already recorded migration 026. Local tests and CI build fresh databases where every migration applies cleanly for the first time, so the suite is structurally incapable of detecting an in-place edit of applied history. Only the Oracle release step runs against the real host database, which is exactly why post-merge deploy verification exists.",
+    "authorship": "introduced by the pre-existing codex/research-precommit-main branch work this session resumed. Commit f312190c, authored by this session, did not touch packages/storage/src/index.ts. This session nonetheless drove that branch through Audit and Release into protected main, so the merge responsibility is recorded rather than assigned away."
+  },
+  "checksumContract": {
+    "algorithm": "sha256 of `${id}\\n${sql}` as computed by packages/storage/src/migrationRunner.ts",
+    "separatorIsLiteralBackslashN": true,
+    "separatorCaveat": "the template literal contains a backslash followed by 'n', not a newline. It is baked into every checksum already recorded in every deployed database, so the formula must never be corrected.",
+    "deployedChecksum026": "fd3ed8fe280f054d7f62bf8e1262f3cb37be2d0c2d56b0484016fc4fbf976cb4",
+    "mutatedChecksum026OnMain": "1e40cc934186f6bec64a60ed823b4c31d3e1dee59811e9ac85488016c7d2a5bc",
+    "deployedValueDerivedTwoWays": [
+      "hash of the 026 SQL extracted from commit a4661cc20, whose git blob is the LF form production executed",
+      "read back from schema_migrations after the current runtime created a fresh database"
+    ],
+    "twoWayAgreement": true
+  },
+  "fix": {
+    "files": [
+      "packages/storage/src/index.ts",
+      "packages/storage/src/cloudPaperAccountHistoryMigration.test.ts",
+      "tests/storage-migrations.test.js",
+      "tests/research-candle-store.test.js",
+      "tests/research-holdout-ledger.test.js",
+      "tests/research-memory-semantics.test.js",
+      "tests/migration-026-immutability.test.js"
+    ],
+    "statement": "migration 026 is restored to exactly the SQL the deployed databases executed, and the identical volume column is delivered by a new migration 031_research_closed_candles_volume expressed as ALTER TABLE research_closed_candles ADD COLUMN volume REAL CHECK (volume IS NULL OR volume >= 0)",
+    "sqliteAddColumnCheckVerified": true,
+    "sqliteAddColumnCheckNote": "verified against the runtime SQLite that ADD COLUMN accepts a CHECK constraint, enforces it on negative values, and accepts NULL, which is what lets rows written before the column existed keep a NULL volume",
+    "columnDefinitionUnchanged": true,
+    "tableRecreated": false,
+    "rowsRewritten": false,
+    "schemaMigrationsRecordTouched": false,
+    "guardRelaxed": false,
+    "checksumFormulaChanged": false
+  },
+  "guard": {
+    "test": "tests/migration-026-immutability.test.js",
+    "assertions": [
+      "migration 026 keeps the exact SQL every deployed database already recorded, pinned to fd3ed8fe280f054d7f62bf8e1262f3cb37be2d0c2d56b0484016fc4fbf976cb4",
+      "a database preloaded with the deployed 026 record constructs without a mismatch, reaches currentVersion 031_research_closed_candles_volume, gains the volume column, and keeps legacy rows at a NULL volume"
+    ],
+    "provenToFailOnDefectiveMain": true,
+    "provenToPassOnFix": true,
+    "lineEndingPortability": "the guard normalizes CRLF to LF because git stores LF while core.autocrlf can present CRLF on Windows checkouts; the runtime records the LF form on every platform"
+  },
+  "validation": {
+    "strictBuild": "PASS",
+    "rootAndMobileTypecheck": "PASS",
+    "validateFull": "PASS failures []",
+    "aiposYaml": "PASS 492 files parse strictly; no duplicate keys",
+    "aiposProvenance": "PASS",
+    "aiposIndex": "PASS",
+    "securityGate": "PASS unmitigated [] secrets 0",
+    "lint": "PASS 0 errors, 24 pre-existing warnings",
+    "focusedSuite": "PASS 43 assertions across six files: storage-migrations 11, research-memory-semantics 18, research-candle-store 6, research-holdout-ledger 5, migration-026-immutability 2, compiled cloudPaperAccountHistoryMigration 1",
+    "isolatedSuite": "102 files exercised; single failing file tests/autopilot-cloudflare-deploy.test.js with spawnSync bash ENOENT, classified ENVIRONMENTAL because bash is absent on the Windows host, the file is unrelated to this change, and CI runs it on ubuntu-latest where bash exists",
+    "exactHeadCi": "PENDING_NOT_SELF_CLAIMED",
+    "independentReview": "PENDING_NOT_SELF_CLAIMED",
+    "audit": "PENDING_NOT_SELF_CLAIMED",
+    "release": "PENDING_NOT_SELF_CLAIMED"
+  },
+  "remainingChain": {
+    "afterMerge": "dispatch the Oracle PAPER Release for the new protected main and require the deployment convergence receipt to report CONVERGED with the Oracle component no longer an empty run_id",
+    "currentlyUnconverged": "the last receipt for 1524c15f reported CONVERGENCE_INCOMPLETE with seven of eight components present and Oracle PAPER Release as the single empty run_id"
+  },
+  "safety": {
+    "paperOnly": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY",
+    "claimsNotMade": [
+      "PERFORMANCE_IMPROVEMENT remains UNPROVEN",
+      "VERIFIED remains false",
+      "AUTOPILOT_VERIFIED_COMPLETION_LOOP remains false",
+      "no CI, review, Audit or Release result on this head is claimed before it is observed"
+    ]
+  }
+}

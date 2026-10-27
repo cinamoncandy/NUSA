@@ -8,7 +8,13 @@ name: Oracle Host Diagnose
 # output. PAPER only, LIVE NONE.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      health_only:
+        description: "true = skip the disk, state-directory and disk-consumer steps; read only /health and the annotations (for trend readings with minimal diagnostic I/O in between; the annotation step still runs journalctl and df)"
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -22,8 +28,11 @@ jobs:
     name: Read-only PAPER host diagnosis
     runs-on: [self-hosted, Linux, nusa-paper-host]
     timeout-minutes: 5
+    env:
+      HEALTH_PROBE_BASENAME: nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - name: Disk, memory and state files
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
         shell: bash
         run: |
           set +e
@@ -38,6 +47,7 @@ jobs:
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
         shell: bash
         run: |
           set +e
@@ -73,23 +83,34 @@ jobs:
         shell: bash
         run: |
           set +e
+          HEALTH_PROBE_PATH="$RUNNER_TEMP/$HEALTH_PROBE_BASENAME"
           echo "== listening sockets (local, no process names)"; ss -ltn 2>&1 | head -15
           echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 9000 characters)"
-          curl -sS -m 6 -o /tmp/nusa-health-probe.txt -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1
-          head -c 9000 /tmp/nusa-health-probe.txt 2>/dev/null; echo
+          : > "$HEALTH_PROBE_PATH"
+          if curl -fsS -m 6 -o "$HEALTH_PROBE_PATH" -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1; then
+            head -c 9000 "$HEALTH_PROBE_PATH"; echo
+          else
+            : > "$HEALTH_PROBE_PATH"
+            echo "HEALTH_PROBE_UNAVAILABLE"
+          fi
       - name: Publish the same read-only findings as job annotations
         # The job log is only downloadable from GitHub's blob storage; annotations are readable through the REST API, so a
         # session without blob access (and the owner on a phone) can read the outcome. Same redaction, bounded size.
         shell: bash
         run: |
           set +e
+          HEALTH_PROBE_PATH="$RUNNER_TEMP/$HEALTH_PROBE_BASENAME"
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
           # Everything stays in shell variables: this step writes no file and makes no request of its own (the earlier step
           # already probed /health once; its bounded response file is reused here).
           summary="$({
             echo "previous=$(basename "$(< /opt/nusa/.previous-release)" 2>&1)"; free -m 2>&1 | head -2; df -h / 2>&1 | tail -1
             for unit in nusa nusa-autopilot; do systemctl show "$unit" -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp 2>&1 | tr '\n' ' '; echo; done
-            echo "health_probe=$(head -c 200 /tmp/nusa-health-probe.txt 2>&1 | tr '\n' ' ')"
+            if [ -s "$HEALTH_PROBE_PATH" ]; then
+              echo "health_probe=$(head -c 200 "$HEALTH_PROBE_PATH" | tr '\n' ' ')"
+            else
+              echo "health_probe=HEALTH_PROBE_UNAVAILABLE"
+            fi
           } | redact)"
           # A release directory name is a public commit SHA, not a secret: print it unredacted.
           summary="${summary}"$'\n'"current_release=$(basename "$(readlink -f /opt/nusa/current)")"$'\n'"$(ls -1t /opt/nusa/releases 2>&1 | head -5 | sed 's/^/release_dir=/')"
@@ -113,3 +134,52 @@ jobs:
           emit "diag-summary" "$summary"
           for n in 1 2 3 4 5; do part="${errors:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-nusa-log-$n" "$part"; done
           emit "diag-autopilot-log" "$autopilot"
+      # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
+      - name: Disk consumers (read-only, after the health probe)
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          # Where the rest of the 90%-full root disk goes: read-only, lowest I/O priority, hard 40 s limit, unreadable directories skipped.
+          # The result is also published as an annotation (the job log itself is not readable through the REST API).
+          out="$({
+            echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
+            journalctl --disk-usage 2>&1
+            # --exclude=releases: du walks everything below a directory to total it, so without it /opt would still walk the ~11 GB release tree.
+            # Totals under /opt therefore exclude releases; unreadable directories (e.g. /var/lib/nusa) are skipped and understate their parents.
+            ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases /var /opt /home 2>/dev/null | sort -rh | head -15
+            echo "du_exit=${PIPESTATUS[0]} (124 = timed out so the listing is partial; 127 = ionice/nice missing)"
+            swapon --show 2>&1 | head -5
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-disk-consumers" "$out"
+      # Runs after the whole-tree walk, which times out at 40 s and then lists only the directories it reached (the runner work area, where
+      # each release bundle is extracted, was missing from diagnosis 39357215278). Candidates are measured one at a time with their own
+      # hard limit, lowest I/O priority, read-only; an unreadable or timed-out directory is named, never guessed.
+      - name: Disk consumers by directory (read-only, one at a time)
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          out="$({
+            echo "== disk by directory (du -s, 25 s each; TIMEOUT = still unknown)"
+            for dir in /opt/actions-runner-nusa-paper /opt/actions-runner-nusa-paper/_work /opt/actions-runner-nusa-paper/_work/_temp /opt/actions-runner-nusa-paper/_work/_tool /opt/actions-runner-nusa-paper/_work/_actions /opt/actions-runner-nusa-paper/_diag /opt/nusa/releases /opt/nusa/shared /var/lib/snapd /var/cache /var/log /home /root /tmp /var/tmp /swapfile /swapfile2; do
+              if [ -e "$dir" ]; then
+                size="$(ionice -c3 nice -n19 timeout 25 du -xsh "$dir" 2>/dev/null | cut -f1)"; status=$?
+                echo "$dir ${size:-TIMEOUT_OR_UNREADABLE}"
+              else
+                echo "$dir (absent)"
+              fi
+            done
+            echo "== top-level listing of the runner work area (names and sizes of entries, no content)"
+            ls -la /opt/actions-runner-nusa-paper/_work 2>&1 | head -12
+            ls -la /opt/actions-runner-nusa-paper/_work/_temp 2>&1 | head -12
+            echo "== release directories"
+            ls -la /opt/nusa/releases 2>&1 | head -8
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-disk-by-dir" "$out"

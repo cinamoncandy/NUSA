@@ -23,6 +23,10 @@ export const DEFAULT_MAX_INTERNAL_GAP_MS = 30_000;
 export interface CandleObservation {
   readonly observedAt: number;
   readonly price: number;
+  /** Upstream source identity; optional keeps the pure aggregator compatible with existing callers. */
+  readonly source?: string;
+  readonly sourceFingerprint?: string;
+  readonly evidenceFingerprintSha256?: string;
 }
 
 export interface AggregatedCandles {
@@ -32,6 +36,9 @@ export interface AggregatedCandles {
   readonly incompleteBuckets: number;
   readonly rejectedObservations: number;
   readonly checksumSha256: string;
+  readonly source?: string;
+  readonly sourceFingerprint?: string;
+  readonly evidenceFingerprintSha256?: string;
 }
 
 export function candleChecksum(candles: readonly BacktestCandle[]): string {
@@ -90,5 +97,26 @@ export function aggregateClosedCandles(input: {
     return Object.freeze({ timestamp: start + intervalMs, open: b.open, high: b.high, low: b.low, close: b.close, volume: 0 });
   });
   const missingBuckets = starts.length < 2 ? 0 : (starts[starts.length - 1] - starts[0]) / intervalMs + 1 - starts.length;
-  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles) });
+  const sources = new Set(input.observations.map((observation) => observation.source).filter((value): value is string => value != null));
+  // Stable source identity must be singular: genuinely mixed providers are fail-closed.
+  if (sources.size > 1) throw new Error("mixed observation source identity is not supported");
+  // Per-event source fingerprints are event-level provenance and legitimately differ across ticks.
+  // Validate their shape when present, but never reject a window merely because they differ.
+  for (const observation of input.observations) {
+    if (observation.source != null && (typeof observation.source !== "string" || observation.source.trim() === "")) throw new Error("invalid observation source identity");
+    if (observation.sourceFingerprint != null && (typeof observation.sourceFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(observation.sourceFingerprint))) throw new Error("invalid observation source fingerprint");
+    if (observation.evidenceFingerprintSha256 != null && (typeof observation.evidenceFingerprintSha256 !== "string" || !/^[a-f0-9]{64}$/.test(observation.evidenceFingerprintSha256))) throw new Error("invalid observation evidence fingerprint");
+  }
+  // Derive a deterministic aggregate/window provenance fingerprint from the ordered, identity-bound
+  // observation evidence. Ordering is part of the digest so non-deterministic input order is detectable.
+  const aggregateFingerprint = input.observations.length === 0
+    ? undefined
+    : createHash("sha256").update(JSON.stringify(input.observations.map((observation) => [observation.observedAt, observation.price, observation.source ?? null, observation.sourceFingerprint ?? null, observation.evidenceFingerprintSha256 ?? null])), "utf8").digest("hex");
+  // A window receipt is evidence only when every observation in the batch carries
+  // its own validated evidence identity. Never mint a receipt from ticker values,
+  // source fingerprints, or null placeholders when provenance is absent/partial.
+  const evidenceComplete = input.observations.length > 0
+    && input.observations.every((observation) => observation.evidenceFingerprintSha256 != null);
+  const evidenceAggregateFingerprint = evidenceComplete ? aggregateFingerprint : undefined;
+  return Object.freeze({ intervalMs, candles: Object.freeze(candles), missingBuckets, incompleteBuckets: incomplete, rejectedObservations: rejected, checksumSha256: candleChecksum(candles), ...(sources.size === 1 ? { source: [...sources][0] } : {}), ...(aggregateFingerprint == null ? {} : { sourceFingerprint: aggregateFingerprint }), ...(aggregateFingerprint == null ? {} : { evidenceFingerprintSha256: evidenceAggregateFingerprint }) });
 }

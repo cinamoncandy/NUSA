@@ -67,6 +67,20 @@ test("misconfiguration throws", () => {
   assert.throws(() => collectClosedCandles({ markets: ["KRW-BTC"], nowMs: 0, observations: f.observations, sink: f.sink }));
 });
 
+test("collector does not promote ticker values to dataset evidence when event receipts are missing", () => {
+  const f = fakes({ "KRW-BTC": [...dense(0, [100, 101, 102, 103]), ...dense(1, [103, 110, 100, 104])] });
+  let material;
+  const sink = {
+    latestCloseTime: () => undefined,
+    append: (_market, _interval, candles) => candles.length,
+    appendWithMaterial: (_market, _interval, candles, value) => { material = value; return candles.length; },
+  };
+  const [result] = collectClosedCandles({ markets: ["KRW-BTC"], nowMs: T0 + 3 * M, observations: f.observations, sink });
+  assert.equal(result.recorded, 1);
+  assert.match(material.sourceFingerprint, /^[a-f0-9]{64}$/);
+  assert.equal(Object.hasOwn(material, "evidenceFingerprintSha256"), false);
+});
+
 test("end to end on the real SQLite observation repository and candle store, and a second pass adds nothing twice", () => {
   const db = new SqliteDatabase(join(mkdtempSync(join(tmpdir(), "nusa-collect-")), "c.db"));
   const observations = new SqlitePaperMarketObservationRepository(db);
@@ -76,6 +90,8 @@ test("end to end on the real SQLite observation repository and candle store, and
 
   const first = collectClosedCandles({ markets: ["KRW-BTC"], nowMs: T0 + 3 * M, observations, sink: store });
   assert.equal(first[0].recorded, 2); // bucket 0 skipped (first-bucket rule), buckets 1 and 2 stored
+  const material = db.connection.prepare("SELECT evidence_fingerprint_sha256 AS evidenceFingerprint FROM research_dataset_material WHERE market = ?").get("KRW-BTC");
+  assert.match(material.evidenceFingerprint, /^[a-f0-9]{64}$/, "the canonical SQLite observation repository supplies evidence bound to its stored payload");
   assert.deepEqual(store.read("KRW-BTC", M, 0, 99 * M), [
     { closeTimeMs: T0 + 2 * M, open: 103, high: 110, low: 100, close: 104 },
     { closeTimeMs: T0 + 3 * M, open: 104, high: 105, low: 103, close: 105 },

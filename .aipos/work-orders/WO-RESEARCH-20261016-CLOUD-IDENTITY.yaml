@@ -1,0 +1,38 @@
+id: WO-RESEARCH-20261016-CLOUD-IDENTITY
+title: Preserve and verify qualification identity across Cloud worker response
+status: IN_PROGRESS
+priority: P0
+risk: HIGH
+authority_impact: none
+parent: WO-RESEARCH-20261016-A-GRADE-VALIDATION
+branch: codex/research-cloud-identity-20261016
+base_commit: c26eb5b585d480b7cbe4e653fc8aadbb50e67f4f
+scope:
+  - Reuse existing finalizer policy and identity material through contracts, without a second policy engine.
+  - Cloud worker codec requires current identity and verifies policy/run/result binding before deployment projection.
+  - Reject missing, malformed, foreign-run and substituted qualification receipts.
+  - Preserve existing policy numbers, schema1 digest compatibility and no-authority boundaries.
+architecture_impact: "Extract existing metadata/hash contract into packages/contracts; finalizer remains sole classification owner, Cloud remains process-response validator. No new evaluator/store/scheduler."
+compatibility: "Archived snapshots unchanged; new worker responses require current receipt. Missing legacy receipt fails closed, not auto-upgraded."
+acceptance:
+  - Existing producer identity bytes unchanged.
+  - Current worker result retains frozen identity and rejects invalid receipts before deployment.
+  - Independent negative tests and real producer-to-worker contract tests pass.
+  - Consistency is not authentication, durable precommit or A-grade approval.
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - pnpm run lint
+  - pnpm test
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+implementation_commit: be4495772f78dcb60834371a7951646d826e8e0d
+validation: "2 RED codec regressions;53 focused tests and1232 isolated files PASS; build/typecheck/validate:full/security/lint PASS24 existing warnings."
+independent_review: "Fresh non-author Curie PASS_WITH_NOTES atbe4495772f78dcb60834371a7951646d826e8e0d;0P0/0P1/1P2,53 independent tests plus13 rejection probes PASS;9 implementation/test blobs match committed head. Not Audit/Release."
+known_p2: "Shared binder requires an unbound payload. Passing a pre-bound payload produces an unverifiable receipt and fails closed; actual producer and fixture callers use unbound payloads. No production correctness blocker; preserve explicit limitation."
+next: "Final metadata-head review then draft PR/exact-head CI/Audit/Release."
