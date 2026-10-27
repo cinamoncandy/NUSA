@@ -45,26 +45,31 @@ const githubResponse = (status: number, payload: unknown, textValue?: string) =>
   async text() { return textValue ?? JSON.stringify(payload); },
 });
 
-function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; mobileManifest?: boolean; directoryImport?: boolean; staticImports?: boolean; truncatedTree?: boolean } = {}) {
+function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; mobileManifest?: boolean; directoryImport?: boolean; staticImports?: boolean; truncatedTree?: boolean; commonJs?: boolean; bareBuiltin?: boolean; changedJson?: boolean } = {}) {
   let pullReads = 0;
   const sourcePath = options.mobileManifest ? "apps/mobile/a.ts" : "a.ts";
   const diff = options.deletedSource
     ? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import { helper } from './helper';\n-helper();\n"
+    : options.changedJson
+      ? 'diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-import { old } from "./config.json";\n+import { feature } from "./config.json";\ndiff --git a/config.json b/config.json\n--- a/config.json\n+++ b/config.json\n@@ -1 +1 @@\n-{"old":true}\n+{"feature":true,"unchangedRequiredKey":"retained"}\n'
     : options.staticImports
       ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -0,0 +1,3 @@\n+import "./register";\n+export * from "./guard";\n+helper();\n`
     : options.mobileManifest
       ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -1,2 +1,2 @@\n import React from "react";\n-React.createElement("div");\n+React.createElement("span");\n`
     : "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
   const protocol = "# NUSA /grill-me protocol\n" + "adversarial exact-head fail-closed independent validation. ".repeat(8);
-  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"]), ...(options.staticImports ? ["register.ts", "guard.ts"] : [])];
+  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"]), ...(options.staticImports ? ["register.ts", "guard.ts"] : []), ...(options.commonJs ? ["security-gate.js"] : []), ...(options.changedJson ? ["config.json"] : [])];
+  const baseBlobPaths = options.deletedSource ? ["package.json", "a.ts", "helper.ts"] : ["package.json"];
   return (async (input: string) => {
     const url = String(input);
     if (url.includes(`/git/commits/${request.headSha}`)) return githubResponse(200, { tree: { sha: "d".repeat(40) } });
+    if (url.includes(`/git/commits/${request.baseSha}`)) return githubResponse(200, { tree: { sha: "e".repeat(40) } });
     if (url.includes(`/git/trees/${"d".repeat(40)}?recursive=1`)) return githubResponse(200, { truncated: options.truncatedTree ?? false, tree: [...blobPaths.map((path) => ({ path, type: "blob" })), ...(options.directoryImport ? [{ path: "helper", type: "tree" }] : [])] });
-    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, [{ filename: options.mobileManifest ? sourcePath : "a.ts", status: options.deletedSource ? "removed" : "modified" }]);
+    if (url.includes(`/git/trees/${"e".repeat(40)}?recursive=1`)) return githubResponse(200, { truncated: false, tree: baseBlobPaths.map((path) => ({ path, type: "blob" })) });
+    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, options.changedJson ? [{ filename: "a.ts", status: "modified" }, { filename: "config.json", status: "modified" }] : [{ filename: options.mobileManifest ? sourcePath : "a.ts", status: options.deletedSource ? "removed" : "modified" }]);
     if (url.includes(`/pulls/${request.prNumber}`)) {
       pullReads += 1;
-      return githubResponse(200, { state: "open", changed_files: 1, head: { sha: options.staleSecondPull && pullReads > 1 ? "c".repeat(40) : request.headSha, repo: { full_name: request.repository } }, base: { sha: request.baseSha, repo: { full_name: request.repository } } });
+      return githubResponse(200, { state: "open", changed_files: options.changedJson ? 2 : 1, head: { sha: options.staleSecondPull && pullReads > 1 ? "c".repeat(40) : request.headSha, repo: { full_name: request.repository } }, base: { sha: request.baseSha, repo: { full_name: request.repository } } });
     }
     if (url.includes(`/actions/runs/${request.workflowRunId}`)) return githubResponse(200, { id: request.workflowRunId, name: "CI", event: "pull_request", status: "completed", conclusion: "success", head_sha: request.headSha, repository: { full_name: request.repository }, pull_requests: [{ number: request.prNumber }] });
     if (url.includes(`/compare/${request.baseSha}...${request.headSha}`)) return githubResponse(200, {}, diff);
@@ -73,11 +78,15 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (url.includes(`/contents/apps/mobile/package.json?ref=${request.headSha}`)) return githubResponse(200, {}, '{"dependencies":{"react":"^19.0.0"}}\n');
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(404, {});
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import { helper } from './helper';\nhelper();\n");
-    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : options.staticImports ? 'import "./register";\nexport * from "./guard";\nhelper();' : 'import { helper } from "./helper";\nfunction unchangedHelper() { return "unchanged-source-definition"; }\nhelper();');
+    if (options.deletedSource && url.includes(`/contents/helper.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, 'export function helper() { return "base-helper"; }\n');
+    if (options.changedJson && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'import { feature } from "./config.json";\nfeature();\n');
+    if (options.changedJson && url.includes(`/contents/config.json?ref=${request.headSha}`)) return githubResponse(200, {}, '{"feature":true,"unchangedRequiredKey":"retained"}\n');
+    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : options.staticImports ? 'import "./register";\nexport * from "./guard";\nhelper();' : options.commonJs ? 'const { scanText } = require("./security-gate.js");\nscanText();' : options.bareBuiltin ? 'const fs = require("fs");\nfs.readFileSync("x");' : 'import { helper } from "./helper";\nfunction unchangedHelper() { return "unchanged-source-definition"; }\nhelper();');
     if (url.includes(`/contents/helper.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function helper() { return true; }\n");
     if (url.includes(`/contents/helper/index.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export function helper() { return "directory-index"; }\n');
     if (url.includes(`/contents/register.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'registerSideEffect("canonical");\n');
     if (url.includes(`/contents/guard.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export const guard = "canonical";\n');
+    if (options.commonJs && url.includes(`/contents/security-gate.js?ref=${request.headSha}`)) return githubResponse(200, {}, 'exports.scanText = (text) => text.length;\n');
     if (url.includes(`/contents/helper?ref=${request.headSha}`) || url.includes(`/contents/helper/`)) return githubResponse(404, {});
     if (url.includes(`/contents/helper.`)) return githubResponse(404, {});
     throw new Error(`unexpected fetch ${url}`);
@@ -153,6 +162,34 @@ test("fresh VALIDATOR includes full changed source and resolves side-effect and 
   assert.ok(result.evidenceRefs.includes(`github:dependency/guard.ts@${request.headSha}`));
 });
 
+test("fresh VALIDATOR includes static CommonJS dependencies even when their bindings are destructured", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ commonJs: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.match(prompt, /EXACT-HEAD DEPENDENCY security-gate\.js/);
+  assert.match(prompt, /exports\.scanText/);
+  assert.ok(result.evidenceRefs.includes(`github:dependency/security-gate.js@${request.headSha}`));
+});
+
+test("fresh VALIDATOR recognizes bare Node built-ins without treating them as packages", async () => {
+  let aiCalled = false;
+  const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ bareBuiltin: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.equal(aiCalled, true);
+});
+
+test("fresh VALIDATOR includes complete changed JSON modules referenced by changed source", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ changedJson: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.match(prompt, /EXACT-HEAD DEPENDENCY config\.json/);
+  assert.match(prompt, /unchangedRequiredKey/);
+  assert.ok(result.evidenceRefs.includes(`github:dependency/config.json@${request.headSha}`));
+});
+
 test("fresh VALIDATOR fails closed when the exact-head Git tree is truncated", async () => {
   let aiCalled = false;
   const AI = { async run() { aiCalled = true; return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
@@ -168,6 +205,10 @@ test("fresh VALIDATOR inspects deleted changed source at the exact PR base", asy
   assert.match(prompt, /DELETED SOURCE a\.ts @ BASE b{40}/);
   assert.match(prompt, /import \{ helper \} from '\.\/helper'/);
   assert.ok(result.evidenceRefs.includes(`github:deleted-source/a.ts@${request.baseSha}`));
+  assert.match(prompt, /EXACT-HEAD DEPENDENCY helper\.ts @ b{40}/);
+  assert.match(prompt, /base-helper/);
+  assert.ok(result.evidenceRefs.includes(`github:tree/${request.baseSha}`));
+  assert.ok(result.evidenceRefs.includes(`github:dependency/helper.ts@${request.baseSha}`));
 });
 
 test("fresh VALIDATOR fails if the exact head changes during review", async () => {

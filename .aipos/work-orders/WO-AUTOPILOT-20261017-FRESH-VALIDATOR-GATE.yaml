@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: THREE_FRESH_REVIEW_P1_REPAIRS_VALIDATED_LOCALLY_AWAITING_SUCCESSOR_PUBLICATION_AND_VALIDATION
+status: FOUR_FRESH_REVIEW_P1_REPAIRS_VALIDATED_LOCALLY_AWAITING_SUCCESSOR_PUBLICATION_AND_VALIDATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -235,7 +235,7 @@ latest_current_main_reconvergence_2026_10_27:
     fresh_non_author_review: PENDING
     formal_validator: PENDING
     audit_release_merge: NOT_STARTED
-  next: "Complete final AIPOS/diff checks, then publish only to the existing PR branch with exact expected-head cc2516a2... and force=false. Obtain fresh successor CI/companions and non-author review; preserve Draft and unresolved threads."
+  next: "Review 5661999625 on 48501bb1 found four P1s (4384900108-4384900114); repairs and regression tests are local. Complete AIPOS/diff checks, then publish only to the existing PR branch with expected-head 48501bb1a76fa7baa5881cc619a84b932088a0f2 and force=false. Obtain fresh successor CI/companions and review; preserve Draft and unresolved threads."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 latest_fresh_review_findings_2026_10_27:
@@ -279,5 +279,46 @@ latest_fresh_review_findings_2026_10_27:
     fresh_non_author_review: PENDING
     formal_validator: PENDING
     audit_release_merge: NOT_STARTED
-  next: "Re-run AIPOS preflight and final diff checks, then publish the existing branch with expected-head cc2516a2... and force=false. Require fresh successor CI/companions and review; preserve Draft and unresolved threads."
+  next: "Review 5661999625 on 48501bb1 found four additional P1s; see latest_review_48501bb1 below. Repairs are local and need a successor plus complete exact-head validation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_review_48501bb1:
+  reviewed_head: 48501bb1a76fa7baa5881cc619a84b932088a0f2
+  base: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+  review_receipt: 5661999625
+  finding_comments:
+    - id: 4384900108
+      severity: P1
+      finding: "Static CommonJS require dependencies could be omitted because binding relevance was approximated with the module specifier."
+      repair: "Conservatively include every bounded static require dependency without relying on parsed binding names."
+    - id: 4384900112
+      severity: P1
+      finding: "Changed JSON imports were skipped as changed paths without being represented by complete source context."
+      repair: "Skip retrieval only for changed paths already present in complete source context; fetch full bounded JSON dependencies."
+    - id: 4384900113
+      severity: P1
+      finding: "Bare Node built-ins such as fs were treated as undeclared package imports."
+      repair: "Classify known Node builtin roots and subpaths in bare and node: forms."
+    - id: 4384900114
+      severity: P1
+      finding: "Deleted-source dependency resolution used the head tree and could not find dependencies deleted with the importer."
+      repair: "Resolve deleted importers and their dependency bodies against a bounded protected-base Git tree."
+  validation:
+    node: 24.19.0
+    build: PASS
+    typecheck: PASS
+    focused_validator_and_governance_tests: PASS_22_OF_22
+    preflight: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_WARNINGS
+    git_diff_check: PENDING_FINAL
+  remote:
+    current_head: 48501bb1a76fa7baa5881cc619a84b932088a0f2
+    exact_head_ci: PASS_40445411142
+    companion_workflows: PASS_5_OF_5
+    fresh_review: P1_FINDINGS
+    successor: PENDING_COMMIT
+    formal_validator: PENDING
+    audit_release_merge: NOT_STARTED
+  next: "Publish one substantive successor only with expected-head 48501bb1a76fa7baa5881cc619a84b932088a0f2 and force=false; require fresh exact-head workflows and review."

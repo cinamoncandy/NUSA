@@ -149,6 +149,11 @@ const MAX_EVIDENCE_REF_CHARS = 500;
 const MAX_AUDIT_MODEL_ATTEMPTS = 3;
 const ALLOWED_MODEL_KEYS = new Set(["verdict", "findings", "blockers", "safetyInvariantResult", "mergeAllowed"]);
 const ALLOWED_FINDING_KEYS = new Set(["code", "severity", "message", "evidenceRef"]);
+const NODE_BUILTIN_ROOTS = new Set([
+  "_http_agent", "_http_client", "_http_common", "_http_incoming", "_http_outgoing", "_http_server", "_stream_duplex", "_stream_passthrough", "_stream_readable", "_stream_transform", "_stream_wrap", "_stream_writable", "_tls_common", "_tls_wrap",
+  "assert", "async_hooks", "buffer", "child_process", "cluster", "console", "constants", "crypto", "dgram", "diagnostics_channel", "dns", "domain", "events", "fs", "http", "http2", "https", "inspector", "module", "net", "os", "path", "perf_hooks", "process", "punycode", "querystring", "readline", "repl", "sqlite", "stream", "string_decoder", "sys", "timers", "tls", "trace_events", "tty", "url", "util", "v8", "vm", "wasi", "worker_threads", "zlib",
+  "test", "sea",
+]);
 
 const AUDIT_FINDING_SCHEMA = Object.freeze({
   type: "object",
@@ -589,7 +594,7 @@ function localImports(source: string): readonly LocalImport[] {
     { regex: /\b(?:import|export)\s+(?:type\s+)?\{([^}]+)\}\s*from\s*["']([^"']+)["']/g, specifierGroup: 2, namesGroups: [1] },
     { regex: /\bimport\s+(?:type\s+)?([A-Za-z_$][\w$]*)\s*(?:,\s*\{([^}]+)\})?\s*from\s*["']([^"']+)["']/g, specifierGroup: 3, namesGroups: [1, 2] },
     { regex: /\bimport\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s*["']([^"']+)["']/g, specifierGroup: 2, namesGroups: [1] },
-    { regex: /\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)/g, specifierGroup: 1, namesGroups: [0] },
+    { regex: /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g, specifierGroup: 1, namesGroups: [0] },
   ];
   for (const { regex, specifierGroup, namesGroups } of patterns) {
     for (const match of source.matchAll(regex)) {
@@ -605,6 +610,9 @@ function localImports(source: string): readonly LocalImport[] {
   for (const { regex, specifierGroup } of unconditionalPatterns) {
     for (const match of source.matchAll(regex)) add(match[specifierGroup], [], true);
   }
+  // Static CommonJS requires are included conservatively instead of relying on a
+  // fragile approximation of destructuring/default binding semantics.
+  for (const match of source.matchAll(/\brequire\s*\(\s*["']([^"']+)["']\s*\)/g)) add(match[1], [], true);
   return Object.freeze([...imports].map(([specifier, names]) => Object.freeze({ specifier, names: Object.freeze([...names]), alwaysInclude: unconditionalImports.has(specifier) })));
 }
 
@@ -633,9 +641,9 @@ async function fetchExactHeadDependency(path: string, request: ValidatorRunnerRe
   return content;
 }
 
-async function fetchExactHeadBlobPaths(request: ValidatorRunnerRequest, token: string, fetchImpl: FetchImpl): Promise<ReadonlySet<string>> {
+async function fetchExactBlobPaths(request: ValidatorRunnerRequest, token: string, fetchImpl: FetchImpl, ref: string): Promise<ReadonlySet<string>> {
   const repository = request.repository.split("/").map(encodeURIComponent).join("/");
-  const commitResponse = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/git/commits/${encodeURIComponent(request.headSha)}`, { method: "GET", headers: githubHeaders("application/vnd.github+json", token) });
+  const commitResponse = await fetchImpl(`${GITHUB_API_ORIGIN}/repos/${repository}/git/commits/${encodeURIComponent(ref)}`, { method: "GET", headers: githubHeaders("application/vnd.github+json", token) });
   if (commitResponse.status !== 200) throw new Error(`VALIDATOR_TREE_COMMIT_HTTP_${commitResponse.status}`);
   let commit: Record<string, unknown>;
   try { commit = object(await commitResponse.json(), "VALIDATOR_TREE_COMMIT_INVALID"); }
@@ -670,6 +678,12 @@ function resolveBlobModulePath(base: string, blobPaths: ReadonlySet<string>): st
   return candidates.find((candidate) => blobPaths.has(candidate));
 }
 
+function isNodeBuiltin(specifier: string): boolean {
+  const unprefixed = specifier.startsWith("node:") ? specifier.slice("node:".length) : specifier;
+  const root = unprefixed.split("/")[0];
+  return NODE_BUILTIN_ROOTS.has(root);
+}
+
 async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, changedPaths: readonly string[], diff: string, token: string, fetchImpl: FetchImpl): Promise<{ readonly context: string; readonly evidenceRefs: readonly string[] }> {
   const changes = diffFileChanges(diff);
   if (changes.linesByPath.size !== changedPaths.length || changedPaths.some((path) => !changes.linesByPath.has(path))) throw new Error("VALIDATOR_DIFF_PATH_LIST_MISMATCH");
@@ -679,16 +693,26 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
   const dependencyPaths = new Set<string>();
   const evidenceRefs: string[] = [];
   const sourceContextParts: string[] = [];
-  const blobPaths = await fetchExactHeadBlobPaths(request, token, fetchImpl);
+  const headBlobPaths = await fetchExactBlobPaths(request, token, fetchImpl, request.headSha);
   evidenceRefs.push(`github:tree/${request.headSha}`);
+  let baseBlobPaths: ReadonlySet<string> | undefined;
+  const treeForRef = async (ref: string): Promise<ReadonlySet<string>> => {
+    if (ref === request.headSha) return headBlobPaths;
+    if (ref !== request.baseSha) throw new Error("VALIDATOR_DEPENDENCY_REF_INVALID");
+    if (!baseBlobPaths) {
+      baseBlobPaths = await fetchExactBlobPaths(request, token, fetchImpl, request.baseSha);
+      evidenceRefs.push(`github:tree/${request.baseSha}`);
+    }
+    return baseBlobPaths;
+  };
   const manifestCache = new Map<string, ReadonlyMap<string, string>>();
   const loadDeclaredPackages = async (sourcePath: string): Promise<ReadonlyMap<string, string>> => {
     const sourceDirectory = sourcePath.split("/").slice(0, -1);
     if (sourceDirectory.length + 1 > MAX_CONTEXT_PACKAGE_MANIFESTS) throw new Error("VALIDATOR_PACKAGE_MANIFEST_LIMIT_EXCEEDED");
     const manifestPaths = ["package.json"];
     for (let length = 1; length <= sourceDirectory.length; length += 1) manifestPaths.push(`${sourceDirectory.slice(0, length).join("/")}/package.json`);
-    const applicable = manifestPaths.filter((path) => blobPaths.has(path));
-    if (!blobPaths.has("package.json")) throw new Error("VALIDATOR_PACKAGE_MANIFEST_MISSING");
+    const applicable = manifestPaths.filter((path) => headBlobPaths.has(path));
+    if (!headBlobPaths.has("package.json")) throw new Error("VALIDATOR_PACKAGE_MANIFEST_MISSING");
     let manifest: Record<string, unknown>;
     const packages = new Map<string, string>();
     for (const path of applicable) {
@@ -717,9 +741,11 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
     return packages;
   };
   for (const sourcePath of sourcePaths) {
-    let source = await fetchExactHeadDependency(sourcePath, request, token, fetchImpl);
+    let sourceRef = request.headSha;
+    let source = await fetchExactHeadDependency(sourcePath, request, token, fetchImpl, sourceRef);
     if (source === null && changes.deletedPaths.has(sourcePath)) {
-      source = await fetchExactHeadDependency(sourcePath, request, token, fetchImpl, request.baseSha);
+      sourceRef = request.baseSha;
+      source = await fetchExactHeadDependency(sourcePath, request, token, fetchImpl, sourceRef);
       if (source === null) throw new Error("VALIDATOR_DELETED_SOURCE_MISSING_AT_BASE");
       evidenceRefs.push(`github:deleted-source/${sourcePath}@${request.baseSha}`);
       sourceContextParts.push(`--- BEGIN DELETED SOURCE ${sourcePath} @ BASE ${request.baseSha} ---\n${source}\n--- END DELETED SOURCE ${sourcePath} ---`);
@@ -734,7 +760,7 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
     for (const imported of localImports(source)) {
       if (!imported.alwaysInclude && !imported.names.some((name) => new RegExp(`\\b${escapeRegExp(name)}\\b`).test(changedText))) continue;
       if (!imported.specifier.startsWith(".")) {
-        if (imported.specifier.startsWith("node:")) continue;
+        if (isNodeBuiltin(imported.specifier)) continue;
         const packageName = imported.specifier.startsWith("@") ? imported.specifier.split("/").slice(0, 2).join("/") : imported.specifier.split("/")[0];
         const packages = await loadDeclaredPackages(sourcePath);
         const version = packages.get(packageName);
@@ -743,24 +769,28 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
         throw new Error("VALIDATOR_DEPENDENCY_IMPORT_UNCLASSIFIED");
       }
       const base = resolveRelativeBase(sourcePath, imported.specifier);
-      const resolvedPath = resolveBlobModulePath(base, blobPaths);
+      const sourceTree = await treeForRef(sourceRef);
+      const resolvedPath = resolveBlobModulePath(base, sourceTree);
       if (!resolvedPath) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
-      if (changedPaths.includes(resolvedPath)) continue;
-      dependencyPaths.add(validateRepositoryPath(resolvedPath));
+      if (sourceRef === request.headSha && sourcePaths.includes(resolvedPath)) continue;
+      dependencyPaths.add(`${sourceRef}:${validateRepositoryPath(resolvedPath)}`);
     }
   }
   if (dependencyPaths.size > MAX_CONTEXT_DEPENDENCIES) throw new Error("VALIDATOR_DEPENDENCY_COUNT_EXCEEDED");
   const contextParts: string[] = [...sourceContextParts];
   let totalChars = 0;
-  for (const path of [...dependencyPaths].sort()) {
-    const resolvedPath = blobPaths.has(path) ? path : undefined;
+  for (const dependency of [...dependencyPaths].sort()) {
+    const separator = dependency.indexOf(":");
+    const ref = dependency.slice(0, separator);
+    const path = dependency.slice(separator + 1);
+    const resolvedPath = (await treeForRef(ref)).has(path) ? path : undefined;
     if (!resolvedPath) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
-    const content = await fetchExactHeadDependency(resolvedPath, request, token, fetchImpl);
+    const content = await fetchExactHeadDependency(resolvedPath, request, token, fetchImpl, ref);
     if (content === null) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
     totalChars += content.length;
     if (totalChars > MAX_CONTEXT_DEPENDENCY_CHARS) throw new Error("VALIDATOR_DEPENDENCY_CONTEXT_TOO_LARGE");
-    contextParts.push(`--- BEGIN EXACT-HEAD DEPENDENCY ${resolvedPath} @ ${request.headSha} ---\n${content}\n--- END EXACT-HEAD DEPENDENCY ${resolvedPath} ---`);
-    evidenceRefs.push(`github:dependency/${resolvedPath}@${request.headSha}`);
+    contextParts.push(`--- BEGIN EXACT-HEAD DEPENDENCY ${resolvedPath} @ ${ref} ---\n${content}\n--- END EXACT-HEAD DEPENDENCY ${resolvedPath} ---`);
+    evidenceRefs.push(`github:dependency/${resolvedPath}@${ref}`);
   }
   return Object.freeze({ context: contextParts.join("\n"), evidenceRefs: Object.freeze(evidenceRefs) });
 }
