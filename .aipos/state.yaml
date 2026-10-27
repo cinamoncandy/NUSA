@@ -4184,11 +4184,21 @@ current_autopilot_fresh_validator_gate_20261026:
     local_branch: codex/pr2772-workspace-dependency-resolution
     published_code_checkpoint: 2ca0dcbed342268b560b741d4e0025409d967ec3
     final_successor_checkpoint: "Resolve exact SHA from the remote feature branch after this state receipt commit; final-tip workflows and fresh review are pending."
-    main_sync: CLEAN_ORDINARY_MERGE_OF_81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+    main_sync: "CLEAN_ORDINARY_MERGE_OF_81e8fe4dc74572d934fa5cbaf724aeef43e591f1, followed by clean ordinary merge of protected main e16dbb052942bc498f8b0093c775569cbbfb1550; no conflicts and no changed-path overlap."
     findings: "P1 #4383248962 and #4383248970 repaired with exact-head workspace manifest ancestry and blob-only Git-tree module resolution; truncated/oversized tree fails closed."
     validation: "Node 24.19.0: build/typecheck/preflight/validate:full/security:gate PASS; lint 0 errors/45 existing warnings; full suite 1,289 isolated test files PASS after rerunning with Git Bash in PATH; validatorRunner 12/12; diff-check PASS."
-    remote_gates: "Code checkpoint 2ca0dcbe was non-force fast-forwarded to the existing PR branch; GitHub reports exact base==protected main 81e8fe4d. The current final head is the AIPOS receipt successor; its exact-head checks and fresh non-author review are pending. Formal Validator, Audit and Release have not started. PR remains Draft."
-    next: "Resolve current PR head from GitHub, wait for its exact-head workflows to finish, and obtain fresh independent review for that SHA. Preserve Draft and unresolved review threads; do not bypass Formal Validator, Audit, Release or protected merge gates."
+    remote_gates: "Code checkpoint 2ca0dcbe was non-force fast-forwarded to the existing PR branch. Protected main e16dbb052942bc498f8b0093c775569cbbfb1550 was then merged into the branch without conflicts; the predecessor e507ce07... CI/review evidence is historical for the resulting successor. Publish only by expected-head non-force update, then require fresh exact-head workflows and non-author review. Formal Validator, Audit and Release have not started. PR remains Draft."
+    current_main_reconvergence:
+      protected_main: e16dbb052942bc498f8b0093c775569cbbfb1550
+      predecessor_pr_head: e507ce07f47d9dfe2737ea0253dd08252c8f6f99
+      predecessor_pr_base: 81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+      merge_method: ORDINARY_NON_FORCE_MERGE
+      conflicts: 0
+      changed_main_paths: "apps/cloud/src/paperFunnelCounters.ts; apps/cloud/src/runtime.ts; tests/paper-funnel-counters.test.js"
+      path_overlap: NONE
+      predecessor_ci_and_review: HISTORICAL_AFTER_SUCCESSOR
+      next: "Expected-head non-force publish to existing PR #2772 branch; then exact-head CI/companions and fresh non-author review."
+    next: "Verify the current feature-branch tip on GitHub after publication, wait for exact-head workflows, and obtain fresh independent review for that SHA. Preserve Draft and unresolved review threads; Formal Validator, Audit, Release and merge remain gated."
     safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_autopilot_light_task_gate:

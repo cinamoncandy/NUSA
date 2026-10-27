@@ -1,10 +1,10 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: P1_REPAIRS_PUBLISHED_AWAITING_FINAL_EXACT_HEAD_WORKFLOWS_AND_FRESH_REVIEW
+status: CURRENT_MAIN_RECONVERGENCE_MERGED_LOCALLY_AWAITING_SUCCESSOR_PUBLICATION_AND_VALIDATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 9b6c99cee1750f02ae4dcb9cfe0dba429649dce5
+base_commit: e16dbb052942bc498f8b0093c775569cbbfb1550
 branch: fix/validator-evidence-gate-2760
 issue: 2760
 authority_impact: release_governance_fail_closed
@@ -73,7 +73,7 @@ current_main_sync: "Fresh GitHub verification found protected main 9b6c99cee1750
 local_sync_checkpoint: fa83cb282fcee259f568bc7dd95d515d4f0046b8
 remote_update_plan: "The exact verified tree was published by a non-force expected-head update from e0d1465... to db7fc759.... The pending AIPOS reconciliation successor must be published only after the GitHub Git Database API tree SHA exactly matches its local HEAD^{tree}; create it as a child of db7fc759..., then update the existing PR branch with expected_sha=db7fc759de47c620a3220c0f12baea7121e3a2d4 and force=false. On any mismatch or lease rejection, stop without changing the ref."
 validation_after_sync: "Local implementation tree PASS: pnpm run preflight, pnpm run build, pnpm run typecheck, pnpm run validate:full, pnpm run security:gate, git diff --check, and pnpm run test (1263 isolated test files). AIPOS status-only corrections passed preflight, AIPOS drift, cross-AI conformance, and git diff --check. Previous published exact head db7fc759de47c620a3220c0f12baea7121e3a2d4 passed all six workflows (CI 39395954326, Actual PAPER 39395954357, Capability Guard 39395954343, Activation 39395954362, Transport 39395954331, Read-only Broker 39395954449); these are historical for the AIPOS reconciliation successor. Fresh workflows and separate non-author Validator remain pending on that successor."
-next: "Commit the substantive diff-evidence repair and AIPOS evidence, recheck expected PR head, and non-force push to the existing branch. Then require fresh exact-head workflows and fresh non-author review. Keep Draft; do not self-review, mark Ready, Audit, Release, or merge. Avoid self-referential current-head evidence in AIPOS."
+next: "Protected main e16dbb052942bc498f8b0093c775569cbbfb1550 was merged ordinarily into the existing PR branch without conflicts. Finish local verification and publish the resulting successor only with expected-head protection and force=false; then require fresh exact-head workflows and a fresh non-author review. Keep Draft; do not self-review, mark Ready, Audit, Release, or merge."
 latest_repair_2026_10_26:
   repository_verified:
     protected_main: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
@@ -206,4 +206,35 @@ latest_workspace_manifest_and_directory_resolution_repair_2026_10_27:
     formal_validator: PENDING
     independent_audit_release: NOT_STARTED
   next: "Resolve the final live PR head after the AIPOS receipt is published; require all exact-head workflows to complete and obtain a fresh non-author review of that exact SHA. Do not resolve author threads or start Formal Validator, Audit, Release or merge. Keep Draft."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_current_main_reconvergence_2026_10_27:
+  protected_main: e16dbb052942bc498f8b0093c775569cbbfb1550
+  predecessor_pr_head: e507ce07f47d9dfe2737ea0253dd08252c8f6f99
+  predecessor_pr_base: 81e8fe4dc74572d934fa5cbaf724aeef43e591f1
+  pr_state: OPEN_DRAFT_MERGEABLE
+  main_only_paths:
+    - apps/cloud/src/paperFunnelCounters.ts
+    - apps/cloud/src/runtime.ts
+    - tests/paper-funnel-counters.test.js
+  path_overlap: NONE
+  synchronization: "Ordinary merge of current protected main into the existing #2772 branch completed locally without conflicts. No force push or protected-main mutation."
+  previous_exact_head_evidence: "e507ce07 exact-head CI/companion results and any review are historical after successor publication."
+  successor: "Current local branch contains the main merge and AIPOS update; resolve the final SHA from Git/GitHub after publication."
+  validation:
+    node: 24.19.0
+    preflight: PASS
+    build: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_WARNINGS
+    focused_tests: PASS_52_OF_52
+    diff_check: PASS
+  remote:
+    exact_head_workflows: PENDING_PUBLICATION
+    fresh_non_author_review: PENDING
+    formal_validator: PENDING
+    audit_release_merge: NOT_STARTED
+  next: "Complete diff checks, then publish only to the existing PR branch with exact expected-head e507ce07... and force=false. Obtain fresh successor CI/companions and non-author review; preserve Draft and unresolved threads."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
