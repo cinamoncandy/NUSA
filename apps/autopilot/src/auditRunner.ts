@@ -581,6 +581,97 @@ function diffFileChanges(diff: string): DiffFileChanges {
 
 interface LocalImport { readonly specifier: string; readonly names: readonly string[]; readonly alwaysInclude?: boolean }
 
+interface SourceToken { readonly kind: "identifier" | "string" | "punct"; readonly value: string }
+
+/** Tokenize just enough JavaScript/TypeScript syntax to find real static module references.
+ * Comments, quoted examples, templates, and regular-expression bodies are never treated as code.
+ */
+function sourceTokens(source: string): readonly SourceToken[] {
+  const tokens: SourceToken[] = [];
+  let index = 0;
+  const isIdentifierStart = (char: string) => /[A-Za-z_$]/.test(char);
+  const isIdentifierPart = (char: string) => /[\w$]/.test(char);
+  const skipRegex = () => {
+    index += 1;
+    let inCharacterClass = false;
+    let escaped = false;
+    while (index < source.length) {
+      const char = source[index++];
+      if (escaped) { escaped = false; continue; }
+      if (char === "\\") { escaped = true; continue; }
+      if (char === "[") { inCharacterClass = true; continue; }
+      if (char === "]") { inCharacterClass = false; continue; }
+      if (char === "/" && !inCharacterClass) break;
+      if (char === "\n" || char === "\r") break;
+    }
+    while (/[A-Za-z]/.test(source[index] ?? "")) index += 1;
+  };
+  const scanCode = (stopAtTemplateBrace = false): void => {
+    let braceDepth = 0;
+    while (index < source.length) {
+      const char = source[index];
+      if (/\s/.test(char)) { index += 1; continue; }
+      if (char === "}" && stopAtTemplateBrace && braceDepth === 0) { index += 1; return; }
+      if (char === "/" && source[index + 1] === "/") {
+        index += 2;
+        while (index < source.length && source[index] !== "\n" && source[index] !== "\r") index += 1;
+        continue;
+      }
+      if (char === "/" && source[index + 1] === "*") {
+        index += 2;
+        const end = source.indexOf("*/", index);
+        index = end < 0 ? source.length : end + 2;
+        continue;
+      }
+      if (char === "'" || char === '"') {
+        const quote = char;
+        index += 1;
+        let value = "";
+        let escaped = false;
+        while (index < source.length) {
+          const next = source[index++];
+          if (escaped) { value += next; escaped = false; continue; }
+          if (next === "\\") { escaped = true; continue; }
+          if (next === quote) break;
+          value += next;
+        }
+        tokens.push({ kind: "string", value });
+        continue;
+      }
+      if (char === "`") {
+        index += 1;
+        while (index < source.length) {
+          const next = source[index++];
+          if (next === "\\") { index += 1; continue; }
+          if (next === "`") break;
+          if (next === "$" && source[index] === "{") {
+            index += 1;
+            scanCode(true);
+          }
+        }
+        continue;
+      }
+      if (char === "/") {
+        const previous = tokens.at(-1);
+        const regexMayStart = !previous || (previous.kind === "punct" && "([{=,:;!?&|+-*%^~<>".includes(previous.value)) || (previous.kind === "identifier" && ["return", "case", "throw", "yield", "await", "of", "in", "else"].includes(previous.value));
+        if (regexMayStart) { skipRegex(); continue; }
+      }
+      if (isIdentifierStart(char)) {
+        const start = index++;
+        while (index < source.length && isIdentifierPart(source[index])) index += 1;
+        tokens.push({ kind: "identifier", value: source.slice(start, index) });
+        continue;
+      }
+      if (char === "{") braceDepth += 1;
+      else if (char === "}" && braceDepth > 0) braceDepth -= 1;
+      tokens.push({ kind: "punct", value: char });
+      index += 1;
+    }
+  };
+  scanCode();
+  return Object.freeze(tokens);
+}
+
 function localImports(source: string): readonly LocalImport[] {
   const imports = new Map<string, Set<string>>();
   const add = (specifier: string, names: readonly string[], alwaysInclude = false) => {
@@ -590,29 +681,40 @@ function localImports(source: string): readonly LocalImport[] {
     if (alwaysInclude) unconditionalImports.add(specifier);
   };
   const unconditionalImports = new Set<string>();
-  const patterns: Array<{ regex: RegExp; specifierGroup: number; namesGroups: readonly number[] }> = [
-    { regex: /\b(?:import|export)\s+(?:type\s+)?\{([^}]+)\}\s*from\s*["']([^"']+)["']/g, specifierGroup: 2, namesGroups: [1] },
-    { regex: /\bimport\s+(?:type\s+)?([A-Za-z_$][\w$]*)\s*(?:,\s*\{([^}]+)\})?\s*from\s*["']([^"']+)["']/g, specifierGroup: 3, namesGroups: [1, 2] },
-    { regex: /\bimport\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s*["']([^"']+)["']/g, specifierGroup: 2, namesGroups: [1] },
-    { regex: /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g, specifierGroup: 1, namesGroups: [0] },
-  ];
-  for (const { regex, specifierGroup, namesGroups } of patterns) {
-    for (const match of source.matchAll(regex)) {
-      const specifier = match[specifierGroup];
-      const names = namesGroups.flatMap((group) => group === 0 ? [specifier] : (match[group] ?? "").split(",").map((item) => item.trim().split(/\s+as\s+/).at(-1)?.replace(/^type\s+/, "").trim() ?? ""));
-      add(specifier, names);
+  const tokens = sourceTokens(source);
+  const is = (at: number, value: string) => tokens[at]?.value === value;
+  const stringAt = (at: number) => tokens[at]?.kind === "string" ? tokens[at].value : undefined;
+  const namesIn = (start: number, end: number) => tokens.slice(start, end).filter((token) => token.kind === "identifier" && token.value !== "type" && token.value !== "as").map((token) => token.value);
+  for (let i = 0; i < tokens.length; i += 1) {
+    if ((is(i, "import") || is(i, "export")) && is(i + 1, "(") && stringAt(i + 2) !== undefined && is(i + 3, ")") && is(i, "import")) {
+      add(stringAt(i + 2)!, [], true);
+      continue;
+    }
+    if (is(i, "import") && stringAt(i + 1) !== undefined) {
+      add(stringAt(i + 1)!, [], true);
+      continue;
+    }
+    if (is(i, "require") && is(i + 1, "(") && stringAt(i + 2) !== undefined && is(i + 3, ")")) {
+      add(stringAt(i + 2)!, [], true);
+      continue;
+    }
+    if (!is(i, "import") && !is(i, "export")) continue;
+    let end = i + 1;
+    let braceDepth = 0;
+    while (end < tokens.length) {
+      if (is(end, "{")) braceDepth += 1;
+      else if (is(end, "}")) braceDepth -= 1;
+      if (braceDepth <= 0 && (is(end, ";") || is(end, "import") || is(end, "export"))) break;
+      if (is(end, "from") && stringAt(end + 1) !== undefined) {
+        const specifier = stringAt(end + 1)!;
+        const clauseNames = namesIn(i + 1, end);
+        if (is(i, "export") && is(i + 1, "*") || clauseNames.length === 0) add(specifier, [], true);
+        else add(specifier, clauseNames);
+        break;
+      }
+      end += 1;
     }
   }
-  const unconditionalPatterns: Array<{ regex: RegExp; specifierGroup: number }> = [
-    { regex: /\bimport\s*["']([^"']+)["']/g, specifierGroup: 1 },
-    { regex: /\bexport\s+\*\s*(?:as\s+[A-Za-z_$][\w$]*\s*)?from\s*["']([^"']+)["']/g, specifierGroup: 1 },
-  ];
-  for (const { regex, specifierGroup } of unconditionalPatterns) {
-    for (const match of source.matchAll(regex)) add(match[specifierGroup], [], true);
-  }
-  // Static CommonJS requires are included conservatively instead of relying on a
-  // fragile approximation of destructuring/default binding semantics.
-  for (const match of source.matchAll(/\brequire\s*\(\s*["']([^"']+)["']\s*\)/g)) add(match[1], [], true);
   return Object.freeze([...imports].map(([specifier, names]) => Object.freeze({ specifier, names: Object.freeze([...names]), alwaysInclude: unconditionalImports.has(specifier) })));
 }
 

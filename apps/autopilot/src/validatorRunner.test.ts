@@ -45,13 +45,15 @@ const githubResponse = (status: number, payload: unknown, textValue?: string) =>
   async text() { return textValue ?? JSON.stringify(payload); },
 });
 
-function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; deletedWorkspace?: boolean; mobileManifest?: boolean; directoryImport?: boolean; staticImports?: boolean; truncatedTree?: boolean; commonJs?: boolean; generatedCommonJs?: boolean; bareBuiltin?: boolean; changedJson?: boolean } = {}) {
+function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; deletedWorkspace?: boolean; mobileManifest?: boolean; directoryImport?: boolean; staticImports?: boolean; truncatedTree?: boolean; commonJs?: boolean; generatedCommonJs?: boolean; fixtureRequires?: boolean; bareBuiltin?: boolean; changedJson?: boolean } = {}) {
   let pullReads = 0;
-  const sourcePath = options.generatedCommonJs ? "scripts/research-real-market-run.js" : options.mobileManifest || options.deletedWorkspace ? "apps/mobile/a.ts" : "a.ts";
+  const sourcePath = options.generatedCommonJs ? "scripts/research-real-market-run.js" : options.fixtureRequires ? "apps/autopilot/src/validatorRunner.test.ts" : options.mobileManifest || options.deletedWorkspace ? "apps/mobile/a.ts" : "a.ts";
   const diff = options.deletedSource
     ? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import { helper } from './helper';\n-helper();\n"
     : options.deletedWorkspace
       ? "diff --git a/apps/mobile/a.ts b/apps/mobile/a.ts\n--- a/apps/mobile/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import React from 'react';\n-React.createElement('div');\n"
+      : options.fixtureRequires
+        ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -0,0 +1 @@\n+helper();\n`
       : options.generatedCommonJs
         ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -0,0 +1,2 @@\n+const { run } = require("../dist/apps/autopilot/src/codingRunner.js");\n+run();\n`
     : options.changedJson
@@ -62,7 +64,7 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
       ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -1,2 +1,2 @@\n import React from "react";\n-React.createElement("div");\n+React.createElement("span");\n`
     : "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
   const protocol = "# NUSA /grill-me protocol\n" + "adversarial exact-head fail-closed independent validation. ".repeat(8);
-  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource || options.deletedWorkspace ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"]), ...(options.staticImports ? ["register.ts", "guard.ts"] : []), ...(options.commonJs ? ["security-gate.js"] : []), ...(options.generatedCommonJs ? ["apps/autopilot/src/codingRunner.ts"] : []), ...(options.changedJson ? ["config.json"] : [])];
+  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource || options.deletedWorkspace ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"]), ...(options.staticImports ? ["register.ts", "guard.ts"] : []), ...(options.commonJs ? ["security-gate.js"] : options.fixtureRequires ? ["apps/autopilot/src/security-gate.js"] : []), ...(options.generatedCommonJs ? ["apps/autopilot/src/codingRunner.ts"] : []), ...(options.changedJson ? ["config.json"] : [])];
   const baseBlobPaths = options.deletedSource ? ["package.json", "a.ts", "helper.ts"] : options.deletedWorkspace ? ["package.json", "apps/mobile/package.json", "apps/mobile/a.ts"] : ["package.json"];
   return (async (input: string) => {
     const url = String(input);
@@ -70,7 +72,7 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (url.includes(`/git/commits/${request.baseSha}`)) return githubResponse(200, { tree: { sha: "e".repeat(40) } });
     if (url.includes(`/git/trees/${"d".repeat(40)}?recursive=1`)) return githubResponse(200, { truncated: options.truncatedTree ?? false, tree: [...blobPaths.map((path) => ({ path, type: "blob" })), ...(options.directoryImport ? [{ path: "helper", type: "tree" }] : [])] });
     if (url.includes(`/git/trees/${"e".repeat(40)}?recursive=1`)) return githubResponse(200, { truncated: false, tree: baseBlobPaths.map((path) => ({ path, type: "blob" })) });
-    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, options.changedJson ? [{ filename: "a.ts", status: "modified" }, { filename: "config.json", status: "modified" }] : [{ filename: options.mobileManifest || options.deletedWorkspace || options.generatedCommonJs ? sourcePath : "a.ts", status: options.deletedSource || options.deletedWorkspace ? "removed" : "modified" }]);
+    if (url.includes(`/pulls/${request.prNumber}/files?`)) return githubResponse(200, options.changedJson ? [{ filename: "a.ts", status: "modified" }, { filename: "config.json", status: "modified" }] : [{ filename: options.mobileManifest || options.deletedWorkspace || options.generatedCommonJs || options.fixtureRequires ? sourcePath : "a.ts", status: options.deletedSource || options.deletedWorkspace ? "removed" : "modified" }]);
     if (url.includes(`/pulls/${request.prNumber}`)) {
       pullReads += 1;
       return githubResponse(200, { state: "open", changed_files: options.changedJson ? 2 : 1, head: { sha: options.staleSecondPull && pullReads > 1 ? "c".repeat(40) : request.headSha, repo: { full_name: request.repository } }, base: { sha: request.baseSha, repo: { full_name: request.repository } } });
@@ -89,12 +91,12 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (options.deletedWorkspace && url.includes(`/contents/apps/mobile/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import React from 'react';\nReact.createElement('div');\n");
     if (options.changedJson && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'import { feature } from "./config.json";\nfeature();\n');
     if (options.changedJson && url.includes(`/contents/config.json?ref=${request.headSha}`)) return githubResponse(200, {}, '{"feature":true,"unchangedRequiredKey":"retained"}\n');
-    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : options.staticImports ? 'import "./register";\nexport * from "./guard";\nhelper();' : options.commonJs ? 'const { scanText } = require("./security-gate.js");\nscanText();' : options.generatedCommonJs ? 'const { run } = require("../dist/apps/autopilot/src/codingRunner.js");\nrun();' : options.bareBuiltin ? 'const fs = require("fs");\nfs.readFileSync("x");' : 'import { helper } from "./helper";\nfunction unchangedHelper() { return "unchanged-source-definition"; }\nhelper();');
+    if (url.includes(`/contents/${sourcePath}?ref=${request.headSha}`)) return githubResponse(200, {}, options.fixtureRequires ? `const stringFixture = 'const { run } = require("../dist/apps/autopilot/src/codingRunner.js");';\n// require("../dist/apps/autopilot/src/codingRunner.js")\nconst templateFixture = \`example: require("../dist/apps/autopilot/src/codingRunner.js")\`;\nconst regexFixture = /require\\("..\\/dist\\/apps\\/autopilot\\/src\\/codingRunner\\.js"\\)/;\nconst { scanText } = require("./security-gate.js");\nscanText();` : options.mobileManifest ? 'import React from "react";\nReact.createElement("span");' : options.unsafeImport ? 'import { helper } from "../../../escape";\nhelper();' : options.aliasImport ? 'import { helper } from "@/helper";\nhelper();' : options.staticImports ? 'import "./register";\nexport * from "./guard";\nhelper();' : options.commonJs ? 'const { scanText } = require("./security-gate.js");\nscanText();' : options.generatedCommonJs ? 'const { run } = require("../dist/apps/autopilot/src/codingRunner.js");\nrun();' : options.bareBuiltin ? 'const fs = require("fs");\nfs.readFileSync("x");' : 'import { helper } from "./helper";\nfunction unchangedHelper() { return "unchanged-source-definition"; }\nhelper();');
     if (url.includes(`/contents/helper.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function helper() { return true; }\n");
     if (url.includes(`/contents/helper/index.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export function helper() { return "directory-index"; }\n');
     if (url.includes(`/contents/register.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'registerSideEffect("canonical");\n');
     if (url.includes(`/contents/guard.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export const guard = "canonical";\n');
-    if (options.commonJs && url.includes(`/contents/security-gate.js?ref=${request.headSha}`)) return githubResponse(200, {}, 'exports.scanText = (text) => text.length;\n');
+    if (options.commonJs && url.includes(`/contents/security-gate.js?ref=${request.headSha}`) || options.fixtureRequires && url.includes(`/contents/apps/autopilot/src/security-gate.js?ref=${request.headSha}`)) return githubResponse(200, {}, 'exports.scanText = (text) => text.length;\n');
     if (options.generatedCommonJs && url.includes(`/contents/apps/autopilot/src/codingRunner.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'export function run() { return "tracked-source"; }\n');
     if (url.includes(`/contents/helper?ref=${request.headSha}`) || url.includes(`/contents/helper/`)) return githubResponse(404, {});
     if (url.includes(`/contents/helper.`)) return githubResponse(404, {});
@@ -189,6 +191,16 @@ test("fresh VALIDATOR maps generated dist CommonJS imports to tracked source mod
   assert.match(prompt, /EXACT-HEAD DEPENDENCY apps\/autopilot\/src\/codingRunner\.ts/);
   assert.match(prompt, /tracked-source/);
   assert.ok(result.evidenceRefs.includes(`github:dependency/apps/autopilot/src/codingRunner.ts@${request.headSha}`));
+});
+
+test("fresh VALIDATOR ignores require examples in strings, comments, templates, and regex literals", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ fixtureRequires: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.match(prompt, /EXACT-HEAD DEPENDENCY apps\/autopilot\/src\/security-gate\.js/);
+  assert.match(prompt, /const stringFixture =/);
+  assert.ok(!result.evidenceRefs.some((ref) => ref.includes("codingRunner")));
 });
 
 test("fresh VALIDATOR recognizes bare Node built-ins without treating them as packages", async () => {
