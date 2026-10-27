@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { parseMerged, reconcileText } = require("../scripts/aipos-state-reconcile.js");
+const { parseMerged, reconcileText, CONTROL_KEYS } = require("../scripts/aipos-state-reconcile.js");
 
 const STATE = [
   "version: 1",
@@ -59,4 +59,21 @@ test("reconciling is idempotent and the newest merged PR per branch wins", () =>
   assert.deepEqual(twice.changed, []);
   assert.equal(merged.get("feat/a"), 101);
   assert.equal(merged.has("bad line"), false);
+});
+
+test("a control key with the current_ prefix is never rewritten", () => {
+  const text = "current_non_live_work_order:\n  id: WO-1\n  status: READY_FOR_REVIEW\n  branch: agent/wo-1\n";
+  const result = reconcileText(text, parseMerged("agent/wo-1\t9"));
+  assert.deepEqual(result.changed, []);
+  assert.equal(result.text, text);
+});
+
+test("every state key a validator reads by name is excluded", () => {
+  const fs = require("node:fs");
+  const read = new Set();
+  for (const file of fs.readdirSync("scripts").filter((name) => /^(validate-|aipos-).*\.js$/.test(name) && name !== "aipos-state-reconcile.js")) {
+    for (const match of fs.readFileSync(`scripts/${file}`, "utf8").matchAll(/block\(state, "([a-z_]+)"\)/g)) read.add(match[1]);
+  }
+  assert.ok(read.size > 0);
+  for (const key of read) assert.ok(CONTROL_KEYS.has(key), `${key} is read by a validator but not excluded`);
 });

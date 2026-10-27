@@ -13,7 +13,9 @@
  * COMPLETED here means "the branch PR merged", not work-order acceptance or performance evidence.
  *
  * Usage: node scripts/aipos-state-reconcile.js <merged.tsv> [--write]
- *   merged.tsv: one "<head branch>\t<merged PR number>" per line (for example from the GitHub pulls API).
+ *   merged.tsv: one "<head branch>\t<merged PR number>" per line, for PRs merged into main only, for example:
+ *     for p in 1 2 3 ...; do gh api "repos/<owner>/<repo>/pulls?state=closed&base=main&per_page=100&page=$p" \
+ *       --jq '.[] | select(.merged_at != null) | [.head.ref, .number] | @tsv'; done > merged.tsv
  *   Without --write it only prints what it would change.
  * Reads .aipos/state.yaml and, when present, .aipos/state.d/*.yaml.
  */
@@ -23,6 +25,8 @@ const { join } = require("node:path");
 
 const IN_FLIGHT = /^(READY_FOR_REVIEW|IN_PROGRESS|VERIFYING|IMPLEMENTED_LOCAL[A-Z0-9_]*|CANDIDATE[A-Z0-9_]*|[A-Z0-9_]*PENDING[A-Z0-9_]*|LOCAL_VALIDATED[A-Z0-9_]*)$/;
 const TOP_LEVEL_KEY = /^([A-Za-z_][A-Za-z0-9_]*):/;
+// Control keys that validators read by name. Some carry the current_ prefix, so the prefix alone is not enough.
+const CONTROL_KEYS = new Set(["current_non_live_work_order", "claimed_state", "verified_state", "next", "in_progress", "verification", "continuity", "human_authority", "restricted_live_authority", "serialized_human_environment_gate"]);
 
 function parseMerged(text) {
   const merged = new Map();
@@ -43,7 +47,7 @@ function reconcileText(text, merged) {
   const flush = (end) => {
     if (start < 0) return;
     const key = TOP_LEVEL_KEY.exec(lines[start])[1];
-    if (!key.startsWith("current_")) return;
+    if (!key.startsWith("current_") || CONTROL_KEYS.has(key)) return;
     const block = lines.slice(start + 1, end);
     if (block.some((line) => /^  merged_pr:/.test(line))) return;
     const branchLine = block.find((line) => /^  branch:/.test(line));
@@ -94,4 +98,4 @@ if (require.main === module) {
   try { main(process.argv.slice(2)); } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exit(1); }
 }
 
-module.exports = { parseMerged, reconcileText, IN_FLIGHT };
+module.exports = { parseMerged, reconcileText, IN_FLIGHT, CONTROL_KEYS };
