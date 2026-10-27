@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: FOUR_FRESH_REVIEW_P1_REPAIRS_VALIDATED_LOCALLY_AWAITING_SUCCESSOR_PUBLICATION_AND_VALIDATION
+status: BASE_MANIFEST_AND_EXACT_BUILTIN_COMPLETION_LOCALLY_VALIDATED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -73,7 +73,7 @@ current_main_sync: "Fresh GitHub verification found protected main 9b6c99cee1750
 local_sync_checkpoint: fa83cb282fcee259f568bc7dd95d515d4f0046b8
 remote_update_plan: "The exact verified tree was published by a non-force expected-head update from e0d1465... to db7fc759.... The pending AIPOS reconciliation successor must be published only after the GitHub Git Database API tree SHA exactly matches its local HEAD^{tree}; create it as a child of db7fc759..., then update the existing PR branch with expected_sha=db7fc759de47c620a3220c0f12baea7121e3a2d4 and force=false. On any mismatch or lease rejection, stop without changing the ref."
 validation_after_sync: "Local implementation tree PASS: pnpm run preflight, pnpm run build, pnpm run typecheck, pnpm run validate:full, pnpm run security:gate, git diff --check, and pnpm run test (1263 isolated test files). AIPOS status-only corrections passed preflight, AIPOS drift, cross-AI conformance, and git diff --check. Previous published exact head db7fc759de47c620a3220c0f12baea7121e3a2d4 passed all six workflows (CI 39395954326, Actual PAPER 39395954357, Capability Guard 39395954343, Activation 39395954362, Transport 39395954331, Read-only Broker 39395954449); these are historical for the AIPOS reconciliation successor. Fresh workflows and separate non-author Validator remain pending on that successor."
-next: "Fresh review 5661915785 found three P1s on predecessor cc2516a2...; the exact Git tree API, complete changed-source context, and static side-effect/star import repairs now pass focused tests and local validation. Protected main 2a80488981d13f96552fae8d7c9161a6b3fcb1e9 was merged ordinarily into the existing branch without conflicts. Publish one successor only with expected-head protection and force=false, then require fresh exact-head workflows and non-author review. Keep Draft; do not self-review, mark Ready, Audit, Release, or merge."
+next: "Finish local validation for source-ref manifests and exact Node built-ins; verify current remote head before publishing a non-force successor to existing #2772. Require fresh workflows and independent review; keep Draft and unresolved threads."
 latest_repair_2026_10_26:
   repository_verified:
     protected_main: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
@@ -322,3 +322,12 @@ latest_review_48501bb1:
     formal_validator: PENDING
     audit_release_merge: NOT_STARTED
   next: "Publish one substantive successor only with expected-head 48501bb1a76fa7baa5881cc619a84b932088a0f2 and force=false; require fresh exact-head workflows and review."
+
+latest_base_manifest_completion_20261027:
+  predecessor_head: 6834c074dbb81de797531661f2fd79695b68cc6c
+  rationale: "Additional falsification of the four-P1 repair: base importer external package lookup still used head manifests. Exact builtin subpaths were not bounded by the root-only classifier."
+  implementation: "Source-ref manifest trees, retrieval, cache keys and refs; exact bounded Node modules; base context labeled EXACT-BASE."
+  tests: "37/37 focused PASS, including all four prior reproductions, deleted-source external packages, same-path base/head manifest cache separation, mixed source identities, missing data and invalid builtin names/subpaths."
+  validation: "Node24.18.0 preflight/build/typecheck/validate:full/security PASS; lint0errors/45existingwarnings; focused37/37 and full1290 isolated test files PASS."
+  next: "No publication until local gates PASS and remote expected head rechecked; new head invalidates predecessor CI/review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

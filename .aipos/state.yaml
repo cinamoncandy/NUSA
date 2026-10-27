@@ -4144,7 +4144,7 @@ current_autopilot_fresh_validator_gate_20261026:
   issue: 2760
   pull_request: 2772
   branch: fix/validator-evidence-gate-2760
-  status: FOUR_FRESH_REVIEW_P1_REPAIRS_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
+  status: BASE_MANIFEST_AND_EXACT_BUILTIN_COMPLETION_LOCALLY_VALIDATED
   protected_main: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
   predecessor_pr_head: 3349af9d56a3fe3a536a742514241a8e88d2ca98
   predecessor_pr_base: 54cfb2199cee1fdbaf5ea328c8a0940f4101e723
@@ -4208,6 +4208,17 @@ current_autopilot_fresh_validator_gate_20261026:
     local_gates: "Node 24.19 build/typecheck/preflight/validate:full/security:gate/lint PASS; lint 0 errors and 45 existing warnings."
     remote_gates: "Exact-head CI 40445411142 and companion workflows 5/5 passed; review found P1s; successor publication and fresh review required."
     next: "Publish one substantive successor with expected-head 48501bb1a76fa7baa5881cc619a84b932088a0f2 and force=false."
+
+  latest_base_manifest_completion_20261027:
+    predecessor_remote_head: 6834c074dbb81de797531661f2fd79695b68cc6c
+    root_cause: "Deleted dependency graph repair still classified external packages using head manifests; prefix-only Node module matching accepted nonexistent subpaths."
+    repair: "Bind manifest tree/content/cache/evidence to sourceRef; classify exact supported Node modules and distinguish prefix-only modules; label base dependency context correctly."
+    focused: PASS_37_OF_37
+    canonical_predecessor_falsification: "31/32 tests passed on6834c074; deleted-source base manifest classification rejected valid base package. Local completion passes37/37 including ref-cache separation and fail-closed negative cases."
+    full_local_gates: "Node24.18.0: preflight/build/typecheck/validate:full/security:gate PASS; lint0errors/45existingwarnings; full suite1290 isolated test files PASS."
+    remote_ci_review: PENDING_SUCCESSOR_PUBLICATION
+    next: "Finish local gates, check remote expected head6834c074 and current protected main, publish only a non-force successor of the current canonical branch. No independent verdict; Draft stays."
+    safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_autopilot_light_task_gate:
   work_order: WO-AUTOPILOT-20261012-LIGHT-TASK-GATE

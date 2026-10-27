@@ -205,7 +205,7 @@ test("fresh VALIDATOR inspects deleted changed source at the exact PR base", asy
   assert.match(prompt, /DELETED SOURCE a\.ts @ BASE b{40}/);
   assert.match(prompt, /import \{ helper \} from '\.\/helper'/);
   assert.ok(result.evidenceRefs.includes(`github:deleted-source/a.ts@${request.baseSha}`));
-  assert.match(prompt, /EXACT-HEAD DEPENDENCY helper\.ts @ b{40}/);
+  assert.match(prompt, /EXACT-BASE DEPENDENCY helper\.ts @ b{40}/);
   assert.match(prompt, /base-helper/);
   assert.ok(result.evidenceRefs.includes(`github:tree/${request.baseSha}`));
   assert.ok(result.evidenceRefs.includes(`github:dependency/helper.ts@${request.baseSha}`));
