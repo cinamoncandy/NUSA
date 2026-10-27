@@ -1,0 +1,286 @@
+{
+ "schemaVersion": 1,
+ "note": "One entry per pre-registered research experiment. Append only; never edit an outcome after it is recorded. configs counts every configuration evaluated (for the cumulative multiple-testing bar). source is BACKTEST (offline, frozen data) or PAPER_FORWARD (live PAPER/SHADOW outcomes read from /health); forward evidence was never seen when its rule was chosen.",
+ "experiments": [
+  {
+   "id": "SMA_COST_SCREEN_20261008",
+   "date": "2026-10-08",
+   "evidence": "docs/RESEARCH_NOTE_2026-10-08_SMA_COST_SCREEN.md",
+   "dataType": "CLOSE",
+   "timeframe": "1m-60m",
+   "universe": 5,
+   "methodClass": "RULE",
+   "families": [
+    "SMA_CROSS"
+   ],
+   "configs": 5,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": null,
+   "preRegistered": false,
+   "source": "BACKTEST"
+  },
+  {
+   "id": "SMA_60M_OOS_20261012",
+   "date": "2026-10-12",
+   "evidence": "docs/RESEARCH_NOTE_2026-10-12_SMA_60M_OOS.md",
+   "dataType": "CLOSE",
+   "timeframe": "60m",
+   "universe": 5,
+   "methodClass": "RULE",
+   "families": [
+    "SMA_CROSS",
+    "DONCHIAN",
+    "MEAN_REVERSION"
+   ],
+   "configs": 9,
+   "discoveryPass": 2,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": null,
+   "preRegistered": false,
+   "source": "BACKTEST"
+  },
+  {
+   "id": "BREAKOUT_WALKFORWARD_20261013",
+   "date": "2026-10-13",
+   "evidence": "PR #2648 docs/RESEARCH_NOTE_2026-10-13_BREAKOUT_WALKFORWARD.md",
+   "dataType": "CLOSE",
+   "timeframe": "60m",
+   "universe": 5,
+   "methodClass": "RULE",
+   "families": [
+    "DONCHIAN"
+   ],
+   "configs": 6,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": null,
+   "preRegistered": true,
+   "source": "BACKTEST"
+  },
+  {
+   "id": "FAMILY_SCREEN_60M_20261013",
+   "date": "2026-10-13",
+   "evidence": "PR #2674 docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md (pre-registered a85d87044)",
+   "dataType": "CLOSE",
+   "timeframe": "60m",
+   "universe": 5,
+   "methodClass": "RULE",
+   "families": [
+    "BOLLINGER",
+    "SQUEEZE",
+    "REGIME_DONCHIAN"
+   ],
+   "configs": 12,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": null,
+   "preRegistered": true,
+   "source": "BACKTEST"
+  },
+  {
+   "id": "DAILY_SCREEN_20261013",
+   "date": "2026-10-13",
+   "evidence": "scripts/offline-daily-screen.js, docs/RESEARCH_NOTE_2026-10-13_FAMILY_SCREEN.md (PR #2674, pre-registered d915e5afe; feasibility in WO-RESEARCH-20261013-FAMILY-SCREEN)",
+   "dataType": "CLOSE",
+   "timeframe": "1d",
+   "universe": 5,
+   "methodClass": "RULE",
+   "families": [
+    "DONCHIAN",
+    "REGIME_DONCHIAN",
+    "GOLDEN_CROSS",
+    "TSMOM"
+   ],
+   "configs": 6,
+   "discoveryPass": 2,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0204,
+   "preRegistered": true,
+   "source": "BACKTEST"
+  },
+  {
+   "id": "STRATEGY_CATALOG_20261013",
+   "date": "2026-10-13",
+   "evidence": "PR #2674 docs/RESEARCH_NOTE_2026-10-13_STRATEGY_CATALOG.md (pre-registered 321605fba)",
+   "dataType": "CLOSE",
+   "timeframe": "60m+1d",
+   "universe": 5,
+   "methodClass": "RULE",
+   "families": [
+    "SMA_CROSS",
+    "EMA_CROSS",
+    "DONCHIAN",
+    "BOLLINGER",
+    "RSI",
+    "MACD",
+    "TSMOM",
+    "CALENDAR",
+    "ROTATION"
+   ],
+   "configs": 97,
+   "discoveryPass": 9,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0476,
+   "preRegistered": true,
+   "source": "BACKTEST"
+  },
+  {
+   "id": "OHLCV_CATALOG_20261013",
+   "date": "2026-10-13",
+   "evidence": "PR #2674 docs/RESEARCH_NOTE_2026-10-13_OHLCV_CATALOG.md (pre-registered e9ee51851)",
+   "dataType": "OHLCV",
+   "timeframe": "60m+1d",
+   "universe": 5,
+   "methodClass": "RULE",
+   "families": [
+    "ATR",
+    "KELTNER",
+    "VOLUME",
+    "OSCILLATOR",
+    "ADX",
+    "SUPERTREND"
+   ],
+   "configs": 38,
+   "discoveryPass": 1,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0267,
+   "preRegistered": true,
+   "source": "BACKTEST"
+  },
+  {
+   "id": "BASELINE_PAPER_SHADOW_20261013",
+   "date": "2026-10-13",
+   "source": "PAPER_FORWARD",
+   "evidence": "production /health runtime 4b588d9ac, closedLearningLoop.evidence shadow totals since 1791443670030: 243 round trips, 51 wins, gross +1665/-2034 bp, fees 2431 bp; realizedPeriods 10",
+   "dataType": "CLOSE",
+   "timeframe": "1m",
+   "universe": 1,
+   "methodClass": "RULE",
+   "families": [
+    "SMA_CROSS"
+   ],
+   "configs": 1,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0011,
+   "preRegistered": false
+  },
+  {
+   "id": "ML_ALLKRW_V1_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-allkrw.js (pre-registered 7af03342b); data manifest sha256 393a89258fc5eaddb593f9fc59ebfc836fd03c3fbd5df253c045a3049773a875; 106 eligible of 295 markets",
+   "dataType": "OHLCV",
+   "timeframe": "60m",
+   "universe": 106,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0887,
+   "preRegistered": true,
+   "lesson": "Design flaw: a 0.5 probability threshold with a 38.8% positive base rate selected almost nothing (3 validation, 4 holdout trades). Selection must be rank-based or calibrated to the base rate.",
+   "designFlaw": true
+  },
+  {
+   "id": "ML_ALLKRW_V2_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "retryOf": "ML_ALLKRW_V1_20261013",
+   "evidence": "scripts/research-ml-allkrw-v2.js (pre-registered 2521aefdd); same data manifest as v1",
+   "dataType": "OHLCV",
+   "timeframe": "60m",
+   "universe": 106,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0047,
+   "preRegistered": true,
+   "lesson": "No skill: top-5 picks averaged -0.20% per trade versus +0.27% for buying every eligible market on the same days (355 trades, win rate 43.9%, p 0.78). Validation was already below the universe (-0.87% vs -0.72%)."
+  },
+  {
+   "id": "ML_ALLKRW_DAILY_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-allkrw-daily.js (pre-registered c62336331); daily data manifest sha256 dd81586b5bc01217bb90acc14f229e16cba884599470dc841782b0272f398b0b",
+   "dataType": "OHLCV",
+   "timeframe": "1d",
+   "universe": 295,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0031,
+   "preRegistered": true,
+   "lesson": "No skill: 1,755 holdout trades, -0.774% per trade vs universe -0.467% (win rate 42.2%); validation also below universe. Price/volume features do not rank next-day winners across KRW markets."
+  },
+  {
+   "id": "ML_EXTERNAL_DAILY_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-external.js (pre-registered 869a9bb9e); daily manifest dd81586b...; external.json sha256 9f49c83a9d366acf8be5d41cdca543b8a7c6fe6cfdbb604faa5830ed74a50f26",
+   "dataType": "EXTERNAL",
+   "timeframe": "1d",
+   "universe": 295,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.003,
+   "preRegistered": true,
+   "lesson": "No skill: adding the BTC Korea premium and global BTC momentum left the model unchanged in effect (holdout -0.771% per trade vs universe -0.467%, 1,755 trades). Linear daily cross-sectional ranking of KRW markets consistently picks losers (likely high-volatility names)."
+  },
+  {
+   "id": "ML_EXTERNAL_60M_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-external-60m.js (pre-registered f5201c7b9); 60m manifest 393a8925...; external.json sha256 43d0e59d9cfdc5cafbc4a97dd273153909ae08c1c80a7f19a8ca030dd1d6a536",
+   "dataType": "EXTERNAL",
+   "timeframe": "60m",
+   "universe": 106,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 0,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0068,
+   "preRegistered": true,
+   "lesson": "No skill: 355 holdout trades, -0.404% per trade vs universe +0.271% (win 42.5%). Four ML models in a row picked markets that did worse than the market average on unseen data; the inverse is NOT a valid conclusion because it was seen on the holdout (it may only be tested on forward data)."
+  },
+  {
+   "id": "ML_TRADES_FLOW_15M_20261013",
+   "date": "2026-10-13",
+   "source": "BACKTEST",
+   "evidence": "scripts/research-ml-trades-flow.js (pre-registered 026562ac4; fetch-only fix 8958a6f8a); 7 days of public Upbit trade ticks 2026-10-06..12, 30 markets; manifest files sha256 3a51fc0205b0da5ffbe38fa23ac75c9b95f91c9b2fa45a0243611b01a359ddb6",
+   "dataType": "TRADES",
+   "timeframe": "15m-60m",
+   "universe": 30,
+   "methodClass": "ML",
+   "families": [
+    "LOGISTIC_REGRESSION"
+   ],
+   "configs": 3,
+   "discoveryPass": 1,
+   "holdoutPass": 0,
+   "holdoutGapPerTrade": -0.0025,
+   "preRegistered": true,
+   "lesson": "Order flow did not transfer: validation (1 day) +0.026% per trade vs universe -0.082%, but holdout (2 days, 144 trades) -0.532% vs universe -0.279%, win 33.3%, p 0.998. Fifth ML model in a row to pick worse-than-average markets on unseen data. Only 7 days of ticks exist publicly, so splits are tiny; the universe was re-selected after a transient HTTP 503 during the first fetch (same rule, fetch-time ticker)."
+  }
+ ]
+}

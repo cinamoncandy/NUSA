@@ -1,0 +1,31 @@
+id: WO-UI-20261006-CALM-REDESIGN
+title: "Whole-app calm redesign: 지금 · 학습 · 안전 · 기록"
+status: IN_PROGRESS
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/ux-redesign-plan
+authority_impact: none
+owner_approval: "2026-10-06 in chat: 'ux 재설계하고 ui도 다시 디자인 해줘', '그냥 다 새로 다시 해줘 개선하지말고', then '니가 새롭게 디자인해봐' and '진행해' after the prototype board (scratchpad ux2/board.png) and the staged plan"
+objective: "Replace the interim field-v1 presentation with a new design language across the four primary tabs: one status sentence instead of banners/chips/cards, a big number and hairline rows, colour only with meaning (white normal, lime my PAPER order, amber needs attention, red loss/halt), English codes folded into an advanced section, repeated WAIT rows grouped."
+scope:
+  - "apps/mobile/src/uiKitModel.ts, uiKit.tsx: calm primitives and tone/grouping rules"
+  - "nowScreenModel.ts + nowView.tsx (HOME → 지금), learningScreenModel.ts + learningView.tsx (PAPER → 학습; the full read-only monitors stay behind 자세히 보기), safetyScreenModel.ts + safetyView.tsx (LIVE → 안전; LIVE locked and AI advisory are fixed facts of the build), recordsScreenModel.ts + recordsView.tsx (More → 기록, regrouped records-first)"
+  - "presentation.tsx swaps the four presenters and bumps PRESENTATION.id to calm-v1; navigationContract display labels become 지금/학습/안전/기록. Navigation keys, App.tsx wiring, data, safety and authority are unchanged."
+  - "designSystem.ts: theme and fieldPalette retuned to calmPalette for the whole app; loss red is #FF5C5C so it stays distinguishable from amber. Palette tests migrated to the calm-v1 semantics (white is the normal tone; only amber and red are alarm colours)."
+  - "tests: behavioural screen-model tests for each new screen; the presentation-boundary test accepts aliased exports and the new id"
+exclusions:
+  - "Detail screens opened from 기록 (주문 기록, 성과, 자산, 전략, 위험, 알림, 설정, 도움말) and the monitors behind 학습 > 자세히 보기 now share the calm palette through the retuned theme and fieldPalette tokens (cards blend into the ground, white normal, amber attention, red loss), but keep their field-v1 layouts in this pass; they are named here per the UI rule."
+  - "No change to runtime data, trading, risk, accounting, LIVE, credentials or AI authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Stale, unverified or missing data is dimmed or shown as '—' and never as healthy; LIVE locked text does not depend on any server value."
+rollback: "Revert presentation.tsx and navigationContract.ts labels to restore field-v1 presenters (they are kept in the tree)."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node --test tests/mobile-calm-ui-kit.test.js tests/mobile-now-screen-model.test.js tests/mobile-records-screen-model.test.js tests/mobile-safety-screen-model.test.js tests/mobile-learning-screen-model.test.js tests/mobile-presentation-boundary.test.js
+  - node scripts/lint-mobile.js
+residual: "React Native cannot run in this environment; the owner must confirm the look on a device (HUMAN_ENVIRONMENT_ONLY). The old field-v1 presenters remain in the tree, so source-pinning tests that read them still pass but no longer describe what is shown; they are to be migrated to screen-model tests per docs/UI_ARCHITECTURE.md."

@@ -1,0 +1,29 @@
+id: WO-PAPER-20261005-LEARNING-COLLECTION-REASON
+title: "Say why the learning data line is 'not received': research off, rejected settings, or unreadable store"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/learning-collection-reason
+authority_impact: diagnostics_only
+owner_direction: "Owner, 2026-10-05: the learning data stays 'not received' and must be solved, in parallel with the hero graphic ('학습 미수신도 해결해야돼 잊지말고')."
+objective: "HOME shows '학습 데이터 / 집계 미수신'. That line is the research candle-collection progress the server reports in heartbeat.researchCollection. By design that field is absent when the continuous research experiments are off, and the app renders absence as a vague 'not received'. The experiments are on only when the host sets NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (default off, fail closed) and a valid build commit; nothing in the repository sets it. Earlier guesses (the snapshot-refresh memory floor) concerned a different data path and did not apply."
+scope:
+  - "packages/contracts/src/personalPaperOperations.ts: optional heartbeat.researchCollectionState (DISABLED, INVALID, UNAVAILABLE), dropped when malformed or when researchCollection is present."
+  - "apps/cloud/src/runtime.ts: when there is no collection progress, report why using readResearchExperimentSettings: off, rejected settings, or enabled but unreadable. Display only."
+  - "apps/mobile/src/researchProgressModel.ts and homeView.tsx: the line reads 'research off', 'research settings error' or 'collection status unreadable' with a one-line Korean explanation; any other or missing state keeps 'not received'; real progress always wins."
+  - "tests/mobile-research-progress.test.js: state mapping, unknown states not guessed, real progress wins, malformed progress not mistaken for a reason, runtime and contract pins, settings parser mapping."
+exclusions:
+  - "This does not turn the research experiments on. Enabling them is a separate owner decision (public-candle collection, backtest experiments, CPU and memory on the 1 GB host); it is research-only, no orders, no capital, risk, LIVE, credential or AI-authority change."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; a missing or unknown state reads as not received, never as healthy."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/mobile-research-progress.test.js
+  - node --test tests/mobile-*.test.js tests/uiux-*.test.js
+  - node scripts/lint-mobile.js
+residual: "Which of the three states the host is in is unknown until the server runs this version; the server change takes effect only after the next PAPER deploy. If it is DISABLED, getting learning data needs the owner's decision to enable it."

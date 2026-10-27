@@ -9,6 +9,7 @@ import {
   type ResearchInputSnapshot,
   type ResearchEvaluatorAuthority
 } from "../../../packages/contracts/src/researchRuntime";
+import { bindResearchExecution, verifyResearchExecutionBinding, type ResearchPrecommit } from "../../../packages/contracts/src/researchPrecommit";
 import { validateResearchProvenance, type ResearchCostEvidence } from "../../../packages/contracts/src/researchHardening";
 import { validateResearchCostEvidence } from "./researchCostEvidence";
 
@@ -39,6 +40,7 @@ export interface ResearchRuntimeCoordinatorOptions {
   readonly champion: ChampionResearchEvaluator;
   readonly challenger: ChallengerResearchEvaluator;
   readonly ledger?: ResearchEvaluationLedger;
+  readonly precommitStore?: { get(fingerprint: string): ResearchPrecommit | null };
 }
 
 export class ResearchRuntimeError extends Error {
@@ -162,7 +164,22 @@ function validateEvaluation(value: ResearchEvaluation, evaluator: { strategyId: 
   return undefined;
 }
 
-function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchComparisonResult, reasonText: string, champion: ResearchEvaluation | null, challenger: ResearchEvaluation | null): ResearchComparisonEvidence {
+function validatePrecommitPlan(precommit: ResearchPrecommit, input: ResearchInputSnapshot): void {
+  const provenance = input.provenance as (typeof input.provenance & { readonly sourceCommitSha?: string; readonly splitIdentity?: string }) | undefined;
+  const expectedStrategy = `${input.strategyId}@${input.strategyVersion}`;
+  if (precommit.experimentIdentity !== input.evaluationId) throw new Error("PRECOMMIT_EXPERIMENT_MISMATCH");
+  if (precommit.strategyIdentity !== expectedStrategy || precommit.candidateIdentity !== expectedStrategy) throw new Error("PRECOMMIT_STRATEGY_MISMATCH");
+  if (provenance?.sourceCommitSha != null && precommit.sourceSha !== provenance.sourceCommitSha) throw new Error("PRECOMMIT_SOURCE_MISMATCH");
+  const market = input.marketData[0]?.market;
+  const last = input.marketData[input.marketData.length - 1]?.observedAt;
+  const dataset = precommit.datasetBinding;
+  if (dataset.market !== market || dataset.endCloseMs !== last || dataset.startCloseMs !== input.marketData[0]?.observedAt) throw new Error("PRECOMMIT_DATASET_MISMATCH");
+  const cost = precommit.costPlan;
+  if (cost.feeModel !== input.feeModelVersion || cost.slippageModel !== input.slippageModelVersion || cost.fillModel !== input.fillModelVersion) throw new Error("PRECOMMIT_COST_MISMATCH");
+  if (provenance?.splitIdentity != null && precommit.validationPolicyIdentity !== provenance.splitIdentity) throw new Error("PRECOMMIT_POLICY_MISMATCH");
+}
+
+function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchComparisonResult, reasonText: string, champion: ResearchEvaluation | null, challenger: ResearchEvaluation | null, executionInputFingerprint?: string): ResearchComparisonEvidence {
   const costEvidence = projectCostEvidence(input.costEvidence);
   return freeze({
     schemaVersion: 1,
@@ -184,7 +201,9 @@ function evidence(input: ResearchInputSnapshot, hash: string, result: ResearchCo
     result,
     reason: reasonText,
     productionMutationAllowed: false,
-    promotionAllowed: false
+    promotionAllowed: false,
+    ...(input.precommitFingerprint == null ? {} : { precommitFingerprint: input.precommitFingerprint }),
+    ...(executionInputFingerprint == null ? {} : { executionInputFingerprint })
   });
 }
 
@@ -212,6 +231,20 @@ export class ResearchRuntimeCoordinator {
       return record;
     }
     const canonicalInputHash = inputHashResult.hash;
+    let executionInputFingerprint: string | undefined;
+    if (this.options.precommitStore != null) {
+      if (input.precommitFingerprint == null) { const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "PRECOMMIT_REQUIRED", null, null); this.persist(record); return record; }
+      const precommit = this.options.precommitStore.get(input.precommitFingerprint);
+      if (precommit == null) { const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "PRECOMMIT_NOT_FOUND", null, null); this.persist(record); return record; }
+      try {
+        const binding = bindResearchExecution(precommit, input.evaluationId, input as unknown as Readonly<Record<string, unknown>>);
+        verifyResearchExecutionBinding(precommit, binding);
+        validatePrecommitPlan(precommit, input);
+        executionInputFingerprint = binding.inputFingerprint;
+        if (this.ledger.appendLifecycle == null) throw new Error("EXECUTION_START_PERSISTENCE_UNAVAILABLE");
+        this.ledger.appendLifecycle({ stage: "EXECUTION_START", executionId: input.evaluationId, precommitFingerprint: precommit.fingerprint, inputFingerprint: executionInputFingerprint, sequence: 1, payloadFingerprint: canonicalInputHash });
+      } catch (error) { const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", error instanceof Error ? error.message : "PRECOMMIT_BINDING_FAILED", null, null); this.persist(record); return record; }
+    }
     const context = freeze({ input, canonicalInputHash, fillModelVersion: input.fillModelVersion, feeModelVersion: input.feeModelVersion, slippageModelVersion: input.slippageModelVersion });
     let champion: ResearchEvaluation;
     let challenger: ResearchEvaluation;
@@ -219,20 +252,20 @@ export class ResearchRuntimeCoordinator {
       champion = freeze(this.options.champion.evaluate(context));
       challenger = freeze(this.options.challenger.evaluate(context));
     } catch {
-      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "EVALUATOR_EXCEPTION", null, null);
+      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "EVALUATOR_EXCEPTION", null, null, executionInputFingerprint);
       this.persist(record);
       return record;
     }
     const validationReason = validateEvaluation(champion, this.options.champion, context) ?? validateEvaluation(challenger, this.options.challenger, context);
     if (validationReason) {
-      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", validationReason, champion, challenger);
+      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", validationReason, champion, challenger, executionInputFingerprint);
       this.persist(record);
       return record;
     }
     const requiredMetrics = ["costAdjustedReturn", "maximumDrawdown", "sharpeRatio", "executionQuality"];
     const hardenedMetrics = input.provenance != null;
     if (hardenedMetrics && requiredMetrics.some((key) => typeof champion.metrics[key] !== "number" || typeof challenger.metrics[key] !== "number")) {
-      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "INCOMPLETE_COMPARISON_METRICS", champion, challenger);
+      const record = evidence(input, canonicalInputHash, "INCONCLUSIVE", "INCOMPLETE_COMPARISON_METRICS", champion, challenger, executionInputFingerprint);
       this.persist(record);
       return record;
     }
@@ -245,13 +278,13 @@ export class ResearchRuntimeCoordinator {
       ? championReturn > challengerReturn && champion.metrics.costAdjustedReturn >= challenger.metrics.costAdjustedReturn && champion.metrics.maximumDrawdown <= challenger.metrics.maximumDrawdown && champion.metrics.sharpeRatio >= challenger.metrics.sharpeRatio && champion.metrics.executionQuality >= challenger.metrics.executionQuality
       : championReturn > challengerReturn;
     const result: ResearchComparisonResult = challengerBetter ? "CHALLENGER_BETTER" : championBetter ? "CHAMPION_BETTER" : "INCONCLUSIVE";
-    const record = evidence(input, canonicalInputHash, result, hardenedMetrics ? "MULTI_METRIC_COMPARISON" : "NET_RETURN_COMPARISON", champion, challenger);
+    const record = evidence(input, canonicalInputHash, result, hardenedMetrics ? "MULTI_METRIC_COMPARISON" : "NET_RETURN_COMPARISON", champion, challenger, executionInputFingerprint);
     this.persist(record);
     return record;
   }
 
   public ledgerRecords(): readonly ResearchComparisonEvidence[] { return this.ledger.list(); }
-  private persist(record: ResearchComparisonEvidence): void { try { this.ledger.append(record); } catch (error) { throw new ResearchRuntimeError("LEDGER_PERSISTENCE_FAILED", error instanceof Error ? error.message : "research ledger persistence failed"); } }
+  private persist(record: ResearchComparisonEvidence): void { try { this.ledger.append(record); if (record.precommitFingerprint != null && record.executionInputFingerprint != null && this.ledger.appendLifecycle != null) this.ledger.appendLifecycle({ stage: "EXECUTION_OUTPUT", executionId: record.evaluationId, precommitFingerprint: record.precommitFingerprint, inputFingerprint: record.executionInputFingerprint, sequence: 2, payloadFingerprint: canonicalHash(record).hash }); } catch (error) { throw new ResearchRuntimeError("LEDGER_PERSISTENCE_FAILED", error instanceof Error ? error.message : "research ledger persistence failed"); } }
 }
 
 export interface CloudResearchRuntimeOptions {

@@ -154,9 +154,17 @@ export class OwnerDeviceCredentialService {
   public revoke(input: Readonly<{ actorUserId: string; actorScopes: readonly string[]; credentialId: string; now?: number }>): boolean {
     const actor = this.users.get(input.actorUserId.trim());
     if (actor?.role !== "OWNER" || !isUserAllowed(actor) || !input.actorScopes.includes("users:manage")) throw new Error("active owner users:manage authority required");
-    const updated = this.db.connection.prepare("UPDATE nusa_owner_device_credentials SET revoked_at=?,revoke_reason='OWNER_REVOKED' WHERE credential_id=? AND owner_user_id=? AND revoked_at IS NULL")
-      .run(input.now ?? Date.now(), identifier(input.credentialId, "credential id"), actor.id);
-    return Number(updated.changes) === 1;
+    const now = input.now ?? Date.now();
+    const credentialId = identifier(input.credentialId, "credential id");
+    const credential = this.db.connection.prepare("SELECT device_id_hash FROM nusa_owner_device_credentials WHERE credential_id=? AND owner_user_id=? AND revoked_at IS NULL").get(credentialId, actor.id) as Record<string, unknown> | undefined;
+    if (credential == null) return false;
+    return this.db.transaction(() => {
+      const updated = this.db.connection.prepare("UPDATE nusa_owner_device_credentials SET revoked_at=?,revoke_reason='OWNER_REVOKED' WHERE credential_id=? AND owner_user_id=? AND revoked_at IS NULL")
+        .run(now, credentialId, actor.id);
+      if (Number(updated.changes) !== 1) return false;
+      this.mobileSessions.revokeOwnerDeviceSessions({ userId: actor.id, deviceIdHash: String(credential.device_id_hash), now });
+      return true;
+    });
   }
 
   private createChallenge(purpose: OwnerDeviceCredentialPurpose, credentialId: string, rawDeviceId: string, key: string, now = Date.now(), actorOwnerUserId?: string): OwnerDeviceCredentialChallenge {

@@ -1,0 +1,23 @@
+id: WO-AUTOPILOT-20261003-CODEX-HOURLY
+title: "Run the Autopilot Codex coding workflow hourly so it resumes soon after a ChatGPT usage window resets"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/autopilot-codex-hourly
+authority_impact: autopilot_schedule_only
+objective: "Codex stopped producing PRs: first an open autopilot PR blocked it for about ten hours, then the dedicated ChatGPT account hit its usage limit. GitHub also drops scheduled runs (observed gaps of 4-6 hours against a 2-hour cron), so after a window reset the next attempt could be hours away. The owner asked for autonomous coding that resumes on its own."
+scope:
+  - ".github/workflows/autopilot-codex-coding.yml: cron 23 */2 -> 23 * (hourly). Nothing else changes."
+exclusions:
+  - "No change to eligibility, the one-open-PR rule, the usage-limit wait (never falls back to another account), host guard, validation, protected-path boundary, Audit, Release or any authority. No new AI account or paid usage."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "A usage limit remains a wait; an open autopilot Codex PR still makes the run skip before picking an issue."
+rollback: "Restore the previous cron expression."
+verification_commands:
+  - node scripts/validate-workflow-authority-map.js
+  - node scripts/validate-workflow-action-pins.js
+residual: "Hourly runs cost a small amount of GitHub-hosted time for the select job (install + tsc) even when skipped. Usage limits themselves are set by the ChatGPT plan; the owner plans to raise them."

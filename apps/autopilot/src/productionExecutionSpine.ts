@@ -1,5 +1,6 @@
 import type { AutopilotDispatchPlan } from "./dispatchPlanner";
 import type { AutopilotExecutionRequest } from "./executionPlanner";
+import type { CodingExecutionEvidence } from "./codingExecutionEvidence";
 import {
   acquireExecutionLease,
   createExecutionState,
@@ -17,6 +18,35 @@ export interface PreparedProductionExecution {
   readonly state: AutonomousExecutionState;
   readonly envelope: CodingExecutionEnvelope;
   readonly request: AutopilotExecutionRequest;
+}
+
+export type CanonicalExecutionTransition =
+  | "PR_OPEN"
+  | "IMPLEMENTATION_BLOCKED"
+  | "CODING_DISPATCHED";
+
+/**
+ * Reconciles one persisted coding receipt with the exact execution identity.
+ * This is observability/state projection only; it never submits, approves, or
+ * mutates a repository or trading state.
+ */
+export function reconcileCodingExecutionEvidence(
+  state: Pick<AutonomousExecutionState, "executionId" | "dedupeKey" | "status">,
+  evidence: CodingExecutionEvidence,
+): CanonicalExecutionTransition {
+  if (evidence.request.executionId !== state.executionId
+    || evidence.request.dedupeKey !== state.dedupeKey
+    || evidence.request.headSha !== evidence.request.headSha.toLowerCase()) {
+    throw new Error("CODING_EVIDENCE_EXECUTION_IDENTITY_MISMATCH");
+  }
+  if (state.status !== "CODING_DISPATCHED") throw new Error("CODING_EVIDENCE_STATE_INVALID");
+  if (evidence.outcome.status === "EXECUTION_ACCEPTED"
+    && evidence.outcome.pullRequestNumber !== null
+    && evidence.outcome.commitSha !== null) return "PR_OPEN";
+  if (evidence.outcome.status === "EXECUTION_FAILED"
+    || evidence.outcome.status === "BLOCKED_RATE_LIMIT"
+    || evidence.outcome.status === "WAITING_RATE_LIMIT") return "IMPLEMENTATION_BLOCKED";
+  return "CODING_DISPATCHED";
 }
 
 export interface ProductionExecutionOptions {
@@ -50,10 +80,20 @@ export function prepareProductionExecution(
   if (!safePositiveDuration(leaseTtlMs)) throw new Error("PRODUCTION_EXECUTION_LEASE_TTL_INVALID");
 
   const delivery = boundedId(options.deliveryId);
+  // SHA40 is case-insensitive, so this function accepts a mixed-case head SHA -- and the dedupe key
+  // is what suppresses a second execution for the same commit. Without normalising here, the same
+  // commit in a different case mints a second identity and the suppression silently does nothing.
+  const headSha = dispatch.headSha.toLowerCase();
+  // AutopilotDispatchPlan documents why the attempt belongs in the identity: "a re-run keeps the
+  // same workflowRunId but is a distinct execution producing distinct evidence, so downstream
+  // execution identity must carry it -- otherwise a re-run collides with the first attempt's dedupe
+  // key and is suppressed as a duplicate, permanently starving any head whose first Audit attempt
+  // reached no verdict." dispatchPlanner sets the field; nothing consumed it until here.
+  const runAttempt = dispatch.workflowRunAttempt ?? 1;
   const cycleId = `ci:${dispatch.workflowRunId}`;
-  const workItemId = `continue:${dispatch.headSha}`;
+  const workItemId = `continue:${headSha}`;
   const executionId = `github:${delivery}`;
-  const dedupeKey = `ci:${dispatch.workflowRunId}:${dispatch.headSha}`;
+  const dedupeKey = `ci:${dispatch.workflowRunId}:${runAttempt}:${headSha}`;
 
   let state = createExecutionState({ cycleId, workItemId, executionId, dedupeKey });
   state = acquireExecutionLease(state, "cloudflare:nusa-autopilot", options.now, leaseTtlMs);
@@ -65,7 +105,7 @@ export function prepareProductionExecution(
     dedupeKey,
     origin: options.origin,
     repository: dispatch.repository,
-    baseSha: dispatch.headSha,
+    baseSha: headSha,
     workflowRunId: dispatch.workflowRunId,
     objective: "Continue the highest-value safe NUSA engineering improvement from verified main evidence.",
     acceptanceCriteria: [
@@ -73,7 +113,7 @@ export function prepareProductionExecution(
       "Preserve liveAuthority=NONE, productionMutationAllowed=false, and AI authority=ZERO_AUTHORITY.",
       "Produce auditable GitHub evidence for any repository change.",
     ],
-    evidenceRefs: [`github:workflow-run:${dispatch.workflowRunId}`, `github:commit:${dispatch.headSha}`],
+    evidenceRefs: [`github:workflow-run:${dispatch.workflowRunId}`, `github:commit:${headSha}`],
     allowedScope: ["apps/autopilot/", ".github/workflows/", "scripts/"],
     forbiddenScope: ["live-trading", "production-authority", "secrets"],
     maxChangedFiles: 12,
@@ -93,6 +133,7 @@ export function prepareProductionExecution(
     reason: runner.reason,
     executionId: envelope.executionId,
     dedupeKey: envelope.dedupeKey,
+    contractFingerprintSha256: runner.contractFingerprintSha256 ?? null,
     mutationAllowed: false,
   });
   return Object.freeze({ state, envelope, request });

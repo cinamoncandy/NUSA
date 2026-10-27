@@ -68,3 +68,15 @@ current_follow_up:
   validation: "Focused contract/admission/factory 30/30 PASS; research/League regression 39/39 PASS; full isolated suite 825/825 PASS; preflight/typecheck/build/lint/architecture/safety/security/AIPOS/Restricted LIVE/Read-only Broker PASS."
   known_truth: "Longitudinal realized PAPER history remains unavailable and fail-closed; this slice does not fabricate PAPER performance evidence or add execution authority."
   next: "Continue the #861 longitudinal realized PAPER evidence gap only after a truthful runtime source exists; do not synthesize or promote operational receipts."
+
+current_survivorship_follow_up:
+  status: REVIEW_CORRECTIONS_APPLIED_PENDING_FRESH_CI
+  branch: fix/1094-research-universe-provenance
+  pull_request: 2411
+  scope: "Bind universe-selected Research runs to immutable point-in-time constituent eligibility and dataset fingerprints; preserve fixed single-market NOT_APPLICABLE semantics."
+  finding: "Current single-market dataset manifests do not prove that a historical multi-market universe was observable/eligible at decision time, leaving a survivorship-bias provenance gap."
+  remediation: "Extend existing Research Integrity and Run Factory only; deterministic universe fingerprint, constituent eligibility evidence, exact dataset binding, replay drift rejection, and fail-closed missing provenance."
+  validation: "Prior head 8deaac13 exact-head CI 6/6 PASS and deterministic Audit PASS; Release merge was blocked only by six unresolved review findings. Corrections now cover actual multi-market runner wiring, full manifest-set binding, historical selection timing, full-period eligibility, optional-field fingerprint normalization, deterministic market ordering, and AIPOS state synchronization. Fresh exact-head CI required."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+  next: "Fresh exact-head CI -> resolve review threads after evidence -> independent Audit -> Release -> merge -> protected-main verification."
+

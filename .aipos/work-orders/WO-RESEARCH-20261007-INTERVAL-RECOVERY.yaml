@@ -1,0 +1,25 @@
+id: WO-RESEARCH-20261007-INTERVAL-RECOVERY
+title: "Recover the 15m/60m research orchestrators at start"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/research-interval-recovery
+authority_impact: none
+owner_approval: "2026-10-07 in chat: Learning Loop 핵심 7단계 완전수렴 작업지시서 and '계속해'"
+objective: "Runtime dbcaf5d /health researchExperimentTicksByInterval showed 1m OK but 15m and 60m RECOVERY_NOT_READY: the runtime recovers only the orchestrator handed to startCloudRuntime (1m), so the longer bars added by #2554 never ran."
+scope:
+  - "researchExperimentComposition.ts: start() recovers every orchestrator after the first, before the first tick, and logs each result."
+  - "tests/research-experiment-composition.test.js: without start the 60m orchestrator stays RECOVERY_NOT_READY; after start it recovers READY and ticks OK."
+exclusions:
+  - "No change to research grids, intervals, candidates, PAPER execution, risk or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "A recovery that is not READY keeps that orchestrator gated (RECOVERY_NOT_READY) exactly as before."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/research-experiment-composition.test.js
+residual: "Requires a PAPER deploy; /health researchExperimentTicksByInterval should then show 15m/60m OK."

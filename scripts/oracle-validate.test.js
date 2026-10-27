@@ -10,10 +10,12 @@ const test = require("node:test");
 const VALID_SHA = "a".repeat(40);
 const OTHER_SHA = "b".repeat(40);
 const TOKEN = "t".repeat(64);
+const AUTOPILOT_TOKEN = "a".repeat(64);
 
-const PAPER_UNIT = `[Unit]\nDescription=NUSA Cloud Paper Runtime\n[Service]\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js\nRestart=on-failure\nNoNewPrivileges=true\nProtectSystem=strict\nReadWritePaths=/var/lib/nusa /var/backups/nusa\n`;
-const RESEARCH_UNIT = `[Unit]\nDescription=NUSA canonical Research\n[Service]\nType=oneshot\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/node /opt/nusa/current/scripts/run-cloud-research-snapshot.js\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa /var/backups/nusa\n`;
+const PAPER_UNIT = `[Unit]\nDescription=NUSA Cloud Paper Runtime\n[Service]\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa/current/scripts/start-cloud-runtime.js\nRestart=on-failure\nNoNewPrivileges=true\nProtectSystem=strict\nReadWritePaths=/var/lib/nusa /var/backups/nusa\n`;
+const RESEARCH_UNIT = `[Unit]\nDescription=NUSA canonical Research\n[Service]\nType=oneshot\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nExecStart=/usr/bin/env -u NODE_OPTIONS /usr/bin/node --max-old-space-size=256 --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js /opt/nusa/current/scripts/run-cloud-research-snapshot.js\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa /var/backups/nusa\nMemoryMax=560M\nNice=19\nIOSchedulingClass=idle\n`;
 const RESEARCH_TIMER = `[Unit]\nDescription=Schedule Research\n[Timer]\nOnBootSec=2min\nOnCalendar=*-*-* 09:15:00 Asia/Seoul\nPersistent=true\nRandomizedDelaySec=5min\nUnit=nusa-research.service\n[Install]\nWantedBy=timers.target\n`;
+const AUTOPILOT_UNIT = `[Unit]\nDescription=NUSA Persistent Autopilot Runtime\n[Service]\nType=simple\nUser=nusa\nGroup=nusa\nWorkingDirectory=/opt/nusa/current\nEnvironmentFile=/etc/nusa/cloud-runtime.env\nEnvironment=HOME=/var/lib/nusa\nExecStart=/usr/bin/node /opt/nusa/current/scripts/autopilot-runtime.js\nRestart=always\nNoNewPrivileges=true\nPrivateTmp=true\nProtectSystem=strict\nProtectHome=true\nReadWritePaths=/var/lib/nusa\nUMask=0077\n`;
 
 function write(root, absolute, contents) {
   const target = path.join(root, absolute.replace(/^\/+/, ""));
@@ -30,6 +32,8 @@ function fixture(overrides = {}) {
     NUSA_CLOUD_DASHBOARD_TOKEN: TOKEN,
     NUSA_CLOUD_DASHBOARD_HOST: "127.0.0.1",
     NUSA_CLOUD_STATE_DB_PATH: "/var/lib/nusa/state.sqlite",
+    NUSA_AUTOPILOT_RUNTIME_ENDPOINT: "https://autopilot.example.test/scheduled/run",
+    NUSA_AUTOPILOT_RUNTIME_TOKEN: AUTOPILOT_TOKEN,
     NUSA_SOURCE_COMMIT: VALID_SHA,
     ...overrides,
   };
@@ -37,14 +41,40 @@ function fixture(overrides = {}) {
   write(root, "/etc/systemd/system/nusa.service", PAPER_UNIT);
   write(root, "/etc/systemd/system/nusa-research.service", RESEARCH_UNIT);
   write(root, "/etc/systemd/system/nusa-research.timer", RESEARCH_TIMER);
+  write(root, "/etc/systemd/system/nusa-autopilot.service", AUTOPILOT_UNIT);
   return root;
 }
 
-function validate(root) {
+function validate(root, candidateRelease) {
   return spawnSync(process.execPath, [path.join(__dirname, "oracle-validate.js")], {
-    env: { ...process.env, NUSA_ORACLE_ROOT: root },
+    env: {
+      ...process.env,
+      NUSA_ORACLE_ROOT: root,
+      ...(candidateRelease ? { NUSA_ORACLE_RELEASE_DIR: candidateRelease } : {}),
+    },
     encoding: "utf8",
   });
+}
+
+function candidateReleaseFixture(root, includeSqliteBootstrap) {
+  const candidate = path.join(root, "opt/nusa/releases", VALID_SHA);
+  write(candidate, "/deploy/oracle/nusa.service", PAPER_UNIT);
+  write(candidate, "/deploy/oracle/nusa-research.service", RESEARCH_UNIT);
+  write(candidate, "/deploy/oracle/nusa-research.timer", RESEARCH_TIMER);
+  write(candidate, "/deploy/oracle/nusa-autopilot.service", AUTOPILOT_UNIT);
+  if (includeSqliteBootstrap) {
+    write(candidate, "/dist/packages/storage/src/sqliteIntegrityBootstrap.js", "// compiled bootstrap\n");
+  }
+  return candidate;
+}
+
+function pointCurrentAt(root, sha) {
+  const releases = path.join(root, "opt/nusa/releases");
+  const release = path.join(releases, sha);
+  const current = path.join(root, "opt/nusa/current");
+  fs.mkdirSync(release, { recursive: true });
+  fs.mkdirSync(path.dirname(current), { recursive: true });
+  fs.symlinkSync(release, current, process.platform === "win32" ? "junction" : "dir");
 }
 
 test("accepts a hardened Oracle PAPER + autonomous Research installation", () => {
@@ -57,12 +87,103 @@ test("accepts a hardened Oracle PAPER + autonomous Research installation", () =>
   assert.equal(output.snapshotPath, "/var/lib/nusa/research-replay-snapshots.json");
 });
 
+test("candidate preflight requires the compiled SQLite integrity bootstrap before unit installation", () => {
+  const root = fixture();
+  const candidate = candidateReleaseFixture(root, false);
+  const result = validate(root, candidate);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /missing SQLite integrity bootstrap in candidate release/);
+});
+
+test("candidate preflight accepts the compiled SQLite integrity bootstrap at the unit target path", () => {
+  const root = fixture();
+  const candidate = candidateReleaseFixture(root, true);
+  const result = validate(root, candidate);
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout.trim());
+  assert.equal(output.status, "PASS");
+  assert.equal(output.candidateRelease, candidate);
+});
+
+test("fails closed when the Research unit loses its host memory limits", () => {
+  const root = fixture();
+  const unit = path.join(root, "etc/systemd/system/nusa-research.service");
+  fs.writeFileSync(unit, fs.readFileSync(unit, "utf8").replace("MemoryMax=560M\n", ""));
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Research unit missing MemoryMax=560M/);
+});
+
+test("fails closed when the Research unit bypasses the preloaded SQLite integrity boundary", () => {
+  const root = fixture();
+  const unit = path.join(root, "etc/systemd/system/nusa-research.service");
+  fs.writeFileSync(unit, fs.readFileSync(unit, "utf8").replace(" --require /opt/nusa/current/dist/packages/storage/src/sqliteIntegrityBootstrap.js", ""));
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /Research unit missing ExecStart=.*sqliteIntegrityBootstrap/);
+});
+
+test("fails closed when the PAPER supervisor may inherit an untrusted NODE_OPTIONS preload", () => {
+  const root = fixture();
+  const unit = path.join(root, "etc/systemd/system/nusa.service");
+  fs.writeFileSync(unit, fs.readFileSync(unit, "utf8").replace("/usr/bin/env -u NODE_OPTIONS ", ""));
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /unit missing ExecStart=\/usr\/bin\/env -u NODE_OPTIONS/);
+});
+
+test("fails closed when the Research process may inherit an untrusted NODE_OPTIONS preload", () => {
+  const root = fixture({ NODE_OPTIONS: "--require /tmp/untrusted-preload.js" });
+  try {
+    const unit = path.join(root, "etc/systemd/system/nusa-research.service");
+    fs.writeFileSync(unit, fs.readFileSync(unit, "utf8").replace("/usr/bin/env -u NODE_OPTIONS ", ""));
+    const result = validate(root);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Research unit missing ExecStart=\/usr\/bin\/env -u NODE_OPTIONS/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("fails closed when the autonomous Research timer is missing", () => {
   const root = fixture();
   fs.rmSync(path.join(root, "etc/systemd/system/nusa-research.timer"));
   const result = validate(root);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /missing systemd unit/);
+});
+
+test("fails closed when the persistent Autopilot unit is missing", () => {
+  const root = fixture();
+  fs.rmSync(path.join(root, "etc/systemd/system/nusa-autopilot.service"));
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /missing systemd unit/);
+});
+
+test("fails closed when the Autopilot runtime endpoint is not HTTPS", () => {
+  const root = fixture({ NUSA_AUTOPILOT_RUNTIME_ENDPOINT: "http://autopilot.example.test/scheduled/run" });
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /endpoint must be HTTPS/);
+});
+
+test("active-host validation binds runtime source identity to the current immutable release", () => {
+  const root = fixture();
+  pointCurrentAt(root, VALID_SHA);
+  const result = validate(root);
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout.trim());
+  assert.equal(output.sourceCommit, VALID_SHA);
+  assert.equal(output.activeReleaseCommit, VALID_SHA);
+});
+
+test("fails closed when runtime source identity drifts from the active Oracle release", () => {
+  const root = fixture();
+  pointCurrentAt(root, OTHER_SHA);
+  const result = validate(root);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /runtime source identity does not match active Oracle release/);
 });
 
 test("fails closed when deployed source identities disagree", () => {

@@ -1,0 +1,30 @@
+id: WO-UI-20261003-CACHED-LAUNCH
+title: "HOME: show the last known PAPER snapshot at launch, marked as old, instead of an empty checking screen"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-cached-launch
+authority_impact: none
+objective: "Every cold start showed an empty 'checking' HOME for a second or two before the first server read. Keep the last READY snapshot on the device and show it immediately with 'last checked N minutes ago', replacing it as soon as a live snapshot arrives."
+scope:
+  - "apps/mobile/src/cachedSnapshotModel.ts: pure serialize/parse (endpoint-bound, 24 h expiry, rejects future-dated, malformed, oversize and validator-rejected entries), 60 s save throttle, plain-Korean age label."
+  - "apps/mobile/src/useCachedSnapshot.ts: loads once per endpoint, re-validates the stored snapshot with the contract validator judged against its own timestamp (the live 15 s age rule would always reject a stored one), saves fresh READY snapshots, clears on sign-out."
+  - "apps/mobile/App.tsx, homeView.tsx: HOME uses the cached snapshot only while no live snapshot exists and no setup is requested. While shown it is marked 'CACHED', the age note reads 'last checked N minutes ago - server rechecking (values below are old)', and everything that claims live state is withheld: decision reason, order reason, BUY/feed/window lines, health/ready/kill-switch status, daily counts."
+  - "tests/mobile-cached-snapshot.test.js (8)."
+named_exceptions:
+  - "PAPER, LIVE readiness and the learning monitor keep the checking state at launch: they carry kill-switch, halt and readiness facts that must never be shown from an old snapshot."
+exclusions:
+  - "No server, decision, risk, execution, accounting, credential, LIVE or AI-authority change. The cache holds PAPER display data only (no credentials), is bound to the configured endpoint and is deleted at sign-out."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Anything missing, expired, from another endpoint or invalid is ignored and the existing checking state shows."
+rollback: "Revert the change; the stored key is harmless and expires."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-cached-snapshot.test.js
+residual: "AsyncStorage is not encrypted; the cached snapshot is PAPER display data. Needs a new app build (automatic after merge) and an on-device check."

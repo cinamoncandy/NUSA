@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261002-OPTIMIZER-CORE
+title: "Move the deterministic strategy optimizer core into packages/core so the server can reuse it (Stage 2a-1)"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-optimizer-core
+authority_impact: none
+parent: WO-RESEARCH-20261002-CONTINUOUS-EXPERIMENTS
+objective: "The server cannot import apps/mobile. The WO-0011 optimizer (DSL strategy engine, backtest engine, parameter-grid walk-forward optimizer with Train/Validation/Holdout) lives in apps/mobile/src. Relocate the three files to packages/core/src/optimizer with no behavior change so Stage 2a-2/2b can compose them on the server."
+scope:
+  - "git mv aiStrategyEngine.ts, aiBacktestEngine.ts, aiStrategyOptimizer.ts to packages/core/src/optimizer/ (content unchanged)."
+  - "apps/mobile/src keeps one-line re-export shims at the original paths so every existing import and dist-path test works unchanged."
+  - "tests/optimizer-core-layering.test.js: core imports only siblings (no apps/, no react-native); shims are exact re-exports; core and mobile paths expose the same functions."
+exclusions:
+  - "No behavior, parameter, gate or threshold change. No server wiring, no deploy, no data collection (later stages)."
+  - "No trading, risk, capital, execution, LIVE, credential or AI-authority change. The optimizer still emits owner-approval-gated candidates only."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/ai-strategy-engine.test.js tests/ai-strategy-optimizer.test.js tests/ai-evaluation-engine.test.js tests/ai-backtest-engine.test.js tests/ai-backtest-digest-strength.test.js tests/optimizer-core-layering.test.js
+  - pnpm run validate
+residual: "Physical Android acceptance is HUMAN_ENVIRONMENT_ONLY. Not run: pnpm run validate (sandbox Node 22); individual validators run instead."

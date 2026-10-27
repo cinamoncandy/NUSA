@@ -3,6 +3,7 @@ import type { SqliteDatabase } from "../../../packages/storage/src/index";
 import { SqliteRiskSafetyPersistence } from "../../../packages/storage/src/index";
 import type { PreTradeRiskRequest } from "../../../packages/contracts/src/riskGateway";
 import { CanonicalRiskSafetyGate } from "../../../packages/contracts/src/risk-safety-integration";
+import { paperTradingDayKey, paperTradingDayStartedAt } from "./paperTradingDay";
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
@@ -10,7 +11,7 @@ import type { PaperAccountState } from "./paperTradingExecutionLoop";
 const ACCOUNT_ID = "paper-default";
 const MANUAL_APPROVAL_TTL_MS = 60_000;
 
-/** Same conservative PAPER envelope already used by the desktop canonical composition. */
+/** Owner-approved Cloud spot PAPER policy; only the consecutive-loss veto is disabled. */
 export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxOrderNotional: 2_000_000,
   maxPositionNotional: 2_000_000,
@@ -24,6 +25,7 @@ export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxDailySellNotional: 2_000_000,
   maxDailyLoss: 1_000_000,
   maxConsecutiveLosses: 3,
+  consecutiveLossLimitEnabled: false,
   maxSessionDrawdownRatio: 0.2,
   maxPriceDeviationRatio: 0.05
 });
@@ -46,17 +48,44 @@ export interface CloudPaperRiskRequest {
   readonly overallHealth: "HEALTHY" | "DEGRADED" | "CRITICAL" | "UNKNOWN";
   readonly state: PaperAccountState;
   readonly approvedBy?: string;
+  /** Exact immutable request identity supplied by the upstream canonical execution boundary. */
+  readonly payloadFingerprintSha256?: string;
 }
 
 export interface CloudPaperRiskGate {
   evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }>;
 }
 
+/**
+ * Display-only counts and explicit enforcement policy, as of the latest risk evaluation: today's (KST) completed sell
+ * orders, how many of them lost, the current losing streak and the configured limit. Integers only (no money, market or id).
+ */
+export interface CloudPaperLossSessionSnapshot {
+  readonly consecutiveLossLimitEnabled?: boolean;
+  readonly evaluatedAt: number;
+  readonly consecutiveLossCount: number;
+  readonly maxConsecutiveLosses: number;
+  readonly todayCompletedSells: number;
+  readonly todayLosingSells: number;
+  /** Trading-day key (Asia/Seoul) the counts belong to, the start of that day, and the fill time of the loss that last extended the streak (null at 0). */
+  readonly periodIdentity: string;
+  readonly periodStartedAt: number;
+  readonly lastIncrementAt: number | null;
+}
+
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
-const dayOf = (timestamp: number): string => new Date(timestamp).toISOString().slice(0, 10);
+// One canonical trading day (Asia/Seoul) for every daily limit here, the same one CanonicalRiskSafetyGate and the closed-learning
+// rollover already use (paperTradingDay delegates to tradingDayKey). A local UTC day would let two different "today"s disagree
+// inside a single risk evaluation.
+const dayOf = (timestamp: number): string => paperTradingDayKey(timestamp);
+const dayStartedAt = (dayKey: string): number => paperTradingDayStartedAt(dayKey);
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
+    if (name === "consecutiveLossLimitEnabled") {
+      if (typeof value !== "boolean") throw new Error("cloud PAPER loss enforcement policy is invalid");
+      continue;
+    }
     if (!Number.isFinite(value) || value < 0) throw new Error(`cloud PAPER risk limit ${name} is invalid`);
   }
   if (limits.maxOrdersPerSecond < 1 || limits.maxOrdersPerMinute < 1 || limits.maxSameSideStreak < 1 || limits.maxConsecutiveLosses < 1) {
@@ -67,8 +96,14 @@ function validateLimits(limits: IndependentRiskLimits): void {
 
 function databaseHealthy(database: SqliteDatabase): boolean {
   try {
-    const quick = database.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-    if (quick == null || !Object.values(quick).includes("ok")) return false;
+    // SqliteDatabase already performs the fail-closed full-file quick_check once when the
+    // canonical connection is opened. Repeating that O(database-size) scan on every PAPER
+    // risk evaluation can block the Node event loop longer than the renewable writer lease.
+    // Keep the hot-path probe O(1): prove the already-open connection responds, then prove
+    // every canonical Risk table is still addressable. Individual persistence operations
+    // continue to fail closed on any SQLite error.
+    const probe = database.connection.prepare("SELECT 1 AS ready").get() as Record<string, unknown> | undefined;
+    if (Number(probe?.ready ?? 0) !== 1) return false;
     const required = ["risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state"];
     for (const table of required) {
       const row = database.connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?").get(table) as Record<string, unknown> | undefined;
@@ -86,6 +121,15 @@ function stateHealthy(state: PaperAccountState): boolean {
     if (!Number.isFinite(projected) || Math.abs(projected - state.equity) > tolerance) return false;
     if (new Set(state.processedIdempotencyKeys).size !== state.processedIdempotencyKeys.length) return false;
     if (new Set(state.orders.map((order) => order.id)).size !== state.orders.length) return false;
+    if (new Set(state.fills.map((fill) => fill.id)).size !== state.fills.length) return false;
+    if (!state.fills.every((fill) => Number.isFinite(fill.quantity) && fill.quantity > 0 && Number.isFinite(fill.price) && fill.price > 0 && Number.isFinite(fill.fee) && fill.fee >= 0 && Number.isSafeInteger(fill.filledAt) && fill.filledAt >= 0)) return false;
+    // An executed terminal order must retain its fills; absent/truncated accounting is not safe.
+    const quantities = new Map<string, number>();
+    for (const fill of state.fills) quantities.set(fill.orderId, (quantities.get(fill.orderId) ?? 0) + fill.quantity);
+    if (!state.orders.every((order) => {
+      const quantity = quantities.get(order.id) ?? 0;
+      return Number.isFinite(order.quantity) && Math.abs(quantity - order.quantity) <= 1e-8;
+    })) return false;
     return state.positions.every((position) => Number.isFinite(position.quantity) && position.quantity >= 0 && Number.isFinite(position.markPrice) && position.markPrice >= 0);
   } catch { return false; }
 }
@@ -93,16 +137,23 @@ function stateHealthy(state: PaperAccountState): boolean {
 function rateState(state: PaperAccountState, now: number, side: "BUY" | "SELL"): Readonly<{ ordersInLastSecond: number; ordersInLastMinute: number; sameSideStreak: number }> {
   let ordersInLastSecond = 0;
   let ordersInLastMinute = 0;
-  for (const order of state.orders) {
-    if (order.status === "CANCELLED") continue;
-    const age = now - order.filledAt;
-    if (age >= 0 && age < 1_000) ordersInLastSecond += 1;
-    if (age >= 0 && age < 60_000) ordersInLastMinute += 1;
+  const second = new Set<string>();
+  const minute = new Set<string>();
+  const seen = new Set<string>();
+  // Cancellation removes only the unfilled remainder, never an observed execution.
+  const fills = [...state.fills].sort((a, b) => b.filledAt - a.filledAt);
+  for (const fill of fills) {
+    const age = now - fill.filledAt;
+    if (age < 1_000) second.add(fill.orderId);
+    if (age < 60_000) minute.add(fill.orderId);
   }
+  ordersInLastSecond = second.size;
+  ordersInLastMinute = minute.size;
   let sameSideStreak = 0;
-  for (const order of state.orders) {
-    if (order.status === "CANCELLED") continue;
-    if (order.side !== side) break;
+  for (const fill of fills) {
+    if (seen.has(fill.orderId)) continue;
+    seen.add(fill.orderId);
+    if (fill.side !== side) break;
     sameSideStreak += 1;
   }
   return Object.freeze({ ordersInLastSecond, ordersInLastMinute, sameSideStreak });
@@ -112,21 +163,20 @@ function dailyNotional(state: PaperAccountState, now: number): Readonly<{ dailyB
   const day = dayOf(now);
   let dailyBuyNotional = 0;
   let dailySellNotional = 0;
-  for (const order of state.orders) {
-    if (order.status === "CANCELLED") continue;
-    if (dayOf(order.filledAt) !== day) continue;
-    const notional = order.quantity * order.price;
-    if (order.side === "BUY") dailyBuyNotional += notional;
+  for (const fill of state.fills) {
+    if (dayOf(fill.filledAt) !== day) continue;
+    const notional = fill.quantity * fill.price;
+    if (fill.side === "BUY") dailyBuyNotional += notional;
     else dailySellNotional += notional;
   }
   return Object.freeze({ dailyBuyNotional, dailySellNotional });
 }
 
-function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number }> {
+function realizedLossState(state: PaperAccountState, now: number): Readonly<{ dailyRealizedPnL: number; consecutiveLossCount: number; todayCompletedSells: number; todayLosingSells: number; lastIncrementAt: number | null }> {
   const positions = new Map<string, { quantity: number; averageEntryPrice: number }>();
   const sells: Array<{ pnl: number; filledAt: number }> = [];
-  for (const order of [...state.orders].reverse()) {
-    if (order.status === "CANCELLED") continue;
+  const sellOrders = new Map<string, { pnl: number; filledAt: number }>();
+  for (const order of [...state.fills].reverse().sort((a, b) => a.filledAt - b.filledAt)) {
     const prior = positions.get(order.market) ?? { quantity: 0, averageEntryPrice: 0 };
     if (order.side === "BUY") {
       const nextQuantity = prior.quantity + order.quantity;
@@ -134,20 +184,27 @@ function realizedLossState(state: PaperAccountState, now: number): Readonly<{ da
       positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextAverage });
       continue;
     }
-    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER });
+    if (order.quantity > prior.quantity + Number.EPSILON) return Object.freeze({ dailyRealizedPnL: Number.NaN, consecutiveLossCount: Number.MAX_SAFE_INTEGER, todayCompletedSells: 0, todayLosingSells: 0, lastIncrementAt: null });
     const pnl = (order.price - prior.averageEntryPrice) * order.quantity - order.fee;
     const nextQuantity = Math.max(0, prior.quantity - order.quantity);
     positions.set(order.market, { quantity: nextQuantity, averageEntryPrice: nextQuantity === 0 ? 0 : prior.averageEntryPrice });
     sells.push({ pnl, filledAt: order.filledAt });
+    const previous = sellOrders.get(order.orderId);
+    sellOrders.set(order.orderId, { pnl: (previous?.pnl ?? 0) + pnl, filledAt: order.filledAt });
   }
   const today = dayOf(now);
   const dailyRealizedPnL = sells.filter((sell) => dayOf(sell.filledAt) === today).reduce((sum, sell) => sum + sell.pnl, 0);
+  // The streak is scoped to the current trading day (Asia/Seoul), like the daily loss limit. Counting the
+  // whole history made the limit permanent: once tripped, no order could run to produce the
+  // winning sell that would clear it. The owner chose a daily reset on 2026-10-01.
   let consecutiveLossCount = 0;
-  for (let index = sells.length - 1; index >= 0; index -= 1) {
-    if (sells[index]!.pnl >= 0) break;
+  const completed = [...sellOrders.values()].filter((sell) => dayOf(sell.filledAt) === today).sort((a, b) => a.filledAt - b.filledAt);
+  for (let index = completed.length - 1; index >= 0; index -= 1) {
+    if (completed[index]!.pnl >= 0) break;
     consecutiveLossCount += 1;
   }
-  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount });
+  const lastIncrementAt = consecutiveLossCount === 0 ? null : completed[completed.length - 1]!.filledAt;
+  return Object.freeze({ dailyRealizedPnL, consecutiveLossCount, todayCompletedSells: completed.length, todayLosingSells: completed.filter((sell) => sell.pnl < 0).length, lastIncrementAt });
 }
 
 export interface CloudPaperCanonicalRiskGatewayOptions {
@@ -168,6 +225,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   private readonly limits: IndependentRiskLimits;
   private readonly fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
   private peakEquity: number;
+  private lastLossSession: CloudPaperLossSessionSnapshot | null = null;
 
   public constructor(private readonly options: CloudPaperCanonicalRiskGatewayOptions) {
     if (!Number.isFinite(options.initialCapital) || options.initialCapital <= 0) throw new Error("cloud PAPER initial capital is invalid");
@@ -185,9 +243,30 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     });
   }
 
+  /** The loss-limit counts from the latest evaluation, or null before any. Display only; never used for a decision. */
+  public lossSession(): CloudPaperLossSessionSnapshot | null {
+    return this.lastLossSession;
+  }
+
   public evaluate(input: CloudPaperRiskRequest): Readonly<{ status: "ALLOW" | "REJECT" | "HALT"; reasonCodes: readonly string[] }> {
     const persistent = databaseHealthy(this.options.database);
     const reconciled = stateHealthy(input.state);
+    if (!reconciled) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["RECONCILIATION_FAILED"]) });
+    const payloadFingerprint = input.payloadFingerprintSha256 ?? hash({
+      path: input.path,
+      commandId: input.commandId,
+      signalId: input.signalId,
+      clientOrderId: input.clientOrderId,
+      strategyId: input.strategyId,
+      market: input.market,
+      side: input.side,
+      quantity: input.quantity,
+      price: input.price,
+      observedAt: input.observedAt,
+    });
+    if (!/^[a-f0-9]{64}$/.test(payloadFingerprint)) {
+      return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["IDEMPOTENCY_FINGERPRINT_INVALID"]) });
+    }
     const marketAge = input.now - input.observedAt;
     const marketStatus = !Number.isSafeInteger(input.observedAt) || input.observedAt < 0 || input.observedAt > input.now
       ? "INVALID" as const
@@ -197,6 +276,9 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const portfolioExposureNotional = input.state.positions.reduce((sum, item) => sum + item.quantity * item.markPrice, 0);
     const notionals = dailyNotional(input.state, input.now);
     const lossState = realizedLossState(input.state, input.now);
+    if (Number.isFinite(lossState.dailyRealizedPnL)) {
+      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, consecutiveLossLimitEnabled: this.limits.consecutiveLossLimitEnabled !== false, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
+    }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);
     const identity: RiskIdentityState = Object.freeze({
@@ -279,7 +361,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       persistenceHealthy: persistent,
       maxDailyLoss: this.limits.maxDailyLoss,
       maxOpenOrders: this.limits.maxOpenOrders,
-      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint: "PENDING", createdAtMs: input.now }
+      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint, createdAtMs: input.now }
     });
     if (approvalId !== undefined) {
       try { this.canonical.revokeApproval(approvalId, "single-use manual approval evaluated"); } catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }

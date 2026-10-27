@@ -1,5 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const path = require("node:path");
 const {
   RESEARCH_MARKET_SET_VERSION,
   RESEARCH_MARKETS,
@@ -7,12 +8,15 @@ const {
   SMA_PARAMETER_NEIGHBORHOOD,
   RSI_PARAMETER_NEIGHBORHOOD,
   DONCHIAN_PARAMETER_NEIGHBORHOOD,
+  SUPPORTED_RESEARCH_FAMILIES,
   researchStrategyFamily,
+  researchLearningLedgerPath,
   fetchResearchCandles,
   researchCandleCount,
   buildParameterRobustnessRequest
 } = require("../scripts/research-real-market-run.js");
 const { createHistoricalDatasetManifest } = require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const provenance = require("./helpers/research-dataset-provenance.js");
 
 const DAY = 86_400_000;
 const dataAsOf = Date.UTC(2026, 8, 5, 12);
@@ -95,6 +99,16 @@ test("Donchian candidate neighborhood is the immutable precommitted five-period 
   assert.ok(Object.isFrozen(DONCHIAN_PARAMETER_NEIGHBORHOOD));
   assert.ok(DONCHIAN_PARAMETER_NEIGHBORHOOD.every(Object.isFrozen));
   assert.equal(researchStrategyFamily("donchian-breakout"), "donchian-breakout");
+  assert.deepEqual(SUPPORTED_RESEARCH_FAMILIES, ["sma-crossover", "rsi-mean-reversion", "donchian-breakout"]);
+  assert.equal(
+    researchLearningLedgerPath({ NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: path.resolve("/var/lib/nusa/research-replay-snapshots.json") }),
+    path.resolve("/var/lib/nusa/research-investment-learning.jsonl")
+  );
+  assert.equal(
+    researchLearningLedgerPath({ NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") }),
+    path.resolve("/var/lib/nusa/research-investment-learning.jsonl")
+  );
+  assert.throws(() => researchLearningLedgerPath({ NUSA_RESEARCH_LEARNING_LEDGER_PATH: "relative.jsonl" }), /absolute durable path/);
 });
 
 test("fast SMA cells are covered by a predeclared robustness reference without relaxing gates", () => {
@@ -135,13 +149,16 @@ test("ten pages restore 2000 completed days with stable request provenance and c
   const options = { dataAsOf, fetchPage: pageFor, pause: async (ms) => pauses.push(ms) };
   const first = await fetchResearchCandles(options);
   const second = await fetchResearchCandles({ ...options, fetchPage: (request) => pageFor(request).reverse() });
-  assert.deepEqual(first, second);
+  assert.deepEqual(first.candles, second.candles);
+  assert.deepEqual(first.sourceRequests, second.sourceRequests);
+  assert.notDeepEqual(first.rawSourceIdentitySha256s, second.rawSourceIdentitySha256s, "raw page ordering is part of source identity even when canonical candles match");
   assert.equal(first.candles.length, 2000);
   assert.equal(first.sourceRequests.length, 10);
   assert.equal(first.candles.at(-1).closeTime, Math.floor(dataAsOf / DAY) * DAY);
   assert.ok(pauses.every((ms) => ms >= 100));
   const manifest = (result) => createHistoricalDatasetManifest(result.candles, {
-    source: "upbit-public-api", sourceRequest: result.sourceRequests.join(" | "), createdAt: new Date(dataAsOf).toISOString()
+    source: "upbit-public-api", sourceRequest: result.sourceRequests.join(" | "), createdAt: new Date(dataAsOf).toISOString(),
+    provenance: { ...provenance, rawSourceIdentitySha256s: result.rawSourceIdentitySha256s }
   });
   assert.equal(manifest(first).contentSha256, manifest(second).contentSha256);
 });

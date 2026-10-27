@@ -1,0 +1,68 @@
+id: WO-OPS-20261017-PAPER-WRITER-STARTUP-FAST-PATH
+title: "Bound PAPER writer startup work so the lease heartbeat can begin before historical fill validation exhausts the lease"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 58a8e4fbb32fcc8dee018bd6563982e4e3ba0a8c
+implementation_branch: fix/paper-writer-startup-lease-20261017
+pull_request: 2744
+head_sha_note: "Not self-recorded on purpose. Read the exact head from git and GitHub; any new AIPOS commit requires fresh exact-head CI."
+authority_impact: paper_runtime_recovery
+objective: "Reuse already-canonical fill-ledger truth during PAPER startup so the runtime reaches its heartbeat/listener without replaying all historical account snapshots, while preserving fail-closed validation and every existing authority boundary."
+owner_authorization: "2026-10-17 owner invoked the NUSA LEARNING complete-execution command for the canonical Realized PAPER -> Performance -> Feedback -> Learning -> Research -> Candidate loop; this runtime repair is the first broken transition preventing new genuine learning evidence."
+incident:
+  observed_release: a4661cc20c47dd3968c3a3575369262c657e3bc1
+  observed_host: nusa-vcn
+  observed_at_utc: "2026-10-17T06:04:37Z"
+  symptom: "Old PAPER runtime spends roughly two minutes in startup, briefly listens on 127.0.0.1:41731, then the closed-learning scheduler fails closed with PAPER_WRITER_LEASE_LOST and the supervisor restarts it. Earlier attempts also report PAPER_WRITER_CLOCK_ANOMALY."
+  current_health: "At verification time the old release had no listener on 41731 and local /health returned connection failure."
+root_cause:
+  transition: "canonical PAPER state restore -> writer lease heartbeat/liveness"
+  cause: "When cloud_paper_fill_ledger is already canonical and non-empty, startup redundantly replayed historical account snapshots before the heartbeat could run. The replay duration exceeded the writer lease window; the later closed-learning lease check then failed closed."
+  bounded_fix: "When the canonical fill ledger is non-empty, validate that ledger plus the current resumable account snapshot and its quote/depth/cost receipts, outer checksum, timestamp identity and accounting reconciliation. Retain the full historical scan only for the empty-ledger migration/backfill case."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuses the existing SqliteCloudPaperAccountRepository and canonical fill ledger. No second engine, store, scheduler, lease, account truth, Research path or control plane is added."
+  references:
+    - apps/cloud/src/paperTradingExecutionLoop.ts
+    - tests/cloud-paper-fill-ledger.test.js
+    - apps/cloud/src/paperTradingExecutionLoop.requalification.test.ts
+    - apps/cloud/src/moduleQualificationV1.ts
+    - apps/cloud/src/closedLearningProductionRuntime.ts
+prohibited:
+  - relaxing_writer_lease_ttl_or_takeover_predicates
+  - bypassing_fill_ledger_checksum_or_sequence_validation
+  - bypassing_quote_depth_cost_receipt_validation
+  - changing_risk_capital_or_qualification_thresholds
+  - direct_database_edit_or_historical_rewrite
+  - synthetic_fill_cost_profit_or_candidate_evidence
+  - duplicate_learning_engine_store_scheduler_or_truth_source
+  - self_review_self_approval_or_direct_merge
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - exact_head_ci_and_required_paper_safety_companions_pass_on_the_final_head
+  - fresh_non_author_validator_reports_zero_blocking_findings_on_the_final_head
+  - deterministic_audit_and_release_authorization_pass_before_protected_main_merge
+  - exact_main_oracle_deploy_reports_runtime_sha_equal_to_protected_main
+  - runtime_listener_and_health_become_available_without_a_pre_heartbeat_full_history_scan
+  - closed_learning_scheduler_no_longer_loses_the_writer_lease_during_startup
+  - canonical_fill_ledger_tamper_still_fails_closed
+  - recomputed_outer_account_checksum_cannot_hide_tampered_quote_depth_or_cost_receipts
+  - accounting_reconciliation_and_writer_lease_safety_remain_unchanged
+  - restart_and_replay_produce_no_duplicate_fill_or_learning_side_effect
+validation:
+  implementation_head_before_aipos_record: 540312118f8edbcf9dec32bd0ff08d1ff171d6b2
+  diff_check: PASS
+  companion_workflows_on_implementation_head: "Five required PAPER/LIVE-safety companion workflows observed SUCCESS; CI was still in progress when this AIPOS record was created. These results do not validate the later AIPOS-record head."
+  exact_head_ci: PENDING_FINAL_HEAD
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+  runtime_acceptance: PENDING
+state_registration_note: "No new .aipos/state.yaml entry is added because current-mission.yaml keeps WO-0051 as the sole IN_PROGRESS constitutional mission; this bounded PAPER_ONLY successor is durably represented by this work order, evidence and handoff, matching the 2026-10-17 migration-repair precedent."
+next: "Commit and push only these durable AIPOS records on the existing PR, require fresh exact-head CI, then hand the exact head to a separate non-author VALIDATOR. Do not mark Ready before that review."

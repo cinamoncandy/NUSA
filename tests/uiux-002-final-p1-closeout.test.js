@@ -19,11 +19,11 @@ test("primary financial values use stable tabular numerals in each canonical pre
   const watchlist = read("apps/mobile/src/watchlistView.tsx");
 
   assert.match(home, /testID="account-hero-card"/);
-  expectTabularStyle(home, "balanceValue");
+  expectTabularStyle(home, "capitalValue");
   expectTabularStyle(home, "pnlValue");
   assert.match(portfolio, /<MetricStrip testID="portfolio-supervisor-summary"/);
-  assert.match(portfolio, /<FactRow label="INVESTMENT LIMIT"/);
-  assert.match(portfolio, /<FactRow label="CURRENT PRICE"/);
+  assert.match(portfolio, /<FactRow label="투자 한도"/);
+  assert.match(portfolio, /<FactRow label="현재가"/);
   expectTabularStyle(intelligence, "metricValue");
   expectTabularStyle(intelligence, "factValue");
   expectTabularStyle(primitives, "compactMetricValue");

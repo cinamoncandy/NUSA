@@ -1,6 +1,8 @@
 id: WO-0062
 title: "Approved-User Session Failure Audit Hardening"
-status: IN_PROGRESS
+status: COMPLETED
+closed_by_pull_request: 615
+closure_note: "Closed 2026-09-23 under WO-20260924-AIPOS-STALE-WORK-ORDER-CLOSURE after verifying PR #615 merged into main (main commit 7d1072f6). Code scope only; any physical-device acceptance remains HUMAN_ENVIRONMENT_ONLY and is not claimed here."
 owner: nusa
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -42,7 +44,7 @@ safety:
   real_transfer_authority: false
   ai_authority: ZERO_AUTHORITY
 verification:
-  focused_session_tests: PENDING
-  typecheck: PENDING
-  required_ci: PENDING
+  focused_session_tests: "MOOT_MERGED_PR_615 (per-head result not recorded in this order)"
+  typecheck: "MOOT_MERGED_PR_615 (per-head result not recorded in this order)"
+  required_ci: "MOOT_MERGED_PR_615 (per-head result not recorded in this order)"
 completion_rule: "Implementation, focused tests, and exact-head required CI must pass; audit records must contain only safe reason codes and existing actor/target/family identifiers when already known, never raw credential material."

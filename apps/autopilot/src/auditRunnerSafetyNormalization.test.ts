@@ -8,6 +8,7 @@ test("normalizes semantic audit safety enum casing without weakening fail-closed
     findings: [],
     blockers: [],
     safetyInvariantResult: " pass ",
+    mergeAllowed: true,
   });
   assert.equal(pass.safetyInvariantResult, "PASS");
 
@@ -21,6 +22,7 @@ test("normalizes semantic audit safety enum casing without weakening fail-closed
     }],
     blockers: ["safety invariant regressed"],
     safetyInvariantResult: " fail ",
+    mergeAllowed: false,
   });
   assert.equal(fail.safetyInvariantResult, "FAIL");
   assert.equal(fail.verdict, "FAIL");
@@ -30,6 +32,7 @@ test("normalizes semantic audit safety enum casing without weakening fail-closed
     findings: [],
     blockers: [],
     safetyInvariantResult: "UNKNOWN",
+    mergeAllowed: true,
   }), /AUDIT_VERDICT_SAFETY_INVALID/);
 
   assert.throws(() => validateAuditModelVerdict({
@@ -37,5 +40,6 @@ test("normalizes semantic audit safety enum casing without weakening fail-closed
     findings: [],
     blockers: [],
     safetyInvariantResult: true,
+    mergeAllowed: true,
   }), /AUDIT_VERDICT_SAFETY_INVALID/);
 });

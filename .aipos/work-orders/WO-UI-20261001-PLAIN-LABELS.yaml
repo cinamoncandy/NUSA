@@ -1,0 +1,26 @@
+id: WO-UI-20261001-PLAIN-LABELS
+title: "Primary tabs speak plain Korean; raw errors become a small technical note"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-plain-labels
+authority_impact: none
+objective: "Owner asked for UI/UX improvements beyond motion (2026-10-01). The primary tabs mixed English codes (EQUITY, TOTAL PNL, DATA SOURCE SERVER_STREAM, AUTHORITY NONE) and showed raw exceptions as the main message (Property 'structuredClone' doesn't exist)."
+scope:
+  - "HOME: PAPER 자산 · 서버/기기, 총 손익."
+  - "PAPER: 자산/총 손익/위험/학습 metrics with plain values (통과/주의/차단/확인 불가, 대기), 데이터 출처 서버 실시간/기기 대체 관측; header facts 사이클/체결 사이클/데이터."
+  - "LIVE: a missing readiness projection leads with the action for its cause: setup (connect the server in Settings), pending, or server failure (wait)."
+  - "LIVE: header facts 남은 차단/상태/실거래 권한 없음; unavailable state leads with a plain sentence and keeps the raw error as a small 오류 내용 note."
+exclusions:
+  - "Detail screens behind More (portfolio, order history, settings, notifications) are done in the same pass by WO-UI-20261001-DETAIL-COPY (PR #2445), opened alongside this one; neither is a deferral."
+  - "No change to data, authority or safety markers."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-field-screens.test.js
+  - pnpm run validate
+residual: "Physical Android visual acceptance is HUMAN_ENVIRONMENT_ONLY."

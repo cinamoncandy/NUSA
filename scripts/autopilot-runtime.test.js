@@ -52,6 +52,22 @@ test("treats a non-dispatched Worker outcome as a bounded failure", async () => 
   } finally { await fs.rm(directory, { recursive: true, force: true }); }
 });
 
+test("provider capacity wait is idle without retrying or claiming completed work", async () => {
+  const { directory, file } = await tempState();
+  try {
+    let calls = 0;
+    const runtime = new AutopilotRuntime({ statePath: file, maxAttempts: 3, tick: async () => { calls += 1; return { status: "WAITING_RATE_LIMIT", reason: "waiting-provider-capacity" }; } });
+    const state = await runtime.cycle();
+    assert.equal(calls, 1);
+    assert.equal(state.status, "IDLE");
+    assert.equal(state.lastResult.status, "WAITING_RATE_LIMIT");
+    assert.equal(state.failureCount, 0);
+    assert.equal(state.retryCount, 0);
+    assert.equal(state.completedCount, 0);
+    assert.equal(state.lastSuccessfulWorkAt, null);
+  } finally { await fs.rm(directory, { recursive: true, force: true }); }
+});
+
 test("counts only dispatched work and counts each retry once", async () => {
   const { directory, file } = await tempState();
   try {

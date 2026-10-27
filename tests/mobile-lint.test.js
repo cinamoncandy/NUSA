@@ -37,3 +37,12 @@ test("mobile design-system token source may define raw hex colors", () => {
   const violations = lintSource("apps/mobile/src/designSystem.ts", `export const color = "#123456";\n`);
   assert.deepEqual(violations, []);
 });
+
+test("mobile lint enforces the shared readability floor for font sizes", () => {
+  const small = `export const styles = { note: { fontSize: 10, lineHeight: 15 }, tiny: { fontSize: 9 } };\n`;
+  const rules = lintSource("apps/mobile/src/example.tsx", small).map((violation) => violation.rule);
+  assert.equal(rules.filter((rule) => rule === "readable-font").length, 2);
+  const wrapped = `export const styles = { note: { fontSize: readableFont(10) }, label: { fontSize: labelFont(9) }, body: { fontSize: 12 }, floor: { fontSize: 11 } };\n`;
+  assert.deepEqual(lintSource("apps/mobile/src/example.tsx", wrapped), []);
+  assert.deepEqual(lintSource("apps/mobile/src/chartView.tsx", small), [], "chart and canvas drawing keep their own scale");
+});

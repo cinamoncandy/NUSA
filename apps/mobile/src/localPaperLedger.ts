@@ -62,6 +62,15 @@ export function reloadLocalPaperSnapshot(): Promise<TradingSnapshot> {
  * PAPER is not configured/verified for this build. Every screen must derive this from the same
  * expression so they never disagree about which ledger is authoritative.
  */
+/**
+ * Whether the on-device ledger may be shown as the PAPER account. It is a fallback for a device
+ * with no PAPER server configured; while a configured server's session is still recovering, its
+ * placeholder balance must not stand in for the real account on any screen.
+ */
+export function isLocalPaperLedgerDisplayable(): boolean {
+  return isLocalPaperActive() && getConfiguredPaperEndpoint() == null;
+}
+
 export function isLocalPaperActive(): boolean {
   const session = new InMemoryDashboardCredentialSession();
   const configuredEndpoint = getConfiguredPaperEndpoint();

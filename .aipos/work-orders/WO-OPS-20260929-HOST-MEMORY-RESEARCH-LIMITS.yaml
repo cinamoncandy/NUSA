@@ -1,0 +1,29 @@
+id: WO-OPS-20260929-HOST-MEMORY-RESEARCH-LIMITS
+title: "Keep Research batch work from starving the 1 GB PAPER host"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-refresh-memory
+authority_impact: none
+objective: "On 2026-09-29 all three self-hosted runners (nusa-paper-host, nusa-codex-dev-1/-2) went offline right after a release; the paper-host runner lost communication during staging. Owner chose to treat memory exhaustion as the first hypothesis. Measured locally: one Research snapshot run peaks at ~500 MB RSS for its process tree (heap cap 256 MB; 128/160 MB caps fail), i.e. half of the 1 GB host shared with the PAPER runtime and runners."
+scope:
+  - "ResearchSnapshotRefresher starts a refresh only with >= 600 MB free memory (a skip is not counted as an attempt), caps the whole Research process tree with NODE_OPTIONS --max-old-space-size=256, and lowers its CPU priority to 19."
+  - "nusa-research.service: NODE_OPTIONS heap cap 256 MB, MemoryMax=560M, Nice=19, IOSchedulingClass=idle; oracle-validate.js now requires MemoryMax and Nice so the limits cannot silently disappear."
+exclusions:
+  - "No change to Research semantics, PAPER trading, risk, execution, credentials or LIVE."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "Local research snapshot run with --max-old-space-size=256: exit 0, peak process-tree RSS 514,232 KB; 160 MB: exit 1 (peak 416,716 KB); 128 MB: exit 1."
+  - "apps/cloud/src/researchSnapshotRefresher.test.ts: low-memory skip not counted as an attempt, heap cap inherited, priority lowered."
+residual: "Root cause of the runner outage is still unconfirmed until host logs (journalctl -k OOM kills) are checked; if memory is not the cause, the next hypothesis (network / reboot without runner auto-start) is investigated."

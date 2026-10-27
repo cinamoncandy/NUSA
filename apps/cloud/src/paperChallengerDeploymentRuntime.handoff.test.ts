@@ -103,17 +103,35 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
           active = undefined;
           return {} as never;
         },
-        activate: (market: string, binding: PaperChallengerActivationReceipt["binding"], researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>) => {
+        activate: (
+          market: string,
+          binding: PaperChallengerActivationReceipt["binding"],
+          researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>,
+          governanceAuthorization: NonNullable<PaperChallengerActivationReceipt["governanceAuthorization"]>,
+        ) => {
           events.push("activate");
-          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, governanceAuthorization, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
           return active;
         },
       },
       periods: {
         listRealizedPeriods: () => Object.freeze([]),
+        nextPeriodIndex: () => 0,
         openPeriodFromCanonicalAccount: (input: unknown) => { events.push("open"); return input as never; },
       },
       readCanonicalPaperAccount: () => Object.freeze({ version: 1, initialCapital: 1_000_000, cash: 1_000_000, equity: 1_000_000, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: ACCOUNT_AT }),
+      // Deployment now requires a current HUMAN-approved CHALLENGER from canonical Strategy Governance.
+      governance: {
+        requireExecutableChallenger: (request: { candidateId: string; candidateVersion: string; familyId: string; evidenceFingerprintSha256: string }) => ({
+          strategyId: "sma-crossover-strategy",
+          candidateId: request.candidateId,
+          candidateVersion: request.candidateVersion,
+          familyId: request.familyId,
+          evidenceFingerprintSha256: request.evidenceFingerprintSha256,
+          lifecycle: "CHALLENGER",
+          approval: { actorType: "HUMAN", approvalReference: "owner:challenger:handoff", approvedAt: 1, decisionFingerprint: "d".repeat(64) },
+        }),
+      },
     } as unknown as PaperChallengerDeploymentRuntimeOptions;
 
     const runtime = new PaperChallengerDeploymentRuntime(options);
@@ -122,6 +140,7 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
     assert.equal(receipt.candidateId, CANDIDATE);
     assert.equal(active?.binding.candidateId, CANDIDATE);
     assert.equal(active?.researchLineage?.candidateVersion, VERSION);
+    assert.equal(active?.governanceAuthorization?.candidateId, CANDIDATE);
   });
 
   it("replays the same replacement without revoking or reactivating the already-matching binding", () => {
@@ -133,17 +152,35 @@ describe("PaperChallengerDeploymentRuntime qualified handoff", () => {
       bindings: {
         current: () => active,
         revoke: () => { events.push("revoke"); active = undefined; return {} as never; },
-        activate: (market: string, binding: PaperChallengerActivationReceipt["binding"], researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>) => {
+        activate: (
+          market: string,
+          binding: PaperChallengerActivationReceipt["binding"],
+          researchLineage: NonNullable<PaperChallengerActivationReceipt["researchLineage"]>,
+          governanceAuthorization: NonNullable<PaperChallengerActivationReceipt["governanceAuthorization"]>,
+        ) => {
           events.push("activate");
-          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+          active = Object.freeze({ schemaVersion: 1, status: "ACTIVE", market, binding, activatedAt: binding.periodStartAt, researchLineage, governanceAuthorization, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
           return active;
         },
       },
       periods: {
         listRealizedPeriods: () => Object.freeze([]),
+        nextPeriodIndex: () => 0,
         openPeriodFromCanonicalAccount: (input: unknown) => { events.push("open"); return input as never; },
       },
       readCanonicalPaperAccount: () => Object.freeze({ version: 1, initialCapital: 1_000_000, cash: 1_000_000, equity: 1_000_000, realizedPnL: 0, unrealizedPnL: 0, positions: Object.freeze([]), orders: Object.freeze([]), fills: Object.freeze([]), processedIdempotencyKeys: Object.freeze([]), updatedAt: ACCOUNT_AT }),
+      // Deployment now requires a current HUMAN-approved CHALLENGER from canonical Strategy Governance.
+      governance: {
+        requireExecutableChallenger: (request: { candidateId: string; candidateVersion: string; familyId: string; evidenceFingerprintSha256: string }) => ({
+          strategyId: "sma-crossover-strategy",
+          candidateId: request.candidateId,
+          candidateVersion: request.candidateVersion,
+          familyId: request.familyId,
+          evidenceFingerprintSha256: request.evidenceFingerprintSha256,
+          lifecycle: "CHALLENGER",
+          approval: { actorType: "HUMAN", approvalReference: "owner:challenger:handoff", approvedAt: 1, decisionFingerprint: "d".repeat(64) },
+        }),
+      },
     } as unknown as PaperChallengerDeploymentRuntimeOptions;
 
     const runtime = new PaperChallengerDeploymentRuntime(options);

@@ -71,10 +71,37 @@ describe("buildCanonicalPaperCandidatePerformance", () => {
     assert.equal(result.availabilityRatio, 1);
     assert.equal(result.unresolvedFaultCount, 0);
     assert.equal(result.killSwitchActivationCount, 0);
-    assert.equal(result.executionQualityScore, 1);
+    assert.equal(result.executionQualityScore, 100);
     assert.ok(Number.isFinite(result.sharpeRatio));
     assert.ok(result.profitFactor > 0);
     assert.ok(result.maximumDrawdown > 0);
+    assert.equal(result.observationDays, 0, "seconds of evidence cannot claim a whole independent day");
+  });
+  it("counts covered whole days, not hourly partitions or unobserved gaps", () => {
+    const hourly = (count: number, duration: number) => Array.from({ length: count }, (_, index) => ({ ...period(index, index % 2 === 0 ? 0.02 : -0.01), periodStartAt: 1_000 + index * 3_600_000, periodEndAt: 1_000 + index * 3_600_000 + duration }));
+    const evaluate = (periods: readonly PaperForwardPeriodEvidence[]) => buildCanonicalPaperCandidatePerformance({ candidateId: "candidate-a", periods, account: account(), executionQualityPolicy: quality });
+    assert.equal(evaluate(hourly(23, 3_600_000))?.observationDays, 0);
+    assert.equal(evaluate(hourly(24, 3_600_000))?.observationDays, 1);
+    assert.equal(evaluate(hourly(48, 60_000))?.observationDays, 0, "uncovered gaps are not observation days");
+  });
+  it("daily scoring is invariant to splitting continuous daily evidence into hourly partitions", () => {
+    const hourly = Array.from({ length: 72 }, (_, index) => ({ ...period(index, index < 24 ? 0.005 : index < 48 ? -0.002 : 0.007), periodStartAt: 1_000 + index * 3_600_000, periodEndAt: 1_000 + (index + 1) * 3_600_000 }));
+    const daily = Array.from({ length: 3 }, (_, index) => {
+      const gross = hourly[index * 24]!.grossReturn;
+      const net = (1 + gross - 0.001) ** 24 - 1;
+      return { ...period(index, net + 0.024), turnover: 24, periodStartAt: 1_000 + index * 86_400_000, periodEndAt: 1_000 + (index + 1) * 86_400_000 };
+    });
+    const evaluate = (periods: readonly PaperForwardPeriodEvidence[]) => buildCanonicalPaperCandidatePerformance({ candidateId: "candidate-a", periods, account: account(), executionQualityPolicy: quality, requireIndependentDays: true });
+    const h = evaluate(hourly);
+    const d = evaluate(daily);
+    assert.ok(h && d);
+    assert.equal(h.observationDays, 3);
+    assert.equal(d.observationDays, 3);
+    assert.ok(Math.abs(h.sharpeRatio - d.sharpeRatio) < 1e-10);
+    assert.ok(Math.abs(h.profitFactor - d.profitFactor) < 1e-10);
+    assert.ok(Math.abs(h.netReturn - d.netReturn) < 1e-10);
+    assert.equal(evaluate(hourly.slice(0, 30)), undefined, "30 hours are not 30 independent-day samples");
+    assert.equal(evaluate(hourly.map((p) => ({ ...p, periodEndAt: p.periodStartAt + 60_000 }))), undefined, "missing intervals never create whole-day samples");
   });
 
   it("keeps rejected and halted periods in reliability/failure evidence", () => {

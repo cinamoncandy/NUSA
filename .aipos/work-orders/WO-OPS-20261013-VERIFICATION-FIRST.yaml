@@ -1,0 +1,40 @@
+id: WO-OPS-20261013-VERIFICATION-FIRST
+title: Verification-first engineering using canonical CI and evidence
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+priority: P1
+authority_impact: none
+risk: MEDIUM
+base_commit: 68a61be7755459d54b4bd79d464b039a92227d24
+implementation_branch: codex/verification-first-20261013
+owner_request: "First record in AIPOS, then apply verification-first engineering practices."
+objective: "Reduce manual reproduction and unverified completion, not maximize agent count."
+canonical_owners: "#903 control plane; existing Playwright/UI/E2E, CI, independent Audit and Release."
+implementation_order:
+  - "Inventory existing verification; source-bound Feature Map with stable locators and reproduction commands."
+  - "Harden existing E2E to fail on browser errors and retain failure screenshots/traces in canonical CI."
+  - "PR evidence checklist, exact-head/environment binding and explicit missing evidence."
+  - "Repeated deterministic review findings become regression/lint/CI rules, never blanket framework bans."
+  - "Bounded parallelism by independence, conflicts, capacity and verified output per cost; no automatic 20-agent launch."
+  - "Independent review/evaluation and canonical Release only; no self-approval or new scheduler."
+acceptance:
+  - "Real browser execution, not static assertions alone; negative test for verification contract."
+  - "Screenshots/traces stay test-only; no credential or private customer data artifacts."
+  - "Feature Map distinguishes component harness, application integration and HUMAN_ENVIRONMENT_ONLY device proof."
+  - "CPU/heap profiling required for relevant performance changes, not fabricated or run indiscriminately."
+  - "Exact-head CI/Audit/Release evidence required before completion claims."
+verification_commands:
+  - pnpm run preflight
+  - pnpm run build
+  - pnpm run test:e2e
+  - pnpm run validate:full
+  - pnpm run lint
+  - pnpm run security:gate
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+boundaries: "No new dependencies, paid providers, Cursor control engine, LIVE activation, credential handling or weakened required checks."
+validation: "6 real Chromium E2E including synthetic console/page-error probes PASS;7 Node guard/CI regressions PASS; preflight/build/typecheck/validate:full/security/lint and workflow pins/inputs PASS,15 existing lint warnings. Final revalidation and exact-head CI still required."
+review: "Independent read-only review found3 P2 issues; all fixed and fresh review reports no actionable P0/P1/P2. Context-created pages guarded; exact expected errors restricted to nondefault synthetic probes. Not Audit/Release approval."
+remaining: "Full product Feature Map expansion, workload-specific CPU/heap proof, physical-device evidence and measured AI concurrency scaling. Control Glass unavailable; no alternative control engine added."
+next: "Final revalidation, committed exact-head independent review, then canonical CI/Audit/Release; first increment only, not20-agent/full-device verification."

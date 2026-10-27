@@ -87,14 +87,14 @@ function replayResult(deployment: ClosedLearningResearchReplayResult["deployment
     operation: "REPLAY_PAPER_EVIDENCE",
     originalRunFingerprintSha256: ORIGINAL,
     replayRunFingerprintSha256: REPLAY,
-    qualification: Object.freeze({
+    qualification: bindResearchQualificationIdentity(REPLAY, Object.freeze({
       schemaVersion: 1,
       candidates,
       coverage: Object.freeze({ candidateCount: candidates.length, qualifiedCount: candidates.length, insufficientCount: 0, rejectedCount: 0 }),
       liveAuthority: "NONE",
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
-    }),
+    })),
     deployment,
     liveAuthority: "NONE",
     productionMutationAllowed: false,
@@ -124,6 +124,25 @@ const ambiguous = (): ClosedLearningResearchReplayResult["deployment"] => Object
 });
 
 describe("ClosedLearningProductionResearchAdapter", () => {
+  it("records an evidence-bound insufficient decision without expensive replay or fabricated Research results", async () => {
+    let work = 0;
+    const adapter = new ClosedLearningProductionResearchAdapter({
+      replayInput: { resolve: () => ({ originalRunFingerprintSha256: ORIGINAL, paperEvidenceByCandidate: { q: { admission: { strength: "INSUFFICIENT" } } } }) },
+      worker: { replay: () => { work++; throw new Error("must not replay insufficient evidence"); } },
+      history: { persist: () => { work++; throw new Error("must not invent a Research run"); } },
+      artifacts: { save: () => { work++; throw new Error("must not publish qualification"); } },
+      now: () => 5_000,
+    });
+    const sync = adapter.evaluate(identity);
+    const asyncResult = await adapter.evaluateAsync(identity);
+    assert.deepEqual(sync, asyncResult);
+    assert.equal(sync.outcome, "INSUFFICIENT");
+    assert.equal(sync.candidateId, undefined);
+    assert.ok(sync.decisionReference.includes(ORIGINAL));
+    assert.ok(sync.decisionReference.includes(identity.evidenceFingerprintSha256));
+    assert.ok(sync.reasons.includes("RESEARCH_REPLAY_NOT_EXECUTED"));
+    assert.equal(work, 0);
+  });
   it("persists the complete denominator before making a qualified artifact visible", () => {
     const order: string[] = [];
     const result = replayResult(deployable());
@@ -193,3 +212,4 @@ describe("ClosedLearningProductionResearchAdapter", () => {
     assert.throws(() => badClock.evaluate(identity), /clock/);
   });
 });
+import { bindResearchQualificationIdentity } from "../../../packages/contracts/src/researchQualificationIdentity";

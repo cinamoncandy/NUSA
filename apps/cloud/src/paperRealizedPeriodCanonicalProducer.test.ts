@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import type { PaperAccountPosition, PaperAccountState, PaperFillRecord } from "./paperTradingExecutionLoop";
 import type { PaperExecutionCostAttribution } from "./paperCanonicalOutcomeReconciliation";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
+import type { RealizedPeriodRetentionGuard } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import {
   PaperRealizedPeriodProducer,
   PaperRealizedPeriodProducerError,
@@ -107,10 +108,14 @@ function account(updatedAt: number, equity: number, fills: readonly PaperFillRec
   });
 }
 
-function state(options?: PaperRealizedPeriodProducerOptions) {
+// Retention is reference-aware by signature (v2 M1/A7); these fixtures cite no periods, so the
+// correct guard for them protects nothing and the retention bound behaves as it always has.
+const retentionGuard: RealizedPeriodRetentionGuard = { referencedRecordIds: () => new Set<string>() };
+
+function state(options?: Omit<PaperRealizedPeriodProducerOptions, "retentionGuard">) {
   const db = new SqliteDatabase(":memory:");
   const repository = new SqlitePaperRealizedPeriodRepository(db);
-  return { db, repository, producer: new PaperRealizedPeriodProducer(repository, options) };
+  return { db, repository, producer: new PaperRealizedPeriodProducer(repository, { retentionGuard, ...options }) };
 }
 
 function errorCode(action: () => unknown): string {
@@ -127,6 +132,7 @@ describe("canonical PAPER realized-period producer", () => {
   it("derives returns and costs from the canonical account outcome and replays idempotently", () => {
     let current = account(BASE, 1_000);
     const options: PaperRealizedPeriodProducerOptions = {
+      retentionGuard,
       readCanonicalPaperAccount: () => current,
       readCanonicalBenchmarkEvidence: (_start, periodEndAt, market) => ({ evidenceId: "benchmark-canonical", observedAt: periodEndAt, benchmarkReturn: 101 / 100 - 1, market: market ?? "KRW-BTC", source: "UPBIT_PUBLIC_TICKER", startObservedAt: BASE, endObservedAt: periodEndAt, startPrice: 100, endPrice: 101, inputFingerprintSha256: HASH }),
     };
@@ -142,10 +148,37 @@ describe("canonical PAPER realized-period producer", () => {
       assert.equal(realized.record.costEvidence.evidenceKind, "OBSERVED");
       assert.match(realized.record.costEvidence.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
       assert.equal(realized.record.benchmarkEvidenceId, "benchmark-canonical");
+      assert.equal(realized.record.benchmarkInputFingerprintSha256, HASH);
       assert.match(realized.record.canonicalOutcomeReceiptFingerprint ?? "", /^[a-f0-9]{64}$/);
 
       const restarted = new PaperRealizedPeriodProducer(new SqlitePaperRealizedPeriodRepository(first.db), options);
       assert.deepEqual(restarted.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END }), realized);
+    } finally {
+      first.db.close();
+    }
+  });
+
+  it("closes from durable fill truth even when the bounded account snapshot has evicted the period fill", () => {
+    let current = account(BASE, 1_000);
+    let durableFills: readonly PaperFillRecord[] = [];
+    const options: PaperRealizedPeriodProducerOptions = {
+      retentionGuard,
+      readCanonicalPaperAccount: () => current,
+      readCanonicalPaperFills: () => durableFills,
+      readCanonicalBenchmarkEvidence: (_start, periodEndAt, market) => ({ evidenceId: "benchmark-durable", observedAt: periodEndAt, benchmarkReturn: 101 / 100 - 1, market: market ?? "KRW-BTC", source: "UPBIT_PUBLIC_TICKER", startObservedAt: BASE, endObservedAt: periodEndAt, startPrice: 100, endPrice: 101, inputFingerprintSha256: HASH }),
+    };
+    const first = state(options);
+    try {
+      const plan = first.producer.openPeriodFromCanonicalAccount(openInput());
+      first.producer.observeExecution({ observationId: "durable-fill-observation", observedAt: BASE + 50, status: "FILLED" });
+      const canonicalFill = candidateFill();
+      durableFills = [canonicalFill];
+      const projected = account(END, 1_009.95, [canonicalFill]);
+      current = Object.freeze({ ...projected, fills: Object.freeze([]) });
+      const realized = first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END });
+      assert.ok(Math.abs(realized.record.realizedReturns["candidate-a"]! - 0.00995) < 1e-12);
+      assert.equal(realized.record.turnoverCostRate, 0.0005);
+      assert.equal(realized.record.costEvidence.evidenceId.startsWith("paper-canonical-outcome:"), true);
     } finally {
       first.db.close();
     }
@@ -178,6 +211,22 @@ describe("canonical PAPER realized-period producer", () => {
       assert.equal(errorCode(() => first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END })), "MISSING_BENCHMARK_EVIDENCE");
       assert.equal(first.producer.listRealizedPeriods().length, 0);
       assert.equal(first.producer.listOpenPeriods().length, 1);
+    } finally {
+      first.db.close();
+    }
+  });
+
+  it("fails closed when the configured durable fill ledger cannot be read", () => {
+    let current = account(BASE, 1_000);
+    const first = state({
+      readCanonicalPaperAccount: () => current,
+      readCanonicalPaperFills: () => { throw new Error("ledger unavailable"); },
+    });
+    try {
+      const plan = first.producer.openPeriodFromCanonicalAccount(openInput());
+      first.producer.observeExecution({ observationId: "fill-ledger-unavailable", observedAt: BASE + 50, status: "FILLED" });
+      current = account(END, 1_009.95, [candidateFill()]);
+      assert.equal(errorCode(() => first.producer.closePeriodFromCanonicalAccount({ periodId: plan.periodId, periodEndAt: END })), "CANONICAL_FILL_LEDGER_UNAVAILABLE");
     } finally {
       first.db.close();
     }

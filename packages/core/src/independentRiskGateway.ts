@@ -116,6 +116,8 @@ export interface IndependentRiskLimits {
   /** Maximum daily realized loss, expressed as a positive number. */
   readonly maxDailyLoss: number;
   readonly maxConsecutiveLosses: number;
+  /** PAPER-only policy; omitted means enforced. Only explicit false disables this one veto. */
+  readonly consecutiveLossLimitEnabled?: boolean;
   /** Maximum session drawdown from peak equity, as a ratio in [0, 1]. */
   readonly maxSessionDrawdownRatio: number;
   /** Maximum |referencePrice - marketPrice| / marketPrice, as a ratio in [0, 1]. */
@@ -167,6 +169,7 @@ function isStructurallyValid(request: PreTradeRiskRequest, identity: RiskIdentit
   if (![identity.seenSignalIds, identity.seenCommandIds, identity.seenClientOrderIds].every((set) => set instanceof Set)) return false;
 
   if (limits == null || typeof limits !== "object") return false;
+  if (limits.consecutiveLossLimitEnabled !== undefined && typeof limits.consecutiveLossLimitEnabled !== "boolean") return false;
   return [limits.maxOrderNotional, limits.maxPositionNotional, limits.maxOpenOrders, limits.maxOrdersPerSecond,
     limits.maxOrdersPerMinute, limits.maxSameSideStreak, limits.maxSymbolExposureNotional, limits.maxPortfolioExposureNotional,
     limits.maxDailyBuyNotional, limits.maxDailySellNotional, limits.maxDailyLoss, limits.maxConsecutiveLosses,
@@ -251,7 +254,7 @@ export function evaluatePreTradeRisk(
   // Circuit breakers on session outcome. These stop a losing session from continuing to
   // trade; they are limits on the operator, not on any single order.
   if (request.sessionState.dailyRealizedPnL < 0 && Math.abs(request.sessionState.dailyRealizedPnL) >= limits.maxDailyLoss) reasons.add("DAILY_LOSS_LIMIT");
-  if (request.sessionState.consecutiveLossCount >= limits.maxConsecutiveLosses) reasons.add("CONSECUTIVE_LOSS_LIMIT");
+  if (limits.consecutiveLossLimitEnabled !== false && request.sessionState.consecutiveLossCount >= limits.maxConsecutiveLosses) reasons.add("CONSECUTIVE_LOSS_LIMIT");
   if (request.sessionState.sessionPeakEquity > 0) {
     const drawdown = (request.sessionState.sessionPeakEquity - request.sessionState.sessionEquity) / request.sessionState.sessionPeakEquity;
     if (drawdown >= limits.maxSessionDrawdownRatio) reasons.add("SESSION_DRAWDOWN_LIMIT");

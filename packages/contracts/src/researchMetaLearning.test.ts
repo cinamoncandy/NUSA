@@ -1,0 +1,76 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import { META_EXHAUSTED_CONFIGS, evaluateMetaLearning, metaLearningSteering, runtimeResearchEntries, type ResearchLedgerEntry } from "./researchMetaLearning";
+
+const entry = (id: string, patch: Partial<ResearchLedgerEntry>): ResearchLedgerEntry => ({ id, dataType: "CLOSE", timeframe: "60m", universe: 5, methodClass: "RULE", configs: 10, discoveryPass: 0, holdoutPass: 0, ...patch });
+
+describe("research meta-learning policy", () => {
+  it("marks a value exhausted at 50 configurations without a holdout pass and steers away from it", () => {
+    const report = evaluateMetaLearning([entry("a", { configs: 60, discoveryPass: 4 })]);
+    assert.deepEqual([...report.exhausted], ["dataType=CLOSE", "timeframe=INTRADAY", "universe=FIVE", "methodClass=RULE"]);
+    assert.equal(report.overfitRatePercent, 100);
+    assert.equal(report.validKnowledgePer100Configs, 0);
+    assert.ok(report.recommended !== undefined && !report.recommended.startsWith("CLOSE+"));
+    assert.ok(Math.abs(report.nextHoldoutBar - 0.05 / 61) < 1e-15, "the bar is cumulative");
+  });
+
+  it("a holdout pass keeps the value open and counts as valid knowledge", () => {
+    const report = evaluateMetaLearning([entry("a", { configs: 60, discoveryPass: 2, holdoutPass: 1 })]);
+    assert.ok(!report.exhausted.includes("dataType=CLOSE"));
+    assert.equal(report.overfitRatePercent, 50);
+    assert.equal(report.validKnowledgePer100Configs, 1.67);
+  });
+
+  it("charges a collection cost for data with no history and lists the prerequisite", () => {
+    const report = evaluateMetaLearning([entry("a", { configs: 60 }), entry("b", { dataType: "OHLCV", methodClass: "ML", universe: 100, configs: 60 }), entry("c", { dataType: "EXTERNAL", methodClass: "ML", universe: 100, timeframe: "1d", configs: 60 })]);
+    const trades = report.ranked.find((r) => r.combination.startsWith("TRADES+"));
+    assert.ok(trades != null && trades.prerequisites.includes("COLLECT_TRADES"));
+  });
+
+  it("a design-flawed experiment leaves its combination re-triable exactly once", () => {
+    const flawed = entry("v1", { dataType: "OHLCV", methodClass: "ML", universe: 100, designFlaw: true, configs: 3 });
+    assert.ok(evaluateMetaLearning([flawed]).ranked.some((r) => r.combination === "OHLCV+INTRADAY+ALL_KRW+ML"));
+    const retry = entry("v2", { dataType: "OHLCV", methodClass: "ML", universe: 100, retryOf: "v1", configs: 3 });
+    assert.ok(!evaluateMetaLearning([flawed, retry]).ranked.some((r) => r.combination === "OHLCV+INTRADAY+ALL_KRW+ML"));
+  });
+
+  it("rejects a malformed entry instead of guessing", () => {
+    assert.throws(() => evaluateMetaLearning([entry("bad", { configs: -1 })]), /META_LEDGER_ENTRY_INVALID/);
+  });
+
+  it("turns runtime Research counters into entries: failures are configurations, passes are discoveries, waits are ignored", () => {
+    const entries = runtimeResearchEntries({ "1m": { counts: { NOT_DUE: 160, FAIL_NO_EDGE: 19, REPEAT_NO_EDGE: 3, PASS_CANDIDATE_GATE: 2 } }, "15m": null, weird: { counts: { FAIL_X: 1 } } }, 5);
+    assert.deepEqual(entries.map((e) => [e.id, e.configs, e.discoveryPass, e.holdoutPass, e.timeframe]), [["RUNTIME_RESEARCH_1m", 24, 2, 0, "1m"]]);
+  });
+
+  it("a real validation win and holdout win in the runtime counters are visible, and today's counters are unchanged", () => {
+    const today = { "1m": { counts: { COMPLETED: 10, VALIDATION_NOT_FAVOURABLE: 10, FAIL_NO_EDGE: 9, REPEAT_NO_EDGE: 1 } } };
+    assert.deepEqual(runtimeResearchEntries(today, 5).map((e) => [e.configs, e.discoveryPass, e.holdoutPass]), [[10, 0, 0]], "no win, nothing changes");
+    const win = { "1m": { counts: { COMPLETED: 12, VALIDATION_CHALLENGER_BETTER: 2, VALIDATION_NOT_FAVOURABLE: 10, HOLDOUT_CHALLENGER_BETTER: 1, HOLDOUT_CHAMPION_BETTER: 1, FAIL_NO_EDGE: 8 } } };
+    assert.deepEqual(runtimeResearchEntries(win, 5).map((e) => [e.configs, e.discoveryPass, e.holdoutPass]), [[10, 2, 1]]);
+    const report = evaluateMetaLearning([...runtimeResearchEntries(win, 5)]);
+    assert.equal(report.discoveryPasses, 2);
+    assert.equal(report.holdoutPasses, 1);
+    assert.equal(report.overfitRatePercent, 50, "one of two discoveries survived its holdout");
+  });
+
+  it("a holdout pass can never exceed the discoveries that earned it", () => {
+    const odd = { "1m": { counts: { HOLDOUT_CHALLENGER_BETTER: 5, FAIL_NO_EDGE: 3 } } };
+    assert.deepEqual(runtimeResearchEntries(odd, 5).map((e) => [e.discoveryPass, e.holdoutPass]), [[0, 0]]);
+  });
+
+  it("a validation win alone keeps the dimensions exhausted; only a holdout win un-exhausts them and returns steering to NORMAL", () => {
+    const fails = META_EXHAUSTED_CONFIGS + 10;
+    const base = { COMPLETED: fails, FAIL_NO_EDGE: fails };
+    const exhausted = (counts: Record<string, number>) => evaluateMetaLearning([...runtimeResearchEntries({ "1m": { counts } }, 5)]);
+    const none = exhausted(base);
+    assert.ok(none.exhausted.includes("dataType=CLOSE") && none.exhausted.includes("methodClass=RULE"));
+    assert.equal(metaLearningSteering(none, 5).mode, none.recommended === undefined ? "NORMAL" : "DEPRIORITIZE_EXHAUSTED");
+    const validationOnly = exhausted({ ...base, VALIDATION_CHALLENGER_BETTER: 1 });
+    assert.ok(validationOnly.exhausted.includes("dataType=CLOSE"), "a discovery without a holdout pass does not un-exhaust");
+    assert.equal(validationOnly.holdoutPasses, 0);
+    const holdoutWin = exhausted({ ...base, VALIDATION_CHALLENGER_BETTER: 1, HOLDOUT_CHALLENGER_BETTER: 1 });
+    assert.ok(!holdoutWin.exhausted.includes("dataType=CLOSE") && !holdoutWin.exhausted.includes("methodClass=RULE"));
+    assert.equal(metaLearningSteering(holdoutWin, 5).mode, "NORMAL");
+  });
+});

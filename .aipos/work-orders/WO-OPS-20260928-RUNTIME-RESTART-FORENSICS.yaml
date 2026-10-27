@@ -1,0 +1,38 @@
+id: WO-OPS-20260928-RUNTIME-RESTART-FORENSICS
+title: "Report why the supervised PAPER runtime last stopped through /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-runtime-forensics
+authority_impact: none
+objective: "The Oracle PAPER runtime restarts every few seconds with lastError null and no host log access, so the stop reason is invisible. Persist the last fail-closed/fatal reason beside the durable state and report it on the next start."
+scope:
+  - "apps/cloud/src/runtimeFailureRecord.ts: best-effort atomic write of {kind, code, at} to runtime-last-failure.json (mode 0600) beside the Cloud state DB. No free text is kept: a bare internal code (e.g. PAPER_WRITER_LEASE_LOST) is kept as is, any other message becomes MESSAGE_<12 hex of its SHA-256>, matched offline against source messages."
+  - "Start-up faults (before the fatal handlers exist), the closed-learning scheduler fail-closed stop, uncaught exceptions and unhandled rejections record the reason; the fail-closed outcome is unchanged."
+  - "The next process publishes it as runtime.previousStop = PREVIOUS_<KIND>:<CODE> on /health, a separate field that market start-up cannot overwrite, filtered by the existing public liveness code allowlist."
+exclusions:
+  - "No change to fail-closed behaviour, trading, risk, execution, accounting, credentials or LIVE authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+persistence_and_recovery_evidence:
+  persisted_state: "Single diagnostic file runtime-last-failure.json beside the state DB; not read by trading, risk, execution, accounting or recovery decisions. Unreadable, tampered or unknown-kind records are ignored (tested)."
+  failure_behaviour: "Write failures are swallowed so forensics can never mask or change the original fail-closed stop."
+  public_exposure: "Only PREVIOUS_<KIND>:<BARE_CODE|MESSAGE_FINGERPRINT>; free text, account names and tokens are proven absent by apps/cloud/src/runtimeFailureRecord.test.ts and tests/cloud-runtime-liveness-health.test.js."
+  local_validation_results:
+    - "pnpm run build: PASS"
+    - "pnpm run typecheck: PASS"
+    - "pnpm run validate: PASS"
+    - "node scripts/aipos-work-order-index.js --check: PASS"
+    - "node --test tests/*.test.js: 4693 pass, 0 fail"
+    - "node scripts/run-tests-isolated.js: PASS 1086 isolated test files"
+residual: "Root cause of the 2026-09-28 PAPER restart loop is diagnosed from the reported code after deployment."

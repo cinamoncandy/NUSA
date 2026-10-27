@@ -63,3 +63,27 @@ export function createShutdownController(deps: ShutdownDependencies): ShutdownCo
 
   return Object.freeze({ trigger, isShuttingDown: () => shuttingDown });
 }
+
+export type RuntimeFaultKind = "uncaught exception" | "unhandled rejection";
+
+/**
+ * A fatal runtime fault remains fail-closed during normal operation. Once graceful shutdown has
+ * already started, however, an immediate process.exit() would bypass stop()'s finally blocks and
+ * can strand the canonical PAPER writer lease. In that narrow state, let the existing bounded
+ * shutdown controller finish cleanup (or force-exit on its own timeout) instead of preempting it.
+ */
+export function handleRuntimeFault(
+  controller: Pick<ShutdownController, "isShuttingDown">,
+  kind: RuntimeFaultKind,
+  reason: unknown,
+  exit: (code: number) => void,
+  errorLog: (line: string) => void = (line) => { process.stderr.write(line); },
+): void {
+  const detail = reason instanceof Error && reason.message.trim() ? reason.message : "unknown error";
+  errorLog(`[cloud-runtime-crash] ${kind} ${detail}\n`);
+  if (controller.isShuttingDown()) {
+    errorLog("[cloud-runtime] fault observed during graceful shutdown; cleanup remains authoritative\n");
+    return;
+  }
+  exit(1);
+}

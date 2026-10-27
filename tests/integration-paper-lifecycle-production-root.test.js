@@ -12,7 +12,7 @@ test("managed PAPER launcher targets the canonical closed-learning production ro
     /PRODUCTION_RUNTIME_ENTRYPOINT\s*=\s*["']dist\/apps\/cloud\/src\/closedLearningProductionRuntime\.js["']/,
   );
   assert.match(productionSource, /startClosedLearningProductionRuntime/);
-  assert.match(productionSource, /new SqliteCloudPaperAccountRepository\(database\)/);
+  assert.match(productionSource, /new SqliteCloudPaperAccountRepository\(database, \{ accountId: paperAccountIdForCapital\(config\.paperInitialCapitalKrw\) \}\)/);
   assert.match(productionSource, /new PaperTradingExecutionLoop\(/);
   assert.match(productionSource, /new PaperChallengerBindingLedger\(/);
   assert.match(productionSource, /new ClosedLearningProductionResearchAdapter\(/);
@@ -39,7 +39,9 @@ test("bare cloud runtime remains a library/diagnostic entrypoint, not the manage
 test("production composition preserves PAPER-only authority through the canonical runtime boundary", () => {
   assert.doesNotMatch(productionSource, /productionMutationAllowed\s*:\s*true/);
   assert.doesNotMatch(productionSource, /liveAuthority\s*:\s*["'](?:LIVE|FULL|ENABLED)["']/);
+  assert.doesNotMatch(productionSource, /disposeIncompletePeriodFromCanonicalAccount/);
   assert.match(productionSource, /startCloudRuntime\(/);
+  assert.doesNotMatch(bareRuntimeSource, /disposeIncompletePaperRealizedPeriod/);
   assert.match(bareRuntimeSource, /productionMutationAllowed:\s*false/);
   assert.match(bareRuntimeSource, /liveAuthority:\s*["']NONE["']/);
 });

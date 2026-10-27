@@ -1,0 +1,30 @@
+id: WO-UI-20261003-RESEARCH-PROGRESS
+title: "HOME row: how much 1-minute candle history the research experiments have collected"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-research-progress
+authority_impact: none
+objective: "Background learning progress was unclear: the owner could not tell how much history exists, whether collection is still running, or what remains before the first experiment (train 7 + validation 2 + holdout 2 days of 1-minute candles). Report the stored candle count for the research market and show it in the app."
+scope:
+  - "apps/cloud/src/researchExperimentOrchestrator.ts: collectionProgress() reads the stored candle count, first and last close time for the first research market against the three windows; cached 30 s; returns null when the store cannot count and never throws."
+  - "apps/cloud/src/runtime.ts: reports it as heartbeat.researchCollection (display only; a failing provider is ignored)."
+  - "packages/contracts/src/personalPaperOperations.ts: optional field; a malformed value is dropped from the validated snapshot (display-only rule), never rejects it."
+  - "apps/mobile/src/researchProgressModel.ts, homeView.tsx, homeFieldInput.ts: one HOME detail row '학습 데이터' (market, collected/required days, percentage, last collection, time to the first experiment, gap percentage, a warning when collection looks stalled); missing or unusable values read as not reported."
+  - "tests/mobile-research-progress.test.js (6)."
+exclusions:
+  - "No change to research windows, thresholds, experiments, candle collection, promotion, decisions, risk, orders, accounting, LIVE, credentials or AI authority. Read-only count."
+  - "The row never claims an experiment ran; the server's experiment outcome is shown by the existing LEARNING line."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Absent or malformed values render as not reported."
+rollback: "Revert the change; the field is optional."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+  - node --test tests/mobile-research-progress.test.js
+residual: "Candles are stored when the research tick collects them (every 30 min), so 'last collection' can lag by up to that interval; the stall warning uses 90 min. Only the first research market is reported. Needs a server deploy and a new app build; both need owner approval."

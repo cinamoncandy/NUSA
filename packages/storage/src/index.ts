@@ -1,4 +1,42 @@
+import Module = require("node:module");
 import { DatabaseSync } from "node:sqlite";
+
+type SqliteIntegrityBoundary = Readonly<{
+  open: (filename: string) => DatabaseSync;
+  prepare: (connection: DatabaseSync, sql: string) => unknown;
+  read: (statement: unknown) => Record<string, unknown> | undefined;
+  resultIsOk: (result: Record<string, unknown> | undefined) => boolean;
+}>;
+const SQLITE_INTEGRITY_BOUNDARY_SLOT = "__nusaSqliteIntegrityBoundary" as const;
+const preloadedSqliteIntegrityBoundary = (Module as typeof Module & {
+  readonly __nusaSqliteIntegrityBoundary?: SqliteIntegrityBoundary;
+})[SQLITE_INTEGRITY_BOUNDARY_SLOT];
+// Production obtains the capability from the immutable preload slot and never resolves the
+// bootstrap module again. Direct developer/test imports retain a fail-closed bootstrap fallback.
+const sqliteIntegrityBoundary: SqliteIntegrityBoundary = preloadedSqliteIntegrityBoundary
+  ?? (require("./sqliteIntegrityBootstrap") as { sqliteIntegrityBoundary: SqliteIntegrityBoundary }).sqliteIntegrityBoundary;
+
+export * from "./researchMemorySemantics";
+import {
+  aiSha256,
+  canonicalAiJson,
+  isAiSha256,
+  type AiCalibrationOutcome,
+  type AiCalibrationPrediction
+} from "../../contracts/src/aiInference";
+import type {
+  AiCalibrationDurableReplay,
+  AiCalibrationDurableStore,
+  AiCalibrationPendingExpiry
+} from "../../contracts/src/aiCalibrationDurability";
+
+import type {
+  AiAttributionEpisode,
+  AiLearningMemoryReplay,
+  AiLearningMemoryStore,
+  AiLessonProjection
+} from "../../contracts/src/aiOutcomeAttribution";
+
 import {
   LedgerSide, PositionScopeType, PositionStatus, type PositionLedgerEntry, type PositionSnapshot,
   type StrategyPositionSnapshot, type WalletPositionSnapshot,
@@ -6,11 +44,15 @@ import {
 } from "../../contracts/src/index";
 import { runMigrations, type MigrationResult, type SqliteMigration } from "./migrationRunner";
 import { cloudPaperAccountHistoryMigration } from "./cloudPaperAccountHistoryMigration";
+import { cloudPaperFillLedgerMigration } from "./cloudPaperFillLedgerMigration";
+import { cloudPaperLegacyReconciliationMigration } from "./cloudPaperLegacyReconciliationMigration";
 import { researchFactoryDecisionHistoryMigration } from "./researchFactoryDecisionHistoryRepository";
 
 export { runMigrations } from "./migrationRunner";
 export type { MigrationResult, SqliteMigration } from "./migrationRunner";
 export { SqliteResearchMemoryRepository } from "./researchMemory";
+export { SqliteResearchIntelligenceMemoryRepository } from "./researchIntelligenceMemory";
+export type { ResearchIntelligenceMemoryDatabase } from "./researchIntelligenceMemory";
 export type { HypothesisStatus, ResearchExperimentRecord, ResearchHypothesis, ResearchMemoryDatabase } from "./researchMemory";
 export { SqliteComplianceControlPlaneStore } from "./complianceControlPlaneStore";
 export type { ComplianceDatabase } from "./complianceControlPlaneStore";
@@ -24,6 +66,8 @@ export type { MultiAgentGovernanceDatabase } from "./multiAgentGovernanceStore";
 export { SqliteRiskSafetyPersistence } from "./risk-safety";
 export { SqliteResearchEvaluationLedger } from "./researchEvaluationLedger";
 export type { ResearchEvaluationDatabase } from "./researchEvaluationLedger";
+export { SqliteResearchPrecommitRepository } from "./researchPrecommit";
+export type { ResearchPrecommitDatabase } from "./researchPrecommit";
 export { SqliteResearchHypothesisLifecycleRepository } from "./researchHypothesisLifecycle";
 export type { ResearchHypothesisLifecycleDatabase } from "./researchHypothesisLifecycle";
 export { SqliteCandidatePromotionRepository } from "./candidatePromotionRepository";
@@ -36,6 +80,13 @@ export { SqlitePersistedPaperPeriodStore, PersistedPaperPeriodStoreError } from 
 export type { PersistedPaperCandidateProvenance, PersistedPaperPeriodEnvelope, PersistedPaperPeriodRecord, PaperPeriodCostEvidence, PaperPeriodCostEvidenceKind, PaperPeriodLifecycleStatus, PersistedPaperPendingPeriod } from "./persistedPaperPeriodStore";
 export { SqlitePaperMarketObservationRepository, PaperMarketObservationStoreError, normalizePaperPublicMarketObservation } from "./paperMarketObservationRepository";
 export type { PaperPublicMarketObservation, PaperPublicMarketObservationInput } from "./paperMarketObservationRepository";
+export { SqliteResearchCandleStore, ResearchCandleStoreError } from "./researchCandleStore";
+export { SqliteResearchDatasetManifestStore, ResearchDatasetManifestStoreError } from "./researchDatasetManifest";
+export { SqliteFuturesPublicStore, type FuturesMarkRow, type FuturesFundingRow, type FuturesKlineRow } from "./futuresPublicStore";
+export { SqliteMarketMicrostructureStore, MarketMicrostructureStoreError, type StoredOrderBookSample, type StoredTradeTick } from "./marketMicrostructureStore";
+export { SqliteResearchHoldoutLedger, ResearchHoldoutLedgerError } from "./researchHoldoutLedger";
+export type { HoldoutKey } from "./researchHoldoutLedger";
+export type { StoredResearchCandle } from "./researchCandleStore";
 
 type SqlRow = Record<string, string | number | bigint | null>;
 type LedgerFilter = Pick<PositionLedgerEntry, "walletId" | "strategyId" | "symbol">;
@@ -106,20 +157,31 @@ export function applyLedgerEntryToSnapshot(snapshot: PositionSnapshot, entry: Po
   return Object.freeze({ ...snapshot, baseQtyRaw, quoteCostRaw, avgEntryPriceRaw: baseQtyRaw === 0n ? undefined : quoteCostRaw / baseQtyRaw, realizedPnlRaw, status: baseQtyRaw === 0n ? PositionStatus.CLOSED : PositionStatus.OPEN, lastLedgerEntryId: entry.id, lastLedgerOrderKey: entryOrder, version: snapshot.version + 1 });
 }
 
+// Integrity issuance and both AI-store admission checks live in this lexical module.
+// Neither the registry nor its resolver is exported, so replacing any CommonJS cache
+// entry cannot substitute a verifier used by these genuine constructors.
+const fullyCheckedSqliteDatabaseConnections = new WeakMap<object, DatabaseSync>();
+function resolveCheckedSharedConnection(database: unknown): DatabaseSync | null {
+  if (database == null || (typeof database !== "object" && typeof database !== "function")) return null;
+  const connection = fullyCheckedSqliteDatabaseConnections.get(database as object);
+  return connection != null && (database as { connection?: unknown }).connection === connection ? connection : null;
+}
+
 export class SqliteDatabase implements TransactionRunner {
   public readonly connection: DatabaseSync;
   public readonly migrationResult: MigrationResult;
   private inTransaction = false;
   public constructor(filename = ":memory:") {
-    this.connection = new DatabaseSync(filename);
+    this.connection = sqliteIntegrityBoundary.open(filename);
     try {
       this.connection.exec("PRAGMA foreign_keys = ON");
       this.connection.exec("PRAGMA busy_timeout = 5000");
       if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
       this.connection.exec("PRAGMA synchronous = FULL");
       this.migrationResult = runMigrations(this.connection, migrations);
-      const check = this.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-      if (check == null || !Object.values(check).includes("ok")) throw new Error("sqlite quick_check failed");
+      const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
+      if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("sqlite quick_check failed");
+      fullyCheckedSqliteDatabaseConnections.set(this, this.connection);
     } catch (error) {
       this.connection.close();
       throw error;
@@ -472,4 +534,781 @@ CREATE INDEX IF NOT EXISTS idx_evolution_learning_ledger_recorded_at
   ON evolution_learning_ledger_events (recorded_at ASC, opportunity_id ASC);
 INSERT OR IGNORE INTO evolution_learning_ledger_meta (id, schema_version, event_count, ledger_hash)
   VALUES (1, 1, 0, '0000000000000000000000000000000000000000000000000000000000000000');
-` }, researchFactoryDecisionHistoryMigration];
+` }, researchFactoryDecisionHistoryMigration, { id: "022_research_memory_semantic_overlay", sql: `
+CREATE TABLE IF NOT EXISTS research_memory_semantic_events (
+  sequence INTEGER PRIMARY KEY,
+  event_kind TEXT NOT NULL CHECK (event_kind IN ('SEMANTIC','RELATION')),
+  identity TEXT NOT NULL UNIQUE,
+  artifact_kind TEXT NOT NULL,
+  artifact_id TEXT NOT NULL,
+  artifact_sha256 TEXT NOT NULL,
+  semantic_identity TEXT,
+  independence_group_id TEXT,
+  previous_hash TEXT NOT NULL,
+  event_json TEXT NOT NULL,
+  hash TEXT NOT NULL UNIQUE
+);
+CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_artifact
+  ON research_memory_semantic_events (artifact_kind, artifact_id, artifact_sha256, sequence);
+CREATE INDEX IF NOT EXISTS idx_research_memory_semantic_identity
+  ON research_memory_semantic_events (semantic_identity, independence_group_id, sequence);
+` }, cloudPaperFillLedgerMigration, { id: "024_research_intelligence_memory", sql: `
+CREATE TABLE IF NOT EXISTS research_intelligence_records (
+  record_id TEXT PRIMARY KEY,
+  source_id TEXT NOT NULL,
+  source_type TEXT NOT NULL,
+  content_fingerprint TEXT NOT NULL,
+  hypothesis_semantic_fingerprint TEXT NOT NULL,
+  discovered_at TEXT NOT NULL,
+  payload_json TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_research_intelligence_source
+  ON research_intelligence_records (source_type, source_id, discovered_at, record_id);
+CREATE INDEX IF NOT EXISTS idx_research_intelligence_hypothesis
+  ON research_intelligence_records (hypothesis_semantic_fingerprint, discovered_at, record_id);
+` }, cloudPaperLegacyReconciliationMigration, { id: "026_research_closed_candles", sql: `
+CREATE TABLE IF NOT EXISTS research_closed_candles (
+  market TEXT NOT NULL,
+  interval_ms INTEGER NOT NULL CHECK (interval_ms > 0),
+  close_time_ms INTEGER NOT NULL CHECK (close_time_ms > 0),
+  open REAL NOT NULL CHECK (open > 0),
+  high REAL NOT NULL CHECK (high > 0),
+  low REAL NOT NULL CHECK (low > 0),
+  close REAL NOT NULL CHECK (close > 0),
+  checksum TEXT NOT NULL,
+  PRIMARY KEY (market, interval_ms, close_time_ms)
+);
+` }, { id: "027_research_holdout_usage", sql: `
+CREATE TABLE IF NOT EXISTS research_holdout_usage (
+  strategy_config_hash TEXT NOT NULL,
+  market TEXT NOT NULL,
+  interval_ms INTEGER NOT NULL CHECK (interval_ms > 0),
+  holdout_start_ms INTEGER NOT NULL CHECK (holdout_start_ms > 0),
+  holdout_end_ms INTEGER NOT NULL CHECK (holdout_end_ms >= holdout_start_ms),
+  evaluation_id TEXT NOT NULL,
+  used_at_ms INTEGER NOT NULL CHECK (used_at_ms > 0),
+  PRIMARY KEY (strategy_config_hash, market, interval_ms, holdout_start_ms, holdout_end_ms)
+);
+` }, { id: "028_research_market_microstructure", sql: `
+CREATE TABLE IF NOT EXISTS research_orderbook_samples (
+  market TEXT NOT NULL,
+  captured_at_ms INTEGER NOT NULL CHECK (captured_at_ms > 0),
+  best_bid REAL NOT NULL CHECK (best_bid > 0),
+  best_ask REAL NOT NULL CHECK (best_ask > 0),
+  bid_size_5 REAL NOT NULL CHECK (bid_size_5 >= 0),
+  ask_size_5 REAL NOT NULL CHECK (ask_size_5 >= 0),
+  total_bid_size REAL NOT NULL CHECK (total_bid_size >= 0),
+  total_ask_size REAL NOT NULL CHECK (total_ask_size >= 0),
+  PRIMARY KEY (market, captured_at_ms)
+);
+CREATE TABLE IF NOT EXISTS research_trade_ticks (
+  market TEXT NOT NULL,
+  sequential_id INTEGER NOT NULL,
+  traded_at_ms INTEGER NOT NULL CHECK (traded_at_ms > 0),
+  price REAL NOT NULL CHECK (price > 0),
+  volume REAL NOT NULL CHECK (volume > 0),
+  side TEXT NOT NULL CHECK (side IN ('ASK', 'BID')),
+  PRIMARY KEY (market, sequential_id)
+);
+CREATE INDEX IF NOT EXISTS research_trade_ticks_time ON research_trade_ticks (market, traded_at_ms);
+` }, { id: "029_research_trade_ticks_by_content", sql: `
+CREATE TABLE IF NOT EXISTS research_trade_ticks_v2 (
+  market TEXT NOT NULL,
+  traded_at_ms INTEGER NOT NULL CHECK (traded_at_ms > 0),
+  price REAL NOT NULL CHECK (price > 0),
+  volume REAL NOT NULL CHECK (volume > 0),
+  side TEXT NOT NULL CHECK (side IN ('ASK', 'BID')),
+  PRIMARY KEY (market, traded_at_ms, price, volume, side)
+);
+` }, { id: "030_research_futures_public", sql: `
+CREATE TABLE IF NOT EXISTS research_futures_marks (
+  symbol TEXT NOT NULL,
+  captured_at_ms INTEGER NOT NULL CHECK (captured_at_ms > 0),
+  mark_price REAL NOT NULL CHECK (mark_price > 0),
+  index_price REAL NOT NULL CHECK (index_price > 0),
+  last_funding_rate REAL NOT NULL,
+  next_funding_time_ms INTEGER NOT NULL CHECK (next_funding_time_ms > 0),
+  PRIMARY KEY (symbol, captured_at_ms)
+);
+CREATE TABLE IF NOT EXISTS research_futures_funding (
+  symbol TEXT NOT NULL,
+  funding_time_ms INTEGER NOT NULL CHECK (funding_time_ms > 0),
+  funding_rate REAL NOT NULL,
+  PRIMARY KEY (symbol, funding_time_ms)
+);
+CREATE TABLE IF NOT EXISTS research_futures_klines (
+  symbol TEXT NOT NULL,
+  interval TEXT NOT NULL,
+  open_time_ms INTEGER NOT NULL CHECK (open_time_ms > 0),
+  close_time_ms INTEGER NOT NULL CHECK (close_time_ms > open_time_ms),
+  open REAL NOT NULL CHECK (open > 0),
+  high REAL NOT NULL CHECK (high > 0),
+  low REAL NOT NULL CHECK (low > 0),
+  close REAL NOT NULL CHECK (close > 0),
+  volume REAL NOT NULL CHECK (volume >= 0),
+  PRIMARY KEY (symbol, interval, open_time_ms)
+);
+` }, { id: "031_research_closed_candles_volume", sql: `
+ALTER TABLE research_closed_candles ADD COLUMN volume REAL CHECK (volume IS NULL OR volume >= 0);
+` }, { id: "032_research_orderbook_study_rows", sql: `
+CREATE TABLE IF NOT EXISTS research_orderbook_study_rows (
+  market TEXT NOT NULL,
+  captured_at_ms INTEGER NOT NULL CHECK (captured_at_ms > 0),
+  best_bid REAL NOT NULL CHECK (best_bid > 0),
+  best_ask REAL NOT NULL CHECK (best_ask > 0),
+  bid_size_5 REAL NOT NULL CHECK (bid_size_5 >= 0),
+  ask_size_5 REAL NOT NULL CHECK (ask_size_5 >= 0),
+  total_bid_size REAL NOT NULL CHECK (total_bid_size >= 0),
+  total_ask_size REAL NOT NULL CHECK (total_ask_size >= 0),
+  PRIMARY KEY (market, captured_at_ms)
+) WITHOUT ROWID;
+` }];
+
+// Kept in the SqliteDatabase lexical module: no imported issuer or verifier can be rebound.
+namespace CalibrationDurabilityStorage {
+const SCHEMA_VERSION = 1 as const;
+const GENESIS_HASH = "0".repeat(64);
+type EventType = "PREDICTION" | "OUTCOME_RESOLVED" | "PENDING_EXPIRED";
+
+type SqlRow = Record<string, string | number | bigint | null>;
+
+interface EventRow extends SqlRow {
+  sequence: number | bigint;
+  event_type: string;
+  prediction_id: string;
+  prediction_content_hash: string;
+  payload_json: string;
+  recorded_at: number | bigint;
+  previous_hash: string;
+  event_hash: string;
+}
+
+interface MetaRow extends SqlRow {
+  schema_version: number | bigint;
+  event_count: number | bigint;
+  ledger_hash: string;
+}
+
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS ai_calibration_durability_meta (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  schema_version INTEGER NOT NULL,
+  event_count INTEGER NOT NULL CHECK(event_count >= 0),
+  ledger_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ai_calibration_durability_events (
+  sequence INTEGER PRIMARY KEY,
+  event_type TEXT NOT NULL CHECK(event_type IN ('PREDICTION','OUTCOME_RESOLVED','PENDING_EXPIRED')),
+  prediction_id TEXT NOT NULL,
+  prediction_content_hash TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  recorded_at INTEGER NOT NULL,
+  previous_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_calibration_prediction_once
+  ON ai_calibration_durability_events(prediction_id)
+  WHERE event_type = 'PREDICTION';
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_calibration_terminal_once
+  ON ai_calibration_durability_events(prediction_id)
+  WHERE event_type IN ('OUTCOME_RESOLVED','PENDING_EXPIRED');
+`;
+
+function requiredText(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.trim() === "") throw new Error(`${field} is required`);
+  return value.trim();
+}
+
+function nonNegativeSafeInteger(value: unknown, field: string): number {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) throw new Error(`${field} must be a non-negative safe integer`);
+  return value;
+}
+
+function asSafeInteger(value: string | number | bigint | null, field: string): number {
+  const converted = Number(value);
+  if (!Number.isSafeInteger(converted) || converted < 0) throw new Error(`${field} must be a non-negative safe integer`);
+  return converted;
+}
+
+function asHash(value: unknown, field: string): string {
+  if (!isAiSha256(value)) throw new Error(`${field} must be sha256`);
+  return value.toLowerCase();
+}
+
+function parseCanonicalJson(value: unknown): Readonly<Record<string, unknown>> {
+  if (typeof value !== "string") throw new Error("durable calibration payload must be text");
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); }
+  catch { throw new Error("durable calibration payload JSON is invalid"); }
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("durable calibration payload must be an object");
+  if (canonicalAiJson(parsed) !== value) throw new Error("durable calibration payload is not canonical");
+  return parsed as Readonly<Record<string, unknown>>;
+}
+
+function predictionPayload(prediction: AiCalibrationPrediction): AiCalibrationPrediction {
+  return Object.freeze({
+    predictionId: requiredText(prediction.predictionId, "predictionId"),
+    orchestrationRunId: requiredText(prediction.orchestrationRunId, "orchestrationRunId"),
+    proposalId: requiredText(prediction.proposalId, "proposalId"),
+    agentId: requiredText(prediction.agentId, "agentId"),
+    role: prediction.role,
+    providerId: requiredText(prediction.providerId, "providerId"),
+    modelVersionId: requiredText(prediction.modelVersionId, "modelVersionId"),
+    promptArtifactId: requiredText(prediction.promptArtifactId, "promptArtifactId"),
+    promptArtifactVersion: requiredText(prediction.promptArtifactVersion, "promptArtifactVersion"),
+    promptArtifactDigest: asHash(prediction.promptArtifactDigest, "promptArtifactDigest"),
+    outcomeDefinitionId: requiredText(prediction.outcomeDefinitionId, "outcomeDefinitionId"),
+    outcomeDefinitionVersion: requiredText(prediction.outcomeDefinitionVersion, "outcomeDefinitionVersion"),
+    targetId: requiredText(prediction.targetId, "targetId"),
+    anchorValue: prediction.anchorValue,
+    anchorObservedAt: prediction.anchorObservedAt,
+    anchorEvidenceReference: requiredText(prediction.anchorEvidenceReference, "anchorEvidenceReference"),
+    rawProbability: prediction.rawProbability,
+    predictedAt: prediction.predictedAt,
+    horizonMs: prediction.horizonMs,
+    provenance: prediction.provenance,
+    contentHash: asHash(prediction.contentHash, "prediction.contentHash")
+  });
+}
+
+function outcomePayload(outcome: AiCalibrationOutcome): AiCalibrationOutcome {
+  return Object.freeze({
+    predictionId: requiredText(outcome.predictionId, "predictionId"),
+    predictionContentHash: asHash(outcome.predictionContentHash, "predictionContentHash"),
+    outcomeDefinitionId: requiredText(outcome.outcomeDefinitionId, "outcomeDefinitionId"),
+    outcomeDefinitionVersion: requiredText(outcome.outcomeDefinitionVersion, "outcomeDefinitionVersion"),
+    outcome: outcome.outcome,
+    resolvedValue: outcome.resolvedValue,
+    resolvedAt: outcome.resolvedAt,
+    evidenceReferences: Object.freeze(outcome.evidenceReferences.map((reference) => requiredText(reference, "evidenceReference"))),
+    provenance: outcome.provenance,
+    contentHash: asHash(outcome.contentHash, "outcome.contentHash")
+  });
+}
+
+function expiryPayload(expiry: AiCalibrationPendingExpiry): AiCalibrationPendingExpiry {
+  return Object.freeze({
+    predictionId: requiredText(expiry.predictionId, "predictionId"),
+    predictionContentHash: asHash(expiry.predictionContentHash, "predictionContentHash"),
+    expiredAt: nonNegativeSafeInteger(expiry.expiredAt, "expiredAt")
+  });
+}
+
+function eventIdentity(
+  sequence: number,
+  eventType: EventType,
+  predictionId: string,
+  predictionContentHash: string,
+  payload: Readonly<Record<string, unknown>>,
+  recordedAt: number,
+  previousHash: string
+): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    schemaVersion: SCHEMA_VERSION,
+    sequence,
+    eventType,
+    predictionId,
+    predictionContentHash,
+    payload,
+    recordedAt,
+    previousHash
+  });
+}
+
+export class SqliteAiCalibrationDurableStore implements AiCalibrationDurableStore {
+  private readonly connection: DatabaseSync;
+  private readonly ownsConnection: boolean;
+  private closed = false;
+  /**
+   * In-memory mirror of the verified chain, refreshed in full by replay() (still a genuine full
+   * disk read + hash-chain re-verification) and extended incrementally after each successful
+   * appendEvent() commit. appendPrediction/appendOutcomeAndResolve/expirePending previously each
+   * called this.replay() themselves -- an O(n) re-walk-and-reverify of the entire table on every
+   * single write to an append-only, ever-growing ledger. ensureCache() lazily warms the cache via
+   * a real replay() the first time it's needed, so correctness never depends on caller order.
+   */
+  private cacheWarmed = false;
+  private cachedPredictions = new Map<string, AiCalibrationPrediction>();
+  private cachedOutcomes = new Map<string, AiCalibrationOutcome>();
+  private cachedExpired = new Map<string, AiCalibrationPendingExpiry>();
+
+  public constructor(filename = ":memory:", verifiedSharedDatabase?: SqliteDatabase) {
+    const sharedConnection = verifiedSharedDatabase == null ? null : resolveCheckedSharedConnection(verifiedSharedDatabase);
+    if (verifiedSharedDatabase != null && sharedConnection == null) throw new Error("shared AI calibration database has not passed canonical full-file quick_check");
+    this.connection = sharedConnection ?? sqliteIntegrityBoundary.open(filename);
+    this.ownsConnection = sharedConnection == null;
+    try {
+      if (this.ownsConnection) {
+        this.connection.exec("PRAGMA foreign_keys = ON");
+        this.connection.exec("PRAGMA busy_timeout = 5000");
+        if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
+        this.connection.exec("PRAGMA synchronous = FULL");
+      }
+      this.ensureSchema();
+      if (this.ownsConnection) {
+        const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
+        if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("AI calibration sqlite quick_check failed");
+      } else {
+        for (const table of ["ai_calibration_durability_meta", "ai_calibration_durability_events"] as const) {
+          const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, `PRAGMA quick_check('${table}')`)) as Record<string, unknown> | undefined;
+          if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("AI calibration sqlite quick_check failed");
+        }
+      }
+    } catch (error) {
+      if (this.ownsConnection) this.connection.close();
+      this.closed = true;
+      throw error;
+    }
+  }
+
+  public replay(): AiCalibrationDurableReplay {
+    this.assertOpen();
+    const meta = this.readMeta();
+    const rows = this.connection.prepare(
+      "SELECT sequence, event_type, prediction_id, prediction_content_hash, payload_json, recorded_at, previous_hash, event_hash FROM ai_calibration_durability_events ORDER BY sequence ASC"
+    ).all() as unknown as EventRow[];
+    if (rows.length !== meta.eventCount) throw new Error("durable calibration event count mismatch");
+
+    const predictions = new Map<string, AiCalibrationPrediction>();
+    const outcomes = new Map<string, AiCalibrationOutcome>();
+    const expired = new Map<string, AiCalibrationPendingExpiry>();
+    let previousHash = GENESIS_HASH;
+
+    rows.forEach((row, index) => {
+      const sequence = asSafeInteger(row.sequence, "sequence");
+      if (sequence !== index + 1) throw new Error("durable calibration sequence is not contiguous");
+      const eventType = requiredText(row.event_type, "eventType") as EventType;
+      if (eventType !== "PREDICTION" && eventType !== "OUTCOME_RESOLVED" && eventType !== "PENDING_EXPIRED") throw new Error("unsupported durable calibration event type");
+      const predictionId = requiredText(row.prediction_id, "predictionId");
+      const predictionContentHash = asHash(row.prediction_content_hash, "predictionContentHash");
+      const recordedAt = asSafeInteger(row.recorded_at, "recordedAt");
+      const storedPreviousHash = asHash(row.previous_hash, "previousHash");
+      const storedEventHash = asHash(row.event_hash, "eventHash");
+      if (storedPreviousHash !== previousHash) throw new Error("durable calibration hash chain mismatch");
+      const payload = parseCanonicalJson(row.payload_json);
+      const expectedHash = aiSha256(eventIdentity(sequence, eventType, predictionId, predictionContentHash, payload, recordedAt, storedPreviousHash));
+      if (expectedHash !== storedEventHash) throw new Error("durable calibration event hash mismatch");
+
+      if (eventType === "PREDICTION") {
+        if (predictions.has(predictionId)) throw new Error("duplicate durable calibration prediction event");
+        const prediction = payload as unknown as AiCalibrationPrediction;
+        if (requiredText(prediction.predictionId, "prediction.predictionId") !== predictionId) throw new Error("durable calibration prediction identity mismatch");
+        if (asHash(prediction.contentHash, "prediction.contentHash") !== predictionContentHash) throw new Error("durable calibration prediction content hash mismatch");
+        predictions.set(predictionId, predictionPayload(prediction));
+      } else if (eventType === "OUTCOME_RESOLVED") {
+        const prediction = predictions.get(predictionId);
+        if (prediction == null) throw new Error("durable calibration outcome precedes prediction");
+        if (prediction.contentHash.toLowerCase() !== predictionContentHash) throw new Error("durable calibration outcome linkage mismatch");
+        if (expired.has(predictionId)) throw new Error("durable calibration outcome follows expiry");
+        if (outcomes.has(predictionId)) throw new Error("duplicate durable calibration outcome event");
+        const outcome = payload as unknown as AiCalibrationOutcome;
+        if (requiredText(outcome.predictionId, "outcome.predictionId") !== predictionId) throw new Error("durable calibration outcome identity mismatch");
+        if (asHash(outcome.predictionContentHash, "outcome.predictionContentHash") !== predictionContentHash) throw new Error("durable calibration outcome prediction hash mismatch");
+        outcomes.set(predictionId, outcomePayload(outcome));
+      } else {
+        const prediction = predictions.get(predictionId);
+        if (prediction == null) throw new Error("durable calibration expiry precedes prediction");
+        if (prediction.contentHash.toLowerCase() !== predictionContentHash) throw new Error("durable calibration expiry linkage mismatch");
+        if (outcomes.has(predictionId)) throw new Error("durable calibration expiry follows outcome");
+        if (expired.has(predictionId)) throw new Error("duplicate durable calibration expiry event");
+        const item = payload as unknown as AiCalibrationPendingExpiry;
+        const normalized = expiryPayload(item);
+        if (normalized.predictionId !== predictionId || normalized.predictionContentHash !== predictionContentHash) throw new Error("durable calibration expiry identity mismatch");
+        expired.set(predictionId, normalized);
+      }
+      previousHash = storedEventHash;
+    });
+
+    if (previousHash !== meta.ledgerHash) throw new Error("durable calibration ledger head mismatch");
+    this.cachedPredictions = predictions;
+    this.cachedOutcomes = outcomes;
+    this.cachedExpired = expired;
+    this.cacheWarmed = true;
+    return Object.freeze({
+      schemaVersion: SCHEMA_VERSION,
+      predictions: Object.freeze([...predictions.values()]),
+      outcomes: Object.freeze([...outcomes.values()]),
+      expiredPending: Object.freeze([...expired.values()]),
+      eventCount: rows.length,
+      headHash: previousHash
+    });
+  }
+
+  /** Lazily warms the cache via a real replay() the first time it's needed. */
+  private ensureCache(): void {
+    if (!this.cacheWarmed) this.replay();
+  }
+
+  public appendPrediction(prediction: AiCalibrationPrediction, recordedAt: number): void {
+    const normalized = predictionPayload(prediction);
+    this.ensureCache();
+    const prior = this.cachedPredictions.get(normalized.predictionId);
+    if (prior != null) {
+      if (prior.contentHash.toLowerCase() !== normalized.contentHash.toLowerCase()) throw new Error("conflicting durable calibration prediction replay");
+      return;
+    }
+    this.appendEvent("PREDICTION", normalized.predictionId, normalized.contentHash, normalized as unknown as Readonly<Record<string, unknown>>, recordedAt);
+    this.cachedPredictions.set(normalized.predictionId, normalized);
+  }
+
+  public appendOutcomeAndResolve(outcome: AiCalibrationOutcome, recordedAt: number): void {
+    const normalized = outcomePayload(outcome);
+    this.ensureCache();
+    const prediction = this.cachedPredictions.get(normalized.predictionId);
+    if (prediction == null) throw new Error("durable calibration prediction is missing");
+    if (prediction.contentHash.toLowerCase() !== normalized.predictionContentHash.toLowerCase()) throw new Error("durable calibration outcome prediction hash mismatch");
+    const priorOutcome = this.cachedOutcomes.get(normalized.predictionId);
+    if (priorOutcome != null) {
+      if (priorOutcome.contentHash.toLowerCase() !== normalized.contentHash.toLowerCase()) throw new Error("conflicting durable calibration outcome replay");
+      return;
+    }
+    if (this.cachedExpired.has(normalized.predictionId)) throw new Error("durable calibration prediction is already expired");
+    this.appendEvent("OUTCOME_RESOLVED", normalized.predictionId, normalized.predictionContentHash, normalized as unknown as Readonly<Record<string, unknown>>, recordedAt);
+    this.cachedOutcomes.set(normalized.predictionId, normalized);
+  }
+
+  public expirePending(expiry: AiCalibrationPendingExpiry): void {
+    const normalized = expiryPayload(expiry);
+    this.ensureCache();
+    const prediction = this.cachedPredictions.get(normalized.predictionId);
+    if (prediction == null) throw new Error("durable calibration prediction is missing");
+    if (prediction.contentHash.toLowerCase() !== normalized.predictionContentHash.toLowerCase()) throw new Error("durable calibration expiry prediction hash mismatch");
+    if (this.cachedOutcomes.has(normalized.predictionId)) throw new Error("durable calibration prediction is already resolved");
+    const prior = this.cachedExpired.get(normalized.predictionId);
+    if (prior != null) {
+      if (prior.predictionContentHash !== normalized.predictionContentHash || prior.expiredAt !== normalized.expiredAt) throw new Error("conflicting durable calibration expiry replay");
+      return;
+    }
+    this.appendEvent("PENDING_EXPIRED", normalized.predictionId, normalized.predictionContentHash, normalized as unknown as Readonly<Record<string, unknown>>, normalized.expiredAt);
+    this.cachedExpired.set(normalized.predictionId, normalized);
+  }
+
+  public close(): void {
+    if (this.closed) return;
+    if (this.ownsConnection) this.connection.close();
+    this.closed = true;
+  }
+
+  private appendEvent(
+    eventType: EventType,
+    predictionId: string,
+    predictionContentHash: string,
+    payload: Readonly<Record<string, unknown>>,
+    recordedAtValue: number
+  ): void {
+    this.assertOpen();
+    const recordedAt = nonNegativeSafeInteger(recordedAtValue, "recordedAt");
+    const payloadJson = canonicalAiJson(payload);
+    this.connection.exec("BEGIN IMMEDIATE");
+    try {
+      const meta = this.readMeta();
+      const sequence = meta.eventCount + 1;
+      const eventHash = aiSha256(eventIdentity(sequence, eventType, predictionId, predictionContentHash, payload, recordedAt, meta.ledgerHash));
+      this.connection.prepare(
+        "INSERT INTO ai_calibration_durability_events (sequence, event_type, prediction_id, prediction_content_hash, payload_json, recorded_at, previous_hash, event_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).run(sequence, eventType, predictionId, predictionContentHash, payloadJson, recordedAt, meta.ledgerHash, eventHash);
+      this.connection.prepare(
+        "UPDATE ai_calibration_durability_meta SET event_count = ?, ledger_hash = ? WHERE id = 1 AND schema_version = ?"
+      ).run(sequence, eventHash, SCHEMA_VERSION);
+      this.connection.exec("COMMIT");
+    } catch (error) {
+      try { this.connection.exec("ROLLBACK"); } catch { /* preserve original failure */ }
+      throw error;
+    }
+  }
+
+  private ensureSchema(): void {
+    this.connection.exec(SCHEMA_SQL);
+    const row = this.connection.prepare(
+      "SELECT schema_version, event_count, ledger_hash FROM ai_calibration_durability_meta WHERE id = 1"
+    ).get() as unknown as MetaRow | undefined;
+    if (row == null) {
+      this.connection.prepare(
+        "INSERT INTO ai_calibration_durability_meta (id, schema_version, event_count, ledger_hash) VALUES (1, ?, 0, ?)"
+      ).run(SCHEMA_VERSION, GENESIS_HASH);
+      return;
+    }
+    const version = asSafeInteger(row.schema_version, "schemaVersion");
+    if (version !== SCHEMA_VERSION) throw new Error(`unsupported AI calibration durability schema version: ${version}`);
+    asSafeInteger(row.event_count, "eventCount");
+    asHash(row.ledger_hash, "ledgerHash");
+  }
+
+  private readMeta(): { readonly eventCount: number; readonly ledgerHash: string } {
+    const row = this.connection.prepare(
+      "SELECT schema_version, event_count, ledger_hash FROM ai_calibration_durability_meta WHERE id = 1"
+    ).get() as unknown as MetaRow | undefined;
+    if (row == null) throw new Error("AI calibration durability metadata is missing");
+    const version = asSafeInteger(row.schema_version, "schemaVersion");
+    if (version !== SCHEMA_VERSION) throw new Error(`unsupported AI calibration durability schema version: ${version}`);
+    return Object.freeze({ eventCount: asSafeInteger(row.event_count, "eventCount"), ledgerHash: asHash(row.ledger_hash, "ledgerHash") });
+  }
+
+  private assertOpen(): void {
+    if (this.closed) throw new Error("AI calibration durable store is closed");
+  }
+}
+
+}
+export import SqliteAiCalibrationDurableStore = CalibrationDurabilityStorage.SqliteAiCalibrationDurableStore;
+
+// Kept in the SqliteDatabase lexical module: no imported issuer or verifier can be rebound.
+namespace OutcomeAttributionStorage {
+const SCHEMA_VERSION = 1 as const;
+const GENESIS_HASH = "0".repeat(64);
+type SqlRow = Record<string, string | number | bigint | null>;
+
+interface EventRow extends SqlRow {
+  sequence: number | bigint;
+  episode_id: string;
+  content_hash: string;
+  payload_json: string;
+  recorded_at: number | bigint;
+  previous_hash: string;
+  event_hash: string;
+}
+
+interface MetaRow extends SqlRow {
+  schema_version: number | bigint;
+  event_count: number | bigint;
+  ledger_hash: string;
+}
+
+const SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS ai_outcome_attribution_memory_meta (
+  id INTEGER PRIMARY KEY CHECK(id = 1),
+  schema_version INTEGER NOT NULL,
+  event_count INTEGER NOT NULL CHECK(event_count >= 0),
+  ledger_hash TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS ai_outcome_attribution_memory_events (
+  sequence INTEGER PRIMARY KEY,
+  episode_id TEXT NOT NULL UNIQUE,
+  content_hash TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  recorded_at INTEGER NOT NULL,
+  previous_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL UNIQUE
+);
+`;
+
+const forbiddenMemoryText = /(authorization|bearer\s|api[_-]?key|credential|private[_-]?key|access[_-]?key|secret[_-]?key)/i;
+
+function requiredText(value: unknown, field: string): string {
+  if (typeof value !== "string" || value.trim() === "") throw new Error(`${field} is required`);
+  return value.trim();
+}
+
+function safeInteger(value: unknown, field: string): number {
+  const converted = typeof value === "bigint" ? Number(value) : value;
+  if (typeof converted !== "number" || !Number.isSafeInteger(converted) || converted < 0) throw new Error(`${field} must be a non-negative safe integer`);
+  return converted;
+}
+
+function hash(value: unknown, field: string): string {
+  if (!isAiSha256(value)) throw new Error(`${field} must be sha256`);
+  return value.toLowerCase();
+}
+
+function parseCanonicalJson(value: unknown): Readonly<Record<string, unknown>> {
+  if (typeof value !== "string") throw new Error("learning memory payload must be text");
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); }
+  catch { throw new Error("learning memory payload JSON is invalid"); }
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("learning memory payload must be an object");
+  if (canonicalAiJson(parsed) !== value) throw new Error("learning memory payload is not canonical");
+  return parsed as Readonly<Record<string, unknown>>;
+}
+
+function verifyEpisode(episode: AiAttributionEpisode): AiAttributionEpisode {
+  const episodeId = requiredText(episode.episodeId, "episodeId");
+  const contentHash = hash(episode.contentHash, "contentHash");
+  if (forbiddenMemoryText.test(JSON.stringify(episode))) throw new Error("learning memory contains forbidden secret-like material");
+  const { contentHash: _stored, ...withoutHash } = episode;
+  if (aiSha256(withoutHash) !== contentHash) throw new Error("learning memory episode content hash mismatch");
+  if (episode.liveAuthority !== "NONE" || episode.productionMutationAllowed !== false || episode.realOrderAuthority !== false || episode.realTransferAuthority !== false) {
+    throw new Error("learning memory authority invariant violated");
+  }
+  if (!Number.isSafeInteger(episode.createdAt) || !Number.isSafeInteger(episode.expiresAt) || episode.createdAt < 0 || episode.expiresAt <= episode.createdAt) {
+    throw new Error("learning memory chronology is invalid");
+  }
+  if (episode.supersedesEpisodeId != null && requiredText(episode.supersedesEpisodeId, "supersedesEpisodeId") === episodeId) {
+    throw new Error("learning memory episode cannot supersede itself");
+  }
+  return Object.freeze({ ...episode, episodeId, contentHash });
+}
+
+function eventIdentity(sequence: number, episode: AiAttributionEpisode, previousHash: string): Readonly<Record<string, unknown>> {
+  return Object.freeze({
+    schemaVersion: SCHEMA_VERSION,
+    sequence,
+    episodeId: episode.episodeId,
+    contentHash: episode.contentHash,
+    payload: episode,
+    recordedAt: episode.createdAt,
+    previousHash
+  });
+}
+
+export class SqliteAiOutcomeAttributionMemory implements AiLearningMemoryStore {
+  private readonly connection: DatabaseSync;
+  private readonly ownsConnection: boolean;
+  private closed = false;
+  /**
+   * In-memory mirror of the verified chain, keyed by episodeId, refreshed by replay() (which
+   * still always does a genuine full disk read + hash-chain re-verification) and extended
+   * incrementally by appendEpisode() right after each successful commit. appendEpisode() and
+   * applicableLessons() read from this cache instead of re-walking and re-verifying the entire
+   * table on every call -- on this append-only, ever-growing ledger that was an O(n)-per-call
+   * cost paid on every single market tick (applicableLessons is called once per tick from
+   * apps/cloud/src/runtime.ts). Single-writer-per-process is already this store's existing trust
+   * boundary (same as every other SQLite store in this codebase), so this introduces no new
+   * assumption -- it only avoids re-proving what this same process already proved.
+   */
+  private cachedEpisodes = new Map<string, AiAttributionEpisode>();
+
+  public constructor(filename = ":memory:", verifiedSharedDatabase?: SqliteDatabase) {
+    const sharedConnection = verifiedSharedDatabase == null ? null : resolveCheckedSharedConnection(verifiedSharedDatabase);
+    if (verifiedSharedDatabase != null && sharedConnection == null) throw new Error("shared AI attribution database has not passed canonical full-file quick_check");
+    this.connection = sharedConnection ?? sqliteIntegrityBoundary.open(filename);
+    this.ownsConnection = sharedConnection == null;
+    try {
+      if (this.ownsConnection) {
+        this.connection.exec("PRAGMA foreign_keys = ON");
+        this.connection.exec("PRAGMA busy_timeout = 5000");
+        if (filename !== ":memory:") this.connection.exec("PRAGMA journal_mode = WAL");
+        this.connection.exec("PRAGMA synchronous = FULL");
+      }
+      this.connection.exec(SCHEMA_SQL);
+      this.connection.prepare(
+        "INSERT OR IGNORE INTO ai_outcome_attribution_memory_meta (id, schema_version, event_count, ledger_hash) VALUES (1, ?, 0, ?)"
+      ).run(SCHEMA_VERSION, GENESIS_HASH);
+      if (this.ownsConnection) {
+        const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, "PRAGMA quick_check")) as Record<string, unknown> | undefined;
+        if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("learning memory sqlite quick_check failed");
+      } else {
+        for (const table of ["ai_outcome_attribution_memory_meta", "ai_outcome_attribution_memory_events"] as const) {
+          const check = sqliteIntegrityBoundary.read(sqliteIntegrityBoundary.prepare(this.connection, `PRAGMA quick_check('${table}')`)) as Record<string, unknown> | undefined;
+          if (check == null || !sqliteIntegrityBoundary.resultIsOk(check)) throw new Error("learning memory sqlite quick_check failed");
+        }
+      }
+      this.replay();
+    } catch (error) {
+      if (this.ownsConnection) this.connection.close();
+      this.closed = true;
+      throw error;
+    }
+  }
+
+  public replay(): AiLearningMemoryReplay {
+    this.assertOpen();
+    const meta = this.readMeta();
+    const rows = this.connection.prepare(
+      "SELECT sequence, episode_id, content_hash, payload_json, recorded_at, previous_hash, event_hash FROM ai_outcome_attribution_memory_events ORDER BY sequence ASC"
+    ).all() as unknown as EventRow[];
+    if (rows.length !== meta.eventCount) throw new Error("learning memory event count mismatch");
+    const episodes: AiAttributionEpisode[] = [];
+    const seen = new Set<string>();
+    let previousHash = GENESIS_HASH;
+    rows.forEach((row, index) => {
+      const sequence = safeInteger(row.sequence, "sequence");
+      if (sequence !== index + 1) throw new Error("learning memory sequence is not contiguous");
+      const episodeId = requiredText(row.episode_id, "episodeId");
+      if (seen.has(episodeId)) throw new Error("duplicate learning memory episode");
+      const contentHash = hash(row.content_hash, "contentHash");
+      const recordedAt = safeInteger(row.recorded_at, "recordedAt");
+      const storedPreviousHash = hash(row.previous_hash, "previousHash");
+      const storedEventHash = hash(row.event_hash, "eventHash");
+      if (storedPreviousHash !== previousHash) throw new Error("learning memory hash chain mismatch");
+      const payload = parseCanonicalJson(row.payload_json) as unknown as AiAttributionEpisode;
+      const episode = verifyEpisode(payload);
+      if (episode.episodeId !== episodeId || episode.contentHash !== contentHash || episode.createdAt !== recordedAt) throw new Error("learning memory row identity mismatch");
+      if (episode.supersedesEpisodeId != null && !seen.has(episode.supersedesEpisodeId)) throw new Error("learning memory supersession target must precede replacement");
+      const expectedEventHash = aiSha256(eventIdentity(sequence, episode, storedPreviousHash));
+      if (expectedEventHash !== storedEventHash) throw new Error("learning memory event hash mismatch");
+      episodes.push(episode);
+      seen.add(episodeId);
+      previousHash = storedEventHash;
+    });
+    if (previousHash !== meta.ledgerHash) throw new Error("learning memory ledger head mismatch");
+    this.cachedEpisodes = new Map(episodes.map((episode) => [episode.episodeId, episode]));
+    return Object.freeze({ schemaVersion: 1, episodes: Object.freeze(episodes), eventCount: episodes.length, headHash: previousHash });
+  }
+
+  public appendEpisode(value: AiAttributionEpisode): void {
+    this.assertOpen();
+    const episode = verifyEpisode(value);
+    const prior = this.cachedEpisodes.get(episode.episodeId);
+    if (prior != null) {
+      if (prior.contentHash !== episode.contentHash) throw new Error("conflicting learning memory replay");
+      return;
+    }
+    if (episode.supersedesEpisodeId != null) {
+      const target = this.cachedEpisodes.get(episode.supersedesEpisodeId);
+      if (target == null) throw new Error("learning memory supersession target is missing");
+      if (target.scope !== episode.scope) throw new Error("learning memory supersession scope mismatch");
+      if (episode.createdAt <= target.createdAt) throw new Error("learning memory supersession chronology is invalid");
+    }
+    this.connection.exec("BEGIN IMMEDIATE");
+    try {
+      const meta = this.readMeta();
+      const sequence = meta.eventCount + 1;
+      const eventHash = aiSha256(eventIdentity(sequence, episode, meta.ledgerHash));
+      this.connection.prepare(
+        "INSERT INTO ai_outcome_attribution_memory_events (sequence, episode_id, content_hash, payload_json, recorded_at, previous_hash, event_hash) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).run(sequence, episode.episodeId, episode.contentHash, canonicalAiJson(episode), episode.createdAt, meta.ledgerHash, eventHash);
+      this.connection.prepare(
+        "UPDATE ai_outcome_attribution_memory_meta SET event_count = ?, ledger_hash = ? WHERE id = 1"
+      ).run(sequence, eventHash);
+      this.connection.exec("COMMIT");
+    } catch (error) {
+      try { this.connection.exec("ROLLBACK"); } catch { /* ignore rollback failure */ }
+      throw error;
+    }
+    this.cachedEpisodes.set(episode.episodeId, episode);
+  }
+
+  public applicableLessons(scopeValue: string, nowValue: number): readonly AiLessonProjection[] {
+    const scope = requiredText(scopeValue, "scope");
+    const now = safeInteger(nowValue, "now");
+    const episodes = [...this.cachedEpisodes.values()];
+    const superseded = new Set(episodes.flatMap((episode) => episode.supersedesEpisodeId == null ? [] : [episode.supersedesEpisodeId]));
+    return Object.freeze(episodes
+      .filter((episode) => episode.scope === scope && episode.createdAt <= now && now < episode.expiresAt && !superseded.has(episode.episodeId))
+      .map((episode): AiLessonProjection => Object.freeze({
+        episodeId: episode.episodeId,
+        strength: episode.strength,
+        primaryCause: episode.primaryCause,
+        reasonCodes: episode.reasonCodes,
+        scope: episode.scope,
+        createdAt: episode.createdAt,
+        expiresAt: episode.expiresAt,
+        realizedLearningCreditAllowed: episode.realizedLearningCreditAllowed,
+        advisoryOnly: true,
+        liveAuthority: "NONE",
+        productionMutationAllowed: false
+      })));
+  }
+
+  public close(): void {
+    if (this.closed) return;
+    if (this.ownsConnection) this.connection.close();
+    this.closed = true;
+  }
+
+  private readMeta(): { readonly eventCount: number; readonly ledgerHash: string } {
+    const row = this.connection.prepare(
+      "SELECT schema_version, event_count, ledger_hash FROM ai_outcome_attribution_memory_meta WHERE id = 1"
+    ).get() as unknown as MetaRow | undefined;
+    if (row == null) throw new Error("learning memory metadata is missing");
+    if (safeInteger(row.schema_version, "schemaVersion") !== SCHEMA_VERSION) throw new Error("learning memory schema version mismatch");
+    return Object.freeze({ eventCount: safeInteger(row.event_count, "eventCount"), ledgerHash: hash(row.ledger_hash, "ledgerHash") });
+  }
+
+  private assertOpen(): void {
+    if (this.closed) throw new Error("learning memory store is closed");
+  }
+}
+
+}
+export import SqliteAiOutcomeAttributionMemory = OutcomeAttributionStorage.SqliteAiOutcomeAttributionMemory;

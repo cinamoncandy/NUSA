@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "observedAt": "2026-10-15T11:41:55.347Z",
+  "evidenceKind": "READ_ONLY_RUNTIME_CHECKPOINT_NOT_COMPLETION",
+  "mainSha": "10c153464b40326a061e548cf44abfb479d07fc0",
+  "runtimeSha": "89a9cecab2602ee483877f835ac729026ba35d3f",
+  "diagnosticRun": 38729127377,
+  "failedReleaseRun": 38700547000,
+  "httpStatus": 200,
+  "deployment": {
+    "requestedMainActivation": "FAILED_STARTUP_READINESS",
+    "failedReadinessAttempts": 300,
+    "observedFailure": "PAPER_WRITER_LEASE_LOST",
+    "rollback": "READINESS_PASS",
+    "hostInitiatingBlockingCall": "UNPROVEN"
+  },
+  "ledger": {
+    "fillCount": 114,
+    "openPositionCount": 0,
+    "fingerprint": "674ffebfacecbc9f974f0dbd4e06286fed77b1eb0eafbd30356fef6ed11931fb"
+  },
+  "learning": {
+    "realizedPeriods": 15,
+    "cyclesRecorded": 0,
+    "failuresRecorded": 0,
+    "baselineObservations": 15,
+    "holdoutPasses": 0,
+    "paperPeriodsConsumedByMetaLearning": 15,
+    "bootstrap": "RESEARCH_NOT_DEPLOYABLE",
+    "rollover": "WAITING_FOR_CANONICAL_BOUNDARY",
+    "openFilledObservations": 0,
+    "candidateId": "owner-baseline-sma-5-20",
+    "latestPeriodId": "closed-learning-rollover:14:1791992520845",
+    "outcomeFingerprint": "523bafe976bb7e2a9eb4b83729fc33e0f108d540f7ae5c6c4094235f8f91f62e",
+    "costFingerprint": "a2725ec3fc68c7ee928c753134bd2369806b713e579da251639e80752b7db2a4",
+    "lastBlockedReason": "TICK_ERROR",
+    "lastBlockedAt": 1792051251246,
+    "runtimeStartedAt": 1792051309732,
+    "historicalBlockedReasonScope": "Predates current process by58486ms; not attributed to a current cycle failure"
+  },
+  "logicalContractMapping": {
+    "DATA_VERIFIED": {
+      "existingSurface": "runtime.dataIntegrity",
+      "currentEvidence": "WARN; stale candle series1; not global DATA_VERIFIED"
+    },
+    "RESEARCH_CREATED": {
+      "existingSurface": "Research Factory/evaluation ledger and runtime metaLearning",
+      "currentEvidence": "18 experiments/418 configurations reported; per-experiment lineage not exported by health"
+    },
+    "CANDIDATE_EVALUATED": {
+      "existingSurface": "ResearchRecoveryCoordinator / SqliteResearchEvaluationLedger",
+      "currentEvidence": "holdoutPasses0; no qualified challenger proven"
+    },
+    "GOVERNANCE_DECIDED": {
+      "existingSurface": "PaperChallengerPolicyApproval / immutable qualified artifacts",
+      "currentEvidence": "No qualified challenger authorization evidenced"
+    },
+    "PAPER_VALIDATED": {
+      "existingSurface": "PAPER fill ledger / candidate-bound realized periods",
+      "currentEvidence": "Historical owner-baseline fills exist; these do not prove a qualified challenger cycle"
+    },
+    "PERIOD_CLOSED": {
+      "existingSurface": "canonical realized-period store",
+      "currentEvidence": "15 periods, latest outcome and cost fingerprints exposed"
+    },
+    "FEEDBACK_COMMITTED": {
+      "existingSurface": "existing evolution learning ledger / ClosedLearningLoopCoordinator",
+      "currentEvidence": "durable cycles0; meta-learning consumed15 baseline periods is partial feedback only"
+    },
+    "NEXT_RESEARCH_LINKED": {
+      "existingSurface": "ClosedLearningProductionResearchAdapter / Research lineage replay source",
+      "currentEvidence": "No immutable qualified cycle N to Research N+1 proof"
+    }
+  },
+  "performance": {
+    "status": "UNPROVEN",
+    "scope": "No same-condition candidate-vs-baseline improvement proof; no thresholds or costs changed",
+    "latestPeriodPaperReplayNetBp": -17,
+    "sameConditionQualifiedCandidateComparisonProven": false
+  },
+  "safety": {
+    "mode": "PAPER_ONLY",
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "AUTOPILOT_VERIFIED_COMPLETION_LOOP": false,
+  "VERIFIED": false,
+  "dataIntegrityProjection": {
+    "observedAt": 1792023471336,
+    "status": "WARN",
+    "staleSeries": 1,
+    "currentDatasetQualification": "UNPROVEN_FROM_THIS_HEALTH_PROJECTION"
+  }
+}

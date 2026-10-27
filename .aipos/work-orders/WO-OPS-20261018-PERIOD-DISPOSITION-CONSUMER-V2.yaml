@@ -1,0 +1,200 @@
+id: WO-OPS-20261018-PERIOD-DISPOSITION-CONSUMER-V2
+title: "Make canonical PAPER pending consumers recovery-safe across immutable schemaVersion=2 dispositions"
+status: IN_PROGRESS
+support_checkpoint_20261019:
+  evidence: .aipos/handoffs/2026-10-19-closed-loop-convergence-support.md
+  target_pr: 2808
+  target_head: 103db92fe3c05f85472a326d9b8e5e9599eddc1c
+  local: "TypeScript compile,117 focused tests,validate:full PASS. Support only; no new independent verdict."
+  gate: "Exact-head CI39180802824 PASS; Actual PAPER39180802893 and all four PAPER/safety companions39180802929,39180802855,39180802808,39180802827 PASS as workflows on103db92fe3c05f85472a326d9b8e5e9599eddc1c. PAPER semantic classification remains INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL. Draft retained pending fresh non-author VALIDATOR, canonical Audit/Release and real Research qualification."
+runtime_follow_up_20261019:
+  latest_main: 7ec5c21fe960783ea107b961dff76b31a8e9e15e
+  exact_main_paper_run: 39175607407
+  readiness_run: 39175589808
+  finding: "Actual PAPER E2E is truthfully INCOMPLETE (SMA0/20; no order/fill/PnL mutation; research collection disabled in E2E). #2589 latest runtime reports 37 owner-baseline realized periods, zero candidate-bound cycles/receipts and WAITING_FOR_EVALUATION_WINDOW because no qualified candidate-bound cycle is attempted."
+  validation: "Read-only runtime artifact and readiness log inspected. E2E restart/recovery exercised; order idempotency is not applicable without an automatic order. No deployment or runtime mutation."
+  next: "Do not activate this WO's disposition path before required independent review/Audit/Release and P0 future-fill evidence. Obtain natural exact-main Research qualification first; then verify candidate-bound period, cycle, restart and replay."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+scope_correction_20261019:
+  finding: "Draft #2808 wired markPendingIneligible into production rollover despite this WO's prohibition. Removed that production binding and CloudRuntimeHandle mutator exposure; added production-root regression. Store/producer disposition implementation and test-only scheduler port remain available but are not activated by production composition."
+  validation: "Build PASS; production-root4/4; disposition/rollover117/117; validate:full PASS; lint PASS (26 pre-existing warnings). Full suite did not finish because Electron binary is absent after scripts-disabled install. Local security gate differed (two audit advisories/backport-source mismatch); canonical exact-head CI security gate PASS. Exact-head CI39180802824, PAPER run39180802893 and companions39180802929,39180802855,39180802808,39180802827 PASS on103db92fe3c05f85472a326d9b8e5e9599eddc1c. PAPER classifier is INCOMPLETE_NO_AUTONOMOUS_ORDER_FILL_PNL; workflow success does not prove the learning loop."
+  next: "Obtain non-author review, canonical Audit/Release and natural P0 future-fill/Research qualification evidence. Production activation remains prohibited until acceptance."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+ci_repair_20261019:
+  target_pr: 2808
+  observed_main: 91db289a392f08aaf367cc15bec16f852d2b4edb
+  validated_code_head: 407f81254676cbb2be3443f0a1d4ad1ec06ac2a3
+  latest_main_reconciliation: "Merged protected main 91db289a392f08aaf367cc15bec16f852d2b4edb into the existing PR branch; no content conflicts."
+  pre_fix_head: c51780421d9e444a47a0447648a050ec0bcc5d40
+  failed_run: 39242585445
+  root_cause: "append required byte-identical active successor payload and immutable receipt snapshot; legitimate observation accumulation changed observation fields, causing PENDING_TERMINAL on finalization."
+  change: "Compare the full persisted plan identity excluding only observationIds, observations, and lastObservedAt; require a valid active pending checksum/snapshot and keep retired/mismatched successors fail-closed."
+  local_validation: "After latest-main integration: build PASS; 8 targeted PAPER/storage regression files PASS; validate:full PASS; typecheck PASS; diff check PASS. Prior full suite passed 1245 isolated files before latest-main integration."
+  exact_head_ci: "PASS on validated code head 407f81254676cbb2be3443f0a1d4ad1ec06ac2a3; CI run 39246748103 and all six companion workflows PASS. AIPOS evidence successor requires its own fresh exact-head CI."
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED_IN_THIS_INCREMENT
+  next: "Request a fresh non-author review on the current source head; keep Draft and all production activation gates."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+validator_followup_20261019:
+  reviewed_head: 45d041c3a67fc044286d1c81e37fd17f1214561c
+  finding: "Fresh non-author Codex review found that public append could accept a forged realized envelope for an active disposition successor because the exception checked chronology identity but not active-plan advisory/candidate provenance."
+  change: "Public append now fails closed for a disposition successor; only finalizePending may authorize it after matching the active pending snapshot, advisory, candidate provenance, market, and chronology."
+  regression: "A forged candidate return envelope is rejected without changing pending or realized history; the matching canonical finalizePending path succeeds."
+  local_validation: "Build PASS; focused PAPER/storage suite 33/33 PASS; TypeScript typecheck PASS; diff check PASS."
+  exact_head_ci: "PASS on code head 580fa559d438fcef899ae3ff95ade24ddf9619df; CI run 39248868980 and all six companion workflows PASS."
+  fresh_review: PENDING
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+validator_followup_20261020:
+  reviewed_head: 8a3694099e326621e4fbc3a4a3f72532c6477f22
+  finding: "Fresh exact-head review found that markPendingIneligible's raw successor INSERT bypasses putPending's immutable-disposition reservation check; a later disposition could reuse a retired/finalized earlier successor periodId at a different index."
+  change: "Validate the proposed successor periodId and periodIndex against all decoded immutable disposition original/successor reservations before updating the current row or inserting the successor. Throw PERIOD_INDEX_CONFLICT; remain transactionally fail-closed."
+  regression: "tests/persisted-paper-pending-disposition-resurrection.test.js verifies a retired prior successor ID cannot be raw-inserted at a later index, the failed attempt rolls back the original row, disposition history stays intact, and a fresh successor identity remains admissible."
+  repair_commit: eb35bda01
+  validated_evidence_head: 8d9825f45cc08997475c1c27fd461bcfc2b33be6
+  local_validation: "Node 24.18.0 / pnpm 11.7.0; frozen-lockfile install; process-local Git Bash PATH; pnpm rebuild electron for existing locked dependency; pnpm test PASS across 1,256 isolated test files; build PASS; focused resurrection test file 3/3 PASS; pnpm run validate:full PASS."
+  exact_head_ci: "PASS — CI 39350584569 at 8d9825f45cc08997475c1c27fd461bcfc2b33be6"
+  exact_head_paper_and_safety: "PASS — PAPER 39350584589; Capability 39350584556; Activation 39350584622; Read-only Broker 39350584594; Transport 39350584637"
+  fresh_non_author_validator: PENDING
+  validator_request_comment_id: 6280783236
+  unresolved_review_thread: PRRT_kwDOTUbne86uJ_ar
+  latest_main_observation: fd278dc3534281abfe3a14c0056e8b25dc5219ed
+  latest_main_delta: "From synced parent b032426, only mobile UI redesign files and its UI work order changed; no storage/AIPOS-state overlap or semantic dependency. GitHub reported mergeable=true after sync; strict up-to-date protection could not be read (403), recheck at release gate."
+  followup_20261020_realized_id_finding:
+    reviewed_head: ff29b9b23c662d95fbe44e8e4c9e544ef974e015
+    finding: "Fresh exact-head review found markPendingIneligible can insert a successor whose periodId already exists in realized history at an earlier index, because the pending and realized tables have separate primary keys. Later finalizePending then fails with RECORD_ID_CONFLICT."
+    change: "Before terminalizing the original pending row, reject successor periodId matching any realized recordId with RECORD_ID_CONFLICT; retain transactional rollback."
+    regression: "tests/persisted-paper-pending-disposition-resurrection.test.js verifies an earlier realized ID cannot be used by a later successor, the original remains pending and disposition count unchanged, and a fresh successor remains admissible."
+    local_validation: "Build PASS; focused resurrection regression 4/4 PASS; pnpm test PASS across 1,256 isolated test files; pnpm run validate:full PASS."
+    prior_exact_head_ci: "PASS on ff29b9b23c662d95fbe44e8e4c9e544ef974e015 — CI 39351410003; PAPER 39351410040; Capability 39351410021; Activation 39351410011; Read-only Broker 39351410016; Transport 39351410051."
+    exact_head_ci: "PASS on ad20ea228639983c634e89b58dcd44783ef5764d — CI 39352610567, PAPER 39352610565, Capability 39352610641, Activation 39352610564, Read-only Broker 39352610635, Transport 39352610703."
+    fresh_non_author_review: "PASS/no major issues on exact head ad20ea228639983c634e89b58dcd44783ef5764d; comment 6281080931; findings=false and unresolved=false; both P2 threads resolved."
+    formal_non_author_validator: PENDING_EXACT_SHA_SEVERITY_RECEIPT
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 269d28c7a71390715c869864c968f658684db5bd
+implementation_branch: codex/pending-disposition-main-20261018
+authority_impact: paper_runtime_recovery
+objective: "Upgrade the existing pending-period consumer/recovery path so schemaVersion=2 terminal dispositions are validated and quarantined, only the canonical schemaVersion=1 successor is consumable, and all period-index allocation reserves terminal history."
+owner_authorization: "2026-10-18 OWNER explicitly ordered the NUSA DEV complete-convergence master execution for P0 future-fill acceptance -> P1 schemaVersion=2 consumer compatibility -> P2 disposition integration, with learning-loop scope excluded."
+depends_on:
+  - WO-OPS-20261016-PERIOD-DISPOSITION
+architecture_impact:
+  acknowledged: true
+  analysis: "Reuse SqlitePersistedPaperPeriodStore as the only parser/store truth. No new reader, table, ledger, scheduler, engine, control plane or authority. Runtime disposition activation remains prohibited until P0 actual future-fill evidence and independent review/Audit/Release gates are satisfied."
+  references:
+    - .aipos/decisions/ADR-OPS-20261016-PENDING-DISPOSITION-STORAGE.md
+    - .aipos/decisions/ADR-OPS-20261016-INCOMPLETE-PERIOD-DISPOSITION.md
+    - packages/storage/src/persistedPaperPeriodStore.ts
+    - apps/cloud/src/closedLearningPendingPeriodReader.ts
+    - apps/cloud/src/paperRealizedPeriodProducer.ts
+    - apps/cloud/src/closedLearningRolloverScheduler.ts
+    - apps/cloud/src/paperChallengerDeploymentRuntime.ts
+    - apps/cloud/src/closedLearningProductionRuntime.ts
+scope:
+  - canonical_store_validation_of_schema_v1_and_schema_v2_pending_rows
+  - schema_v2_terminal_quarantine_with_schema_v1_successor_consumer_recovery
+  - producer_restart_recovery_after_disposition_without_terminal_reactivation
+  - terminal_and_active_pending_period_index_reservation_for_all_production_allocators
+  - focused_restart_replay_tamper_unknown_schema_and_backward_compatibility_tests
+prohibited:
+  - production_markPendingIneligible_caller_in_this_increment
+  - runtime_disposition_activation_before_P0_future_fill_acceptance
+  - direct_database_edit_or_historical_rewrite
+  - fabricated_fill_cost_pnl_candidate_or_performance_evidence
+  - performance_governance_feedback_or_learning_consumption_of_INELIGIBLE_history
+  - duplicate_reader_store_scheduler_engine_or_truth_source
+  - risk_qualification_cost_or_sample_threshold_relaxation
+  - live_real_money_withdrawal_or_transfer_authority
+  - self_review_self_approval_direct_merge_or_forged_validation
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - valid_schema_v1_pending_rows_remain_backward_compatible
+  - valid_schema_v2_terminal_dispositions_are_checksum_and_semantic_validated_and_never_returned_as_open_plans
+  - successor_schema_v1_plan_is_the_only_open_plan_visible_after_disposition
+  - malformed_unknown_tampered_or_fingerprint_conflicting_v2_fails_closed
+  - missing_or_conflicting_pending_identity_fails_closed
+  - producer_restart_recovers_successor_once_and_never_reactivates_terminal_original
+  - replay_produces_no_duplicate_successor_or_side_effect
+  - period_index_allocation_reserves_realized_active_pending_and_terminal_disposition_indexes
+  - closed_learning_scheduler_and_challenger_deployment_use_the_canonical_reserved_index_allocator
+  - focused_tests_cover_the_owner_mandated_10_P1_cases_and_existing_v1_regressions
+validation:
+  commands:
+    - pnpm exec tsc -p tsconfig.json --noEmit
+    - pnpm run build
+    - pnpm test
+    - pnpm run preflight
+    - pnpm run validate:full
+  local_validation:
+    typecheck: PASS
+    build: PASS
+    focused_regression_files: 7
+    focused_regression: PASS
+    preflight: PASS
+    validate_full: PASS
+    isolated_test_files: 1242
+    isolated_test_result: PASS
+    environment_note: Windows full-suite rerun used installed Git Bash on PATH after the first environment-only bash ENOENT
+  exact_head_ci: PENDING
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED_IN_THIS_INCREMENT
+external_blocker:
+  code: RUNTIME_ACTIVATION_OUT_OF_SCOPE
+  detail: "This P1 increment does not assert current protected-main runtime acceptance. Production markPendingIneligible activation remains prohibited until its separate P0 runtime evidence and Release gates are independently verified."
+latest_main_sync_20261020:
+  previous_pr_head: 1c2214328b657342ce0273d74c77a3efe86080cb
+  protected_main: 269d28c7a71390715c869864c968f658684db5bd
+  sync_merge_commit: "Self-referential SHA is intentionally not embedded; the canonical receipt is the exact GitHub PR head after expected-old-head ref update."
+  assessment: "Final sync base 269d28c is protected main. The local 3276554 sync checkpoint is 11 commits/15 net paths behind; current-main changes include Research, display-only PAPER risk-ruler, and Oracle diagnostics. From d9a5470 to 269d28c only the two Oracle diagnostic workflow/test paths differ. No disposition/storage semantic overlap is expected; the index composes current-main source with the existing PR changes, with exact GitHub tree identity still to prove. GitHub Git Data API may update only the existing PR branch after full local validation and exact tree comparison."
+  tree_identity_rule: "Immediately before the PR ref update, require GitHub create-tree SHA rooted at protected main 269d28c with intended PR/AIPOS overlays to equal local git write-tree. Make no file changes after this final equality check."
+  previous_exact_head_evidence: "070294b019638472933a35799fef77e493f04b6e: CI 39353280367 and companion PAPER/safety/read-only runs 39353280374, 39353280433, 39353280387, 39353280354, 39353280356 completed success. Generic Codex review comment 6281175907 says no major issues; this is not a formal P0/P1/P2 Validator receipt. All are historical after sync."
+  prior_3276554_sync_local_validation: "Typecheck/build/full suite 1,257 isolated files/preflight/validate:full/diff-check PASS; does not cover 8cc5d42 changes."
+  latest_main_composed_local_validation: "PASS on the 269d28c + PR #2808 + AIPOS working candidate: pnpm exec tsc -p tsconfig.json --noEmit; pnpm run build; pnpm test (1,258 isolated files); focused disposition/restart/rollover/production-root tests (48/48); pnpm run preflight; pnpm run validate:full; git diff --cached --check. Remote tree identity and exact-head GitHub runs remain pending."
+  current_pr_checkpoint_head_validation: PENDING_FINAL_SYNC
+  exact_head_companion_workflows: PENDING_FINAL_SYNC
+  formal_validator: PENDING_EXACT_HEAD_P0_P1_P2_RECEIPT
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+latest_main_sync_20261021:
+  previous_pr_head: 68226b2df7090485d3d79377e67f2f4aba8b4ed7
+  protected_main: 5084744b4b5b6f2b02e558b867281528584c8098
+  merge_base: 269d28c7a71390715c869864c968f658684db5bd
+  main_ahead_commits: 74
+  overlap_paths: [.aipos/state.yaml, apps/cloud/src/runtime.ts]
+  candidate_tree_pre_metadata_refresh: c95efb425eff0738b44ba9f602204cbed0226ec1
+  assessment: "Three-way merge of current protected main into the existing PR head completed without conflicts. runtime.ts preserves current-main display/read-only additions and the PR sourceRuntimeSha provenance binding; no production markPendingIneligible caller is present. AIPOS current-state metadata is refreshed before the one final validation/CI cycle to avoid known stale-evidence P2 churn."
+  validation: LOCAL_GATES_PASS_COMPILE_RESOURCE_LIMIT
+  frozen_lockfile_install: PASS
+  diff_check: PASS
+  aipos_yaml_provenance_drift_conformance: PASS
+  safety_tier: PASS_9_OF_9
+  validate_full: PASS
+  architecture_source_validators: PASS
+  desktop_runtime_validator: NOT_RUN_NO_DIST
+  root_typecheck: TIMEOUT_RESOURCE_601S_NO_DIAGNOSTICS
+  narrowed_changed_surface_typecheck: TIMEOUT_RESOURCE_300S_NO_DIAGNOSTICS
+  build_and_full_isolated_suite: DEFER_TO_FRESH_EXACT_HEAD_CI_DUE_LOCAL_954MIB_HOST_COMPILER_BOTTLENECK
+  validation_note: "No TypeScript diagnostic, source failure, assertion weakening, dependency relaxation, or safety-gate bypass was observed. Exact-head CI remains mandatory and is the canonical full compile/test result for this synchronized tree."
+  exact_head_ci: PENDING_POST_SYNC
+  exact_head_companion_workflows: PENDING_POST_SYNC
+  formal_validator: PENDING_POST_SYNC
+  audit: PENDING
+  release: PENDING
+  runtime_activation: PROHIBITED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next: "Complete fresh local validation of the 5084744b4b5b6f2b02e558b867281528584c8098 + 68226b2df7090485d3d79377e67f2f4aba8b4ed7 candidate; if protected main and PR head remain unchanged, create one exact-parent merge commit and update only the existing PR branch. Then require six fresh exact-head workflows, zero unresolved threads, and a formal non-author P0/P1/P2 Validator. Keep Draft until Validator ACCEPTED and do not activate markPendingIneligible in production."

@@ -83,3 +83,29 @@ test("PAPER accounting fingerprint detects event mutation", () => {
   ]);
   assert.notEqual(original.fingerprintSha256, mutated.fingerprintSha256);
 });
+
+test("PAPER reconciliation tolerates last-decimal rounding drift but nothing larger", () => {
+  const { reconciliationTolerance, PaperLedgerReconciliationError } = require("../dist/apps/cloud/src/paperAccountingLedger.js");
+  const fills = [fill("fill:a", "a", "BUY", 2, 100, 2, 1000), fill("fill:b", "b", "SELL", 1, 150, 1, 2000)];
+  const projection = projectPaperAccounting(1000, fills, { "KRW-BTC": 160 });
+  const check = (cashDelta, realizedDelta, patch = {}) => assertPaperAccountingReconciled({
+    initialCapital: 1000,
+    fills,
+    cash: projection.cash + cashDelta,
+    realizedPnL: projection.realizedPnL + realizedDelta,
+    positions: projection.positions.map((position) => ({ ...position, ...patch }))
+  });
+  // The owner's halt: a single 1e-8 difference in realized PnL.
+  assert.doesNotThrow(() => check(0, -1e-8));
+  assert.doesNotThrow(() => check(1e-8, 1e-8, { realizedPnL: projection.positions[0].realizedPnL - 1e-8 }));
+  // A real discrepancy is still refused, with the stable code and the typed error.
+  assert.throws(() => check(0, 1e-4), (error) => error instanceof PaperLedgerReconciliationError && error.message === "PAPER_LEDGER_RECONCILIATION_REQUIRED");
+  assert.throws(() => check(0.01, 0), /PAPER_LEDGER_RECONCILIATION_REQUIRED/);
+  // Quantity and market stay exact (the mark price is the projection input).
+  assert.throws(() => check(0, 0, { quantity: projection.positions[0].quantity + 1e-8 }), /PAPER_LEDGER_RECONCILIATION_REQUIRED/);
+  assert.throws(() => check(0, 0, { market: "KRW-ETH" }), /PAPER_LEDGER_RECONCILIATION_REQUIRED/);
+  assert.throws(() => check(Number.NaN, 0), /PAPER_LEDGER_RECONCILIATION_REQUIRED/);
+  // The allowance grows only slowly with the number of fills.
+  assert.ok(reconciliationTolerance(38) > 1e-8 && reconciliationTolerance(38) < 1e-6);
+  assert.ok(reconciliationTolerance(0) < reconciliationTolerance(38));
+});

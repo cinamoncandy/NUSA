@@ -38,6 +38,7 @@ const fetchImpl = async (url: string) => {
 };
 
 const env = {
+  NUSA_AUTOPILOT_ZERO_CREDIT_MODE: "false",
   NUSA_AI_CODING_ENDPOINT: "https://coding.example.test/execute",
   NUSA_AI_CODING_TOKEN: "ai-token",
   NUSA_GITHUB_TOKEN: "github-token",

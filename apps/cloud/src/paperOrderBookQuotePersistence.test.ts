@@ -151,11 +151,12 @@ test("rejects persisted receipt tampering even when the outer account checksum i
     firstDb.close();
 
     const secondDb = new SqliteDatabase(filename);
-    const secondRepository = new SqliteCloudPaperAccountRepository(secondDb, { ownerId: "quote-tamper-writer-b" });
     try {
-      assert.throws(() => secondRepository.loadLatest(), /order-book quote receipt is invalid|fingerprint|receipt/i);
+      assert.throws(
+        () => new SqliteCloudPaperAccountRepository(secondDb, { ownerId: "quote-tamper-writer-b" }),
+        /order-book quote receipt is invalid|fingerprint|receipt/i
+      );
     } finally {
-      secondRepository.close?.();
       secondDb.close();
     }
   } finally {

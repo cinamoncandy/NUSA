@@ -1,0 +1,48 @@
+id: WO-20260926-AUTOPILOT-NORMALIZED-APPLY-FAILURE
+title: "Preserve normalized sandbox apply-check failure evidence"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 56fe41fc45510958da1ef54de71045dc3eb54067
+implementation_branch: fix/autopilot-preserve-normalized-apply-failure
+pull_request: 2322
+implementation_head: 1b47bebfbbc4d76a3a492d699fec518108dc17f7
+authority_impact: none
+objective: "Keep the post-recount sandbox apply-check transition observable so the bounded repair path receives exact source context without widening coding authority."
+canonical_owner: "#903 execution coordinator and existing coding dispatch spine"
+finding: "applyPatchWithNormalizedHunkCounts restored the initial strict-apply error after normalized recount failed, collapsing the distinct post-recount transition into SANDBOX_PATCH_APPLY_CHECK_FAILED."
+scope:
+  include:
+    - "Preserve SANDBOX_PATCH_NORMALIZED_APPLY_CHECK_FAILED after normalized recount/apply failure."
+    - "Classify the code as bounded no-action/retryable proposal failure."
+    - "Carry exact bounded source context into the existing GitHub Models repair escalation."
+    - "Add regression coverage for classification and escalation."
+  exclude:
+    - "New queue, scheduler, agent, sandbox, provider, or execution engine."
+    - "LIVE, broker, production mutation, credentials, or authority changes."
+acceptance:
+  - "A normalized recount/apply failure is not collapsed into the initial apply-check code."
+  - "The bounded retry path extracts source context and escalates through the existing provider-neutral contract."
+  - "Repeated failures remain bounded and fail closed without mutation."
+  - "PAPER_ONLY, liveAuthority=NONE, productionMutationAllowed=false, aiAuthority=ZERO_AUTHORITY remain unchanged."
+verification_commands:
+  - "node --test tests/autopilot-dispatch-retry.test.js"
+  - "node --test dist/apps/autopilot/src/codingRunner.test.js"
+  - "pnpm run build"
+  - "pnpm run typecheck"
+  - "pnpm exec eslint scripts/autopilot-dispatch-retry.js tests/autopilot-dispatch-retry.test.js"
+  - "pnpm run ai:architecture"
+  - "pnpm run safety:invariants"
+  - "git diff --check"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  local_validation: "Dispatch retry 32/32, coding runner 49/49, build/typecheck/targeted lint/AI zero-authority/safety invariants PASS."
+  external_validation: "Required: exact-head protected CI, independent Audit, and canonical Release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, independent Audit, and canonical Release; do not merge from Development."

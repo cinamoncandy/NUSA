@@ -1,0 +1,25 @@
+id: WO-OPS-20261002-CI-ROBUSTNESS
+title: "Stop recurring CI failures that come from display copy and a tight test timeout"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-ci-robustness
+authority_impact: none
+objective: "The same classes of CI failure kept recurring on mobile PRs: the Android emulator acceptance grepped display copy (so renaming a screen title failed every PR), a desktop e2e test used a 2 s Cloud request bound that a loaded Windows runner exceeded once, and a source-text test pinned the exact SafetyLine prop list so every prop change broke it."
+scope:
+  - "android-product-ux-acceptance.yml: key the LIVE and portfolio checks on testIDs (live-field-header, portfolio-screen), verified present in the captured emulator dumps, instead of the words LIVE / PORTFOLIO."
+  - "tests/mobile-product-v5.test.js pins the testID checks and forbids display-copy greps in that gate."
+  - "tests/desktop-cloud-paper-production-e2e.test.js: test-client request bound 2 s -> 20 s, and waitForOperations now bounds every poll by its own remaining 5 s deadline, so the readiness limit is not weakened. Production CloudPaperClient defaults are untouched."
+  - "tests/mobile-safety-line.test.js: pin the contract (real session state + halt flag feed the shared line above the tab content) and, independently, the dataUnconfirmed wiring, not the exact prop list."
+exclusions:
+  - "No product, server, trading, risk, credential or LIVE change. No test is skipped, disabled or quarantined."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-product-v5.test.js tests/mobile-safety-line.test.js tests/desktop-cloud-paper-production-e2e.test.js
+  - pnpm run validate
+residual: "The emulator acceptance gate itself only runs in CI; the new testIDs were checked against the dumps from run 36962005994."

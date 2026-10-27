@@ -29,10 +29,12 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
   assert.match(home, /onPress=\{onGoSettings\}/);
   assert.doesNotMatch(home, /onAction=\{onGoSettings\}/);
   assert.doesNotMatch(home, /<OperationalNotice/);
-  assert.match(home, /onNavigate\("Portfolio"\)/);
-  assert.match(home, /onNavigate\("AiSignal"\)/);
-  assert.match(home, /onNavigate\("Markets"\)/);
+  assert.match(home, /onNavigate\("Paper"\)/);
+  assert.match(home, /onNavigate\("More"\)/);
   assert.match(home, /onOpenPaperLearning/);
+  assert.doesNotMatch(home, /onNavigate\("Portfolio"\)/);
+  assert.doesNotMatch(home, /onNavigate\("AiSignal"\)/);
+  assert.doesNotMatch(home, /onNavigate\("Markets"\)/);
 
   // Keep the canonical fail-closed decision model available for runtime truth and downstream users,
   // but the approved HOME presentation must not reconstruct the retired supervisor deck.
@@ -47,8 +49,9 @@ test("Home preserves the canonical Intelligence OS safety-first actions without 
 test("AI separates uncalibrated raw probability from trusted calibrated confidence", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
+  assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
   assert.match(app, /<HomeView snapshot=\{snapshot\}/);
+  assert.doesNotMatch(app, /<AiView/);
   for (const source of [ai]) {
     assert.match(source, /원시 모델 확률 \(미보정\)/);
     assert.match(source, /검증 신뢰도/);
@@ -57,7 +60,7 @@ test("AI separates uncalibrated raw probability from trusted calibrated confiden
     assert.doesNotMatch(source, /모델 점수 \(미보정\)/);
   }
   assert.match(app, /const ai = snapshot\?\.ai \?\? null/);
-  assert.match(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
+  assert.doesNotMatch(app, /<AiView ai=\{ai\} error=\{readOnlyError\}/);
   assert.match(ai, /calibrationStatus === "CALIBRATED"/);
   assert.match(ai, /보정 확률/);
   assert.match(ai, /원시 모델 확률은 미보정 모델 출력/);
@@ -68,7 +71,8 @@ test("AI separates uncalibrated raw probability from trusted calibrated confiden
 test("Residual polish preserves read-only and zero-authority product boundaries", () => {
   const app = read("apps/mobile/App.tsx");
   const ai = read("apps/mobile/src/aiView.tsx");
-  assert.match(app, /<TradingView[^>]*snapshot=/s);
+  assert.match(app, /<PaperShadowMonitorView paper=\{paperLearningState\}/s);
+  assert.match(app, /<HomeView snapshot=\{snapshot\}/s);
   assert.doesNotMatch(app, /<TradingView[^>]*onSubmit=/s);
   assert.match(ai, /ZERO AUTHORITY/);
   assert.match(ai, /READ ONLY/);

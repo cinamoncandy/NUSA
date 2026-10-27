@@ -12,6 +12,14 @@ const ORIGINAL = "d".repeat(64);
 const REPLAY = "e".repeat(64);
 const RISK = "f".repeat(64);
 
+describe("missing canonical Research activation", () => {
+    it("reports a stable precondition failure without inventing Research lineage", () => {
+      const closed = period("no-lineage", 0, 10_000);
+      const source = new ClosedLearningEvidenceIdentitySource({ bindings: { current: () => undefined }, replaySnapshots: snapshotReader(), readRiskConfigHash: () => RISK });
+      assert.throws(() => source.build({ closedPeriod: closed, realizedPeriods: [closed] }), (error: unknown) => error instanceof Error && (error as Error & { code?: string }).code === "PAPER_RESEARCH_LINEAGE_UNAVAILABLE");
+    });
+});
+
 function specification(candidateId = "candidate-a"): ResearchCandidateSpecification {
   return Object.freeze({
     schemaVersion: 1,
@@ -63,6 +71,11 @@ function activation(candidateId = "candidate-a", original = ORIGINAL): PaperChal
       productionMutationAllowed: false,
       aiAuthority: "ZERO_AUTHORITY",
     }),
+    governanceAuthorization: Object.freeze({
+      strategyId: "strategy-a", candidateId, candidateVersion: version, familyId: "family-a",
+      evidenceFingerprintSha256: "2".repeat(64), lifecycle: "CHALLENGER",
+      approval: Object.freeze({ actorType: "HUMAN", approvalReference: "owner:paper-challenger", approvedAt: 1, decisionFingerprint: "3".repeat(64) }),
+    }),
     liveAuthority: "NONE",
     productionMutationAllowed: false,
     aiAuthority: "ZERO_AUTHORITY",
@@ -85,6 +98,8 @@ function period(
       periodEndAt: periodStartAt + 10_000,
       realizedReturns: Object.freeze({ "candidate-a": 0.01 }),
       benchmarkReturn: 0.005,
+      benchmarkEvidenceId: `paper-benchmark:${"6".repeat(24)}`,
+      benchmarkInputFingerprintSha256: "6".repeat(64),
       turnoverCostRate: 0.001,
       costEvidence: Object.freeze({ evidenceId: `cost-${recordId}`, source: "PAPER_EXECUTION_RECEIPT" as const, evidenceKind: "OBSERVED" as const, evidenceFingerprintSha256: "3".repeat(64), observedAt: periodStartAt + 10_000, feeRate: 0.0005, spreadRate: 0.0002, slippageRate: 0.0003 }),
       canonicalOutcomeReceiptFingerprint: "4".repeat(64),
@@ -112,6 +127,13 @@ function snapshotReader(candidateId = "candidate-a"): ResearchRunReplaySnapshotR
 }
 
 describe("ClosedLearningEvidenceIdentitySource", () => {
+  it("refuses closed-learning evidence when persisted PAPER activation lacks Governance identity", () => {
+    const closed = period("legacy-governance", 1, 10_000);
+    const legacy = Object.freeze({ ...activation(), governanceAuthorization: undefined });
+    const source = new ClosedLearningEvidenceIdentitySource({ bindings: { current: () => legacy }, replaySnapshots: snapshotReader(), readRiskConfigHash: () => RISK });
+    assert.throws(() => source.build({ closedPeriod: closed, realizedPeriods: [closed] }), /Research lineage is unavailable/);
+  });
+
   it("builds a deterministic accumulated identity from same-lineage realized PAPER periods and immutable Research provenance", () => {
     const first = period("record-1", 1, 10_000);
     const second = period("record-2", 2, 20_000);
@@ -132,6 +154,96 @@ describe("ClosedLearningEvidenceIdentitySource", () => {
     assert.deepEqual(left.evidenceReferences, ["paper-period:record-1", "paper-period:record-2"]);
     assert.match(left.evidenceFingerprintSha256, /^[a-f0-9]{64}$/);
     assert.equal(left.evidenceId, `closed-learning-paper:${left.evidenceFingerprintSha256}`);
+  });
+
+  it("binds the full benchmark input fingerprint into learning evidence identity", () => {
+    const first = period("record-1", 1, 10_000);
+    const second = period("record-2", 2, 20_000);
+    const changed = Object.freeze({
+      ...second,
+      record: Object.freeze({
+        ...second.record,
+        benchmarkEvidenceId: `paper-benchmark:${"7".repeat(24)}`,
+        benchmarkInputFingerprintSha256: "7".repeat(64),
+      }),
+    });
+    const active = activation();
+    const source = new ClosedLearningEvidenceIdentitySource({
+      bindings: { current: () => active },
+      replaySnapshots: snapshotReader(),
+      readRiskConfigHash: () => RISK,
+    });
+
+    const original = source.build({ closedPeriod: second, realizedPeriods: [first, second] });
+    const changedEvidence = source.build({ closedPeriod: changed, realizedPeriods: [first, changed] });
+    assert.notEqual(original.evidenceFingerprintSha256, changedEvidence.evidenceFingerprintSha256);
+    const malformed = Object.freeze({
+      ...second,
+      record: Object.freeze({ ...second.record, benchmarkInputFingerprintSha256: "not-a-sha256" }),
+    });
+    assert.throws(
+      () => source.build({ closedPeriod: malformed, realizedPeriods: [first, malformed] }),
+      /benchmark input fingerprint is invalid/,
+    );
+  });
+
+  it("reconstructs a legacy benchmark fingerprint from the same canonical observations and fails closed if unavailable", () => {
+    const closed = period("record-legacy", 1, 10_000);
+    const { benchmarkInputFingerprintSha256: _omitted, ...legacyRecord } = closed.record;
+    const legacy = Object.freeze({ ...closed, record: Object.freeze(legacyRecord) });
+    const active = activation();
+    const reconstructedSource = new ClosedLearningEvidenceIdentitySource({
+      bindings: { current: () => active },
+      replaySnapshots: snapshotReader(),
+      readRiskConfigHash: () => RISK,
+      readCanonicalBenchmarkEvidence: (market, periodStartAt, periodEndAt) => ({
+        evidenceId: legacy.record.benchmarkEvidenceId!,
+        observedAt: periodEndAt,
+        benchmarkReturn: legacy.record.benchmarkReturn,
+        market,
+        source: "UPBIT_PUBLIC_TICKER",
+        startObservedAt: periodStartAt,
+        endObservedAt: periodEndAt,
+        startPrice: 100,
+        endPrice: 100.5,
+        inputFingerprintSha256: legacy.record.benchmarkEvidenceId!.slice("paper-benchmark:".length).padEnd(64, "6"),
+      }),
+    });
+
+    assert.doesNotThrow(() => reconstructedSource.build({ closedPeriod: legacy, realizedPeriods: [legacy] }));
+    const unavailableSource = new ClosedLearningEvidenceIdentitySource({
+      bindings: { current: () => active },
+      replaySnapshots: snapshotReader(),
+      readRiskConfigHash: () => RISK,
+    });
+    assert.throws(
+      () => unavailableSource.build({ closedPeriod: legacy, realizedPeriods: [legacy] }),
+      /canonical benchmark provenance cannot be reconstructed/,
+    );
+  });
+
+  it("rejects reconstructed benchmark evidence when its identity or market does not match the closed period", () => {
+    const closed = period("record-legacy", 1, 10_000);
+    const { benchmarkInputFingerprintSha256: _omitted, ...legacyRecord } = closed.record;
+    const legacy = Object.freeze({ ...closed, record: Object.freeze(legacyRecord) });
+    const source = new ClosedLearningEvidenceIdentitySource({
+      bindings: { current: () => activation() },
+      replaySnapshots: snapshotReader(),
+      readRiskConfigHash: () => RISK,
+      readCanonicalBenchmarkEvidence: (market, periodStartAt, periodEndAt) => ({
+        evidenceId: "paper-benchmark:wrong",
+        observedAt: periodEndAt,
+        benchmarkReturn: legacy.record.benchmarkReturn,
+        market: market === "KRW-BTC" ? "KRW-ETH" : market,
+        source: "UPBIT_PUBLIC_TICKER",
+        startObservedAt: periodStartAt,
+        endObservedAt: periodEndAt,
+        startPrice: 100,
+        endPrice: 100.5,
+        inputFingerprintSha256: "8".repeat(64),
+      }),
+    });
+    assert.throws(() => source.build({ closedPeriod: legacy, realizedPeriods: [legacy] }), /canonical benchmark provenance cannot be reconstructed/);
   });
 
   it("preserves REJECTED, HALTED, and COMPLETED periods in one immutable same-lineage cohort", () => {

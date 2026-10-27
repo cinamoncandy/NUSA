@@ -19,7 +19,7 @@ This deployment layer runs the canonical supervised Cloud PAPER runtime continuo
 - protected runtime env: `/etc/nusa/cloud-runtime.env` (`0600`)
 - durable SQLite state: `/var/lib/nusa/state.sqlite`
 - runtime-local HOME/token state: `/var/lib/nusa/.nusa/cloud`
-- Cloud PAPER unit: `/etc/systemd/system/nusa-cloud-paper.service`
+- Cloud PAPER unit: `/etc/systemd/system/nusa.service`
 - Research unit: `/etc/systemd/system/nusa-research.service`
 - Research timer: `/etc/systemd/system/nusa-research.timer`
 - Persistent Autopilot unit: `/etc/systemd/system/nusa-autopilot.service`
@@ -32,15 +32,11 @@ The canonical Oracle unit templates live under `deploy/oracle/`.
 1. Build the exact protected-main SHA into `/opt/nusa/releases/<sha>` with Node 24+ and pnpm 11.7.0+, then atomically point `/opt/nusa/current` at that immutable release.
 2. Create the dedicated unprivileged `nusa` user/group and writable `/var/lib/nusa` state directory.
 3. Create `/etc/nusa/cloud-runtime.env`, set `NUSA_SOURCE_COMMIT` to the exact deployed 40-hex protected-main SHA, keep `NUSA_MODE=PAPER`, `NUSA_LIVE_MUTATION=PROHIBITED`, and use a durable `NUSA_CLOUD_STATE_DB_PATH` (never `:memory:`). `chmod 0600` the file.
-4. Install the runtime and Research systemd units from the exact current release:
+4. Install the runtime, Research, and persistent Autopilot systemd units from the exact current release through the root-owned release helper (the helper is the only privileged writer):
 
 ```bash
-sudo cp /opt/nusa/current/deploy/oracle/nusa.service /etc/systemd/system/nusa-cloud-paper.service
-sudo cp /opt/nusa/current/deploy/oracle/nusa-research.service /etc/systemd/system/nusa-research.service
-sudo cp /opt/nusa/current/deploy/oracle/nusa-research.timer /etc/systemd/system/nusa-research.timer
-sudo cp /opt/nusa/current/deploy/oracle/nusa-autopilot.service /etc/systemd/system/nusa-autopilot.service
-sudo systemctl daemon-reload
-sudo systemctl enable --now nusa-cloud-paper.service
+sudo /opt/nusa/bin/nusa-release-step install-units <exact-protected-main-sha>
+sudo systemctl enable --now nusa.service
 sudo systemctl enable --now nusa-research.timer
 sudo systemctl enable --now nusa-autopilot.service
 ```
@@ -48,7 +44,7 @@ sudo systemctl enable --now nusa-autopilot.service
 5. Verify the runtime and scheduler:
 
 ```bash
-systemctl is-active nusa-cloud-paper.service
+systemctl is-active nusa.service
 systemctl is-enabled nusa-research.timer
 systemctl is-active nusa-research.timer
 systemctl list-timers nusa-research.timer --no-pager
@@ -96,7 +92,7 @@ evidence and does not guarantee that any challenger qualifies.
 
 ## Production behavior
 
-`nusa-cloud-paper.service` invokes `/opt/nusa/current/scripts/start-cloud-runtime.js`, which supervises `closedLearningProductionRuntime.js`. The runtime supplies PAPER-only operational defaults, strips private exchange credentials before spawning the child, persists canonical account/execution state, and keeps the Research→League→qualified-challenger→next-PAPER composition inside the same fail-closed authority boundary.
+`nusa.service` invokes `/opt/nusa/current/scripts/start-cloud-runtime.js`, which supervises `closedLearningProductionRuntime.js`. The runtime supplies PAPER-only operational defaults, strips private exchange credentials before spawning the child, persists canonical account/execution state, and keeps the Research→League→qualified-challenger→next-PAPER composition inside the same fail-closed authority boundary.
 
 Both Oracle services set `HOME=/var/lib/nusa` while retaining `ProtectHome=true` and `ProtectSystem=strict`, so owner-only runtime state stays inside the already-authorized StateDirectory rather than requiring writable access to `the service account home`.
 

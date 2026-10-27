@@ -39,3 +39,16 @@ test('PAPER learning transport requires deterministic newest-first order', () =>
     { ...baseEvent, id: 'newer', occurredAt: 1100 }
   ])), /deterministic newest-first/);
 });
+
+
+test('PAPER learning transport does not require structuredClone on Hermes', () => {
+  const original = globalThis.structuredClone;
+  try {
+    globalThis.structuredClone = undefined;
+    const validated = validatePaperLearningReadOnlySnapshot(snapshot());
+    assert.equal(validated.events[0].id, 'event-1');
+    assert.ok(Object.isFrozen(validated));
+  } finally {
+    globalThis.structuredClone = original;
+  }
+});

@@ -1,0 +1,24 @@
+id: WO-AUTOPILOT-20261003-RECONVERGE
+title: "Automatically merge current main into autopilot PRs that fell behind so Audit stops declining them as stale"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/autopilot-productivity
+authority_impact: autopilot_pr_branch_maintenance_only
+objective: "The deterministic Audit declines a PR whose base is not the current main (NO_ACTION stale). Autopilot PRs therefore stalled whenever main moved, and a human had to merge main into the branch by hand (PR 2479 needed it twice). The owner approved an automatic reconvergence using the existing NUSA_AUTOPILOT_GITHUB_TOKEN."
+scope:
+  - "scripts/autopilot-reconverge.mjs: pure decideReconverge plus a runner that merges main into eligible autopilot/* PR branches via the GitHub merges API (plain merge commit, no history rewrite, at most 3 per run)."
+  - ".github/workflows/autopilot-reconverge.yml: runs after CI completes, every 20 minutes and on demand."
+  - "tests/autopilot-reconverge.test.js (5)."
+exclusions:
+  - "Does not merge PRs, approve, label, or touch Audit, Release, branch protection, secrets or any non-autopilot branch. Skips forks, drafts, hold label, conflicting PRs, PRs already on current main, and PRs whose head CI has not succeeded (so no churn while CI runs)."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Unknown main, invalid labels, conflict or any non-201 response results in no change and a log line."
+rollback: "Delete the workflow file (or disable it in Actions)."
+verification_commands:
+  - node --test tests/autopilot-reconverge.test.js
+residual: "Not exercised against live GitHub before merge. The Autopilot token needs permission to push merge commits that include workflow-file changes; if it lacks the workflow scope the API refuses and the PR stays for a human. The workflow file itself is a protected path and needs the normal review."

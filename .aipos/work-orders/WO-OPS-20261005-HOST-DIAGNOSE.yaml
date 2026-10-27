@@ -1,0 +1,25 @@
+id: WO-OPS-20261005-HOST-DIAGNOSE
+title: "Read-only PAPER host diagnosis the owner can run without shell access"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/oracle-host-diagnose
+authority_impact: production_host_read_only
+objective: "The server reports PAPER HALTED with 'paper account persistence failed' (the account could not be saved to the state database). The owner has no shell access to the host, so the cause (full disk, wrong ownership or mode, locked database, restart churn) cannot be determined. The owner approved a read-only diagnosis through the existing self-hosted runner."
+scope:
+  - ".github/workflows/oracle-host-diagnose.yml: workflow_dispatch only, contents: read, no secrets, no checkout, no third-party action. Prints disk and inode use, memory, state-directory names/owner/mode/size/mtime, release directories, systemd service state, and the last three hours of nusa service-log error-like lines (max 80, hex and credential-like strings redacted)."
+  - "tests/oracle-host-diagnose-workflow.test.js (3): dispatch-only, read-only, secret-free; no write, restart, copy, network or credential-file command; bounded and redacted output; separate concurrency group."
+exclusions:
+  - "Never writes, restarts, deploys, deletes or changes permissions; never uses sudo, so it cannot read the 0600 runtime env file or other credential files; takes no secrets and calls no external service. It does not clear the halt, change the database or touch Release/Audit/authority."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Every command tolerates failure and reports it as text; a command that is not permitted on the host prints an error instead of escalating."
+rollback: "Delete the workflow file."
+verification_commands:
+  - node --test tests/oracle-host-diagnose-workflow.test.js
+  - node scripts/validate-workflow-authority-map.js
+  - node scripts/validate-workflow-action-pins.js
+residual: "The runner user may lack permission to read the service journal; then that section prints an error and only the disk and file sections help. Logs may contain data the redaction misses; output is bounded and the workflow log is visible to repository readers. It diagnoses only, resuming PAPER after the cause is fixed remains an owner decision."

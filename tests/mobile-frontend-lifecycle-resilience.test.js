@@ -31,14 +31,14 @@ test("automatic PAPER polling runs only while signed in and foregrounded and nev
   assert.match(app, /authStatus !== "SIGNED_IN" \|\| appState !== "active"/);
   assert.match(app, /PAPER_REFRESH_INTERVAL_MS = 5000/);
   assert.match(app, /timer = setTimeout\(\(\) => \{/);
-  assert.match(app, /void refresh\(\)\.catch\(\(\) => undefined\)\.finally\(scheduleNext\)/);
+  assert.ok(app.includes('void refresh().catch(() => undefined).finally(() => { setInitialPaperProjectionResolved(true); scheduleNext(); });'));
   assert.doesNotMatch(app, /setInterval\(/);
   assert.match(app, /refreshGenerationRef\.current \+= 1/);
 });
 
 test("manual refresh always releases its visual busy state", () => {
   const app = source();
-  assert.match(app, /const onRefresh = useCallback\(async \(\) => \{[\s\S]*setRefreshing\(true\);[\s\S]*try \{[\s\S]*await refresh\(\);[\s\S]*\} finally \{[\s\S]*setRefreshing\(false\);/);
+  assert.match(app, /const onRefresh = useCallback\(async \(\) => \{[\s\S]*setRefreshing\(true\);[\s\S]*try \{[\s\S]*await Promise\.all\(\[refresh\(\), refreshSupplemental\(true\)\]\);[\s\S]*\} finally \{[\s\S]*setRefreshing\(false\);/);
 });
 
 test("utility shell controls honor the 48px system touch target", () => {

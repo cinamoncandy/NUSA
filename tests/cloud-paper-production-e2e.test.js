@@ -13,6 +13,7 @@ const { SqliteCloudPaperAccountRepository, PaperTradingExecutionLoop } = require
 const { CloudPaperCanonicalRiskGateway } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
 
+const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 const principal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
 
 function bindPaperDecision(decision) {
@@ -70,6 +71,13 @@ function createHarness() {
   const risk = new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 100_000, sourceCommitSha: "a".repeat(40) });
   const boundary = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0 }) });
 
+  // Mirror startCloudRuntime bootstrap: the dashboard hydrates fail-closed first, then the
+  // canonical PAPER account is projected so the first real market observation has deployable capital.
+  hydrator.hydrate(provider, []);
+  const bootstrapped = provider.read(principal);
+  assert.ok(bootstrapped);
+  provider.set(loop.applyToDashboard(bootstrapped, now));
+
   const hydrate = (changeRate, price) => {
     const observation = upbitTickerToIntelligenceObservation({
       type: "ticker",
@@ -88,6 +96,11 @@ function createHarness() {
   };
 
   const tick = (dashboard, price, overrides = {}) => Object.freeze({
+    observedQuote: (() => {
+      const sell = dashboard.decisions.some((d) => d.symbol === "KRW-BTC" && d.action === "SELL");
+      const { depth: _depth, depthFingerprintSha256: _hash, ...quote } = buildPaperObservedExecutionQuote({ market: "KRW-BTC", observedAt: now, totalAskSize: 100, totalBidSize: 100, units: [{ askPrice: sell ? price + 1 : price, bidPrice: sell ? price : price - 1, askSize: 100, bidSize: 100 }] });
+      return quote;
+    })(),
     now,
     market: "KRW-BTC",
     price,
@@ -96,6 +109,7 @@ function createHarness() {
     killSwitchActive: false,
     tradingAllowed: true,
     overallHealth: "HEALTHY",
+    portfolio: dashboard.portfolio,
     decisions: dashboard.decisions,
     investmentPercent: 100,
     ...overrides
@@ -121,7 +135,7 @@ function createHarness() {
 function closeHarness(harness) {
   try { harness.repository.close(); } catch {}
   try { harness.db.close(); } catch {}
-  fs.rmSync(harness.directory, { recursive: true, force: true });
+  fs.rmSync(harness.directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 }
 
 function projectOrders(state) {
@@ -168,6 +182,8 @@ function projectPortfolio(state) {
 
 test("production PAPER path executes BUY then SELL through challenger-bound decision, canonical risk, accounting, SQLite reopen, and mobile operations authority", () => {
   const harness = createHarness();
+  let reopenedDb;
+  let reopenedRepository;
   try {
     const buyDashboard = harness.hydrate(0.03, 50_000);
     assert.equal(buyDashboard.overallHealth, "HEALTHY");
@@ -218,6 +234,11 @@ test("production PAPER path executes BUY then SELL through challenger-bound deci
       assert.equal(fills[0].quantity, order.quantity);
       assert.equal(fills[0].price, order.price);
       assert.equal(fills[0].fee, order.fee);
+      assert.ok(fills[0].orderBookQuoteReceipt);
+      assert.equal(fills[0].executionCostAttribution.evidenceKind, "OBSERVED");
+      assert.ok(Number.isFinite(fills[0].executionCostAttribution.spreadAmount));
+      assert.ok(Number.isFinite(fills[0].executionCostAttribution.slippageAmount));
+      assert.equal(fills[0].runtimeExecutionCostEvidence, undefined);
     }
 
     const apiDashboard = buildMobileDashboardResponse(harness.loop.applyToDashboard(sellDashboard, harness.now()));
@@ -249,14 +270,18 @@ test("production PAPER path executes BUY then SELL through challenger-bound deci
     const expected = structuredClone(finalState);
     harness.repository.close();
     harness.db.close();
-    const reopenedDb = new SqliteDatabase(harness.databasePath);
-    const reopenedRepository = new SqliteCloudPaperAccountRepository(reopenedDb, { now: () => harness.now() });
+    reopenedDb = new SqliteDatabase(harness.databasePath);
+    reopenedRepository = new SqliteCloudPaperAccountRepository(reopenedDb, { now: () => harness.now() });
     const restored = new PaperTradingExecutionLoop({ initialCapital: 100_000, repository: reopenedRepository, readP0State: () => ({ openP0: false }) });
     assert.deepEqual(restored.snapshot(), expected);
     reopenedRepository.close();
     reopenedDb.close();
+    reopenedRepository = undefined;
+    reopenedDb = undefined;
   } finally {
-    fs.rmSync(harness.directory, { recursive: true, force: true });
+    try { reopenedRepository?.close(); } catch {}
+    try { reopenedDb?.close(); } catch {}
+    closeHarness(harness);
   }
 });
 

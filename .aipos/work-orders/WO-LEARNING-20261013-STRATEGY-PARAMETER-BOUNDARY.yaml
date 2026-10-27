@@ -1,0 +1,26 @@
+id: WO-LEARNING-20261013-STRATEGY-PARAMETER-BOUNDARY
+title: Reject unimplemented candidate strategy parameters
+status: LOCAL_VALIDATED_PENDING_CI
+validation: "Initial unsupported-parameter regression failed as expected; canonical admission repair passed47 focused baseline/artifact/policy/deployment tests and1202 isolated test files via pnpm test. Build,typecheck,validate:full,lint PASS (15 existing warnings). Independent review baseline-pin concern corrected; fresh review no actionable P0/P1/P2."
+priority: P1
+risk: MEDIUM
+authority_impact: none
+base_commit: 8dc23e625818c4587deddfa8f9317e5d5313c56c
+implementation_branch: codex/paper-strategy-parameter-boundary-20261013
+observed_gap: "PAPER interpreters read known family parameters but silently ignore extra strategy semantics such as regimeFilter. A future masked Research candidate must not run as ordinary SMA."
+scope: "Canonical normalizePaperCandidateStrategy binding admission: exact known-family parameter names. Existing PAPER strategy code/owner baseline source pin and implementation version unchanged. No new strategy registration, qualification or order authority."
+review_correction: "Initial parser-local check changed owner-baseline source pin. Withdrawn before push; canonical shared admission is the correct boundary and keeps computation/version stable."
+impact: "Preserve Research-to-execution semantic parity; reject unsupported behavior instead of silently dropping it."
+verification_commands:
+  - pnpm test
+  - pnpm run build
+  - node --test dist/apps/cloud/src/paperCandidateStrategy.test.js
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run lint
+  - pnpm run security:gate
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "Exact-head CI/Audit/Release and deployed boundary verification. No baseline identity bump or arithmetic change. Actual forward evidence still pending."

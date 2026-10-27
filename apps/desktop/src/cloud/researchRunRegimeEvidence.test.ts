@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 import { createHistoricalDatasetManifest, runWalkForwardExperiment, type ResearchCandle } from "./researchDataset";
 import { buildMarketStateFrame } from "./marketStateFrame";
@@ -15,7 +16,12 @@ function candles(count = 200, futureShock = false): ResearchCandle[] {
   });
 }
 function manifestFor(values: readonly ResearchCandle[]) {
-  return createHistoricalDatasetManifest(values, { source: "test", createdAt: "2026-08-26T00:00:00.000Z" });
+  const digest = (value: string): string => createHash("sha256").update(value).digest("hex");
+  return createHistoricalDatasetManifest(values, { source: "test", createdAt: "2026-08-26T00:00:00.000Z", provenance: {
+    rawSourceIdentitySha256s: [digest("test raw source")], transformationGraphSha256: digest("graph"), transformationConfigSha256: digest("config"),
+    schemaContractSha256: digest("schema"), qualitySuiteSha256: digest("suite"), qualityResultsSha256: digest("results"),
+    derivedFeatureLineageSha256: digest("derived"), replayRuntimeSha256: digest("runtime"),
+  } });
 }
 
 describe("point-in-time research regime evidence", () => {

@@ -69,12 +69,36 @@ test("Release re-verifies exact expected head and audited base before merge", ()
   assert.match(workflow, /\.merged == true/);
 });
 
-test("Release explicitly dispatches canonical main CI after a GITHUB_TOKEN merge", () => {
+test("Release reuses an exact-main CI run before dispatching a duplicate", () => {
   assert.match(workflow, /actions:\s*write/);
   assert.match(workflow, /Start canonical post-merge main CI/);
+  assert.match(workflow, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(workflow, /gh api --paginate --slurp/);
+  assert.match(workflow, /\.status == "queued" or \.status == "in_progress" or \.status == "pending"/);
+  assert.match(workflow, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(workflow, /suppressing duplicate dispatch/);
   assert.match(workflow, /actions\/workflows\/ci\.yml\/dispatches/);
   assert.match(workflow, /-f ref=main/);
   assert.match(workflow, /merged_main/);
+});
+
+test("Release gives an exact-main CI push a bounded visibility grace before fallback dispatch", () => {
+  const startCi = workflow.split("- name: Start canonical post-merge main CI", 2)[1].split("\n      - name:", 1)[0];
+  assert.match(startCi, /for poll in \$\(seq 1 6\)/);
+  assert.match(startCi, /actions\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(startCi, /\.name == "CI" and \.path == "\.github\/workflows\/ci\.yml" and \.head_sha == \$sha/);
+  assert.match(startCi, /sleep 3/);
+  assert.match(startCi, /Waiting for exact-main push CI to materialize before fallback dispatch/);
+  assert.match(startCi, /Main advanced during exact-main CI visibility grace/);
+  assert.match(startCi, /actions\/workflows\/ci\.yml\/dispatches/);
+  assert.match(startCi, /Exact-main CI attempt \$failed_ci_run failed; preserving the existing bounded rerun recovery path and suppressing fallback dispatch/);
+  assert.ok(startCi.indexOf("for poll in") < startCi.indexOf("actions/workflows/ci.yml/dispatches"),
+    "manual fallback must remain after the bounded exact-head propagation grace");
+  const recovery = workflow.split("- name: Recover post-merge CI retries and dispatch Cloudflare Deploy", 2)[1].split("\n      - name:", 1)[0];
+  assert.match(recovery, /Post-merge CI attempt \$failed_attempt failed; requesting bounded rerun/);
+  assert.match(recovery, /rerun-failed-jobs/);
+  assert.ok(startCi.indexOf("failed_ci_run=") < startCi.indexOf("actions/workflows/ci.yml/dispatches"),
+    "a failed exact-head run must defer to the existing bounded recovery, not launch a second full CI");
 });
 
 test("Release recovers bounded post-merge CI and suppresses duplicate Cloudflare Deploy dispatch", () => {
@@ -131,4 +155,32 @@ test("already-merged convergence is non-applicable for an open PR, accepts exist
   const provenanceFailureIndex = convergence.indexOf("RELEASE_PROVENANCE_MISSING: already-merged PRs cannot be post-facto upgraded");
   assert.ok(noActionIndex >= 0 && convergedIndex > noActionIndex && provenanceFailureIndex > convergedIndex);
   assert.match(convergence.slice(provenanceFailureIndex), /exit 1/);
+});
+
+
+test("Release serialization is classified as NO_ACTION before deterministic Audit work", () => {
+  assert.match(auditWorkflow, /issues:\s*read/);
+  assert.match(auditWorkflow, /open-issues-pages\.json/);
+  assert.match(auditWorkflow, /\^P0\(\?:\\s\|:\)/);
+  assert.match(auditWorkflow, /Refs\\s\+\#903/);
+  assert.match(auditWorkflow, /release-serialization-block\.json/);
+  assert.match(auditWorkflow, /NO_ACTION Release serialized before Audit/);
+  assert.match(auditWorkflow, /blocked_by=P0#/);
+  const serializationIndex = auditWorkflow.indexOf("NO_ACTION Release serialized before Audit");
+  const ciFetchIndex = auditWorkflow.indexOf('actions/runs/$WORKFLOW_RUN_ID');
+  assert.ok(serializationIndex >= 0 && ciFetchIndex > serializationIndex,
+    "canonical P0 serialization must short-circuit before CI/evidence Audit work");
+});
+
+
+test("Release preflights expected review blocks before merge API and keeps them non-terminal", () => {
+  assert.match(workflow, /Preflight protected-branch mergeability/);
+  assert.match(workflow, /reviewThreads\(first:100\)/);
+  assert.match(workflow, /BLOCKED Release preflight: unresolved_review_threads=/);
+  assert.match(workflow, /merge_ready=false/);
+  assert.match(workflow, /steps\.merge_preflight\.outputs\.merge_ready == 'true'/);
+  const preflightIndex = workflow.indexOf("Preflight protected-branch mergeability");
+  const mergeIndex = workflow.indexOf("Canonical expected-head merge");
+  assert.ok(preflightIndex >= 0 && mergeIndex > preflightIndex);
+  assert.match(workflow, /Revoke authorization if merge preflight blocks activation/);
 });

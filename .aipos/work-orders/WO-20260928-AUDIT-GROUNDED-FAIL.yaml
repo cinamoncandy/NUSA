@@ -1,0 +1,33 @@
+id: WO-20260928-AUDIT-GROUNDED-FAIL
+title: "Reject ungrounded Audit FAIL verdicts as malformed model responses"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-audit-grounded-fail
+authority_impact: audit-validation-tightening
+owner_decision: "Owner chose the recommended Audit fix after PR #2351 was blocked (2026-09-28)."
+incident:
+  pull_request: 2351
+  audit_execution_run: 36379058340
+  observed: "verdict FAIL, findings [], blockers [RELEASE_HANDOFF_MISSING] -- the literal example code from the Audit prompt, with no BLOCKER finding or current-diff evidenceRef."
+objective: "A FAIL verdict must be grounded in at least one BLOCKER finding whose evidence is bound to the current diff; a bare blocker string is a malformed response."
+scope:
+  - "validateAuditModelVerdict: FAIL without any BLOCKER finding throws AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED, which the existing bounded retry (MAX_AUDIT_MODEL_ATTEMPTS=3) absorbs and which fails closed when persistent."
+  - "Audit prompt: remove the copyable example finding code; state that FAIL requires a BLOCKER finding."
+invariants:
+  - "Strictly tightens validation; no path makes PASS/PASS_WITH_NOTES or mergeAllowed easier to reach."
+  - "A persistently malformed response still fails closed (no verdict, no Release)."
+  - "Grounded FAIL verdicts (BLOCKER finding with current added-line evidence) are unchanged."
+exclusions:
+  - "No change to Release authority, merge path, workflow permissions, CI gates or safety invariants."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test dist/apps/autopilot/src/auditRunner.test.js dist/apps/autopilot/src/auditRunnerSafetyNormalization.test.js
+  - node --test tests/autopilot-independent-audit-contract.test.js
+  - node --test tests/*.test.js
+  - pnpm run validate

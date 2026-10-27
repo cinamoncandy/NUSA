@@ -1,0 +1,36 @@
+id: WO-RESEARCH-20261025-CANDLE-EVIDENCE-RECEIPT
+title: "Prevent fabricated window evidence for incomplete ticker provenance"
+status: LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: fix/candle-aggregation-provenance-2815
+parent_issue: 2815
+pull_request: 2879
+authority_impact: none
+objective: "Ensure the existing closed-candle aggregator emits a dataset evidence fingerprint only when every observation in its aggregation batch has a valid evidence fingerprint, preserving the existing source fingerprint without promoting it to evidence."
+scope:
+  - "Keep aggregateClosedCandles deterministic and retain its current per-event source fingerprint aggregation."
+  - "Omit evidenceFingerprintSha256 for empty, wholly unprovenanced, or partially provenanced observation batches; derive it only from a complete validated batch bound to the observed tuples."
+  - "Verify the existing collector/store path persists missing evidence as NULL and does not create a manifest-grade receipt."
+exclusions:
+  - "No historical candle, ledger, or database rewrite."
+  - "No synthetic source receipt, OHLCV, volume, or performance evidence."
+  - "No change to manifest requirements, PIT/OOS, qualification, execution, Risk, Governance, LIVE, or AI authority."
+validation:
+  required:
+    - "pnpm run preflight (Node >=24.19)"
+    - "pnpm run build"
+    - "node --test tests/closed-candle-aggregator.test.js tests/research-candle-collector.test.js"
+    - "pnpm run validate:full"
+    - "pnpm run security:gate"
+    - "git diff --check"
+evidence:
+  previous_pr_head: db35ee55de37584ff45169aaf19b7cbd7ca92ba3
+  current_finding: "Fresh review on db35ee55 found that aggregateClosedCandles synthesized a valid-looking evidence digest from source/ticker data when evidence was wholly absent, and hashed null placeholders when evidence was partial."
+  implementation: "Local candidate omits the evidence receipt unless all input observations carry validated event evidence; collector/store regression checks that ticker observations without such receipts persist SQL NULL."
+  local_validation: "Node 24.19.0 preflight PASS; build/typecheck PASS; closed-candle aggregator and collector tests 19/19 PASS; validate:full PASS; security:gate PASS; lint PASS with 45 pre-existing warnings and 0 errors; git diff --check PASS."
+  exact_head_validation: PENDING_AFTER_PUSH
+  independent_review: PENDING
+safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+next: "Run focused tests, full repository gates, push the repair to the existing PR #2879 branch, then require fresh exact-head CI and non-author review."

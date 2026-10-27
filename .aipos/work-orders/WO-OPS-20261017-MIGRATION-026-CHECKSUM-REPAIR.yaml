@@ -1,0 +1,87 @@
+id: WO-OPS-20261017-MIGRATION-026-CHECKSUM-REPAIR
+title: "Restore applied migration 026 to its deployed bytes and add the volume column through a new additive migration"
+status: VERIFYING
+owner: nusa
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 1524c15fb16b96e8d06b1c304ba12fae888c01dc
+implementation_branch: codex/fix-026-migration-checksum-20261017
+head_sha_note: "Not self-recorded on purpose: a static AIPOS file must not claim its own future commit SHA or pre-claim its CI result. Read the head from git log -1 and from the exact-head CI run on GitHub."
+authority_impact: storage_migration_immutability
+objective: "Make the Cloud PAPER runtime bootable on the Oracle host again after the 2026-10-17 activation failure, without rewriting any deployed schema history."
+incident:
+  detected_by: "Oracle PAPER Release run 39002973665, step 9 'Atomically activate exact release and prove both runtimes'"
+  runtime_error: "database migration checksum mismatch: 026_research_closed_candles"
+  at: "packages/storage/src/migrationRunner.js runMigrations, called from new SqliteDatabase during startClosedLearningProductionRuntime"
+  activation_result: "FAILED with currentRelease reverted to /opt/nusa/releases/a4661cc20c47dd3968c3a3575369262c657e3bc1; the host never lost its previous healthy release"
+  blast_radius: "Only the Oracle PAPER host holds the SQLite database that carries schema_migrations. The Cloudflare deploy target is a separate Autopilot Worker and does not run these migrations."
+root_cause:
+  introduced_by_commit: 11cf0b4d
+  introduced_by_subject: "feat: bind cloud research to canonical dataset manifests"
+  introduced_at: "2026-10-17T00:30:14+09:00"
+  change: "Added 'volume REAL CHECK (volume IS NULL OR volume >= 0),' inside the inline migration 026_research_closed_candles in packages/storage/src/index.ts"
+  why_undetected: "The checksum guard only fires against a database that already recorded migration 026. Local tests and CI build fresh databases, so every migration applies cleanly for the first time and the guard never engages. Only the Oracle release step runs against the real host database."
+  authorship_note: "Introduced by the pre-existing codex/research-precommit-main branch work that this session resumed, not by commit f312190c, whose nine files did not include packages/storage/src/index.ts. This session nevertheless advanced that branch through Audit and Release into protected main, so the merge responsibility is recorded here rather than assigned away."
+checksum_contract:
+  algorithm: "migrationRunner computes createHash('sha256').update(`${id}\\n${sql}`).digest('hex')"
+  separator_caveat: "The separator in that template literal is a LITERAL backslash followed by 'n', not a newline. It is almost certainly not what the original author intended, but it is baked into every checksum already written to every deployed database, so the formula must never be corrected."
+  deployed_value: fd3ed8fe280f054d7f62bf8e1262f3cb37be2d0c2d56b0484016fc4fbf976cb4
+  deployed_value_verification: "Computed independently two ways that agree: from the 026 SQL in commit a4661cc20, and by reading back what the current runtime records into schema_migrations on a freshly created database."
+  mutated_value_on_main: 1e40cc934186f6bec64a60ed823b4c31d3e1dee59811e9ac85488016c7d2a5bc
+owner_authorization: "2026-10-17 in chat the owner chose path A: restore migration 026 to its original bytes and add the column through a new numbered migration, implemented on a new branch with the full validation, review, Audit, Release and deploy chain. A new branch was required because PR 2743 is already merged and closed."
+architecture_impact:
+  acknowledged: true
+  analysis: "Reverts the applied migration 026_research_closed_candles to exactly the SQL the deployed databases already executed, and adds the same volume column through a new migration 031_research_closed_candles_volume expressed as ALTER TABLE ... ADD COLUMN. No table is recreated, no row is rewritten, no schema_migrations record is edited or deleted, and no guard threshold is relaxed. The column definition is unchanged from what the merged branch intended; only its delivery mechanism changes from an in-place edit of applied history to an additive migration."
+  references:
+    - packages/storage/src/index.ts
+    - packages/storage/src/migrationRunner.ts
+    - packages/storage/src/researchCandleStore.ts
+    - deploy/oracle/nusa-release-step.sh
+    - docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md
+scope:
+  - restore_migration_026_to_its_deployed_bytes
+  - add_migration_031_research_closed_candles_volume_additively
+  - pin_the_deployed_026_checksum_in_a_regression_guard
+  - prove_a_database_holding_the_deployed_schema_still_opens_and_gains_volume
+  - update_migration_version_assertions_that_pin_the_current_version
+prohibited:
+  - editing_or_deleting_any_schema_migrations_record_in_a_deployed_database
+  - modifying_the_migration_checksum_formula
+  - changing_the_volume_column_definition
+  - relaxing_the_checksum_mismatch_guard
+  - live_authority_or_self_approval
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - the_checksum_of_migration_026_equals_the_deployed_value_fd3ed8fe
+  - migration_026_sql_is_byte_identical_to_the_sql_in_commit_a4661cc20
+  - a_database_preloaded_with_the_deployed_026_record_constructs_without_a_mismatch_and_gains_the_volume_column_through_031
+  - rows_written_before_the_column_exists_keep_a_null_volume_that_the_check_constraint_allows
+  - the_immutability_guard_fails_against_main_1524c15f_and_passes_against_this_fix
+  - no_existing_guard_threshold_or_test_is_relaxed
+validation:
+  commands:
+    - pnpm run build
+    - pnpm run typecheck
+    - pnpm run validate:full
+    - pnpm run aipos:yaml
+    - pnpm run aipos:provenance
+    - pnpm run aipos:index
+    - pnpm run security:gate
+    - pnpm run lint
+  strict_build: PASS
+  root_and_mobile_typecheck: PASS
+  validate_full: PASS
+  aipos_yaml_provenance_index: PASS
+  security_gate: PASS_ZERO_UNMITIGATED_HIGH_CRITICAL_ZERO_SECRETS
+  lint: PASS_24_EXISTING_WARNINGS
+  focused_suite: "PASS 43 assertions across the six affected files: storage-migrations 11, research-memory-semantics 18, research-candle-store 6, research-holdout-ledger 5, the new migration-026-immutability guard 2, and the compiled cloudPaperAccountHistoryMigration 1"
+  isolated_suite: "102 files exercised, single failing file tests/autopilot-cloudflare-deploy.test.js with spawnSync bash ENOENT because bash is absent on the local Windows host; it spawns bash, is unrelated to this change, and CI runs it on ubuntu-latest where bash exists"
+  exact_head_ci: PENDING
+  independent_review: PENDING
+  audit: PENDING
+  release: PENDING
+next: "Push this head, verify exact-head CI on GitHub, then fresh non-author review, Independent Audit and Release authorization before merge. After merge, dispatch the Oracle PAPER Release for the new protected main and confirm the deployment convergence receipt reports CONVERGED with the Oracle component no longer empty."

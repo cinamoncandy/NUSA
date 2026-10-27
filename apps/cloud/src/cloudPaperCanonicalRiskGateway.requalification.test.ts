@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
-const EXPECTED_RISK_BLOB = "4a8533cb3ef81223f5b249b03619c50d0c28811e";
+const EXPECTED_RISK_BLOB = "4a7ef23803b0d9ed132276a772cc2838bbe17126";
 
 function committedGitBlobSha(path: string): string {
   return execFileSync("git", ["rev-parse", `HEAD:${path}`], {
@@ -20,15 +20,44 @@ describe("RISK exact-source re-qualification evidence", () => {
     assert.equal(committedGitBlobSha(sourcePath), EXPECTED_RISK_BLOB);
   });
 
-  it("verifies exactly four CANCELLED-order exclusions", () => {
+  it("qualifies fill-derived accounting without cancellation erasing executed risk", () => {
     const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
-    assert.equal((source.match(/if \(order\.status === "CANCELLED"\) continue;/g) ?? []).length, 4);
-    assert.match(source, /function rateState[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
-    assert.match(source, /function dailyNotional[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
-    assert.match(source, /function realizedLossState[\s\S]*?if \(order\.status === "CANCELLED"\) continue;/);
+    assert.doesNotMatch(source, /order\.status === "CANCELLED"/);
+    assert.match(source, /function rateState[\s\S]*?state\.fills/);
+    assert.match(source, /function dailyNotional[\s\S]*?state\.fills/);
+    assert.match(source, /function realizedLossState[\s\S]*?state\.fills/);
+    assert.match(source, /second\.add\(fill\.orderId\)/);
+    assert.match(source, /sellOrders\.set\(order\.orderId/);
   });
 
-  it("verifies the complete PAPER risk envelope is unchanged", () => {
+  it("re-qualifies intent-bound idempotency without placeholder payload identity", () => {
+    const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
+    assert.match(source, /payloadFingerprintSha256\?: string/);
+    assert.match(source, /const payloadFingerprint = input\.payloadFingerprintSha256 \?\? hash\(/);
+    assert.match(source, /IDEMPOTENCY_FINGERPRINT_INVALID/);
+    assert.match(source, /payloadFingerprint, createdAtMs: input\.now/);
+    assert.doesNotMatch(source, /payloadFingerprint:\s*"PENDING"/);
+  });
+
+  it("re-qualifies the consecutive-loss streak as scoped to the current canonical (Asia/Seoul) trading day", () => {
+    const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
+    assert.match(source, /const completed = \[\.\.\.sellOrders\.values\(\)\]\.filter\(\(sell\) => dayOf\(sell\.filledAt\) === today\)/);
+    assert.match(source, /const dayOf = \(timestamp: number\): string => paperTradingDayKey\(timestamp\);/, "one canonical trading day, not a local UTC day");
+    assert.match(readFileSync("apps/cloud/src/paperTradingDay.ts", "utf8"), /tradingDayKey\(timestamp\)/, "the helper delegates to the canonical Asia\/Seoul trading day");
+    assert.doesNotMatch(source, /toISOString\(\)\.slice\(0, 10\)/);
+    // The unmatched-sell fail-closed path is unchanged.
+    assert.match(source, /consecutiveLossCount: Number\.MAX_SAFE_INTEGER/);
+  });
+
+  it("re-qualifies the loss-session counts as display only: recorded after the streak is computed and never read by a decision", () => {
+    const source = readFileSync("apps/cloud/src/cloudPaperCanonicalRiskGateway.ts", "utf8");
+    assert.match(source, /todayCompletedSells: completed\.length, todayLosingSells: completed\.filter\(\(sell\) => sell\.pnl < 0\)\.length/);
+    assert.match(source, /public lossSession\(\): CloudPaperLossSessionSnapshot \| null \{\r?\n\s*return this\.lastLossSession;/);
+    assert.equal((source.match(/this\.lastLossSession/g) ?? []).length, 2, "written once per evaluation and read only by lossSession()");
+    assert.match(source, /consecutiveLossCount: lossState\.consecutiveLossCount, sessionPeakEquity/, "the decision still uses the same streak");
+  });
+
+  it("verifies owner-approved Cloud loss-veto removal and every other risk limit unchanged", () => {
     assert.deepEqual(CLOUD_PAPER_RISK_LIMITS, {
       maxOrderNotional: 2_000_000,
       maxPositionNotional: 2_000_000,
@@ -42,6 +71,7 @@ describe("RISK exact-source re-qualification evidence", () => {
       maxDailySellNotional: 2_000_000,
       maxDailyLoss: 1_000_000,
       maxConsecutiveLosses: 3,
+      consecutiveLossLimitEnabled: false,
       maxSessionDrawdownRatio: 0.2,
       maxPriceDeviationRatio: 0.05
     });

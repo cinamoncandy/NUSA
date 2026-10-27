@@ -149,12 +149,13 @@ test("#661 mobile LIVE_READY client uses the verified PAPER session and GET only
   setConfiguredPaperEndpoint("");
 });
 
-test("#661 cockpit has four isolated read-only modes and no LIVE action", () => {
+test("#661 LIVE readiness lives only in the LIVE tab; the PAPER cockpit does not duplicate it", () => {
   const cockpit = read("apps/mobile/src/paperShadowMonitorView.tsx");
   const liveView = read("apps/mobile/src/liveReadinessMonitorView.tsx");
+  const mobileApp = read("apps/mobile/App.tsx");
   assert.match(cockpit, /BASE_MODES = \["PAPER", "SHADOW", "REAL"\]/);
-  assert.match(cockpit, /"LIVE_READY"/);
-  assert.match(cockpit, /LiveReadinessMonitorView/);
+  assert.doesNotMatch(cockpit, /"LIVE_READY"|LiveReadinessMonitorView/);
+  assert.match(mobileApp, /activeTab === "Live" \? <LiveReadinessMonitorView/);
   assert.match(liveView, /testID="live-ready-monitor"/);
   assert.match(liveView, /주문·취소·출금·이체·LIVE 활성화/);
   for (const forbidden of ["onEnableLive", "createActivationLease", "activateLive", "submitOrder", "cancelOrder", "withdraw", "transfer"]) assert.equal(liveView.includes(forbidden), false, forbidden);

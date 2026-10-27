@@ -7,6 +7,7 @@ describe("closed-learning production config", () => {
   it("derives durable sibling evidence paths from the canonical Cloud state database", () => {
     const state = path.resolve("/var/lib/nusa/state.sqlite");
     const config = readClosedLearningProductionConfig({}, state);
+    assert.equal(config.evaluationPeriodMs, 3_600_000);
     assert.equal(config.researchReplaySnapshotPath, path.join(path.dirname(state), "research-replay-snapshots.json"));
     assert.equal(config.qualifiedArtifactPath, path.join(path.dirname(state), "qualified-paper-challengers.json"));
     assert.deepEqual(config.executionQualityPolicy, CLOSED_LEARNING_EXECUTION_QUALITY_POLICY_V1);
@@ -27,5 +28,10 @@ describe("closed-learning production config", () => {
     const state = path.resolve("/var/lib/nusa/state.sqlite");
     assert.throws(() => readClosedLearningProductionConfig({ NUSA_RESEARCH_REPLAY_SNAPSHOT_PATH: ":memory:" }, state), /absolute durable path/);
     assert.throws(() => readClosedLearningProductionConfig({ NUSA_QUALIFIED_PAPER_CHALLENGER_ARTIFACT_PATH: "relative.json" }, state), /absolute durable path/);
+  });
+  it("accepts only hourly or legacy daily cadence, rejecting ambiguous overrides", () => {
+    const state = path.resolve("/var/lib/nusa/state.sqlite");
+    assert.equal(readClosedLearningProductionConfig({ NUSA_CLOSED_LEARNING_EVALUATION_PERIOD_MS: "86400000" }, state).evaluationPeriodMs, 86_400_000);
+    for (const value of ["", "0", "30000", "3600000.0", " 3600000", "NaN", "Infinity"]) assert.throws(() => readClosedLearningProductionConfig({ NUSA_CLOSED_LEARNING_EVALUATION_PERIOD_MS: value }, state), /EVALUATION_PERIOD/);
   });
 });

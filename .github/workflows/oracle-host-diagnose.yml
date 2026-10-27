@@ -1,0 +1,185 @@
+name: Oracle Host Diagnose
+
+# READ-ONLY host diagnosis for the owner, who has no shell access to the PAPER host. Dispatch by hand only.
+# It prints disk, memory, file ownership/size, service state and a redacted, bounded slice of recent
+# service-log error lines. It never writes, restarts, deploys or reads credential/env files, takes no
+# secrets, checks out no repository code and calls no external service. The only network request is a GET of the
+# runtime's own unauthenticated /health on 127.0.0.1 (an allowlisted liveness object), with a timeout and bounded
+# output. PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch:
+    inputs:
+      health_only:
+        description: "true = skip the disk, state-directory and disk-consumer steps; read only /health and the annotations (for trend readings with minimal diagnostic I/O in between; the annotation step still runs journalctl and df)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-host-diagnose
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    name: Read-only PAPER host diagnosis
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 5
+    env:
+      HEALTH_PROBE_BASENAME: nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
+    steps:
+      - name: Disk, memory and state files
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          echo "== time"; date -u +%FT%TZ
+          echo "== disk (bytes and inodes)"; df -h / /var/lib/nusa /var/backups/nusa /opt/nusa 2>&1 | sort -u
+          df -i / /var/lib/nusa 2>&1 | sort -u
+          echo "== memory"; free -m 2>&1
+          echo "== state directory (names, owner, mode, size, mtime only)"
+          ls -la /var/lib/nusa 2>&1 | head -40
+          # No size walk of /opt/nusa/releases: du over its 11 GB took over a minute of disk I/O on the 1-vCPU host this job shares with the runtime.
+          echo "== state sizes"; du -sh /var/lib/nusa /var/backups/nusa 2>&1 | head -10
+          echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
+          echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
+      - name: Service state and redacted recent errors
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          for unit in nusa nusa-autopilot nusa-research.service nusa-research.timer; do
+            echo "== $unit"
+            systemctl show "$unit" -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp,MemoryCurrent 2>&1
+          done
+          echo "== Research timer next and previous activation"
+          systemctl show nusa-research.timer -p NextElapseUSecRealtime,LastTriggerUSec 2>&1
+          echo "== Forward Research log projection (last 200 lines; fixed fields only; absence is not success)"
+          journalctl -u nusa-research.service -n 200 --no-pager -o cat 2>/dev/null | grep 'REGIME_FORWARD_STUDY ' | tail -3 | cut -c1-4096 | node -e '
+          const fs = require("node:fs");
+          let count = 0;
+          for (const line of fs.readFileSync(0, "utf8").split("\n").slice(0, 3)) {
+            try {
+              const marker = "REGIME_FORWARD_STUDY ";
+              const index = line.indexOf(marker);
+              if (index < 0) continue;
+              const value = JSON.parse(line.slice(index + marker.length));
+              if (!["WAITING_HOLDOUT", "INSUFFICIENT_DATA", "RESEARCH_SCREEN_PASS", "RESEARCH_SCREEN_FAIL"].includes(value.status) ||
+                  !/^[a-f0-9]{40}$/.test(value.executionSourceSha || "") || !/^[a-f0-9]{64}$/.test(value.specificationFingerprint || "")) continue;
+              console.log(JSON.stringify({status: value.status, executionSourceSha: value.executionSourceSha, specificationFingerprint: value.specificationFingerprint}));
+              count++;
+            } catch { /* malformed or truncated record is not evidence */ }
+          }
+          if (count === 0) console.log("FORWARD_EXECUTION_EVIDENCE_UNAVAILABLE");
+          '
+          echo "== nusa log: error-like lines, last 3 hours (max 80, redacted)"
+          journalctl -u nusa --since "-3 hours" --no-pager -o cat 2>&1 | grep -Ei "persist|sqlite|database|disk|ENOSPC|EACCES|EROFS|SQLITE|lease|lock|readonly|fail|error|halt" | tail -80 | redact
+          echo "== nusa log: line count last 3 hours"; journalctl -u nusa --since "-3 hours" --no-pager -o cat 2>&1 | wc -l
+      - name: Runtime liveness (local /health only)
+        shell: bash
+        run: |
+          set +e
+          HEALTH_PROBE_PATH="$RUNNER_TEMP/$HEALTH_PROBE_BASENAME"
+          echo "== listening sockets (local, no process names)"; ss -ltn 2>&1 | head -15
+          echo "== runtime /health on 127.0.0.1 (GET, 6 s timeout, first 9000 characters)"
+          : > "$HEALTH_PROBE_PATH"
+          if curl -fsS -m 6 -o "$HEALTH_PROBE_PATH" -w "http=%{http_code} connect=%{time_connect}s total=%{time_total}s size=%{size_download}B\n" http://127.0.0.1:41731/health 2>&1; then
+            head -c 9000 "$HEALTH_PROBE_PATH"; echo
+          else
+            : > "$HEALTH_PROBE_PATH"
+            echo "HEALTH_PROBE_UNAVAILABLE"
+          fi
+      - name: Publish the same read-only findings as job annotations
+        # The job log is only downloadable from GitHub's blob storage; annotations are readable through the REST API, so a
+        # session without blob access (and the owner on a phone) can read the outcome. Same redaction, bounded size.
+        shell: bash
+        run: |
+          set +e
+          HEALTH_PROBE_PATH="$RUNNER_TEMP/$HEALTH_PROBE_BASENAME"
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          # Everything stays in shell variables: this step writes no file and makes no request of its own (the earlier step
+          # already probed /health once; its bounded response file is reused here).
+          summary="$({
+            echo "previous=$(basename "$(< /opt/nusa/.previous-release)" 2>&1)"; free -m 2>&1 | head -2; df -h / 2>&1 | tail -1
+            for unit in nusa nusa-autopilot; do systemctl show "$unit" -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp 2>&1 | tr '\n' ' '; echo; done
+            if [ -s "$HEALTH_PROBE_PATH" ]; then
+              echo "health_probe=$(head -c 200 "$HEALTH_PROBE_PATH" | tr '\n' ' ')"
+            else
+              echo "health_probe=HEALTH_PROBE_UNAVAILABLE"
+            fi
+          } | redact)"
+          # A release directory name is a public commit SHA, not a secret: print it unredacted.
+          summary="${summary}"$'\n'"current_release=$(basename "$(readlink -f /opt/nusa/current)")"$'\n'"$(ls -1t /opt/nusa/releases 2>&1 | head -5 | sed 's/^/release_dir=/')"
+          # Latest pre-registered ORDERBOOK study line from the Research service: a fixed status code plus numbers/booleans only.
+          study="$(journalctl -u nusa-research.service -n 400 --no-pager -o cat 2>/dev/null | grep 'ORDERBOOK_STUDY' | tail -1 | cut -c1-2000 | node -e '
+          const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("ORDERBOOK_STUDY ");
+          try { const v = JSON.parse(line.slice(i + 16)); if (i < 0 || !["WAITING_DATA", "INSUFFICIENT_DATA", "DATA_INTEGRITY_FAIL", "HOLDOUT_PASS", "HOLDOUT_FAIL"].includes(v.status)) throw 0;
+            const out = { status: v.status }; for (const [k, x] of Object.entries(v)) if (/^[a-zA-Z]{1,40}$/.test(k) && (typeof x === "boolean" || Number.isFinite(x) || (/Fingerprint$/.test(k) && /^[a-f0-9]{64}$/.test(x)) || (k === "reasonCode" && /^DATA_[A-Z_]{1,30}$/.test(x)))) out[k] = x; console.log(JSON.stringify(out));
+          } catch { console.log(line.includes("ORDERBOOK_STUDY_FAILED_CLOSED") ? "ORDERBOOK_STUDY_FAILED_CLOSED" : "ORDERBOOK_STUDY_UNAVAILABLE"); }')"
+          summary="${summary}"$'\n'"orderbook_study=${study}"
+          # Latest stored-data integrity probe from the Research service: a fixed status plus integers only.
+          integrity="$(journalctl -u nusa-research.service -n 400 --no-pager -o cat 2>/dev/null | grep 'DATA_INTEGRITY' | tail -1 | cut -c1-2000 | node -e '
+          const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("DATA_INTEGRITY ");
+          try { const v = JSON.parse(line.slice(i + 15)); if (i < 0 || !["PASS", "WARN", "FAIL"].includes(v.status)) throw 0;
+            const out = { status: v.status }; for (const [k, x] of Object.entries(v)) if (/^[a-zA-Z0-9]{1,40}$/.test(k) && Number.isSafeInteger(x)) out[k] = x; console.log(JSON.stringify(out));
+          } catch { console.log(line.includes("DATA_INTEGRITY_FAILED_CLOSED") ? "DATA_INTEGRITY_FAILED_CLOSED" : "DATA_INTEGRITY_UNAVAILABLE"); }')"
+          summary="${summary}"$'\n'"data_integrity=${integrity}"
+          errors="$(journalctl -u nusa --since "-90 minutes" --no-pager -o cat 2>&1 | grep -v "^\s*at " | tail -40 | cut -c1-300 | redact)"
+          autopilot="$(journalctl -u nusa-autopilot --since "-90 minutes" --no-pager -o cat 2>&1 | grep -Ei "fail|error|blocked|stopped|ready" | tail -20 | cut -c1-300 | redact)"
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          emit "diag-summary" "$summary"
+          for n in 1 2 3 4 5; do part="${errors:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-nusa-log-$n" "$part"; done
+          emit "diag-autopilot-log" "$autopilot"
+      # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
+      - name: Disk consumers (read-only, after the health probe)
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          # Where the rest of the 90%-full root disk goes: read-only, lowest I/O priority, hard 40 s limit, unreadable directories skipped.
+          # The result is also published as an annotation (the job log itself is not readable through the REST API).
+          out="$({
+            echo "== disk consumers (top directories under /var /opt /home, swap, journal)"
+            journalctl --disk-usage 2>&1
+            # --exclude=releases: du walks everything below a directory to total it, so without it /opt would still walk the ~11 GB release tree.
+            # Totals under /opt therefore exclude releases; unreadable directories (e.g. /var/lib/nusa) are skipped and understate their parents.
+            ionice -c3 nice -n19 timeout 40 du -xh --max-depth=1 --exclude=releases /var /opt /home 2>/dev/null | sort -rh | head -15
+            echo "du_exit=${PIPESTATUS[0]} (124 = timed out so the listing is partial; 127 = ionice/nice missing)"
+            swapon --show 2>&1 | head -5
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-disk-consumers" "$out"
+      # Runs after the whole-tree walk, which times out at 40 s and then lists only the directories it reached (the runner work area, where
+      # each release bundle is extracted, was missing from diagnosis 39357215278). Candidates are measured one at a time with their own
+      # hard limit, lowest I/O priority, read-only; an unreadable or timed-out directory is named, never guessed.
+      - name: Disk consumers by directory (read-only, one at a time)
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          out="$({
+            echo "== disk by directory (du -s, 25 s each; TIMEOUT = still unknown)"
+            for dir in /opt/actions-runner-nusa-paper /opt/actions-runner-nusa-paper/_work /opt/actions-runner-nusa-paper/_work/_temp /opt/actions-runner-nusa-paper/_work/_tool /opt/actions-runner-nusa-paper/_work/_actions /opt/actions-runner-nusa-paper/_diag /opt/nusa/releases /opt/nusa/shared /var/lib/snapd /var/cache /var/log /home /root /tmp /var/tmp /swapfile /swapfile2; do
+              if [ -e "$dir" ]; then
+                size="$(ionice -c3 nice -n19 timeout 25 du -xsh "$dir" 2>/dev/null | cut -f1)"; status=$?
+                echo "$dir ${size:-TIMEOUT_OR_UNREADABLE}"
+              else
+                echo "$dir (absent)"
+              fi
+            done
+            echo "== top-level listing of the runner work area (names and sizes of entries, no content)"
+            ls -la /opt/actions-runner-nusa-paper/_work 2>&1 | head -12
+            ls -la /opt/actions-runner-nusa-paper/_work/_temp 2>&1 | head -12
+            echo "== release directories"
+            ls -la /opt/nusa/releases 2>&1 | head -8
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-disk-by-dir" "$out"

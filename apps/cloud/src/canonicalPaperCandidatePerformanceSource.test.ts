@@ -29,7 +29,7 @@ describe("CanonicalPaperCandidatePerformanceSource", () => {
     const result = source.read("candidate-a");
     assert.ok(result);
     assert.equal(result.tradeCount, 2);
-    assert.equal(result.executionQualityScore, 1);
+    assert.equal(result.executionQualityScore, 100);
   });
 
   it("stays unavailable when either candidate periods or canonical account evidence is absent", () => {

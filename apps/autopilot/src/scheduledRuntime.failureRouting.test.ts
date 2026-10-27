@@ -8,22 +8,15 @@ const FAILURE_RUN_ID = 5151;
 const NOW = 1_787_968_000_000;
 
 function namespace(): ExecutionCoordinatorNamespace {
-  let developmentQueue: unknown = null;
   return {
     idFromName: (name: string) => ({ name }),
     get: () => ({
-      async fetch(input: RequestInfo | URL, init?: RequestInit) {
+      async fetch(input: RequestInfo | URL) {
         const url = String(input);
+        if (url.endsWith("/provider-capacity-wait")) return new Response(JSON.stringify({ wait: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/execution")) return new Response(JSON.stringify({ record: null }), { status: 200, headers: { "content-type": "application/json" } });
-        if (url.endsWith("/development-queue")) {
-          if (init?.method === "POST") {
-            const body = JSON.parse(String(init.body)) as { queue: unknown };
-            developmentQueue = body.queue;
-            return new Response(JSON.stringify({ updated: true, queue: developmentQueue }), { status: 201, headers: { "content-type": "application/json" } });
-          }
-          return new Response(JSON.stringify({ queue: developmentQueue }), { status: 200, headers: { "content-type": "application/json" } });
-        }
         if (url.endsWith("/scheduled-receipt")) return new Response("not found", { status: 404 });
+        if (url.endsWith("/evolve-learning-memory")) return new Response(JSON.stringify({ value: null }), { status: 200, headers: { "content-type": "application/json" } });
         if (url.endsWith("/acquire")) {
           return new Response(JSON.stringify({ acquired: true }), {
             status: 201,
@@ -51,6 +44,18 @@ test("scheduled runtime routes a real GitHub completed run using updated_at when
         status: 200,
         headers: { "content-type": "application/json" },
       });
+    }
+    if (url.includes("/actions/workflows/ci.yml/runs?")) {
+      return new Response(JSON.stringify({ workflow_runs: [{
+        id: 5150,
+        name: "CI",
+        status: "completed",
+        conclusion: "success",
+        head_branch: "main",
+        head_sha: SHA,
+        event: "push",
+        updated_at: new Date(NOW - 20_000).toISOString(),
+      }] }), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
@@ -113,6 +118,7 @@ test("updated_at fallback is fail-closed for runs that are not completed", async
   const fetchImpl = (async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
     if (url.includes("/actions/runs?")) {
       return new Response(JSON.stringify({ workflow_runs: [{
         id: FAILURE_RUN_ID,
@@ -137,5 +143,82 @@ test("updated_at fallback is fail-closed for runs that are not completed", async
 
   assert.equal(outcome.status, "ABSTAINED");
   assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
+  assert.equal(dispatched, false);
+});
+
+
+test("cancelled exact-main workflows are not treated as autonomous failure-repair evidence", async () => {
+  let dispatched = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
+    if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [{
+      id: FAILURE_RUN_ID,
+      name: "Android Stable Release Watchdog",
+      status: "completed",
+      conclusion: "cancelled",
+      head_branch: "main",
+      head_sha: SHA,
+      event: "workflow_run",
+      updated_at: new Date(NOW - 30_000).toISOString(),
+    }] }), { status: 200 });
+    if (url.endsWith("/dispatches")) dispatched = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
+    NUSA_EXECUTION_COORDINATOR: namespace(),
+  }, NOW, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
+  assert.deepEqual(outcome.discoveredOpportunityIds, []);
+  assert.equal(dispatched, false);
+});
+
+test("failures of Autopilot's own workflows and runtime evidence workflows are not repair targets", async () => {
+  // 2026-10-12: a failed scheduled Codex coding run and a manually dispatched PAPER evidence run on
+  // the main head were each re-dispatched as repairs about every five minutes.
+  let dispatched = false;
+  const fetchImpl = (async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.endsWith("/branches/main")) return new Response(JSON.stringify({ commit: { sha: SHA } }), { status: 200 });
+    if (url.includes("/actions/workflows/ci.yml/runs?")) return new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 });
+    if (url.includes("/actions/runs?")) return new Response(JSON.stringify({ workflow_runs: [{
+      id: FAILURE_RUN_ID,
+      name: "Autopilot Codex Coding",
+      status: "completed",
+      conclusion: "failure",
+      head_branch: "main",
+      head_sha: SHA,
+      event: "schedule",
+      completed_at: new Date(NOW - 30_000).toISOString(),
+    }, {
+      id: FAILURE_RUN_ID + 1,
+      name: "Actual PAPER Public-Market Runtime Evidence",
+      status: "completed",
+      conclusion: "failure",
+      head_branch: "main",
+      head_sha: SHA,
+      event: "workflow_dispatch",
+      completed_at: new Date(NOW - 40_000).toISOString(),
+    }] }), { status: 200 });
+    if (url.endsWith("/dispatches")) dispatched = true;
+    return new Response("not found", { status: 404 });
+  }) as typeof fetch;
+
+  const outcome = await runScheduledAutopilot({
+    NUSA_GITHUB_TOKEN: "token",
+    NUSA_GITHUB_REPOSITORY: "cinamoncandy/NUSA",
+    NUSA_EXECUTION_COORDINATOR: namespace(),
+  }, NOW, fetchImpl);
+
+  assert.equal(outcome.status, "ABSTAINED");
+  assert.equal(outcome.reason, "exact-main-canonical-ci-not-found");
+  assert.equal(outcome.workflowRunId, null);
+  assert.deepEqual(outcome.discoveredOpportunityIds, []);
   assert.equal(dispatched, false);
 });

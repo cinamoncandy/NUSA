@@ -39,9 +39,9 @@ test("duplicate and out-of-order events are explicit rather than silently accept
   assert.equal(classifyMarketEventIntegrity(ticker({ trade_timestamp: 1001, trade_price: 100000001 }), cursor), "ACCEPTED");
 });
 
-test("large timestamp jumps are gap suspicion only because Upbit has no lossless universal sequence", () => {
+test("quiet-market timestamp jumps are not fabricated into transport gaps", () => {
   const first = normalizeUpbitPublicEvent(ticker(), 1100);
-  assert.equal(classifyMarketEventIntegrity(ticker({ trade_timestamp: 61001, trade_price: 100000001 }), marketStreamCursor(first)), "GAP_SUSPECT");
+  assert.equal(classifyMarketEventIntegrity(ticker({ trade_timestamp: 61001, trade_price: 100000001 }), marketStreamCursor(first)), "ACCEPTED");
 });
 
 test("trade sequence is provenance-only and orderbook correctly has no fabricated exchange timestamp", () => {
@@ -49,7 +49,12 @@ test("trade sequence is provenance-only and orderbook correctly has no fabricate
     type: "trade", code: "KRW-BTC", trade_price: 100, trade_volume: 0.1,
     ask_bid: "BID", trade_timestamp: 2000, sequential_id: 17870976536110000
   }, 2100);
-  assert.equal(trade.sequence, String(17870976536110000));
+  assert.equal(trade.sequence, null, "unsafe rounded sequential_id must not be presented as lossless provenance");
+  const safeTrade = normalizeUpbitPublicEvent({
+    type: "trade", code: "KRW-BTC", trade_price: 100, trade_volume: 0.1,
+    ask_bid: "BID", trade_timestamp: 2001, sequential_id: 123456789
+  }, 2101);
+  assert.equal(safeTrade.sequence, "123456789");
   const book = normalizeUpbitPublicEvent({
     type: "orderbook", code: "KRW-BTC", total_ask_size: 1, total_bid_size: 1,
     orderbook_units: [{ ask_price: 101, bid_price: 99, ask_size: 1, bid_size: 1 }]

@@ -29,15 +29,15 @@ export interface ModuleQualificationV1 {
 export const MODULE_QUALIFICATION_SOURCE_COMMIT_V1 = "7188f390ca197ce3097039052a22ece16e3264d8";
 
 export const MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1: Readonly<Record<ModuleStage, string>> = Object.freeze({
-  MARKET_DATA: "6b64eeb212895e5d65fc0a6b3d01ce542914119d",
+  MARKET_DATA: "8b137a79820d06003479512b255731c227efa16d",
   INTELLIGENCE: "c0286d1056d554e1a9be604c2b9fe1eb02a9f8d9",
   STRATEGY: "6f7395f2e37db73df42bc33d0a697020d38b8d7c",
   DECISION: "904b3e78562ca3f2350133942d2743ac49babd51",
-  RISK: "4a8533cb3ef81223f5b249b03619c50d0c28811e",
+  RISK: "4a7ef23803b0d9ed132276a772cc2838bbe17126",
   PORTFOLIO: "8da5e80589e03004c3d4147528b97da5c473c40a",
-  EXECUTION: "149bb7983f7d23dc0bfb6e595252561893ddc99b",
-  PAPER_ADAPTER: "59e1a554b9d70a95ed2f4000a348f1f32a344f97",
-  REVIEW: "675b11025fda5678f152f98277a2b527141c8b7c",
+  EXECUTION: "ad2c58a998be4ed63839e1e77f5fadea54779564",
+  PAPER_ADAPTER: "1113297fa143b4e26318e3c57152bdf2d620ddb6",
+  REVIEW: "714b2f35f7c4a9e4b65ac63c360d487160dcbadb",
   MEMORY: "70bf43e419fb36b453f634505cd09bb0ca50343c"
 });
 
@@ -51,11 +51,13 @@ const entrypointEvidence = (stage: ModuleStage, sourceBlobSha: string): readonly
 function criteriaFor(stage: ModuleStage, sourceBlobSha: string): Readonly<Record<Level10Criterion, ModuleCriterionQualificationV1>> {
   return Object.freeze(Object.fromEntries(LEVEL_10_CRITERIA.map((criterion) => {
     if (criterion === "CANONICAL_ENTRYPOINT") {
-      if (stage === "STRATEGY") {
+      if (stage === "STRATEGY" || stage === "PAPER_ADAPTER") {
         return [criterion, Object.freeze({
           status: "UNVERIFIED" as const,
           evidenceRefs: Object.freeze([]),
-          reason: "declared canonical Strategy source differs from the actual PAPER runtime Strategy implementation; ownership must be reconciled by #1888"
+          reason: stage === "STRATEGY"
+            ? "declared canonical Strategy source differs from the actual PAPER runtime Strategy implementation; ownership must be reconciled by #1888"
+            : "PAPER_ADAPTER source identity is rebound to the implementation blob, but independent exact-source qualification evidence is still required"
         })];
       }
       return [criterion, Object.freeze({
@@ -78,7 +80,7 @@ export const MODULE_QUALIFICATION_RECORDS_V1: Readonly<Record<ModuleStage, Modul
     return [stage, Object.freeze({
       schemaVersion: 1 as const,
       stage,
-      sourceCommitSha: MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
+      sourceCommitSha: stage === "EXECUTION" ? "f4f84389dfa3ea4b7b8870e702a373b51985280b" : stage === "MARKET_DATA" ? "7c5f75763e9bc3a673647dfa892a3a60d32967a9" : stage === "PAPER_ADAPTER" ? "b9cb7bde15bfa581159f263220a1d113b250dadc" : stage === "RISK" ? "9be781fe1df0acd96abca8c815dc0019091d2247" : MODULE_QUALIFICATION_SOURCE_COMMIT_V1,
       sourceBlobSha,
       sourceRef: MODULE_RUNTIME_BINDING_BY_STAGE_10XS[stage].canonicalEntrypoint,
       verificationAuthority: "INDEPENDENT_EVIDENCE_REQUIRED" as const,

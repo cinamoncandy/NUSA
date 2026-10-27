@@ -1,0 +1,25 @@
+id: WO-OPS-20261006-DIAGNOSE-HEALTH-PROBE
+title: "Host diagnosis reads the runtime's own /health to tell a dead server from a connection problem"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/diagnose-health-probe
+authority_impact: none
+objective: "After deploy 114 the owner's phone shows 'server run record not confirmed' and device fallback (LOCAL), while the host diagnosis shows the services active with no restarts. The diagnosis cannot say whether the runtime answers requests, how fast, or what it reports, so a server fault cannot be told apart from a phone-to-server network problem. The same probe also answers the owner's 'the server connects slowly' question with a measured time."
+scope:
+  - ".github/workflows/oracle-host-diagnose.yml: one more read-only step prints the local listening sockets (no process names) and does a single GET of http://127.0.0.1:41731/health (the runtime's unauthenticated, allowlisted liveness object) with a 6 second timeout, printing the HTTP code, connect and total times, size and the first 1500 characters of the body."
+  - "tests/oracle-host-diagnose-workflow.test.js: the blanket curl ban becomes an exact allowance: exactly one curl, silent, 6 s timeout, local /health only, a plain GET with no body, header, cookie or credential option, output bounded to 1500 characters, no other address anywhere; all other prohibitions (sudo, writes, restarts, credential files, external services) are unchanged."
+exclusions:
+  - "No change to the runtime, its authentication, any exposed port or any deployment. The workflow is still dispatch-only, contents: read, no secrets, no action, runs on the PAPER host runner, and calls nothing outside 127.0.0.1."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "A missing or slow /health is only printed; nothing is restarted or changed."
+rollback: "Revert the change."
+verification_commands:
+  - node --test tests/oracle-host-diagnose-workflow.test.js
+  - node scripts/validate-workflow-action-pins.js && node scripts/validate-workflow-action-inputs.js && node scripts/validate-workflow-authority-map.js
+  - node scripts/validate-aipos-yaml.js && node scripts/validate-aipos-drift.js && node scripts/validate-platform-independent-tests.js
+residual: "The step has not run on the host yet; it runs only after this reaches main and the owner or the agent dispatches the diagnosis. /health is documented as unauthenticated and allowlisted; if its body ever carried more than liveness, the 1500 character bound and the public nature of the endpoint limit the exposure."

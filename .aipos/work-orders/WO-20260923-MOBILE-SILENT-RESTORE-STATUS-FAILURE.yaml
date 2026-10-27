@@ -1,0 +1,40 @@
+id: WO-20260923-MOBILE-SILENT-RESTORE-STATUS-FAILURE
+title: "Classify a transient native silent-status failure as retryable"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+base_commit: 4f42105e
+implementation_branch: claude/nusa-repository-j93sd8-silent-restore-status-failure
+objective: "A transient failure of the native getSilentDeviceStatus() bridge call during foreground PAPER session recovery must arm the bounded foreground retry, not leave the app silently unrecoverable."
+authority_impact: none
+finding: "Real Galaxy device report (owner, physical device): PAPER was connected; after a background/idle period, foreground showed a stuck 'PAPER connection required' screen (home screen disconnected badge) that did not self-recover and required manually reopening Settings and reconnecting. Traced to apps/mobile/src/mobileApprovedSession.ts's restoreWithSilentDevice(): its initial `await native.getSilentDeviceStatus()` call had no failure classification -- unlike every other failure path in this class (restore(), authenticateSilentDeviceCredential(), connectBootstrapForDevice()), which all set restoreRetryable=true on a non-definitive (network/timeout/hardware-transient) failure. A native bridge call throwing transiently right after Android Doze/background (Keystore or biometric provider briefly unavailable) is plausible and is not proof of DEVICE_UNREGISTERED/REVOKED. Because this one call path never set restoreRetryable, apps/mobile/src/paperConnectionSession.ts's shouldRetryRestore()-gated foreground retry timer never armed, and separately the periodic PAPER operations refresh (apps/mobile/App.tsx) kept rendering the NOT_CONFIGURED/'PAPER 연결 필요' UI on every subsequent tick with no path back to READY short of a fresh manual restore triggered by revisiting Settings."
+scope:
+  include:
+    - "restoreWithSilentDevice()'s initial getSilentDeviceStatus() call classifies a thrown error as retryable (restoreRetryable=true) before rethrowing, matching the existing pattern used by restore()/authenticateSilentDeviceCredential()/connectBootstrapForDevice()"
+  exclude:
+    - "Device trust/session state model, transport reconnect, App.tsx refresh scheduling, server-side session/challenge endpoints -- unchanged"
+    - "New architecture: no new orchestrator, watchdog, foreground service, wake lock, or keep-alive loop"
+    - "Definitive rejection handling (401/403) -- unchanged; still clears local state and requires re-enrollment"
+acceptance:
+  - "getSilentDeviceStatus() throwing a transient (non-definitive) error sets shouldRetryRestore() to true and the underlying error still propagates to the caller unchanged."
+  - "A definitive session rejection elsewhere in the same restore path is unaffected."
+  - "No network request is made when getSilentDeviceStatus() itself throws (fails closed, no wasted server round-trip)."
+verification_commands:
+  - "pnpm run preflight (Node >= 24)"
+  - "tsc -p apps/mobile/tsconfig.json --noEmit"
+  - "node --test dist/apps/mobile/src/mobileApprovedSession.test.js"
+  - "node --test dist/apps/mobile/src/*.test.js"
+  - "node --test tests/mobile-paper-pairing.test.js tests/owner-device-credential.test.js tests/owner-device-mobile-source-contract.test.js"
+evidence:
+  implementation_status: READY_FOR_REVIEW
+  mutation_verification:
+    - "removing the new try/catch around getSilentDeviceStatus() -> 1 failure"
+  external_validation: "REQUIRED: exact-head protected CI, independent Audit, Release gate. Full Galaxy physical-device reproduction of the original background/foreground scenario remains HUMAN_ENVIRONMENT_ONLY per AGENTS.md and is not claimed as verified by this change alone; the owner's report is the reproduction evidence that identified the code path, and confirming this fix resolves it on-device is a follow-up for the owner."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+next_permitted_action: "Obtain exact-head CI, independent Audit, and Release; do not merge from Development. Ask the owner to confirm on the physical Galaxy device once deployed."

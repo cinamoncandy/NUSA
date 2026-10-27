@@ -15,9 +15,11 @@ export interface CanonicalPaperCandidatePerformanceInput {
   readonly periods: readonly PaperForwardPeriodEvidence[];
   readonly account: PaperAccountState;
   readonly executionQualityPolicy: CanonicalPaperExecutionQualityPolicy;
+  readonly requireIndependentDays?: boolean;
 }
 
 const DAY_MS = 86_400_000;
+export const PAPER_COVERED_DAY_SCORING_VERSION = "COVERED_DAY_BLOCKS_V1";
 const finite = (value: number, field: string): number => {
   if (!Number.isFinite(value)) throw new Error(`${field} must be finite`);
   return value;
@@ -102,7 +104,7 @@ function executionQualityScore(fills: readonly PaperFillRecord[], account: Paper
     notional += weight;
   }
   if (!(notional > 0)) return undefined;
-  return finite(weighted / notional, "candidate PAPER execution quality");
+  return finite((weighted / notional) * 100, "candidate PAPER execution quality");
 }
 
 /**
@@ -126,8 +128,22 @@ export function buildCanonicalPaperCandidatePerformance(input: CanonicalPaperCan
   const completed = periods.filter((period) => period.status === "COMPLETED");
   if (completed.length === 0) return undefined;
   const returns = completed.map(periodNetReturn);
-  const sharpeRatio = sampleSharpe(returns);
-  const factor = profitFactor(returns);
+  // Disjoint contiguous >=24h covered blocks; hourly returns are not assumed IID.
+  // Do not allocate returns to invented sub-windows or count gaps/failed windows.
+  const independentReturns: number[] = [];
+  let covered = 0;
+  let wealth = 1;
+  let coveredEnd: number | undefined;
+  if (input.requireIndependentDays) for (const period of completed) {
+    if (coveredEnd !== undefined && period.periodStartAt !== coveredEnd) { covered = 0; wealth = 1; }
+    covered += period.periodEndAt - period.periodStartAt;
+    wealth *= 1 + periodNetReturn(period);
+    coveredEnd = period.periodEndAt;
+    if (covered >= DAY_MS) { independentReturns.push(wealth - 1); covered = 0; wealth = 1; }
+  }
+  const scoringReturns = input.requireIndependentDays ? independentReturns : returns;
+  const sharpeRatio = sampleSharpe(scoringReturns);
+  const factor = profitFactor(scoringReturns);
   if (sharpeRatio == null || factor == null) return undefined;
 
   const startedAt = periods[0]!.periodStartAt;
@@ -141,7 +157,7 @@ export function buildCanonicalPaperCandidatePerformance(input: CanonicalPaperCan
   return Object.freeze({
     startedAt,
     endedAt,
-    observationDays: Math.max(1, Math.ceil((endedAt - startedAt) / DAY_MS)),
+    observationDays: input.requireIndependentDays ? independentReturns.length : Math.floor(completed.reduce((duration, period) => duration + (period.periodEndAt - period.periodStartAt), 0) / DAY_MS),
     tradeCount: fills.length,
     netReturn: cumulativeReturn(returns),
     sharpeRatio,

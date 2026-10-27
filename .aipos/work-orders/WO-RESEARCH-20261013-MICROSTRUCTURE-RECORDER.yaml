@@ -1,0 +1,25 @@
+id: WO-RESEARCH-20261013-MICROSTRUCTURE-RECORDER
+title: "Record the public order book and trade ticks the runtime already streams, for research"
+status: LOCAL_VALIDATED_PENDING_CI
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-microstructure-recorder
+related_issues: [1605]
+owner_request: "2026-10-13 in chat: do anything that could make a profit (within PAPER_ONLY; no threshold or risk loosening)."
+why: "The research meta-learner exhausted every data type with history (0 of 189 configurations pass on unseen data); TRADES and ORDERBOOK remain, and Upbit offers no history of either. The existing order-book imbalance research module (apps/cloud/src/alpha/orderbook) has never had real data."
+change:
+  - "Storage migration 028_research_market_microstructure: research_orderbook_samples (best bid/ask, top-5 sizes, totals) and research_trade_ticks (sequential id, time, price, volume, side); idempotent per key, bounded retention per market."
+  - "apps/cloud/src/marketMicrostructureRecorder.ts: samples each market's reconciled order book at most every 5 s and buffers trade ticks, flushed every 5 s; every failure is swallowed and counted. Uses the existing WebSocket subscription (ticker, trade, orderbook); no new connection."
+  - "runtime.ts passes onTrade to the existing client; /health runtime.microstructureRecorder shows orderBookSamples, tradeTicks, writeFailures, lastRecordedAt."
+  - "Enabled by default; NUSA_MICROSTRUCTURE_RECORDER=DISABLED turns it off."
+boundary: "Public market data only. No order, fill, account, Risk, Governance, qualification or PAPER decision input."
+validation: "Store tests 3, recorder tests 4, /health test; pinned migration lists updated to 028; storage, cloud, research and closed-learning suites 1,381 pass; full tests/ 5,323 pass, 3 environment-only failures (Node 22 warnings in evidence CLI, missing Electron), unrelated."
+not_verified: "Production write volume and disk use after deploy (bounded by retention: 600k samples and 2M ticks per market)."
+next: "After deploy, confirm counters rise on /health; after enough days, pre-register an order-book imbalance / trade-flow study on the recorded data (the meta-learner's next recommendation)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY

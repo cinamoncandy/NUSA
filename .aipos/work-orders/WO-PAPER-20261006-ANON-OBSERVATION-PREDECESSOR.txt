@@ -1,0 +1,1 @@
+For logical task ANONYMOUS_PAPER_OBSERVATION only, PR #1809 is superseded by branch fix/mobile-anonymous-paper-observation. This does not supersede or close #1809's unrelated authentication, risk, architecture, or research work.

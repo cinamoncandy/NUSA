@@ -1,0 +1,31 @@
+id: WO-RESEARCH-20261013-ML-ALLKRW
+title: "First meta-learner-chosen experiment: OHLCV + intraday + all KRW markets + logistic-regression ML"
+status: COMPLETED_NO_SURVIVOR
+priority: P0
+authority_impact: none
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/research-meta-learner
+related_issues: [1605]
+concept: docs/NUSA_RECURSIVE_SELF_IMPROVEMENT.md (meta-learning chose this; outcome is appended to the research ledger)
+owner_request: "2026-10-13 in chat: introduce the learning concept (run the meta-learner's recommended experiment)."
+pre_registration:
+  committed_before_data_fetch: true
+  script: scripts/research-ml-allkrw.js
+  design: "All KRW markets, 60m candles 2025-10-13..2026-10-13, eligibility from training data only; 60/20/20 time split with 1-day embargo; daily 00:00 UTC decision; 14 point-in-time features; label next-24h return > 0.2%; L2 logistic regression, lambda in {0.1,1,10} chosen on validation; top 5 with p>0.5, 24h hold."
+  pass_rule: ">=50 holdout trades, mean net/trade > 0, one-sided z p < 0.05/176 (cumulative), 2x-cost mean > 0, beats buying every eligible market on the same days."
+  disclosed_bias: "Universe is markets listed at fetch time (survivorship)."
+data: "Fetched into the session scratchpad (not committed; ~295 files); a manifest with per-file sha256 is recorded in the result."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+v1_result: "FAIL. 106 of 295 markets eligible; train 18,368 samples (38.8% positive). With a 0.5 probability threshold the model selected 3 validation and 4 holdout trades (mean -8.87% per trade). Data manifest sha256 393a89258fc5eaddb593f9fc59ebfc836fd03c3fbd5df253c045a3049773a875. Recorded in the ledger as designFlaw."
+meta_learner_change: "Rule 4c added before v2 was run: a designFlaw experiment's combination may be retried once with the flaw fixed; its configurations still count (cumulative K 180 for v2)."
+v2_pre_registration:
+  script: scripts/research-ml-allkrw-v2.js
+  only_differences: "top 5 by predicted probability with no 0.5 threshold; K = 177 + 3 = 180"
+  committed_before_run: true
+v2_result: "FAIL (no skill). 355 holdout trades, mean net -0.201% per trade (2x -0.400%), universe +0.271%, win rate 43.9%, p 0.78 (bar 2.78e-4). Validation picks -0.87% vs universe -0.72%."
+next: "Meta-learner after v2: see the ledger run in the PR. No threshold or risk change."

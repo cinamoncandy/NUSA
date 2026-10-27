@@ -16,6 +16,14 @@ export interface PaperOrderLifecycleState {
   readonly lastTransitionAt: number;
 }
 
+/**
+ * The execution loop decides "this fill finishes the order" when the fill is within 1e-8 of the remaining quantity, but float
+ * subtraction can leave a last-digit remainder (owner screen 2026-10-05: a SELL refused with "filled transition must consume
+ * remaining quantity"). A fill that finishes the order within this tolerance is settled as exactly filled. Anything larger is
+ * still refused, and partial fills are unchanged. Owner approved in chat.
+ */
+export const PAPER_FILL_REMAINDER_TOLERANCE = 1e-8;
+
 const TERMINAL = new Set<PaperOrderStatus>(["FILLED", "CANCELLED", "REJECTED"]);
 
 const ALLOWED: Readonly<Record<PaperOrderStatus, readonly PaperOrderStatus[]>> = {
@@ -59,16 +67,22 @@ export function transitionPaperOrderLifecycle(
   const isFillTransition = nextStatus === "PARTIALLY_FILLED" || nextStatus === "FILLED";
   if (!isFillTransition && fillQuantity !== 0) throw new Error("non-fill transition cannot carry fill quantity");
   if (isFillTransition && fillQuantity <= 0) throw new Error("fill transition requires positive fill quantity");
-  if (fillQuantity > current.remainingQuantity) throw new Error("fill quantity exceeds remaining quantity");
+  const overshoot = fillQuantity - current.remainingQuantity;
+  const settlesOrder = nextStatus === "FILLED" && Math.abs(overshoot) <= PAPER_FILL_REMAINDER_TOLERANCE;
+  if (overshoot > 0 && !settlesOrder) throw new Error("fill quantity exceeds remaining quantity");
 
-  const filledQuantity = current.filledQuantity + fillQuantity;
-  const remainingQuantity = current.requestedQuantity - filledQuantity;
+  // The saved order record carries the real total of its fills, and saving requires the lifecycle to match it exactly, so a
+  // settling fill closes the order at what was actually filled (rounded like the record) instead of at the requested size.
+  const filledQuantity = settlesOrder ? Math.round((current.filledQuantity + fillQuantity) * 1e8) / 1e8 : current.filledQuantity + fillQuantity;
+  const requestedQuantity = settlesOrder ? filledQuantity : current.requestedQuantity;
+  const remainingQuantity = settlesOrder ? 0 : requestedQuantity - filledQuantity;
   if (nextStatus === "PARTIALLY_FILLED" && remainingQuantity <= 0) throw new Error("partial fill must leave remaining quantity");
   if (nextStatus === "FILLED" && remainingQuantity !== 0) throw new Error("filled transition must consume remaining quantity");
 
   return Object.freeze({
     ...current,
     status: nextStatus,
+    requestedQuantity,
     filledQuantity,
     remainingQuantity,
     transitionSequence: current.transitionSequence + 1,

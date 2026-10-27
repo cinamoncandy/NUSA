@@ -1,0 +1,24 @@
+id: WO-UI-20261002-HOLO-SPHERE
+title: "Holo sphere replaces the attractor on every tab"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-holo-sphere
+authority_impact: none
+objective: "Owner found the attractor blurry and too fast (2026-10-01) and chose the Behance-inspired holographic particle sphere prototype (2026-10-02). Applied app-wide."
+scope:
+  - "holoModel.ts (import-free): Fibonacci sphere, a wave per new decision (at most three per poll), a ring burst and green flash per new PAPER order, amber/red tint for held/halted runtimes, counter resets as baseline."
+  - "holoSphere.tsx: Skia particle sphere; 24 fps while waves or a burst move, 12 fps for the ambient spin alone; still under reduce-motion and on secondary tabs; colours written into a reused Float32Array."
+  - "HOME hero, PAPER/LIVE headers and the More mark use it; attractorField.tsx and attractorModel.ts are removed."
+exclusions:
+  - "No change to data, risk, execution, credentials or LIVE authority. The four-tab layout redesign from the same prototype is a separate step."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - node --test tests/mobile-holo-sphere.test.js tests/mobile-field-screens.test.js
+  - pnpm run validate
+residual: "On-device smoothness, brightness and battery are HUMAN_ENVIRONMENT_ONLY."

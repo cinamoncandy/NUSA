@@ -1,8 +1,13 @@
+import { executeGithubDispatch } from "./githubExecutor";
+import { prepareDiscoveredCodingRequest } from "./evolveCodingBridge";
 import { deriveWorkflowFailureOpportunities, type WorkflowFailureEvidence } from "./evolveEvidenceOpportunitySource";
 import { deriveGithubIssueBacklogSignals } from "./evolveGithubIssueBacklog";
 import type { EvolutionDiscoverySignal } from "./evolveOpportunityDiscovery";
-import { dispatchDevelopmentPortfolio } from "./developmentPortfolioDispatcher";
-import { type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { isRepairableMainWorkflowFailure } from "./repairableWorkflowRun";
+import { acquirePersistentExecution, admitActiveWip, createEvolutionLearningMemoryStorage, markPersistentExecutionDispatched, readPersistentExecution, readProviderCapacityWait, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { DurableEvolutionLearningMemory } from "./evolveDurableLearningMemory";
+
+const CODING_PROVIDER = "workers-ai";
 
 export interface ScheduledEvolutionCodingEnv {
   readonly NUSA_GITHUB_TOKEN?: string;
@@ -10,7 +15,7 @@ export interface ScheduledEvolutionCodingEnv {
 }
 
 export interface ScheduledEvolutionCodingResult {
-  readonly status: "ABSTAINED" | "DUPLICATE_SUPPRESSED" | "INTERFACE_READY" | "EXECUTION_ACCEPTED" | "EXECUTION_FAILED";
+  readonly status: "ABSTAINED" | "WAITING_RATE_LIMIT" | "DUPLICATE_SUPPRESSED" | "INTERFACE_READY" | "EXECUTION_ACCEPTED" | "EXECUTION_FAILED";
   readonly reason: string;
   readonly selectedSignalIds: readonly string[];
   readonly liveAuthority: "NONE";
@@ -22,6 +27,13 @@ const SHA40 = /^[0-9a-f]{40}$/i;
 const MAX_SOURCE_AGE_SECONDS = 24 * 60 * 60;
 const DISCOVERY_MAX_AGE_MS = 60 * 60 * 1000;
 const DISCOVERY_MAX_FUTURE_SKEW_MS = 5 * 60 * 1000;
+const CODING_LEASE_MS = 5 * 60 * 1000;
+/**
+ * Fresh dispatches of one logical work item on one main SHA. The consumer releases a failed attempt,
+ * so without this ceiling the scheduler re-dispatched the same unfixable failure about every five
+ * minutes until main moved (2026-10-12). A new main SHA is a new identity and starts again.
+ */
+export const MAX_SCHEDULED_CODING_ATTEMPTS = 3;
 const AUTHORITY = Object.freeze({ liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
 
 type JsonObject = Record<string, unknown>;
@@ -47,8 +59,8 @@ function evidenceFromRuns(candidates: readonly unknown[]): readonly WorkflowFail
     const run = object(candidate);
     if (!run) continue;
     const conclusion = text(run.conclusion);
-    if (conclusion !== "failure" && conclusion !== "cancelled" && conclusion !== "timed_out") continue;
-    if (text(run.head_branch) !== "main" || text(run.event) === "repository_dispatch") continue;
+    if (conclusion !== "failure" && conclusion !== "timed_out") continue;
+    if (!isRepairableMainWorkflowFailure(run)) continue;
     const workflowName = text(run.name);
     const runId = positiveInteger(run.id);
     const headSha = text(run.head_sha);
@@ -88,6 +100,10 @@ function freshDiscoverySignals(signals: readonly EvolutionDiscoverySignal[], now
   }));
 }
 
+function logicalWorkIdentity(signals: readonly EvolutionDiscoverySignal[]): string {
+  const selected = signals[0]?.id ?? "no-signal";
+  return selected.replace(/[^A-Za-z0-9_.:-]+/g, "-").slice(0, 180) || "no-signal";
+}
 
 function backlogIssueNumber(signal: EvolutionDiscoverySignal | undefined): number | null {
   if (signal?.source !== "github-issue-backlog") return null;
@@ -109,7 +125,7 @@ async function revalidateBacklogSignal(
   // parallel so a scheduled cycle does not pay two GitHub round trips before
   // it can decide whether the signal is still actionable.
   const issueUrl = `https://api.github.com/repos/${input.repository}/issues/${issueNumber}`;
-  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr is:open ${issueNumber}`, per_page: "100", page: "1" });
+  const query = new URLSearchParams({ q: `repo:${input.repository} is:pr ${issueNumber}`, per_page: "100", page: "1" });
   const pullsUrl = `https://api.github.com/search/issues?${query.toString()}`;
   const headers = {
     accept: "application/vnd.github+json",
@@ -148,7 +164,26 @@ async function revalidateBacklogSignal(
   const totalCount = pullsBody?.total_count;
   if (!Array.isArray(items) || !Number.isSafeInteger(totalCount) || Number(totalCount) < 0 || Number(totalCount) > items.length) return "UNAVAILABLE";
 
-  const current = deriveGithubIssueBacklogSignals([issue], items, new Date(input.now));
+  const issueUpdatedAt = text(issueRecord.updated_at);
+  const issueUpdatedAtMs = issueUpdatedAt ? Date.parse(issueUpdatedAt) : Number.NaN;
+  if (!Number.isFinite(issueUpdatedAtMs)) return "UNAVAILABLE";
+  const completedCurrentIncrement = items.some((value) => {
+    const pull = object(value);
+    const pullRequest = object(pull?.pull_request);
+    const mergedAt = text(pullRequest?.merged_at);
+    if (!pull || !mergedAt) return false;
+    const mergedAtMs = Date.parse(mergedAt);
+    if (!Number.isFinite(mergedAtMs) || mergedAtMs < issueUpdatedAtMs) return false;
+    const haystack = `${text(pull.title) ?? ""}\n${text(pull.body) ?? ""}`;
+    return haystack.includes(`#${issueNumber}`);
+  });
+  if (completedCurrentIncrement) return "STALE";
+
+  const openPulls = items.filter((value) => {
+    const pull = object(value);
+    return text(pull?.state)?.toLowerCase() === "open";
+  });
+  const current = deriveGithubIssueBacklogSignals([issue], openPulls, new Date(input.now));
   return current.some((candidate) => candidate.id === signal?.id) ? "ACTIONABLE" : "STALE";
 }
 
@@ -184,25 +219,120 @@ export async function runScheduledEvolutionCoding(
     ? deriveGithubIssueBacklogSignals(input.backlogIssues ?? [], input.openPulls ?? [], new Date(input.now))
     : Object.freeze([] as EvolutionDiscoverySignal[]);
   const signals = failureSignals.length > 0 ? failureSignals : backlogSignals;
+  const freshFailureCount = failureSignals.length;
+  const workIdentity = logicalWorkIdentity(signals);
   if (signals[0]?.source === "github-issue-backlog") {
     const freshness = await revalidateBacklogSignal(signals[0], input, token, fetchImpl);
     if (freshness === "UNAVAILABLE") return result("ABSTAINED", "github-issue-actionability-revalidation-unavailable", signals.map((signal) => signal.id));
     if (freshness !== "ACTIONABLE") return result("ABSTAINED", "github-issue-no-longer-actionable", signals.map((signal) => signal.id));
   }
-  const dispatched = await dispatchDevelopmentPortfolio({
-    repository: input.repository,
-    mainSha: input.mainSha,
-    workflowRunId: input.workflowRunId,
-    now: input.now,
+  const executionId = `evolve-coding:${input.mainSha.slice(0, 16)}:${workIdentity.slice(0, 100)}`;
+  const dedupeKey = `evolve-coding:${input.mainSha}:${workIdentity}`;
+  // The execution record below is keyed by the exact main SHA, so it is empty again whenever main
+  // moves. The provider wait is not: while the coding provider is inside its retry window, no new
+  // execution is started for any main, and the next dispatch after the window is the bounded probe.
+  let providerWait;
+  try {
+    providerWait = await readProviderCapacityWait(coordinator, CODING_PROVIDER);
+  } catch {
+    return result("ABSTAINED", "provider-capacity-state-unavailable", signals.map((signal) => signal.id));
+  }
+  if (providerWait && input.now < providerWait.nextRetryAt) return result("WAITING_RATE_LIMIT", "waiting-provider-capacity", signals.map((signal) => signal.id));
+  let currentExecution;
+  try {
+    currentExecution = await readPersistentExecution(coordinator, dedupeKey);
+  } catch {
+    return result("ABSTAINED", "persistent-execution-state-unavailable", signals.map((signal) => signal.id));
+  }
+  if (currentExecution?.state === "BLOCKED") return result("EXECUTION_FAILED", "persistent-execution-blocked", signals.map((signal) => signal.id));
+  if (currentExecution?.state === "WAITING_RATE_LIMIT") {
+    const stop = currentExecution.stop;
+    if (!stop || stop.executionId !== executionId || stop.dedupeKey !== dedupeKey) return result("ABSTAINED", "persistent-rate-limit-stop-corrupt", signals.map((signal) => signal.id));
+    if (input.now < stop.nextRetryAt) return result("WAITING_RATE_LIMIT", "waiting-rate-limit", signals.map((signal) => signal.id));
+  }
+  const activeExecutions = currentExecution
+    && (currentExecution.state === "LEASED" || currentExecution.state === "HANDED_OFF")
+    && currentExecution.leaseExpiresAt > input.now
+    ? 1
+    : 0;
+  const elapsedSecondsSinceLastRun = currentExecution
+    ? Math.max(0, Math.floor((input.now - currentExecution.updatedAt) / 1000))
+    : Number.MAX_SAFE_INTEGER;
+  let learningMemory: DurableEvolutionLearningMemory;
+  try {
+    learningMemory = await DurableEvolutionLearningMemory.hydrate(createEvolutionLearningMemoryStorage(coordinator));
+  } catch {
+    return result("ABSTAINED", "learning-memory-state-unavailable", signals.map((signal) => signal.id));
+  }
+
+  const bridge = prepareDiscoveredCodingRequest({
     signals,
-    failureSignalCount: failureSignals.length,
-    token,
-    coordinator,
-    fetchImpl,
+    now: new Date(input.now),
+    repository: input.repository,
+    headSha: input.mainSha,
+    workflowRunId: input.workflowRunId,
+    executionId,
+    dedupeKey,
+    circuit: freshFailureCount >= 3
+      ? { state: "OPEN", consecutiveFailures: freshFailureCount, openedAt: new Date(input.now).toISOString() }
+      : { state: "CLOSED", consecutiveFailures: freshFailureCount },
+    schedulePolicy: { mode: "AUTONOMOUS", minIntervalSeconds: 60, maxConcurrent: 1 },
+    activeExecutions,
+    elapsedSecondsSinceLastRun,
+    learningRecords: learningMemory.list(),
   });
-  if (dispatched.status === "EXECUTION_ACCEPTED") return result("EXECUTION_ACCEPTED", dispatched.reason, dispatched.selectedSignalIds);
-  if (dispatched.status === "NO_READY_WORK") return result("ABSTAINED", dispatched.reason, dispatched.selectedSignalIds);
-  if (dispatched.status === "ABSTAINED") return result("ABSTAINED", dispatched.reason, dispatched.selectedSignalIds);
-  if (dispatched.status === "DUPLICATE_SUPPRESSED") return result("DUPLICATE_SUPPRESSED", dispatched.reason, dispatched.selectedSignalIds);
-  return result("EXECUTION_FAILED", dispatched.reason, dispatched.selectedSignalIds);
+  if (bridge.status !== "READY" || !bridge.request) return result("ABSTAINED", bridge.reason);
+
+  const selectedSignal = signals[0];
+  if (selectedSignal?.source === "github-issue-backlog") {
+    if (!selectedSignal.canonicalOwner || !selectedSignal.conflictKeys?.length) {
+      return result("ABSTAINED", "github-issue-work-metadata-required", signals.map((signal) => signal.id));
+    }
+    let activeWip;
+    try {
+      activeWip = await admitActiveWip(coordinator, {
+        dedupeKey: bridge.request.dedupeKey,
+        executionId: bridge.request.executionId,
+        canonicalOwner: selectedSignal.canonicalOwner,
+        conflictKeys: selectedSignal.conflictKeys,
+        claimedAt: input.now,
+        maxConcurrent: 1,
+      });
+    } catch {
+      return result("ABSTAINED", "active-wip-admission-unavailable", signals.map((signal) => signal.id));
+    }
+    if (!activeWip.admitted) {
+      return result("DUPLICATE_SUPPRESSED", activeWip.reason ?? "ACTIVE_WIP_REJECTED", signals.map((signal) => signal.id));
+    }
+  }
+
+  const persistent = await acquirePersistentExecution(coordinator, {
+    dedupeKey: bridge.request.dedupeKey,
+    executionId: bridge.request.executionId,
+    now: input.now,
+    leaseExpiresAt: input.now + CODING_LEASE_MS,
+    maxAcquisitions: MAX_SCHEDULED_CODING_ATTEMPTS,
+  });
+  if (!persistent.acquired) {
+    if (persistent.reason === "WAITING_RATE_LIMIT") return result("WAITING_RATE_LIMIT", "waiting-rate-limit", signals.map((signal) => signal.id));
+    return result("DUPLICATE_SUPPRESSED", persistent.reason ?? "DUPLICATE_EXECUTION", signals.map((signal) => signal.id));
+  }
+
+  const dispatched = await executeGithubDispatch(bridge.request, { token, allowedRepository: input.repository }, fetchImpl);
+  if (dispatched.status === "DISPATCHED") {
+    try {
+      await markPersistentExecutionDispatched(coordinator, {
+        dedupeKey: bridge.request.dedupeKey,
+        executionId: bridge.request.executionId,
+        now: input.now,
+      });
+    } catch {
+      // The remote dispatch may already be accepted. Keep the persistent lease
+      // fail-closed so a replay cannot silently create a second execution.
+      return result("ABSTAINED", "persistent-execution-dispatch-reconciliation-failed", signals.map((signal) => signal.id));
+    }
+    return result("EXECUTION_ACCEPTED", "github-coding-dispatch-accepted", signals.map((signal) => signal.id));
+  }
+  if (dispatched.status === "INTERFACE_READY") return result("INTERFACE_READY", dispatched.reason, signals.map((signal) => signal.id));
+  return result("EXECUTION_FAILED", dispatched.reason, signals.map((signal) => signal.id));
 }

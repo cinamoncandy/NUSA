@@ -1,11 +1,16 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
-import type { SqliteEvolutionLearningLedger } from "../../../packages/storage/src/evolutionLearningLedger";
+import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
+import type { SqliteEvolutionLearningLedger as SqliteEvolutionLearningLedgerType } from "../../../packages/storage/src/evolutionLearningLedger";
 import type { PaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
+import { legacyPaperChallengerPolicyIdentity, paperChallengerPolicyIdentity } from "./paperChallengerPolicyIdentity";
 import type { PaperResearchLineage } from "./paperResearchLineage";
 
-type RecordValue = Parameters<SqliteEvolutionLearningLedger["append"]>[0];
+type RecordValue = Parameters<SqliteEvolutionLearningLedgerType["append"]>[0];
 
 class MemoryLedger {
   public readonly records: RecordValue[] = [];
@@ -26,7 +31,7 @@ const HASH_B = "b".repeat(64);
 const lineage: PaperResearchLineage = Object.freeze({
   schemaVersion: 1,
   candidateId: "challenger-a-v9",
-  candidateVersion: "specification-v9",
+  candidateVersion: "e".repeat(64),
   originalRunFingerprintSha256: "c".repeat(64),
   replayRunFingerprintSha256: "d".repeat(64),
   researchDecisionReference: "research-decision:1",
@@ -37,28 +42,56 @@ const lineage: PaperResearchLineage = Object.freeze({
 });
 
 function binding(overrides: Partial<PaperCandidateExecutionBinding> = {}): PaperCandidateExecutionBinding {
+  const candidateId = overrides.candidateId ?? "challenger-a-v9";
   return {
     schemaVersion: 1,
     status: "BOUND_UNVERIFIED",
     authority: "PAPER_RESEARCH_ONLY",
     liveAuthority: "NONE",
     productionMutationAllowed: false,
-    candidateId: "challenger-a-v9",
+    candidateId,
     datasetId: "dataset-a",
     datasetContentSha256: HASH_A,
     advisoryGeneratedAt: 1_000,
     periodStartAt: 2_000,
     advisoryFingerprintSha256: HASH_A,
     bindingFingerprintSha256: HASH_B,
+    candidateStrategy: {
+      candidateId, familyId: "sma-crossover", lineageId: "lineage-a", specificationHash: "e".repeat(64),
+      codeSha: "f".repeat(40), costModelVersion: "cost-v1", parameters: { shortPeriod: 2, longPeriod: 5 },
+    },
     ...overrides,
   };
+}
+
+function governance(value: PaperCandidateExecutionBinding = binding()) {
+  return {
+    strategyId: "strategy-a", candidateId: value.candidateId, candidateVersion: value.candidateStrategy!.specificationHash,
+    familyId: value.candidateStrategy!.familyId, evidenceFingerprintSha256: value.bindingFingerprintSha256, lifecycle: "CHALLENGER" as const,
+    approval: { actorType: "HUMAN" as const, approvalReference: "owner:paper-challenger", approvedAt: 1, decisionFingerprint: "d".repeat(64) },
+  };
+}
+
+function policyGovernance(value: PaperCandidateExecutionBinding = binding()) {
+  const policy = paperChallengerPolicyIdentity({ candidateId: value.candidateId, candidateVersion: value.candidateStrategy!.specificationHash, familyId: value.candidateStrategy!.familyId, evidenceFingerprintSha256: value.bindingFingerprintSha256, originalRunFingerprintSha256: lineage.originalRunFingerprintSha256, replayRunFingerprintSha256: lineage.replayRunFingerprintSha256, researchDecisionReference: lineage.researchDecisionReference });
+  return { ...governance(value), strategyId: `${value.candidateStrategy!.familyId}:${value.candidateId}`, approval: { actorType: "POLICY" as const, approvalReference: policy.approvalReference, approvedAt: 1, decisionFingerprint: policy.decisionFingerprint } };
+}
+
+function legacyPolicyGovernance(value: PaperCandidateExecutionBinding = binding()) {
+  const policy = legacyPaperChallengerPolicyIdentity({ candidateId: value.candidateId, candidateVersion: value.candidateStrategy!.specificationHash, familyId: value.candidateStrategy!.familyId, evidenceFingerprintSha256: value.bindingFingerprintSha256, replayRunFingerprintSha256: lineage.replayRunFingerprintSha256, researchDecisionReference: lineage.researchDecisionReference });
+  return { ...governance(value), strategyId: `${value.candidateStrategy!.familyId}:${value.candidateId}`, approval: { actorType: "POLICY" as const, approvalReference: policy.approvalReference, approvedAt: 1, decisionFingerprint: policy.decisionFingerprint } };
+}
+
+function appendActivation(persistence: MemoryLedger, authorization: ReturnType<typeof policyGovernance> | ReturnType<typeof legacyPolicyGovernance>): void {
+  const value = binding();
+  persistence.append({ opportunityId: `paper-challenger:KRW-BTC:${value.bindingFingerprintSha256}:active`, problem: "NUSA PAPER challenger binding lifecycle", evidenceReferences: [], hypothesis: JSON.stringify({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: value, activatedAt: value.periodStartAt, researchLineage: lineage, governanceAuthorization: authorization, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), changeReference: `candidate:${value.candidateId}`, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(value.periodStartAt).toISOString() });
 }
 
 describe("PaperChallengerBindingLedger", () => {
   it("recovers one active immutable binding and exact Research lineage after restart", () => {
     const persistence = new MemoryLedger();
     const first = new PaperChallengerBindingLedger(persistence);
-    first.activate("krw-btc", binding(), lineage);
+    first.activate("krw-btc", binding(), lineage, governance());
     assert.equal(first.read("KRW-BTC", 3_000)?.candidateId, "challenger-a-v9");
 
     const restarted = new PaperChallengerBindingLedger(persistence);
@@ -67,27 +100,114 @@ describe("PaperChallengerBindingLedger", () => {
     assert.equal(recovered?.binding.liveAuthority, "NONE");
     assert.equal(recovered?.binding.productionMutationAllowed, false);
     assert.deepEqual(recovered?.researchLineage, lineage);
+    assert.deepEqual(recovered?.governanceAuthorization, governance());
     assert.deepEqual(restarted.lineage("KRW-BTC", 3_000), lineage);
+  });
+
+  it("reconstructs the same POLICY authorization from the durable SQLite ledger after close and reopen", () => {
+    const directory = mkdtempSync(join(tmpdir(), "nusa-paper-policy-restart-"));
+    const filename = join(directory, "learning.sqlite");
+    try {
+      const firstDb = new SqliteDatabase(filename);
+      let expectedAuthorization: ReturnType<typeof policyGovernance>;
+      try {
+        const ledger = new SqliteEvolutionLearningLedger(firstDb);
+        const bindings = new PaperChallengerBindingLedger(ledger);
+        expectedAuthorization = policyGovernance();
+        bindings.activate("KRW-BTC", binding(), lineage, expectedAuthorization);
+        assert.equal(ledger.size(), 1);
+      } finally {
+        firstDb.close();
+      }
+
+      const restartedDb = new SqliteDatabase(filename);
+      try {
+        const ledger = new SqliteEvolutionLearningLedger(restartedDb);
+        const bindings = new PaperChallengerBindingLedger(ledger);
+        const recovered = bindings.current("KRW-BTC", 3_000);
+        assert.deepEqual(recovered?.governanceAuthorization, expectedAuthorization);
+        assert.deepEqual(recovered?.researchLineage, lineage);
+        assert.equal(recovered?.binding.liveAuthority, "NONE");
+        assert.equal(recovered?.binding.productionMutationAllowed, false);
+        assert.equal(ledger.size(), 1, "replay must not append a duplicate activation");
+      } finally {
+        restartedDb.close();
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it("keeps legacy lineage-free activation history readable", () => {
     const persistence = new MemoryLedger();
-    const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding());
+    const legacyBinding = binding();
+    persistence.append({ opportunityId: "paper-challenger:KRW-BTC:legacy:active", problem: "NUSA PAPER challenger binding lifecycle", evidenceReferences: [], hypothesis: JSON.stringify({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: legacyBinding, activatedAt: legacyBinding.periodStartAt, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), changeReference: `candidate:${legacyBinding.candidateId}`, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(legacyBinding.periodStartAt).toISOString() });
     const restarted = new PaperChallengerBindingLedger(persistence);
     assert.equal(restarted.read("KRW-BTC", 3_000)?.candidateId, "challenger-a-v9");
     assert.equal(restarted.lineage("KRW-BTC", 3_000), undefined);
+    assert.equal(restarted.current("KRW-BTC", 3_000)?.governanceAuthorization, undefined);
+  });
+
+  it("keeps legacy lineage activation without candidate strategy readable but ungoverned", () => {
+    const persistence = new MemoryLedger();
+    const { candidateStrategy: legacyCandidateStrategy, ...legacyBinding } = binding();
+    void legacyCandidateStrategy;
+    persistence.append({ opportunityId: "paper-challenger:KRW-BTC:legacy-lineage:active", problem: "NUSA PAPER challenger binding lifecycle", evidenceReferences: [], hypothesis: JSON.stringify({ schemaVersion: 1, status: "ACTIVE", market: "KRW-BTC", binding: legacyBinding, activatedAt: legacyBinding.periodStartAt, researchLineage: lineage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }), changeReference: "candidate:" + legacyBinding.candidateId, validationStatus: "ACTIVE", outcome: "SUCCESS", failureReason: null, rollbackReference: null, reusable: true, recordedAt: new Date(legacyBinding.periodStartAt).toISOString() });
+    const restarted = new PaperChallengerBindingLedger(persistence);
+    assert.equal(restarted.read("KRW-BTC", 3_000)?.candidateId, "challenger-a-v9");
+    assert.deepEqual(restarted.lineage("KRW-BTC", 3_000), lineage);
+    assert.equal(restarted.current("KRW-BTC", 3_000)?.governanceAuthorization, undefined);
+  });
+
+  it("keeps exact historical v1 POLICY activation readable but removes Governance eligibility", () => {
+    const persistence = new MemoryLedger();
+    appendActivation(persistence, legacyPolicyGovernance());
+    const restarted = new PaperChallengerBindingLedger(persistence);
+    const recovered = restarted.current("KRW-BTC", 3_000);
+    assert.equal(recovered?.binding.candidateId, "challenger-a-v9");
+    assert.deepEqual(recovered?.researchLineage, lineage);
+    assert.equal(recovered?.governanceAuthorization, undefined, "v1 POLICY history is readable evidence only and cannot seed governed closed learning");
+  });
+
+  it("fails closed on tampered historical v1 POLICY identity", () => {
+    const persistence = new MemoryLedger();
+    appendActivation(persistence, legacyPolicyGovernance());
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    const authorization = receipt.governanceAuthorization as ReturnType<typeof legacyPolicyGovernance>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...authorization, approval: { ...authorization.approval, decisionFingerprint: "a".repeat(64) } } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("never accepts historical v1 POLICY identity for a new activation", () => {
+    const persistence = new MemoryLedger();
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, legacyPolicyGovernance()), /Governance authorization does not bind|legacy Governance authorization/);
+    assert.equal(persistence.records.length, 0);
   });
 
   it("rejects lineage for a different candidate", () => {
     const runtime = new PaperChallengerBindingLedger(new MemoryLedger());
-    assert.throws(() => runtime.activate("KRW-BTC", binding(), Object.freeze({ ...lineage, candidateId: "different" })), /lineage candidate conflict/);
+    assert.throws(() => runtime.activate("KRW-BTC", binding(), Object.freeze({ ...lineage, candidateId: "different" }), governance()), /lineage candidate conflict/);
+  });
+
+  it("rejects Research lineage candidate-version mismatch both before persistence and on replay", () => {
+    const mismatchedLineage = Object.freeze({ ...lineage, candidateVersion: "f".repeat(64) });
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), mismatchedLineage, authorization), /lineage candidate conflict/);
+    assert.equal(persistence.records.length, 0);
+
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const stored = persistence.records[0]!;
+    const receipt = JSON.parse(stored.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...stored, hypothesis: JSON.stringify({ ...receipt, researchLineage: mismatchedLineage }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /lineage candidate conflict/);
   });
 
   it("revokes a failed challenger without deleting immutable activation history", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
     const revoked = runtime.revoke("KRW-BTC", HASH_B, "challenger-a-v9", 4_000, "RISK_BREACH");
     assert.equal(revoked.status, "REVOKED");
     assert.equal(revoked.aiAuthority, "ZERO_AUTHORITY");
@@ -98,24 +218,90 @@ describe("PaperChallengerBindingLedger", () => {
   it("keeps the activation unavailable before its canonical period start", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
     assert.equal(runtime.read("KRW-BTC", 1_999), undefined);
   });
 
   it("rejects revocation that does not match the active candidate identity", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
     assert.throws(() => runtime.revoke("KRW-BTC", HASH_B, "different-candidate", 3_000, "FAILED"), /does not match/);
   });
 
   it("fails closed when a second challenger is activated before the first is revoked", () => {
     const persistence = new MemoryLedger();
     const runtime = new PaperChallengerBindingLedger(persistence);
-    runtime.activate("KRW-BTC", binding(), lineage);
+    runtime.activate("KRW-BTC", binding(), lineage, governance());
+    const second = binding({ candidateId: "challenger-b-v1", bindingFingerprintSha256: HASH_A, periodStartAt: 2_500 });
     assert.throws(
-      () => runtime.activate("KRW-BTC", binding({ candidateId: "challenger-b-v1", bindingFingerprintSha256: HASH_A, periodStartAt: 2_500 })),
+      () => runtime.activate("KRW-BTC", second, undefined, governance(second)),
       /multiple PAPER challengers/,
     );
+  });
+
+  it("rejects new activations whose Governance evidence does not bind the exact PAPER candidate", () => {
+    const runtime = new PaperChallengerBindingLedger(new MemoryLedger());
+    assert.throws(() => runtime.activate("KRW-BTC", binding(), lineage, { ...governance(), evidenceFingerprintSha256: HASH_A }), /Governance authorization does not bind/);
+    assert.throws(() => runtime.activate("KRW-BTC", binding(), lineage, { ...governance(), approval: { ...governance().approval, approvedAt: 2_001 } }), /Governance authorization does not bind/);
+  });
+
+  it("detects persisted Governance authorization tampering on restart", () => {
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, governance());
+    const stored = persistence.records[0]!;
+    const receipt = JSON.parse(stored.hypothesis) as Record<string, unknown>;
+    persistence.records[0] = Object.freeze({ ...stored, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...governance(), candidateId: "forged" } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("rejects a persisted POLICY approval relabeled as HUMAN", () => {
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...authorization, approval: { ...authorization.approval, actorType: "HUMAN" } } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+    assert.doesNotThrow(() => new PaperChallengerBindingLedger(new MemoryLedger()).activate("KRW-BTC", binding(), lineage, governance()));
+  });
+
+  it("rejects persisted POLICY strategy identity drift", () => {
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...authorization, strategyId: "forged-strategy" } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("rejects a persisted POLICY original Research snapshot substitution", () => {
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, researchLineage: { ...lineage, originalRunFingerprintSha256: "f".repeat(64) } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
+  });
+
+  it("accepts and recovers a POLICY approval bound to the exact original Research snapshot", () => {
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const recovered = new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000);
+    assert.deepEqual(recovered?.researchLineage, lineage);
+    assert.deepEqual(recovered?.governanceAuthorization, authorization);
+  });
+
+  it("recomputes deterministic policy approval identity from immutable Research lineage", () => {
+    const authorization = policyGovernance();
+    const persistence = new MemoryLedger();
+    new PaperChallengerBindingLedger(persistence).activate("KRW-BTC", binding(), lineage, authorization);
+    const record = persistence.records[0]!;
+    const receipt = JSON.parse(record.hypothesis) as Record<string, any>;
+    persistence.records[0] = Object.freeze({ ...record, hypothesis: JSON.stringify({ ...receipt, governanceAuthorization: { ...authorization, approval: { ...authorization.approval, decisionFingerprint: "a".repeat(64) } } }) });
+    assert.throws(() => new PaperChallengerBindingLedger(persistence).current("KRW-BTC", 3_000), /Governance authorization does not bind/);
   });
 });

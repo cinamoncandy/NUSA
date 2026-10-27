@@ -10,6 +10,7 @@ const request = {
   reason: "gha:CI:a".repeat(1),
   executionId: "github:delivery-123",
   dedupeKey: `ci:123:${"a".repeat(40)}`,
+  contractFingerprintSha256: "c".repeat(64),
   mutationAllowed: false as const,
   liveAuthority: "NONE" as const,
   productionMutationAllowed: false as const,
@@ -40,8 +41,18 @@ describe("coding execution evidence", () => {
       assert.equal(first.evidence.liveAuthority, "NONE");
       assert.equal(first.evidence.productionMutationAllowed, false);
       assert.equal(first.evidence.aiAuthority, "ZERO_AUTHORITY");
+      assert.equal(first.evidence.request.contractFingerprintSha256, "c".repeat(64));
       assert.deepEqual(first.evidence.outcome.changedFiles, ["apps/autopilot/src/a.ts", "apps/autopilot/src/z.ts"]);
       validatePersistedCodingExecutionEvidence(first.evidence);
+    }
+  });
+
+  it("records the earliest explicit coding failure boundary", () => {
+    const decision = createCodingExecutionEvidence(request, { status: "EXECUTION_FAILED", reason: "proposal_invalid", failureStage: "proposal-parse" }, 1_500);
+    assert.equal(decision.status, "RECORDED");
+    if (decision.status === "RECORDED") {
+      assert.deepEqual(decision.evidence.outcome.firstBrokenTransition, { from: "CODING_DISPATCHED", to: "PROPOSAL_VALIDATION", reason: "proposal_invalid" });
+      validatePersistedCodingExecutionEvidence(decision.evidence);
     }
   });
 

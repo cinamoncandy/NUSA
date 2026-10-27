@@ -1,0 +1,27 @@
+id: WO-OPS-20261007-HEALTH-RESEARCH-INTERVALS
+title: "Publish research experiment status per bar length on /health"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/health-research-intervals
+authority_impact: none
+owner_approval: "2026-10-07 in chat: '니 판단으로 누사를 최고로 업그레이드 시켜줘' and '다음'"
+objective: "#2554 runs the research grid on 1m, 15m and 60m bars, but /health researchExperimentTicks reports only the 1m orchestrator, so whether 15m/60m run in production could not be verified without host logs."
+scope:
+  - "researchExperimentComposition.ts: experimentTicksByInterval() reads each existing orchestrator's experimentTicks() keyed '1m', '15m', ..."
+  - "runtime.ts, closedLearningProductionRuntime.ts: optional display provider, published as runtime.researchExperimentTicksByInterval."
+  - "server.ts: the existing tick-summary allowlist is reused per entry; only keys 1m/15m/60m/240m are accepted."
+  - "tests: allowlist keys and shape, composition summary per length, updated structural pin."
+exclusions:
+  - "No change to research behaviour, intervals, candidates, PAPER execution, risk or LIVE. researchExperimentTicks (1m) is unchanged."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Display only; unknown keys or malformed summaries are omitted and an exception publishes nothing."
+rollback: "Revert the change."
+verification_commands:
+  - npx tsc -p tsconfig.json
+  - node --test tests/cloud-runtime-liveness-health.test.js tests/research-experiment-composition.test.js tests/closed-learning-loop-status.test.js
+residual: "Requires a PAPER deploy."

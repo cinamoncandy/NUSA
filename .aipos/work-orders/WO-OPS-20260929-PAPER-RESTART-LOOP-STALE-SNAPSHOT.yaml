@@ -1,0 +1,33 @@
+id: WO-OPS-20260929-PAPER-RESTART-LOOP-STALE-SNAPSHOT
+title: "Stop the Oracle PAPER restart loop caused by an unreplayable Research snapshot"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-legacy-replay
+authority_impact: none
+objective: "Since the b05deec0 release the Oracle PAPER runtime restarts every few seconds. /health previousStop (#2374) reported PREVIOUS_CLOSED_LEARNING_SCHEDULER:MESSAGE_C2841A66981C, reproduced locally as the closed-learning bootstrap replaying a Research snapshot captured before #1991."
+root_cause:
+  - "Replaying a pre-#1991 snapshot threw 'options.robustnessEvidence.candidateCostStress is not iterable' in researchRunLeagueBridge (fingerprint MESSAGE_C2841A66981C matched exactly)."
+  - "Past that, the snapshot fails 'research replay snapshot provenance drift' because League semantics changed; any scheduler error stops the whole runtime, and the Research timer that would replace the snapshot runs once a day and is itself broken until #2376."
+scope:
+  - "researchRunLeagueBridge: legacy robustness evidence without candidateCostStress binds nothing; qualification already reports COST_STRESS_CANDIDATE_BINDING_REQUIRED (UNKNOWN) for it."
+  - "closedLearningInitialPaperBootstrap: a snapshot that no longer replays (provenance drift) returns WAITING_RESEARCH_SNAPSHOT / RESEARCH_SNAPSHOT_STALE, remembered per fingerprint, like the existing WAITING_GOVERNANCE_APPROVAL wait. Nothing is persisted or deployed; every other replay fault still fails closed."
+exclusions:
+  - "No change to qualification gates, challenger deployment, risk, execution, accounting, credentials or LIVE. No challenger is deployed from a stale snapshot."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "Reproduction: snapshot from 19b7b9a6e (the release before the loop) + runtime at 4cc9c40a restarted 7 times in 90s with the exact production fingerprint MESSAGE_C2841A66981C."
+  - "With this change on the same state: one supervisor start in 140s, 350 decisions, lastError null, no failure record."
+  - "tests/research-run-robustness-evidence.test.js legacy League test fails before the fix with the production TypeError and passes after; apps/cloud/src/closedLearningInitialPaperBootstrap.test.ts covers stale wait, no persistence/deployment, per-fingerprint caching and fail-closed for other faults."
+residual: "A fresh challenger needs a new Research snapshot, which requires #2376 and the next Research timer run."

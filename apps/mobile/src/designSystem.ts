@@ -1,5 +1,6 @@
 export type ThemeMode = "light" | "dark";
-export type DesignPresetName = "classic" | "master";
+/** The Intelligence Field language is the only design preset; legacy presets were removed. */
+export type DesignPresetName = "field";
 export type ButtonTone = "primary" | "danger" | "neutral";
 
 export interface ShadowToken {
@@ -63,17 +64,23 @@ export interface Theme {
   }>;
 }
 
-export const intelligenceFieldColors = Object.freeze({
-  surface: "#070A12",
-  border: "#26324A",
-  ambientPurple: "#17122B",
-  ambientTeal: "#081E2A",
-  textMuted: "#8E9AB1",
-  textSubtle: "#68758D",
-  grid: "#273149",
-  text: "#F7F9FF",
-  heroBorder: "#222C40",
-  heroMuted: "#9AA6BA",
+/** Intelligence Field palette, retuned for calm-v1: subsystems read as quiet greys, healthy is white, amber is attention and red is halt. */
+export const fieldPalette = Object.freeze({
+  void: "#05080D",
+  paper: "#E8F0F2",
+  market: "#B8C4CC",
+  dim: "#566676",
+  governance: "#B8C4CC",
+  muted: "#A2ADB8",
+  axiom: "#B8C4CC",
+  label: "#C9D2D8",
+  text: "#E8F1FA",
+  heart: "#F4F8FA",
+  halt: "#FF5C5C",
+  risk: "#FFA94D",
+  focus: "#FFC266",
+  /** Selection/focus highlight for field visuals (focused subsystem, selected tab). Amber `focus` is kept for warning tones only. */
+  accent: "#E8F0F2",
 });
 
 const interaction = Object.freeze({
@@ -85,42 +92,61 @@ const interaction = Object.freeze({
   disabledOpacity: 0.42 as const,
 });
 
+/** Calm redesign (calm-v1) palette, wave accents since 2026-10-26. Colour carries meaning only: text = normal, order = my PAPER order (pink, as in the Now wave), attention = amber, loss = red/halt. */
+export const calmPalette = Object.freeze({
+  ground: "#05080D",
+  line: "#18212B",
+  text: "#E8F0F2",
+  muted: "#A2ADB8",
+  order: "#FF7AC8",
+  attention: "#FFC266",
+  loss: "#FF5C5C",
+} as const);
+
+/** Wave palette (Now tab wave and the app accent, owner-chosen 2026-10-26): blue, cyan and violet light, pink only for my PAPER orders. */
+export const wavePalette = Object.freeze({
+  blue: "#4F7BFF",
+  cyan: "#3FD3FF",
+  violet: "#A855FF",
+  pink: calmPalette.order,
+  deepBlue: "#5A6EFF",
+  lilac: "#BE78FF",
+  glow: "#7866FF",
+  idle: "#787890",
+} as const);
+
+/** Aura palette (Learning tab): near-black ground with the wave blue/violet light and grain (was green until 2026-10-26). Presentation only. */
+export const auraPalette = Object.freeze({
+  ground: "#09090E",
+  card: "#111118",
+  text: "#F1F1F6",
+  muted: "#9C9CB2",
+  deep: "#140B33",
+  mid: "#3B2BA8",
+  bright: "#6F7CFF",
+  neon: "#A88BFF",
+  unlit: "#2B2A40",
+  loss: "#FF6A5C",
+  attention: "#FFC266",
+  scrim: "rgba(9,9,14,0.62)",
+} as const);
+
+/** calm-v1: the whole app shares the calm palette. Cards blend into the ground (no boxes), white is the normal and primary tone, amber is attention only and red is loss/halt only. Identical in light and dark. */
+const fieldSurface = Object.freeze({
+  background: calmPalette.ground, surface: calmPalette.ground, surfaceRaised: "#0A1017", surfaceSunken: calmPalette.ground,
+  text: calmPalette.text, textMuted: calmPalette.muted, primary: calmPalette.text, primarySoft: "#0A1017", onPrimary: calmPalette.ground,
+  navSurface: calmPalette.ground, border: calmPalette.line, borderStrong: "#2A3440", info: calmPalette.muted, focus: calmPalette.text,
+  neonGlow: "rgba(232, 240, 242, 0.06)",
+});
+
 export const designPresets: Readonly<Record<DesignPresetName, DesignPreset>> = Object.freeze({
-  classic: Object.freeze({
-    name: "classic" as const,
-    dark: Object.freeze({
-      background: "#05070D", surface: "#0A0F19", surfaceRaised: "#101827", surfaceSunken: "#070B13",
-      text: "#F4F6F8", textMuted: "#8D96A5", primary: "#E8F3FF", primarySoft: "#10233A", onPrimary: "#05070D",
-      navSurface: "#080D17", border: "#182337", borderStrong: "#30445F", info: "#8FA9C7", focus: "#FFFFFF",
-      neonGlow: "rgba(181, 107, 255, 0.2)",
-    }),
-    light: Object.freeze({
-      background: "#F6F7F9", surface: "#FFFFFF", surfaceRaised: "#F0F2F5", surfaceSunken: "#EAEDF1",
-      text: "#11151B", textMuted: "#626C7A", primary: "#11151B", primarySoft: "#EEF1F5", onPrimary: "#FFFFFF",
-      navSurface: "#FFFFFF", border: "#DDE1E7", borderStrong: "#BFC6D1", info: "#4C5665", focus: "#11151B",
-      neonGlow: "rgba(181, 107, 255, 0.1)",
-    }),
-    typography: Object.freeze({ micro: 10, caption: 12, body: 16, title: 21, heading: 30, display: 40, hero: 50 }),
-    layout: Object.freeze({ screenPadding: 20, sectionGap: 22, cardPadding: 20, heroRadius: 22 }),
-    radii: Object.freeze({ sm: 8, md: 12, lg: 16, xl: 24, full: 9999 as const }),
-  }),
-  master: Object.freeze({
-    name: "master" as const,
-    dark: Object.freeze({
-      background: "#101318", surface: "#1B2029", surfaceRaised: "#232A36", surfaceSunken: "#151A22",
-      text: "#F1F3FA", textMuted: "#A5AEC0", primary: "#9BABFF", primarySoft: "#29314F", onPrimary: "#101318",
-      navSurface: "#1B2029", border: "#303744", borderStrong: "#66728A", info: "#A5B9E2", focus: "#B6C2FF",
-      neonGlow: "rgba(155, 108, 255, 0.14)",
-    }),
-    light: Object.freeze({
-      background: "#F4F5F8", surface: "#FFFFFF", surfaceRaised: "#F0F3FA", surfaceSunken: "#EDF0F6",
-      text: "#171D2B", textMuted: "#616B7E", primary: "#304EE8", primarySoft: "#E9EEFF", onPrimary: "#FFFFFF",
-      navSurface: "#FFFFFF", border: "#E3E7EE", borderStrong: "#8994AA", info: "#43567D", focus: "#304EE8",
-      neonGlow: "rgba(155, 108, 255, 0.08)",
-    }),
-    typography: Object.freeze({ micro: 11, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 46 }),
-    layout: Object.freeze({ screenPadding: 20, sectionGap: 16, cardPadding: 18, heroRadius: 22 }),
-    radii: Object.freeze({ sm: 8, md: 12, lg: 22, xl: 24, full: 9999 as const }),
+  field: Object.freeze({
+    name: "field" as const,
+    dark: fieldSurface,
+    light: fieldSurface,
+    typography: Object.freeze({ micro: 10, caption: 12, body: 14, title: 20, heading: 28, display: 36, hero: 44 }),
+    layout: Object.freeze({ screenPadding: 20, sectionGap: 18, cardPadding: 16, heroRadius: 6 }),
+    radii: Object.freeze({ sm: 6, md: 12, lg: 18, xl: 24, full: 9999 as const }),
   }),
 });
 
@@ -136,12 +162,13 @@ const freezeTheme = (theme: Theme): Theme => Object.freeze({
   layout: Object.freeze({ ...theme.layout }),
 });
 
-export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "master"): Theme {
-  const dark = mode === "dark";
+/** `mode` is accepted for API stability; the field language renders the same in both. */
+export function createTheme(_mode: ThemeMode = "dark", presetName: DesignPresetName = "field"): Theme {
   const preset = designPresets[presetName];
-  const palette = dark ? preset.dark : preset.light;
+  const palette = preset.dark;
+  const flat = { color: "#000000", offset: { width: 0, height: 0 }, opacity: 0, radius: 0, elevation: 0 };
   return freezeTheme({
-    mode,
+    mode: "dark",
     preset: preset.name,
     colors: {
       background: palette.background,
@@ -153,25 +180,26 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
       primary: palette.primary,
       primarySoft: palette.primarySoft,
       onPrimary: palette.onPrimary,
-      aiSignalStart: dark ? "#9B6CFF" : "#7C3AED",
-      aiSignalMid: dark ? "#5B8CFF" : "#2563EB",
-      aiSignalEnd: dark ? "#36D8CB" : "#0B6B60",
-      aiSignalSoft: dark ? "#15122B" : "#F2EAFE",
-      terrain: dark ? "#DCEBFF" : "#23334A",
-      chartUp: dark ? "#36D8CB" : "#147A50",
-      chartDown: dark ? "#F17A94" : "#B83249",
+      aiSignalStart: fieldPalette.axiom,
+      aiSignalMid: fieldPalette.market,
+      // Informational AI tone stays distinct from success green.
+      aiSignalEnd: fieldPalette.label,
+      aiSignalSoft: "#0B0A14",
+      terrain: fieldPalette.label,
+      chartUp: calmPalette.text,
+      chartDown: calmPalette.loss,
       navSurface: palette.navSurface,
       border: palette.border,
       borderStrong: palette.borderStrong,
-      success: dark ? "#34D399" : preset.name === "master" ? "#0F6843" : "#147A50",
-      warning: dark ? "#E5C06C" : "#8D681B",
-      danger: dark ? "#F17A94" : preset.name === "master" ? "#8F263B" : "#B83249",
+      success: calmPalette.text,
+      warning: calmPalette.attention,
+      danger: calmPalette.loss,
       info: palette.info,
-      onDanger: dark ? "#11151B" : "#FFFFFF",
+      onDanger: fieldPalette.void,
       focus: palette.focus,
-      neonPurple: "#9B6CFF",
-      neonBlue: "#5B8CFF",
-      neonTeal: "#36D8CB",
+      neonPurple: fieldPalette.axiom,
+      neonBlue: fieldPalette.market,
+      neonTeal: fieldPalette.paper,
       neonGlow: palette.neonGlow,
     },
     typography: {
@@ -183,10 +211,10 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
     spacing: { zero: 0, xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, huge: 48 },
     radii: preset.radii,
     shadows: {
-      sm: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 3 }, opacity: dark ? 0.2 : 0.04, radius: 10, elevation: 1 },
-      md: { color: dark ? "#02040A" : "#000000", offset: { width: 0, height: 10 }, opacity: dark ? 0.3 : 0.07, radius: 22, elevation: 3 },
+      sm: flat,
+      md: flat,
       focus: { color: palette.focus, offset: { width: 0, height: 0 }, opacity: 0.24, radius: 4, elevation: 0 },
-      glow: { color: "#9B6CFF", offset: { width: 0, height: 0 }, opacity: dark ? 0.4 : 0.2, radius: 24, elevation: 2 },
+      glow: { color: palette.focus, offset: { width: 0, height: 0 }, opacity: 0.2, radius: 24, elevation: 0 },
     },
     icons: { sm: 16, md: 20, lg: 24, xl: 32 },
     interaction,
@@ -195,8 +223,8 @@ export function createTheme(mode: ThemeMode, presetName: DesignPresetName = "mas
 }
 
 export const themes = Object.freeze({
-  light: createTheme("light", "master"),
-  dark: createTheme("dark", "master"),
+  light: createTheme("light"),
+  dark: createTheme("dark"),
 });
 
 export function buttonTokens(theme: Theme, tone: ButtonTone = "primary") {
@@ -234,3 +262,55 @@ export function cardTokens(theme: Theme) {
 export function designSystemSnapshot(theme: Theme): string {
   return JSON.stringify({ preset: theme.preset, mode: theme.mode, colors: theme.colors, typography: theme.typography, layout: theme.layout, spacing: theme.spacing, radii: theme.radii, icons: theme.icons, interaction: theme.interaction });
 }
+
+/**
+ * Field motion tokens. Every field animation reads its timing from here so a redesign can retune
+ * or replace motion in one place. Motion always runs only on a semantic state change.
+ */
+/**
+ * The HOME hero's own accent family. The names say "lime" for history; since 2026-10-26 the colour is the order pink (same as calmPalette.order). Used only for the elements that sit directly with the
+ * hero (order count, market chip, the learning tile); the rest of the app keeps the theme colours. Status colours are never this pink.
+ * Known exception: a healthy learning tile also takes this accent (homeVitalsModel.vitalUsesHeroAccent); a warning or missing state keeps its status colour.
+ */
+export const fieldHero = Object.freeze({
+  lime: "#FF7AC8",
+  limeBorder: "rgba(255, 122, 200, 0.28)",
+  limeChipBorder: "rgba(255, 122, 200, 0.5)",
+  chipGround: "#08070D",
+} as const);
+
+
+/** Card / control corner radii for presenters that style in a static StyleSheet. Same values as the active theme's radii. */
+export const fieldRadii = Object.freeze({ md: 12, lg: 18, xl: 24 } as const);
+
+export const fieldMotion = Object.freeze({
+  settleMs: 500,
+  holoFlowMs: 9000,
+  settleStaggerMs: 50,
+  coreTurnMs: 400,
+  signalMs: 550,
+  signalStaggerMs: 60,
+  pulseInMs: 150,
+  pulseOutMs: 500,
+  flareDelayMs: 400,
+  flareMs: 500,
+  headerGlowMs: 450,
+  headerSignalMs: 500,
+  tabTransitionMs: 180,
+  poseMs: 600,
+  orbitStepDeg: 18,
+  revealMs: 180,
+  revealStaggerMs: 30,
+  revealMaxIndex: 6,
+});
+
+/**
+ * Readability floors shared by every screen (owner rule: UI changes apply to the whole app). Body, value and detail
+ * text is never smaller than 12 px; tracked uppercase labels and eyebrows are never smaller than 11 px. Presenters
+ * wrap their font sizes in these instead of hard-coding a smaller number.
+ */
+export const MIN_BODY_FONT = 13;
+export const MIN_LABEL_FONT = 12;
+export const readableFont = (size: number): number => Math.max(size, MIN_BODY_FONT);
+export const labelFont = (size: number): number => Math.max(size, MIN_LABEL_FONT);
+export const readableLineHeight = (size: number, lineHeight: number): number => Math.max(lineHeight, Math.round(size * 1.4));

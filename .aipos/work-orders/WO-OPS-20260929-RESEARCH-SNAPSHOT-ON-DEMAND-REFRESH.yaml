@@ -1,0 +1,28 @@
+id: WO-OPS-20260929-RESEARCH-SNAPSHOT-ON-DEMAND-REFRESH
+title: "Refresh a missing or stale Research snapshot from the PAPER runtime"
+status: READY_FOR_REVIEW
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: claude/nusa-repository-j93sd8-research-refresh
+authority_impact: none
+objective: "After a release that changes Research/League semantics the stored snapshot no longer replays (WAITING_RESEARCH_SNAPSHOT / RESEARCH_SNAPSHOT_STALE, #2377). The daily 09:15 KST timer is the only producer, so PAPER sits without any challenger for up to a day, and the host release step cannot be changed by a release."
+scope:
+  - "apps/cloud/src/researchSnapshotRefresher.ts: when the bootstrap reports WAITING_RESEARCH_SNAPSHOT, start scripts/run-cloud-research-snapshot.js (the exact timer entrypoint; same user, environment and ReadWritePaths) in the background, at most once per 6 hours (persisted beside the state DB across restarts), never concurrently, killed on stop. Failures are recorded and never stop the runtime."
+exclusions:
+  - "The new snapshot goes through the unchanged replay, qualification and Governance path; this grants no challenger, execution, risk, credential or LIVE authority and changes no qualification gate."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate
+  - node scripts/aipos-work-order-index.js --check
+  - node --test tests/*.test.js
+  - node scripts/run-tests-isolated.js
+evidence:
+  - "apps/cloud/src/researchSnapshotRefresher.test.ts: single run, no concurrency, rate limit across restarts, outcome record, spawn failure never throws, stop kills the child."
+  - "Production-reproduction state (snapshot from 19b7b9a6e, runtime at ea54b662 + this change): one supervisor start in 320s; the refresh started once and completed in about 50s; the replay of the new snapshot ran and qualification decided (donchian-40/55 REJECTED), with no restart."
+residual: "Candidates still have to pass unchanged qualification before any PAPER challenger trades."

@@ -1,10 +1,10 @@
-export type AndroidBackTab = "Home" | "Markets" | "Paper" | "Portfolio" | "AiSignal" | "Order";
+import type { PrimaryDestination } from "./navigationContract";
 
 export interface AndroidBackNavigationState {
   readonly paperLearningOpen: boolean;
   readonly utilityViewOpen: boolean;
   readonly utilityMenuOpen: boolean;
-  readonly activeTab: AndroidBackTab;
+  readonly activeTab: PrimaryDestination;
 }
 
 export type AndroidBackNavigationAction =

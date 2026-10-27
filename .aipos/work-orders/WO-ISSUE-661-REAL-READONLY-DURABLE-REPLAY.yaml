@@ -1,6 +1,6 @@
 id: WO-ISSUE-661-REAL-READONLY-DURABLE-REPLAY
 title: "Issue #661 REAL_READ_ONLY durable replay"
-status: IMPLEMENTED_LOCAL_VALIDATION_PENDING_PR
+status: COMPLETED
 issue: 661
 base_branch: main
 base_commit: 1d3716f7beeb6c1eeb3d2efa2ea7cec8a5c59d48
@@ -49,4 +49,6 @@ validation:
   full_suite: PASS_597_ISOLATED_TEST_FILES
   runtime_get_integration: PASS
   git_diff_check: PASS
-next: "Push this exact implementation for PR review; validate the new exact head before merge."
+next: "None. PR #788 merged and Issue #661 is closed; retain this record as completed historical evidence."
+
+implementation_status: MERGED_PR_788
