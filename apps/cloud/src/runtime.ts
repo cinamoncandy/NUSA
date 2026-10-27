@@ -1,3 +1,4 @@
+import { HEALTH_EXPORT_TIMEOUT_MS, healthExportConfig, startHealthExport } from "./healthExport";
 import { buildMobileDashboardResponse } from "./mobileDashboardApi";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
@@ -808,6 +809,17 @@ export function startCloudRuntime(
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
+  // Display only, off unless the server owner sets NUSA_HEALTH_EXPORT_URL and a write-only NUSA_HEALTH_EXPORT_TOKEN:
+  // appends this process's own public /health (nothing more) to an external append-only store. Never read back.
+  const healthExport = healthExportConfig(env);
+  const stopHealthExport = healthExport == null ? undefined : startHealthExport(healthExport, {
+    readLocalHealth: async () => {
+      const localHost = handle.host === "0.0.0.0" || handle.host === "::" ? "127.0.0.1" : handle.host;
+      const response = await fetch(`http://${localHost.includes(":") ? `[${localHost}]` : localHost}:${handle.port}/health`, { signal: AbortSignal.timeout(HEALTH_EXPORT_TIMEOUT_MS) });
+      return response.ok ? response.json() : null;
+    },
+    post: (url, init) => fetch(url, init),
+  });
   const requirePaperRealizedPeriodProducer = (): PaperRealizedPeriodProducer => {
     if (paperRealizedPeriodProducer == null) throw new Error("PAPER_REALIZED_PERIOD_PERSISTENCE_UNAVAILABLE");
     return paperRealizedPeriodProducer;
@@ -829,7 +841,7 @@ export function startCloudRuntime(
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { stopHealthExport?.(); clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 
