@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeIndependentValidator, validateValidatorModelVerdict, validateValidatorRunnerRequest, type ValidatorRunnerRequest } from "./auditRunner";
+import { currentDiffEvidenceRefs, executeIndependentValidator, validateValidatorModelVerdict, validateValidatorRunnerRequest, type ValidatorRunnerRequest } from "./auditRunner";
 
 const request: ValidatorRunnerRequest = Object.freeze({
   kind: "VALIDATOR_REQUEST", repository: "cinamoncandy/NUSA", prNumber: 2760, headSha: "a".repeat(40), baseSha: "b".repeat(40),
@@ -45,10 +45,12 @@ const githubResponse = (status: number, payload: unknown, textValue?: string) =>
   async text() { return textValue ?? JSON.stringify(payload); },
 });
 
-function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; deletedWorkspace?: boolean; mobileManifest?: boolean; directoryImport?: boolean; staticImports?: boolean; truncatedTree?: boolean; commonJs?: boolean; generatedCommonJs?: boolean; fixtureRequires?: boolean; bareBuiltin?: boolean; changedJson?: boolean } = {}) {
+function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport?: boolean; aliasImport?: boolean; deletedSource?: boolean; deletedWorkspace?: boolean; removedImport?: boolean; mobileManifest?: boolean; directoryImport?: boolean; staticImports?: boolean; truncatedTree?: boolean; commonJs?: boolean; generatedCommonJs?: boolean; fixtureRequires?: boolean; bareBuiltin?: boolean; changedJson?: boolean } = {}) {
   let pullReads = 0;
   const sourcePath = options.generatedCommonJs ? "scripts/research-real-market-run.js" : options.fixtureRequires ? "apps/autopilot/src/validatorRunner.test.ts" : options.mobileManifest || options.deletedWorkspace ? "apps/mobile/a.ts" : "a.ts";
-  const diff = options.deletedSource
+  const diff = options.removedImport
+    ? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1,3 +1,1 @@\n-import { assertSafe } from './guard';\n-assertSafe();\n+export const result = 'updated';\n"
+    : options.deletedSource
     ? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import { helper } from './helper';\n-helper();\n"
     : options.deletedWorkspace
       ? "diff --git a/apps/mobile/a.ts b/apps/mobile/a.ts\n--- a/apps/mobile/a.ts\n+++ /dev/null\n@@ -1,2 +0,0 @@\n-import React from 'react';\n-React.createElement('div');\n"
@@ -64,8 +66,8 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
       ? `diff --git a/${sourcePath} b/${sourcePath}\n--- a/${sourcePath}\n+++ b/${sourcePath}\n@@ -1,2 +1,2 @@\n import React from "react";\n-React.createElement("div");\n+React.createElement("span");\n`
     : "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+helper();\n";
   const protocol = "# NUSA /grill-me protocol\n" + "adversarial exact-head fail-closed independent validation. ".repeat(8);
-  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource || options.deletedWorkspace ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"]), ...(options.staticImports ? ["register.ts", "guard.ts"] : []), ...(options.commonJs ? ["security-gate.js"] : options.fixtureRequires ? ["apps/autopilot/src/security-gate.js"] : []), ...(options.generatedCommonJs ? ["apps/autopilot/src/codingRunner.ts"] : []), ...(options.changedJson ? ["config.json"] : [])];
-  const baseBlobPaths = options.deletedSource ? ["package.json", "a.ts", "helper.ts"] : options.deletedWorkspace ? ["package.json", "apps/mobile/package.json", "apps/mobile/a.ts"] : ["package.json"];
+  const blobPaths = ["package.json", ...(options.mobileManifest ? ["apps/mobile/package.json", sourcePath] : options.deletedSource || options.deletedWorkspace ? [] : [sourcePath]), ...(options.directoryImport ? ["helper/index.ts"] : ["helper.ts"]), ...(options.staticImports ? ["register.ts", "guard.ts"] : []), ...(options.removedImport ? ["guard.ts"] : []), ...(options.commonJs ? ["security-gate.js"] : options.fixtureRequires ? ["apps/autopilot/src/security-gate.js"] : []), ...(options.generatedCommonJs ? ["apps/autopilot/src/codingRunner.ts"] : []), ...(options.changedJson ? ["config.json"] : [])];
+  const baseBlobPaths = options.deletedSource ? ["package.json", "a.ts", "helper.ts"] : options.deletedWorkspace ? ["package.json", "apps/mobile/package.json", "apps/mobile/a.ts"] : options.removedImport ? ["package.json", "a.ts", "guard.ts"] : ["package.json"];
   return (async (input: string) => {
     const url = String(input);
     if (url.includes(`/git/commits/${request.headSha}`)) return githubResponse(200, { tree: { sha: "d".repeat(40) } });
@@ -87,6 +89,9 @@ function validatorGithubFetch(options: { staleSecondPull?: boolean; unsafeImport
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(404, {});
     if (options.deletedSource && url.includes(`/contents/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import { helper } from './helper';\nhelper();\n");
     if (options.deletedSource && url.includes(`/contents/helper.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, 'export function helper() { return "base-helper"; }\n');
+    if (options.removedImport && url.includes(`/contents/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import { assertSafe } from './guard';\nassertSafe();\nexport const result = 'original';\n");
+    if (options.removedImport && url.includes(`/contents/guard.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "export function assertSafe() { throw new Error('safety guard'); }\n");
+    if (options.removedImport && url.includes(`/contents/guard.ts?ref=${request.headSha}`)) return githubResponse(200, {}, "export function assertSafe() { throw new Error('safety guard'); }\n");
     if (options.deletedWorkspace && url.includes(`/contents/apps/mobile/a.ts?ref=${request.headSha}`)) return githubResponse(404, {});
     if (options.deletedWorkspace && url.includes(`/contents/apps/mobile/a.ts?ref=${request.baseSha}`)) return githubResponse(200, {}, "import React from 'react';\nReact.createElement('div');\n");
     if (options.changedJson && url.includes(`/contents/a.ts?ref=${request.headSha}`)) return githubResponse(200, {}, 'import { feature } from "./config.json";\nfeature();\n');
@@ -123,6 +128,23 @@ test("fresh VALIDATOR independently reviews exact head using protected-base gril
   assert.match(prompt, /BEGIN CHANGED SOURCE a\.ts @ HEAD a{40}/);
   assert.match(prompt, /unchanged-source-definition/);
   assert.ok(result.evidenceRefs.includes(`github:dependency/helper.ts@${request.headSha}`));
+});
+
+test("fresh VALIDATOR includes exact-base dependency for a removed safety import in a modified source", async () => {
+  let prompt = "";
+  const AI = { async run(_model: string, input: { prompt?: string }) { prompt = String(input.prompt || ""); return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) }; } };
+  const result = await executeIndependentValidator(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, validatorGithubFetch({ removedImport: true }), () => 1);
+  assert.equal(result.verdict, "PASS");
+  assert.match(prompt, /EXACT-BASE DEPENDENCY guard\.ts @ b{40}/);
+  assert.match(prompt, /safety guard/);
+  assert.ok(result.evidenceRefs.includes(`github:dependency/guard.ts@${request.baseSha}`));
+});
+
+test("Git C-quoted octal paths decode to UTF-8 evidence references and malformed escapes fail closed", () => {
+  const diff = 'diff --git "a/src/str\\303\\251.ts" "b/src/str\\303\\251.ts"\n--- "a/src/str\\303\\251.ts"\n+++ "b/src/str\\303\\251.ts"\n@@ -0,0 +1 @@\n+export const value = true;\n';
+  assert.deepEqual([...currentDiffEvidenceRefs(diff)], ["src/stré.ts:+1"]);
+  assert.throws(() => currentDiffEvidenceRefs('diff --git "a/src/str\\q.ts" "b/src/str\\q.ts"\n@@ -0,0 +1 @@\n+bad\n'), /VALIDATOR_DIFF_PATH_INVALID/);
+  assert.throws(() => currentDiffEvidenceRefs('diff --git "a/src/\\777.ts" "b/src/\\777.ts"\n@@ -0,0 +1 @@\n+bad\n'), /VALIDATOR_DIFF_PATH_INVALID/);
 });
 
 test("fresh VALIDATOR fails closed on a changed source import that escapes the repository", async () => {

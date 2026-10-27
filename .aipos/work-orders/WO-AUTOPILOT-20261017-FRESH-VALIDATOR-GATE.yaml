@@ -1,10 +1,10 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: DIST_TRACKED_SOURCE_MAPPING_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
+status: TWO_FRESH_REVIEW_P1_REPAIRS_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
-base_commit: 2a80488981d13f96552fae8d7c9161a6b3fcb1e9
+base_commit: e7f8a426a57a08339eae3778ca50de6512d6acd9
 branch: fix/validator-evidence-gate-2760
 issue: 2760
 authority_impact: release_governance_fail_closed
@@ -399,4 +399,48 @@ latest_publication_checkpoint_2026_10_27:
   next: "Recheck protected main and #2772 head; publish one non-force successor only if main remains 2a804889... and the existing PR ref remains 4bfa47cb..., then wait for all exact-head workflows and obtain a fresh non-author review. Keep Draft; no author thread resolution, Formal Validator substitution, Audit, Release, merge, or Oracle mutation."
   formal_validator: PENDING
   audit_release_merge: NOT_STARTED
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_exact_head_review_repairs_20261027:
+  repository_verified:
+    protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+    pr_2772_head: e533309376cc563649ef5d2c8faf09a699ed8ab2
+    pr_base: e7f8a426a57a08339eae3778ca50de6512d6acd9
+    pr_state: OPEN_DRAFT_MERGEABLE
+    exact_head_workflows: PASS_ALL_SIX
+    fresh_review: COMPLETED_WITH_TWO_P1
+  findings:
+    - comment: 4386945148
+      severity: P1
+      summary: "Changed source import removals were absent from head-only dependency discovery, so the validator could miss exact-base safety dependencies associated with deleted import/call lines."
+      repair: "Fetch each existing changed importer from the exact PR base within the established source/tree bounds; discover statically imported dependencies only for imports removed at head and named on removed diff lines; include dependency blobs labelled and evidenced at the exact base SHA."
+    - comment: 4386945168
+      severity: P1
+      summary: "Git C-quoted octal path escapes for non-ASCII paths were rejected by JSON parsing before exact diff evidence could be constructed."
+      repair: "Decode Git C-quoted named/octal byte escapes as strict UTF-8 and use the decoded validated paths consistently for changed-file context and blocker evidence; malformed, invalid UTF-8, oversized octal bytes and unsafe paths fail closed."
+  regression_tests:
+    modified_source_removed_import_loads_exact_base_dependency: PASS
+    git_c_quoted_utf8_path_maps_to_decoded_evidence_ref: PASS
+    malformed_git_quoted_escape_fails_closed: PASS
+    validator_runner_suite: PASS_21_OF_21
+  local_validation:
+    node: 24.19.0
+    preflight: PASS
+    build: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_EXISTING_WARNINGS
+    full_tests: PASS_1290_ISOLATED_TEST_FILES
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    diff_check: PASS
+  remote:
+    current_predecessor_head: e533309376cc563649ef5d2c8faf09a699ed8ab2
+    successor_head: PENDING_COMMIT
+    exact_head_workflows: PENDING
+    fresh_non_author_review: PENDING
+    formal_validator: PENDING
+    audit_release_merge: NOT_STARTED
+  next: "Re-fetch protected main and PR #2772, then publish one substantive non-force successor only if the remote head remains e533309376cc563649ef5d2c8faf09a699ed8ab2. Require exact-successor CI/companions and fresh non-author review; do not start Formal Validator until that review is clean. Keep Draft; no Audit, Release, merge, or Oracle mutation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

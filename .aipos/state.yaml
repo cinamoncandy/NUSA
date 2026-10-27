@@ -375,6 +375,43 @@ current_issue_2118_coverage_shard_rebalance:
   remaining: "Coverage-shard rebalance subincrement complete. Broader CI p50/p95 and owner-latency plus worker WIP/throughput telemetry remain separate #2118/#2117/#903 work; do not infer WIP expansion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
+current_autopilot_validator_removed_import_and_git_quoted_path_20261027:
+  work_order: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
+  issue: 2760
+  pull_request: 2772
+  branch: fix/validator-evidence-gate-2760
+  status: TWO_REVIEW_P1_REPAIRS_IMPLEMENTED_LOCAL_VALIDATION_PASS_AWAITING_PUBLICATION
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  predecessor_head: e533309376cc563649ef5d2c8faf09a699ed8ab2
+  review_findings:
+    - comment: 4386945148
+      severity: P1
+      repair: "Modified source files now inspect exact-base importer imports associated with deleted lines and include bounded exact-base dependency blobs."
+    - comment: 4386945168
+      severity: P1
+      repair: "Git C-quoted path decoder handles strict UTF-8 octal bytes and named escapes; malformed/unsafe paths fail closed and evidence refs use decoded paths."
+  tests:
+    validator_runner: PASS_21_OF_21
+    full_suite: PASS_1290_ISOLATED_TEST_FILES
+  local_validation:
+    node: 24.19.0
+    preflight: PASS
+    build: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS
+    lint: PASS_0_ERRORS_45_EXISTING_WARNINGS
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    diff_check: PASS
+  successor_head: PENDING_COMMIT
+  exact_head_workflows: PENDING
+  fresh_non_author_review: PENDING
+  formal_validator: PENDING
+  audit_release_merge: NOT_STARTED
+  next: "Run final focused tests, build, AIPOS and diff checks; re-fetch PR #2772 and protected main. Publish one substantive non-force successor only if remote head remains e533309376cc563649ef5d2c8faf09a699ed8ab2; then require exact-head workflows and fresh non-author review. Keep Draft; no Formal Validator before a clean fresh review, and no Audit, Release, merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_autopilot_wip_release_on_finish:
   work_order: WO-AUTOPILOT-20261013-WIP-RELEASE-ON-FINISH
   status: COMPLETED

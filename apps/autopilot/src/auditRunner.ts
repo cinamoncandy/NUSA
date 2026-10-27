@@ -327,32 +327,9 @@ export function currentDiffEvidenceRefs(diff: string): ReadonlySet<string> {
   let oldLine: number | undefined;
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) {
-      oldFile = undefined;
-      newFile = undefined;
-      newLine = undefined;
-      oldLine = undefined;
-      continue;
-    }
-    if (line.startsWith("--- a/")) {
-      oldFile = line.slice("--- a/".length);
-      newLine = undefined;
-      oldLine = undefined;
-      continue;
-    }
-    if (line === "--- /dev/null") {
-      oldFile = undefined;
-      newLine = undefined;
-      oldLine = undefined;
-      continue;
-    }
-    if (line.startsWith("+++ b/")) {
-      newFile = line.slice("+++ b/".length);
-      newLine = undefined;
-      oldLine = undefined;
-      continue;
-    }
-    if (line === "+++ /dev/null") {
-      newFile = undefined;
+      const paths = parseGitDiffHeader(line.slice("diff --git ".length));
+      oldFile = paths.oldPath === "/dev/null" ? undefined : validateRepositoryPath(paths.oldPath.replace(/^a\//, ""));
+      newFile = paths.newPath === "/dev/null" ? undefined : validateRepositoryPath(paths.newPath.replace(/^b\//, ""));
       newLine = undefined;
       oldLine = undefined;
       continue;
@@ -524,12 +501,65 @@ async function fetchTrustedValidatorProtocol(request: ValidatorRunnerRequest, to
 
 function decodeDiffHeaderPath(value: string): string {
   if (!value.startsWith('"')) return value;
-  let escaped = false;
-  for (let i = 1; i < value.length; i += 1) {
-    if (!escaped && value[i] === '"') {
-      try { return JSON.parse(value.slice(0, i + 1)) as string; }
+  const bytes: number[] = [];
+  for (let i = 1; i < value.length;) {
+    const char = value[i];
+    if (char === '"') {
+      if (value.slice(i + 1).trim() !== "") throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+      try { return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(bytes)); }
       catch { throw new Error("VALIDATOR_DIFF_PATH_INVALID"); }
     }
+    if (char !== "\\") {
+      const codePoint = value.codePointAt(i);
+      if (codePoint === undefined) throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+      bytes.push(...new TextEncoder().encode(String.fromCodePoint(codePoint)));
+      i += codePoint > 0xffff ? 2 : 1;
+      continue;
+    }
+    i += 1;
+    const escape = value[i];
+    if (escape === undefined) throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+    const namedEscapes: Record<string, number> = { a: 7, b: 8, t: 9, n: 10, v: 11, f: 12, r: 13, "\\": 92, '"': 34 };
+    if (Object.hasOwn(namedEscapes, escape)) {
+      bytes.push(namedEscapes[escape]);
+      i += 1;
+      continue;
+    }
+    if (/[0-7]/.test(escape)) {
+      let octal = escape;
+      i += 1;
+      for (let count = 1; count < 3 && /[0-7]/.test(value[i] ?? ""); count += 1, i += 1) octal += value[i];
+      const byte = Number.parseInt(octal, 8);
+      if (byte > 0xff) throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+      bytes.push(byte);
+      continue;
+    }
+    throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+  }
+  throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+}
+
+function parseGitDiffHeader(header: string): { readonly oldPath: string; readonly newPath: string } {
+  if (header.startsWith('"')) {
+    const firstEnd = findGitQuotedPathEnd(header, 0);
+    const rest = header.slice(firstEnd).trimStart();
+    const secondEnd = findGitQuotedPathEnd(rest, 0);
+    if (rest.slice(secondEnd).trim() !== "") throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+    const oldPath = decodeDiffHeaderPath(header.slice(0, firstEnd));
+    const newPath = decodeDiffHeaderPath(rest.slice(0, secondEnd));
+    if (!oldPath.startsWith("a/") || !(newPath.startsWith("b/") || newPath === "/dev/null")) throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+    return Object.freeze({ oldPath, newPath });
+  }
+  const delimiter = header.lastIndexOf(" b/");
+  if (!header.startsWith("a/") || delimiter < 0) throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+  return Object.freeze({ oldPath: header.slice(2, delimiter), newPath: header.slice(delimiter + 3) });
+}
+
+function findGitQuotedPathEnd(value: string, start: number): number {
+  if (value[start] !== '"') throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+  let escaped = false;
+  for (let i = start + 1; i < value.length; i += 1) {
+    if (!escaped && value[i] === '"') return i + 1;
     if (!escaped && value[i] === "\\") escaped = true;
     else escaped = false;
   }
@@ -538,35 +568,26 @@ function decodeDiffHeaderPath(value: string): string {
 
 interface DiffFileChanges {
   readonly linesByPath: ReadonlyMap<string, readonly string[]>;
+  readonly removedLinesByPath: ReadonlyMap<string, readonly string[]>;
+  readonly basePathsByPath: ReadonlyMap<string, string>;
   readonly deletedPaths: ReadonlySet<string>;
 }
 
 function diffFileChanges(diff: string): DiffFileChanges {
   const result = new Map<string, string[]>();
+  const removedLines = new Map<string, string[]>();
+  const basePaths = new Map<string, string>();
   const deletedPaths = new Set<string>();
   let currentPath: string | undefined;
   for (const line of diff.split("\n")) {
     if (line.startsWith("diff --git ")) {
       const header = line.slice("diff --git ".length);
-      let oldPath: string; let newPath: string;
-      if (header.startsWith('"')) {
-        let firstEnd = -1; let escaped = false;
-        for (let i = 1; i < header.length; i += 1) {
-          if (!escaped && header[i] === '"') { firstEnd = i + 1; break; }
-          if (!escaped && header[i] === "\\") escaped = true; else escaped = false;
-        }
-        if (firstEnd < 0) throw new Error("VALIDATOR_DIFF_PATH_INVALID");
-        oldPath = decodeDiffHeaderPath(header.slice(0, firstEnd));
-        newPath = decodeDiffHeaderPath(header.slice(firstEnd).trim());
-      } else {
-        const delimiter = header.lastIndexOf(" b/");
-        if (!header.startsWith("a/") || delimiter < 0) throw new Error("VALIDATOR_DIFF_PATH_INVALID");
-        oldPath = header.slice(2, delimiter);
-        newPath = header.slice(delimiter + 3);
-      }
-      currentPath = newPath === "/dev/null" ? oldPath : newPath.startsWith("b/") ? newPath.slice(2) : newPath;
+      const { oldPath, newPath } = parseGitDiffHeader(header);
+      currentPath = newPath === "/dev/null" ? oldPath.replace(/^a\//, "") : newPath.replace(/^b\//, "");
       currentPath = validateRepositoryPath(currentPath);
       result.set(currentPath, []);
+      removedLines.set(currentPath, []);
+      basePaths.set(currentPath, validateRepositoryPath(oldPath.replace(/^a\//, "")));
       continue;
     }
     if (currentPath && line === "+++ /dev/null") {
@@ -574,9 +595,13 @@ function diffFileChanges(diff: string): DiffFileChanges {
       continue;
     }
     if (currentPath && line.startsWith("+") && !line.startsWith("+++")) result.get(currentPath)?.push(line.slice(1));
-    else if (currentPath && line.startsWith("-") && !line.startsWith("---")) result.get(currentPath)?.push(line.slice(1));
+    else if (currentPath && line.startsWith("-") && !line.startsWith("---")) {
+      const removed = line.slice(1);
+      result.get(currentPath)?.push(removed);
+      removedLines.get(currentPath)?.push(removed);
+    }
   }
-  return Object.freeze({ linesByPath: result, deletedPaths });
+  return Object.freeze({ linesByPath: result, removedLinesByPath: removedLines, basePathsByPath: basePaths, deletedPaths });
 }
 
 interface LocalImport { readonly specifier: string; readonly names: readonly string[]; readonly alwaysInclude?: boolean }
@@ -868,24 +893,51 @@ async function fetchValidatorDependencyContext(request: ValidatorRunnerRequest, 
     sourceChars += source.length;
     if (sourceChars > MAX_CONTEXT_SOURCE_CHARS) throw new Error("VALIDATOR_CONTEXT_SOURCE_BYTES_EXCEEDED");
     const changedText = changes.linesByPath.get(sourcePath)?.join("\n") ?? "";
-    for (const imported of localImports(source)) {
-      if (!imported.alwaysInclude && !imported.names.some((name) => new RegExp(`\\b${escapeRegExp(name)}\\b`).test(changedText))) continue;
+    const importsAtSource = localImports(source);
+    const addImportDependency = async (imported: LocalImport, importerRef: string, importerPath: string, changedLines: string): Promise<void> => {
+      if (!imported.alwaysInclude && !imported.names.some((name) => new RegExp(`\\b${escapeRegExp(name)}\\b`).test(changedLines))) return;
       if (!imported.specifier.startsWith(".")) {
-        if (isNodeBuiltin(imported.specifier)) continue;
+        if (isNodeBuiltin(imported.specifier)) return;
         if (imported.specifier.startsWith("node:")) throw new Error("VALIDATOR_DEPENDENCY_IMPORT_UNCLASSIFIED");
         const packageName = imported.specifier.startsWith("@") ? imported.specifier.split("/").slice(0, 2).join("/") : imported.specifier.split("/")[0];
-        const packages = await loadDeclaredPackages(sourcePath, sourceRef);
+        const packages = await loadDeclaredPackages(importerPath, importerRef);
         const version = packages.get(packageName);
         if (version?.startsWith("workspace:")) throw new Error("VALIDATOR_WORKSPACE_DEPENDENCY_CONTEXT_UNSUPPORTED");
-        if (version) continue;
+        if (version) return;
         throw new Error("VALIDATOR_DEPENDENCY_IMPORT_UNCLASSIFIED");
       }
-      const base = resolveRelativeBase(sourcePath, imported.specifier);
-      const sourceTree = await treeForRef(sourceRef);
+      const base = resolveRelativeBase(importerPath, imported.specifier);
+      const sourceTree = await treeForRef(importerRef);
       const resolvedPath = resolveBlobModulePath(base, sourceTree);
       if (!resolvedPath) throw new Error("VALIDATOR_DEPENDENCY_UNRESOLVED");
-      if (sourceRef === request.headSha && sourcePaths.includes(resolvedPath)) continue;
-      dependencyPaths.add(`${sourceRef}:${validateRepositoryPath(resolvedPath)}`);
+      if (importerRef === request.headSha && sourcePaths.includes(resolvedPath)) return;
+      dependencyPaths.add(`${importerRef}:${validateRepositoryPath(resolvedPath)}`);
+    };
+    for (const imported of importsAtSource) {
+      await addImportDependency(imported, sourceRef, sourcePath, changedText);
+    }
+
+    // A removed import disappears from the head source, so head-only dependency discovery
+    // cannot show the guard or contract it used to bring into scope. Read the exact base
+    // importer and include only its statically removed imports whose names occur in deleted
+    // diff lines. This keeps the historical dependency context bounded and SHA-bound.
+    if (!changes.deletedPaths.has(sourcePath)) {
+      const baseImporterPath = changes.basePathsByPath.get(sourcePath) ?? sourcePath;
+      const baseTree = await treeForRef(request.baseSha);
+      if (baseTree.has(baseImporterPath)) {
+        const baseSource = await fetchExactHeadDependency(baseImporterPath, request, token, fetchImpl, request.baseSha);
+        if (baseSource === null) throw new Error("VALIDATOR_BASE_SOURCE_MISSING");
+        sourceChars += baseSource.length;
+        if (sourceChars > MAX_CONTEXT_SOURCE_CHARS) throw new Error("VALIDATOR_CONTEXT_SOURCE_BYTES_EXCEEDED");
+        const headSpecifiers = new Set(importsAtSource.map((item) => item.specifier));
+        const removedText = changes.removedLinesByPath.get(sourcePath)?.join("\n") ?? "";
+        for (const imported of localImports(baseSource)) {
+          const removedFromHead = !headSpecifiers.has(imported.specifier);
+          const evidenceWasRemoved = imported.names.some((name) => new RegExp(`\\b${escapeRegExp(name)}\\b`).test(removedText))
+            || (imported.alwaysInclude === true && removedText.includes(imported.specifier));
+          if (removedFromHead && evidenceWasRemoved) await addImportDependency(imported, request.baseSha, baseImporterPath, removedText);
+        }
+      }
     }
   }
   if (dependencyPaths.size > MAX_CONTEXT_DEPENDENCIES) throw new Error("VALIDATOR_DEPENDENCY_COUNT_EXCEEDED");
