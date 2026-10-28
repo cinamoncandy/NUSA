@@ -1,4 +1,5 @@
 import type { IndependentRiskLimits } from "../../../packages/core/src/independentRiskGateway";
+import { CLOUD_PAPER_RISK_LIMITS } from "./cloudPaperCanonicalRiskGateway";
 
 /**
  * The canonical Cloud PAPER risk limits are fixed KRW amounts (CLOUD_PAPER_RISK_LIMITS). With a KRW 100,000 account a
@@ -24,4 +25,12 @@ export function scalePaperRiskLimitsToCapital(base: IndependentRiskLimits, initi
     scaled[name] = Math.min(fixed, Math.round(initialCapital * ratio));
   }
   return Object.freeze(scaled) as unknown as IndependentRiskLimits;
+}
+
+/**
+ * The one source of the Cloud PAPER risk limits for a given initial capital. The canonical gateway enforces exactly this
+ * object, and closed-learning evidence fingerprints exactly this object, so evidence names the policy that is enforced.
+ */
+export function cloudPaperRiskLimitsForCapital(initialCapital: number): IndependentRiskLimits {
+  return scalePaperRiskLimitsToCapital(CLOUD_PAPER_RISK_LIMITS, initialCapital);
 }

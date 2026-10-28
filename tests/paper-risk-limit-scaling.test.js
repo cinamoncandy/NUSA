@@ -37,5 +37,18 @@ test("counts, ratios and the loss-limit policy pass through unchanged; bad capit
 
 test("the runtime builds the canonical risk gateway with the capital-scaled limits", () => {
   const runtime = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
-  assert.match(runtime, /new CloudPaperCanonicalRiskGateway\(\{ database: durableRepository\.database\(\), initialCapital: config\.paperInitialCapitalKrw, limits: scalePaperRiskLimitsToCapital\(CLOUD_PAPER_RISK_LIMITS, config\.paperInitialCapitalKrw\),/);
+  assert.match(runtime, /new CloudPaperCanonicalRiskGateway\(\{ database: durableRepository\.database\(\), initialCapital: config\.paperInitialCapitalKrw, limits: cloudPaperRiskLimitsForCapital\(config\.paperInitialCapitalKrw\),/);
+});
+
+test("closed-learning riskConfigHash is the fingerprint of the same scaled limits the gateway enforces", () => {
+  const { CloudPaperCanonicalRiskGateway } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
+  const { CLOUD_PAPER_RISK_POLICY_FINGERPRINT, cloudPaperRiskPolicyFingerprint } = require("../dist/apps/cloud/src/cloudPaperRiskPolicyIdentity.js");
+  const { cloudPaperRiskLimitsForCapital } = require("../dist/apps/cloud/src/paperRiskLimitScaling.js");
+  const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+  const gateway = new CloudPaperCanonicalRiskGateway({ database: new SqliteDatabase(":memory:"), initialCapital: 100_000, sourceCommitSha: "a".repeat(40), limits: cloudPaperRiskLimitsForCapital(100_000) });
+  const expected = cloudPaperRiskPolicyFingerprint(cloudPaperRiskLimitsForCapital(100_000));
+  assert.equal(gateway.fingerprints.riskPolicy, expected);
+  assert.notEqual(expected, CLOUD_PAPER_RISK_POLICY_FINGERPRINT);
+  const closed = fs.readFileSync("apps/cloud/src/closedLearningProductionRuntime.ts", "utf8");
+  assert.match(closed, /cloudPaperRiskPolicyFingerprint\(cloudPaperRiskLimitsForCapital\(config\.paperInitialCapitalKrw\)\)/);
 });
