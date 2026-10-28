@@ -77,7 +77,21 @@ jobs:
         id: bundle
         run: |
           set -euo pipefail
-          tar -czf "$RUNNER_TEMP/nusa-release.tar.gz" --exclude=.git .
+          # The PAPER host runs plain Node from dist/ and scripts/ and loads exactly one runtime package, ws. Sealing the whole
+          # workspace node_modules (Electron, React Native, Skia: about 1.5 GB) made the bundle 372 MiB, and the host (about
+          # 0.8 MiB/s disk) could not download and unpack it inside the 40-minute release job (run 40697488340, 2026-10-28:
+          # cancelled while unpacking, nothing activated). Ship the tree without node_modules plus the ws package.
+          STAGE="$RUNNER_TEMP/nusa-release-stage"
+          [ ! -e "$STAGE" ] || { echo "::error::Release stage directory already exists"; exit 1; }
+          mkdir -p "$STAGE/node_modules"
+          tar -cf - --exclude=.git --exclude=node_modules . | tar -xf - -C "$STAGE"
+          cp -RL node_modules/ws "$STAGE/node_modules/ws"
+          # Fail here, on the fast builder, if the slimmed tree cannot load the host runtime.
+          (cd "$STAGE" && node -e 'require("ws"); require("./dist/packages/core/src/upbitWebSocket.js"); require("./dist/apps/cloud/src/runtime.js"); require("./dist/apps/cloud/src/closedLearningProductionRuntime.js"); console.log("slim release tree loads the host runtime")')
+          tar -czf "$RUNNER_TEMP/nusa-release.tar.gz" -C "$STAGE" .
+          BUNDLE_BYTES="$(stat -c %s "$RUNNER_TEMP/nusa-release.tar.gz")"
+          echo "release bundle: $BUNDLE_BYTES bytes"
+          [ "$BUNDLE_BYTES" -le 157286400 ] || { echo "::error::Release bundle is larger than 150 MiB ($BUNDLE_BYTES bytes); the PAPER host cannot unpack it in the release budget"; exit 1; }
           echo "sha=$(sha256sum "$RUNNER_TEMP/nusa-release.tar.gz" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
           echo "helper_sha=$(sha256sum deploy/oracle/nusa-release-step.sh | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
