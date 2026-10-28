@@ -36,7 +36,7 @@ import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshot
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
-import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
+import { registerGracefulShutdown, startCloudRuntimeFromOptions, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
 import { ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
@@ -181,28 +181,20 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // Advance the marker only after a successful write, so a transient failure is retried on a later tick.
     if (recordClosedLearningBlocked(config.cloudStateDbPath, current)) persistedBlockedAt = current.at;
   };
-  const baseHandle = startCloudRuntime(
+  const baseHandle = startCloudRuntimeFromOptions({
     env,
-    undefined,
     dashboardHydrator,
-    undefined,
-    snapshots,
-    paperRepository,
-    paperLoop,
-    undefined,
-    undefined,
-    researchExperiments?.orchestrator,
-    cloudAiRuntime,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    () => loopStatus.snapshot(),
-    () => researchExperiments?.experimentTicksByInterval() ?? null,
+    snapshotRepository: snapshots,
+    paperAccountRepository: paperRepository,
+    paperExecutionLoop: paperLoop,
+    researchAutomation: researchExperiments?.orchestrator,
+    aiRuntime: cloudAiRuntime,
+    closedLearningStatus: () => loopStatus.snapshot(),
+    researchIntervalTicks: () => researchExperiments?.experimentTicksByInterval() ?? null,
     microstructureRecorder,
     orderBookCollector,
     futuresCollector,
-  );
+  });
   // startCloudRuntime performs the last large synchronous composition step before the event loop
   // can service the repository's interval heartbeat. Re-verify/renew the existing lease at this
   // handoff so a valid lease that survived composition gets a fresh full TTL for the remaining
