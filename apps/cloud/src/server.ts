@@ -112,6 +112,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly futuresCollector?: { readonly rounds: number; readonly marksStored: number; readonly fundingStored: number; readonly klinesStored: number; readonly failures: number; readonly rejected: number; readonly lastRoundAt?: number };
   readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly rejectedRows?: number; readonly lastRecordedAt?: number };
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
+  /** Display-only outcome of the hourly REST gap fill (the candle series head writer): fixed codes and integers. */
+  readonly researchGapFill?: { readonly lastRunAt?: number; readonly runs: number; readonly deferred: number; readonly counts: Readonly<Record<string, number>>; readonly lastErrorCode?: string };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
   readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
   /** Canonical PAPER ledger identity: a 64-hex fingerprint of ledger truth and integer counts/times only. */
@@ -392,6 +394,22 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   };
   const ticksSummary = publicTicks(source.researchExperimentTicks as Record<string, unknown> | null | undefined);
   const experimentTicks = ticksSummary === undefined ? {} : { researchExperimentTicks: ticksSummary };
+  // Research gap fill: three integers, an optional timestamp, at most 12 code-keyed integer counts and one optional code.
+  const rawGap = source.researchGapFill as Record<string, unknown> | null | undefined;
+  let researchGapFill: { researchGapFill?: Record<string, unknown> } = {};
+  if (rawGap != null && typeof rawGap === "object" && !Array.isArray(rawGap) && Number.isSafeInteger(rawGap.runs) && Number(rawGap.runs) >= 0 && Number.isSafeInteger(rawGap.deferred) && Number(rawGap.deferred) >= 0
+    && rawGap.counts != null && typeof rawGap.counts === "object" && !Array.isArray(rawGap.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawGap.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 12) break;
+      if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value) && Number(value) >= 0) counts[key] = Number(value);
+    }
+    researchGapFill = { researchGapFill: {
+      runs: Number(rawGap.runs), deferred: Number(rawGap.deferred), counts,
+      ...(Number.isSafeInteger(rawGap.lastRunAt) && Number(rawGap.lastRunAt) >= 0 ? { lastRunAt: Number(rawGap.lastRunAt) } : {}),
+      ...(typeof rawGap.lastErrorCode === "string" && /^[A-Z][A-Z0-9_]{1,47}$/.test(rawGap.lastErrorCode) ? { lastErrorCode: rawGap.lastErrorCode } : {}),
+    } };
+  }
   // The same summary per research bar length; only the declared lengths are accepted as keys.
   const rawByInterval = source.researchExperimentTicksByInterval as Record<string, unknown> | null | undefined;
   let experimentTicksByInterval: { researchExperimentTicksByInterval?: Record<string, ReturnType<typeof publicTicks>> } = {};
@@ -531,7 +549,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     : {};
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
-  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...futuresCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...researchGapFill, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...futuresCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

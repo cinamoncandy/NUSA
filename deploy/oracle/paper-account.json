@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "initialCapitalKrw": 10000,
+  "initialCapitalKrw": 100000,
   "decidedBy": "owner",
-  "decidedAt": "2026-09-28",
-  "note": "PAPER only. Changing this value opens a separate PAPER account. Accounts in retiredAccountIds (owner decision 2026-09-29) are purged once by the runtime after the release backup; others are never reset or deleted.",
+  "decidedAt": "2026-10-28",
+  "note": "PAPER only. Owner decision 2026-10-28: KRW 100,000, because a KRW 10,000 account fell to about KRW 8,398 and the minimum-order rule (KRW 5,050 must stay within 60% of equity) blocked every BUY. Changing this value opens a separate PAPER account; the KRW 10,000 account (paper-krw-10000) and its history are kept, not retired. Accounts in retiredAccountIds (owner decision 2026-09-29) are purged once by the runtime after the release backup; others are never reset or deleted.",
   "retiredAccountIds": [
     "paper-default"
   ]
