@@ -6,6 +6,7 @@ import { calmColors } from "./uiKitModel";
 import { readableFont, wavePalette } from "./designSystem";
 
 /**
+ * UNUSED since 2026-10-28 (the Now tab draws ContourCore); kept so the wave can be restored.
  * The wave, the motion graphic of "지금" (owner-chosen 2026-10-26): overlapping blue, cyan and violet light waves. A real rise in the
  * decision count kicks the waves up and sends a pulse of light along them; a real rise in PAPER orders adds a pink wave and glow;
  * the strip below keeps one tick per rise seen in the last minute. Without data the waves lie flat and grey. Presentation only: it

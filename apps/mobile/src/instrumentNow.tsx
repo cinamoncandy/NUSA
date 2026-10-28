@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { HeartbeatPulse } from "./heartbeatPulse";
 import { splitHeroLines } from "./learningScreenModel";
 import { InstrumentHero, Odometer, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
-import { WaveCore } from "./waveCore";
+import { ContourCore } from "./contourCore";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
 import { readableFont } from "./designSystem";
@@ -32,7 +32,7 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCo
     <InstrumentHero index="01 / 지금" lines={splitHeroLines(headline).map((text) => ({ text, color: calmToneColor(tone) }))} label={headline} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
     <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      {width > 0 ? <WaveCore decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} fillCount={live ? fillCount : null} live={live} compact={!live} width={width} reducedMotion={reduced} /> : null}
+      {width > 0 ? <ContourCore decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} fillCount={live ? fillCount : null} live={live} compact={!live} width={width} reducedMotion={reduced} /> : null}
       {width > 0 && live ? <HeartbeatPulse lastHeartbeatAt={lastHeartbeatAt} width={width} reducedMotion={reduced} /> : null}
     </View>
     <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
