@@ -1,5 +1,6 @@
 import React from "react";
 import { firstBrokenStage } from "./firstBrokenStageModel";
+import { IslandMark } from "./islandMark";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { HomeDestination } from "./homeView";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
@@ -85,7 +86,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
-      <Text style={styles.brand}>NUSA</Text>
+      <View style={styles.brandRow}><IslandMark size={18} /><Text style={styles.brand}>NUSA</Text></View>
       {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} terrain={terrain} decisionCount={dailyCounts.decisionCount} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} orderCount={blocked ? null : dailyCounts.paperOrderCount} fillCount={blocked ? null : heartbeat?.paperFillCount ?? null} stats={model.stats} lastHeartbeatAt={blocked ? null : heartbeat?.lastHeartbeatAt ?? null} />}
       <InstrumentEquity value={model.equity} caption={model.delta} tone={model.deltaTone} dim={model.dim} />
       {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
@@ -110,7 +111,8 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
 const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: calmColors.ground },
   content: { paddingBottom: 32, width: "100%", maxWidth: 720, alignSelf: "center" },
-  brand: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 5, paddingHorizontal: 20, paddingTop: 18 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 20, paddingTop: 18 },
+  brand: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 5 },
   dim: { opacity: 0.55 },
   why: { marginHorizontal: 20, marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   whyText: { color: calmColors.text, fontSize: readableFont(15), lineHeight: 23 },

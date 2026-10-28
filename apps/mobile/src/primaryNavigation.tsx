@@ -9,6 +9,7 @@ import {
 import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
 import { readableFont } from "./designSystem";
+import { TabIcon } from "./tabIcons";
 
 const DESCRIPTIONS: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
   Home: "현재 NUSA 상태",
@@ -47,7 +48,8 @@ export function PrimaryNavigation({
             ]}
             testID={`tab-${destination}`}
           >
-            <View style={[styles.indicator, { backgroundColor: active ? theme.colors.aiSignalEnd : ui.color.border, opacity: active ? 1 : 0.3 }]} />
+            <View style={[styles.indicator, { backgroundColor: active ? theme.colors.aiSignalEnd : ui.color.border, opacity: active ? 1 : 0 }]} />
+            <TabIcon destination={destination} active={active} muted={ui.color.textMuted} />
             <Text numberOfLines={1} style={[styles.label, { color: active ? ui.color.text : ui.color.textMuted }, active && styles.activeLabel]}>
               {primaryDestinationDisplayLabels[destination]}
             </Text>
@@ -62,8 +64,8 @@ const styles = StyleSheet.create({
   frame: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, alignItems: "center" },
   navigation: { width: "100%", maxWidth: 720, borderTopWidth: StyleSheet.hairlineWidth, alignItems: "center" },
   inner: { width: "100%", flexDirection: "row" },
-  item: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
-  indicator: { height: 2, width: 20, borderRadius: 999 },
+  item: { flex: 1, minHeight: 58, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
+  indicator: { height: 2, width: 14, borderRadius: 999 },
   label: { fontSize: readableFont(10), fontWeight: "700" },
   activeLabel: { fontWeight: "600" },
 });
