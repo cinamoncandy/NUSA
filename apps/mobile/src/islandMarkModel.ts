@@ -3,6 +3,8 @@
  * ripple, the same shape as the launcher icon (scripts/generate-island-icon.js). Used beside the brand name and, faintly, as a
  * card decoration. Presentation only.
  */
+import { islandPalette } from "./designSystem";
+
 export interface MarkStroke { readonly d: string; readonly width: number; readonly opacity: number }
 
 const f = (n: number): string => n.toFixed(2);
@@ -18,4 +20,4 @@ export function islandMarkStrokes(contours = 3): readonly MarkStroke[] {
   return Object.freeze(out);
 }
 
-export const ISLAND_MARK_GRADIENT = ["#7C54FF", "#4F7BFF", "#46D7FF"] as const;
+export const ISLAND_MARK_GRADIENT = [islandPalette.violet, islandPalette.blue, islandPalette.cyan] as const;
