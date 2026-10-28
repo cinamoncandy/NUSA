@@ -115,6 +115,20 @@ export const wavePalette = Object.freeze({
   idle: "#787890",
 } as const);
 
+/** Island palette (owner-approved island design 2026-10-28; NUSA means "island"): violet to blue to cyan light on near-black, soft white/pink/blue summit glow. */
+export const islandPalette = Object.freeze({
+  ground: "#090A13",
+  violet: "#7C54FF",
+  blue: "#4F7BFF",
+  cyan: "#46D7FF",
+  star: "#C8CDFF",
+  horizon: "#78DCFF",
+  reflection: "#C8D7FF",
+  summitCore: "#FFFFFFE6",
+  summitPink: "#FF5FA266",
+  summitBlue: "#96BEFF66",
+} as const);
+
 /** Aura palette (Learning tab): near-black ground with the wave blue/violet light and grain (was green until 2026-10-26). Presentation only. */
 export const auraPalette = Object.freeze({
   ground: "#09090E",
