@@ -319,15 +319,19 @@ export function composeResearchExperiments(input: {
       }
     } catch (error) {
       log(`[research-gap-fill] failed: ${error instanceof Error ? error.message : "unknown"}`);
+      results.push({ market: "", status: "ERROR", missing: 0, recorded: 0, rejected: 0, pages: 0, errorCode: "GAP_FILL_FAILED" } as GapFillResult);
     } finally {
       gapFilling = false;
+      try { orchestrator.recordGapFill(results, now()); } catch { /* display only */ }
     }
     return Object.freeze(results);
   };
-  const scheduleGapFill = (): void => {
+  const scheduleGapFill = (retry = false): void => {
     if (stopped || gapRetry != null) return;
     if (researchTickActive || backfilling || gapFilling) {
-      gapRetry = setTimeout(() => { gapRetry = undefined; scheduleGapFill(); }, 1_000);
+      // Counted once per scheduled attempt, not once per one-second retry.
+      if (!retry) { try { orchestrator.noteGapFillDeferred(); } catch { /* display only */ } }
+      gapRetry = setTimeout(() => { gapRetry = undefined; scheduleGapFill(true); }, 1_000);
       gapRetry.unref?.();
       return;
     }
@@ -447,7 +451,7 @@ export function composeResearchExperiments(input: {
       first.unref?.();
       timer = setInterval(scheduleTick, settings.tickMs);
       timer.unref?.();
-      if (settings.backfill) { gapTimer = setInterval(scheduleGapFill, 60 * M); gapTimer.unref?.(); }
+      if (settings.backfill) { gapTimer = setInterval(() => scheduleGapFill(), 60 * M); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
     stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (gapRetry != null) clearTimeout(gapRetry); if (backfillTimer != null) clearTimeout(backfillTimer); if (tickRetry != null) clearTimeout(tickRetry); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
