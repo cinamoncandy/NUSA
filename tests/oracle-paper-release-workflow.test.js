@@ -411,21 +411,38 @@ test("the sealed release ships dist and scripts without the workspace node_modul
   assert.doesNotMatch(seal, /tar -czf "\$RUNNER_TEMP\/nusa-release\.tar\.gz" --exclude=\.git \./, "the old whole-workspace seal must not return");
 });
 
-test("the host runtime needs no package besides ws: every bare import in compiled production code is ws or a test/desktop-only package", () => {
+test("the host runtime needs no package besides ws: nothing the host units and release helper can reach imports another bare package", () => {
   const fs = require("node:fs");
   const path = require("node:path");
-  const allowed = new Set(["ws", "vitest", "electron", "@cloudflare/sandbox"]);
+  // Entry points of every systemd unit and release-helper verb (deploy/oracle/*.service, nusa-release-step.sh), plus the scripts the research snapshot spawns.
+  const entries = [
+    "scripts/start-cloud-runtime.js", "scripts/autopilot-runtime.js", "scripts/run-cloud-research-snapshot.js", "scripts/atomic-deploy.js",
+    "scripts/oracle-validate.js", "scripts/oracle-readiness-check.js", "scripts/autopilot-readiness.js", "scripts/host-security-validate.js",
+    "scripts/reset-paper-writer-lease.js", "scripts/sqlite-backup.js", "services/nusa-mcp/server.js", "services/upbit-readonly/server.js",
+    "dist/packages/storage/src/sqliteIntegrityBootstrap.js", "dist/apps/cloud/src/runtime.js", "dist/apps/cloud/src/closedLearningProductionRuntime.js",
+  ];
+  const sealed = new Set(["ws"]);
+  const seen = new Set();
   const bare = new Map();
-  const walk = (dir) => { for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const file = path.join(dir, entry.name);
-    if (entry.isDirectory()) { if (!/^dist[\\/]apps[\\/](desktop|mobile)$/.test(path.relative(".", file))) walk(file); continue; }
-    if (!entry.name.endsWith(".js") || /\.(test|vitest)\.js$/.test(entry.name)) continue;
-    for (const match of fs.readFileSync(file, "utf8").matchAll(/require\(\s*"([^."\/][^"]*)"\s*\)/g)) {
-      const name = match[1].startsWith("@") ? match[1].split("/").slice(0, 2).join("/") : match[1].split("/")[0];
-      if (!name.startsWith("node:")) bare.set(name, file);
+  const resolveRelative = (from, spec) => {
+    const base = path.resolve(path.dirname(from), spec);
+    for (const candidate of [base, `${base}.js`, `${base}.cjs`, path.join(base, "index.js")]) if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) return candidate;
+    return null;
+  };
+  const walk = (file) => {
+    if (seen.has(file)) return;
+    seen.add(file);
+    const text = fs.readFileSync(file, "utf8");
+    for (const match of text.matchAll(/\brequire\(\s*["'`]([^"'`]+)["'`]\s*\)|\b(?:import|export)\b[^"'`;]*?\bfrom\s+["']([^"']+)["']|\bimport\(\s*["'`]([^"'`]+)["'`]\s*\)/g)) {
+      const spec = match[1] ?? match[2] ?? match[3];
+      if (spec.startsWith(".")) { const next = resolveRelative(file, spec); if (next != null) walk(next); continue; }
+      if (spec.startsWith("node:")) continue;
+      const name = spec.startsWith("@") ? spec.split("/").slice(0, 2).join("/") : spec.split("/")[0];
+      if (!sealed.has(name)) bare.set(name, path.relative(".", file));
     }
-  } };
+  };
   if (!fs.existsSync("dist")) return;
-  walk("dist");
-  for (const [name, file] of bare) assert.ok(allowed.has(name), `${file} requires ${name}; add it to the sealed release (oracle-paper-release.yml) or to this allowlist`);
+  for (const entry of entries) { assert.ok(fs.existsSync(entry), `host entry point missing: ${entry}`); walk(path.resolve(entry)); }
+  assert.ok(seen.size > 100, `the host import graph should be large (saw ${seen.size} files); the walk is broken`);
+  assert.deepEqual([...bare.entries()], [], "a host-reachable file imports a package the sealed release does not ship; add it to the seal in oracle-paper-release.yml");
 });
