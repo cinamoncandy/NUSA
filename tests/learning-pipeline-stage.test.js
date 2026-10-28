@@ -55,6 +55,6 @@ test("the result is frozen and deterministic", () => {
 
 test("/health derives learningPipeline only from the already-public runtime object", () => {
   const server = require("node:fs").readFileSync("apps/cloud/src/server.ts", "utf8");
-  assert.match(server, /publicRuntimeWithPipeline\(publicRuntimeLiveness\(liveness\)\)/);
-  assert.match(server, /learningPipelineProjection\(runtime as unknown as Readonly<Record<string, unknown>>, Date\.now\(\)\)/);
+  assert.match(server, /const runtime = publicRuntimeLiveness\(liveness\);\r?\n\s+const learningPipeline = learningPipelineProjection\(runtime as unknown as Readonly<Record<string, unknown>>, now\);/);
+  assert.match(server, /\.\.\.\(pipeline \?\? \{\}\),/);
 });

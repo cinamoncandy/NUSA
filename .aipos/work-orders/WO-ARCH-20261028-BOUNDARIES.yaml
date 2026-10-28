@@ -1,0 +1,51 @@
+id: WO-ARCH-20261028-BOUNDARIES
+title: Code-structure phases for the target architecture - app boundaries, storage split, runtime composition, report output
+status: STEP_1_IN_REVIEW
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2770
+authority_impact: none
+objective: >-
+  Give the code a clear dependency direction (packages depend on nothing app-specific, apps depend on packages, apps do
+  not import each other) so a change in one app cannot silently break another, and prepare the storage and runtime code
+  for the database split in WO-ARCH-20261027-STATE-DB-SPLIT.
+evidence:
+  measured_on: main 2026-10-28
+  app_boundary: '68 distinct source->target references cross apps (cloud, desktop, mobile, autopilot) or go from packages into those apps; for example 13 cloud files import apps/desktop/src/cloud/* domain code and 34 desktop references import cloud internals.'
+  storage_module: 'packages/storage/src/index.ts is 1,314 lines and creates 86 tables; 9 of the 13 type cycles pass through it.'
+  runtime_composition: 'apps/cloud/src/runtime.ts is 866 lines with lines up to 1,107 characters; startCloudRuntime takes 15 positional parameters.'
+  report_output: 'scripts/validate-architecture.js wrote 4 report files into docs/audits on every run.'
+  related: [WO-ARCH-20261027-TARGET-ARCHITECTURE, WO-ARCH-20261027-STATE-DB-SPLIT]
+steps:
+  - id: 1
+    change: 'validate-architecture.js gains CROSS_APP_REFERENCE and PACKAGE_TO_APP_REFERENCE with a shrink-only baseline (.aipos/architecture-boundary-baseline.json); reports are written only with --write-reports or NUSA_WRITE_ARCHITECTURE_REPORTS=1.'
+    exit: 'A new cross-app or package-to-app import fails CI; a fixed one must be removed from the baseline.'
+  - id: 2
+    change: 'Move cloud domain code that lives under apps/desktop/src/cloud into packages/ or apps/cloud, one module group per PR, removing its baseline entries.'
+    exit: 'apps/cloud has no apps/desktop import.'
+  - id: 3
+    change: 'Split packages/storage/src/index.ts by table group (PAPER state, research raw data, governance) behind the same exports.'
+    exit: 'The storage type cycles are gone; each table group has one owner module, ready for the database split.'
+  - id: 4
+    change: 'Replace the 15 positional parameters of startCloudRuntime with one options object and move logic out of the composition root.'
+    exit: 'runtime.ts only composes; behaviour and tests unchanged.'
+exclusions:
+  - No behaviour, risk, threshold, capital, writer-lease or authority change in any step.
+  - No edit to qualification-pinned files to make a refactor pass (WO-GOV-20261027-QUALIFICATION-PIN-SCOPE).
+  - Never add a baseline entry to let a new reference pass.
+acceptance:
+  - Each step meets its exit with the existing test suites unchanged and passing.
+verification_commands:
+  - node scripts/validate-architecture.js
+  - node --test tests/architecture-app-boundary.test.js
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'Step 1 implemented in this PR; steps 2-4 follow as separate PRs.'
+precommit_review: 'Not yet requested.'
+publication_blockers: []
+next: Non-author review of step 1; then step 2 starting with the apps/desktop/src/cloud modules that apps/cloud imports.

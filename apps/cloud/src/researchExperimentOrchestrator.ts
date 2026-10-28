@@ -103,6 +103,16 @@ export function addOutcomeCount(counts: Record<string, number>, key: string): vo
   counts[key] = (counts[key] ?? 0) + 1;
 }
 
+const GAP_FILL_CODE = /^[A-Z][A-Z0-9_]{1,47}$/;
+
+export interface ResearchGapFillSummary {
+  readonly lastRunAt?: number;
+  readonly runs: number;
+  readonly deferred: number;
+  readonly counts: Readonly<Record<string, number>>;
+  readonly lastErrorCode?: string;
+}
+
 export class ResearchExperimentOrchestrator {
   private recoveryReady = false;
 
@@ -178,6 +188,40 @@ export class ResearchExperimentOrchestrator {
   }
 
   private tickSummary: ResearchExperimentTickSummary | null = null;
+
+  private gapFillSummary: ResearchGapFillSummary | null = null;
+
+  /**
+   * Display only: the outcome of the hourly REST gap fill, the only writer of the candle series head. Fixed status and
+   * error codes with integer counts; nothing from the request or the data is kept.
+   */
+  public recordGapFill(results: readonly { readonly status: string; readonly errorCode?: string }[], at: number): void {
+    const previous = this.gapFillSummary;
+    const counts: Record<string, number> = { ...(previous?.counts ?? {}) };
+    let lastErrorCode = previous?.lastErrorCode;
+    for (const result of results) {
+      if (!GAP_FILL_CODE.test(result.status)) continue;
+      counts[result.status] = (counts[result.status] ?? 0) + 1;
+      if (result.errorCode !== undefined && GAP_FILL_CODE.test(result.errorCode)) lastErrorCode = result.errorCode;
+    }
+    this.gapFillSummary = Object.freeze({
+      lastRunAt: at,
+      runs: (previous?.runs ?? 0) + 1,
+      deferred: previous?.deferred ?? 0,
+      counts: Object.freeze(counts),
+      ...(lastErrorCode === undefined ? {} : { lastErrorCode }),
+    });
+  }
+
+  /** Display only: an hourly gap fill was postponed because a backfill, gap fill or research tick was still running. */
+  public noteGapFillDeferred(): void {
+    const previous = this.gapFillSummary;
+    this.gapFillSummary = Object.freeze({ ...(previous ?? { runs: 0, counts: Object.freeze({}) }), deferred: (previous?.deferred ?? 0) + 1 });
+  }
+
+  public gapFill(): ResearchGapFillSummary | null {
+    return this.gapFillSummary;
+  }
 
   private recordTick(report: TickReport): TickReport {
     const counts: Record<string, number> = { ...(this.tickSummary?.counts ?? {}) };
