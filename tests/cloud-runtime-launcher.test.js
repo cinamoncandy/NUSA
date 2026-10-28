@@ -17,8 +17,8 @@ test("an unconfigured launch supplies every input the runtime requires, includin
   // Without public market data the runtime holds killSwitchActive and every PAPER order is
   // rejected as MARKET_DATA_INVALID, which is indistinguishable from a broken product.
   assert.equal(env.NUSA_CLOUD_UPBIT_PUBLIC_DATA, "true");
-  // Without initial capital the PAPER execution loop is never constructed at all.
-  assert.equal(env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW, "10000");
+  // Without initial capital the PAPER execution loop is never constructed at all (the committed owner decision applies).
+  assert.equal(env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW, "100000");
   assert.ok(applied.includes("NUSA_CLOUD_UPBIT_PUBLIC_DATA"));
   assert.ok(applied.includes("NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW"));
 });
@@ -144,10 +144,10 @@ test("a truncated or corrupted token file is replaced rather than passed to the 
 test("the owner PAPER account file sets initial capital over the host environment and fails closed when malformed", () => {
   const { readOwnerPaperAccount, OWNER_PAPER_ACCOUNT_FILE } = require("../scripts/start-cloud-runtime.js");
   const owner = readOwnerPaperAccount();
-  assert.equal(owner.initialCapitalKrw, 10000, "the committed owner decision is KRW 10,000");
+  assert.equal(owner.initialCapitalKrw, 100000, "the committed owner decision is KRW 100,000 (2026-10-28)");
   assert.ok(OWNER_PAPER_ACCOUNT_FILE.endsWith(path.join("deploy", "oracle", "paper-account.json")));
   const { env, applied } = buildRuntimeEnv({ NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000" }, TOKEN, owner);
-  assert.equal(env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW, "10000");
+  assert.equal(env.NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW, "100000");
   assert.ok(applied.includes("NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW"));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-paper-"));
   const bad = path.join(dir, "paper-account.json");

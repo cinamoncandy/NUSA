@@ -1,3 +1,4 @@
+import { HEALTH_EXPORT_TIMEOUT_MS, healthExportConfig, startHealthExport } from "./healthExport";
 import { buildMobileDashboardResponse } from "./mobileDashboardApi";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
@@ -10,6 +11,7 @@ import { readResearchExperimentSettings } from "./researchExperimentComposition"
 import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { cloudPaperRiskLimitsForCapital } from "./paperRiskLimitScaling";
 import { attributeTodayLosses, type PaperLossAttribution } from "./paperLossAttribution";
 import { classifyPaperWait } from "./paperWaitReason";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
@@ -99,7 +101,7 @@ export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDash
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
-export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; experimentTicks?(): { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null; }
+export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; gapFill?(): { readonly lastRunAt?: number; readonly runs: number; readonly deferred: number; readonly counts: Readonly<Record<string, number>>; readonly lastErrorCode?: string } | null; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; experimentTicks?(): { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void, onTrade?: (trade: UpbitTrade) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
@@ -400,7 +402,7 @@ export function startCloudRuntime(
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
   const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
-    ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
+    ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, limits: cloudPaperRiskLimitsForCapital(config.paperInitialCapitalKrw), sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
   effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined ? undefined : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository, readP0State: readPaperP0State }));
   const productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
@@ -692,6 +694,8 @@ export function startCloudRuntime(
   const futuresCollectorLiveness = () => { try { return futuresCollector == null ? {} : { futuresCollector: futuresCollector.status() }; } catch { return {}; } };
   const orderBookCollectorLiveness = () => { try { return orderBookCollector == null ? {} : { orderBookCollector: orderBookCollector.status() }; } catch { return {}; } };
   const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
+  // Display only: the hourly REST gap fill, the only writer of the research candle series head.
+  const researchGapFillLiveness = () => { let gap = null; try { gap = researchAutomation?.gapFill?.() ?? null; } catch { gap = null; } return gap == null ? {} : { researchGapFill: gap }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
   const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
   const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
@@ -777,6 +781,7 @@ export function startCloudRuntime(
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
       ...researchExperimentLiveness(),
+      ...researchGapFillLiveness(),
       ...microstructureLiveness(),
       ...orderBookCollectorLiveness(),
       ...futuresCollectorLiveness(),
@@ -808,6 +813,20 @@ export function startCloudRuntime(
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
+  // Display only: evaluate the learning-pipeline alarm once a minute even when nobody reads /health.
+  const pipelineAlarmTimer = setInterval(() => { handle.observeLearningPipeline(); }, 60_000);
+  pipelineAlarmTimer.unref?.();
+  // Display only, off unless the server owner sets NUSA_HEALTH_EXPORT_URL and a write-only NUSA_HEALTH_EXPORT_TOKEN:
+  // appends this process's own public /health (nothing more) to an external append-only store. Never read back.
+  const healthExport = healthExportConfig(env);
+  const stopHealthExport = healthExport == null ? undefined : startHealthExport(healthExport, {
+    readLocalHealth: async () => {
+      const localHost = handle.host === "0.0.0.0" || handle.host === "::" ? "127.0.0.1" : handle.host;
+      const response = await fetch(`http://${localHost.includes(":") ? `[${localHost}]` : localHost}:${handle.port}/health`, { signal: AbortSignal.timeout(HEALTH_EXPORT_TIMEOUT_MS) });
+      return response.ok ? response.json() : null;
+    },
+    post: (url, init) => fetch(url, init),
+  });
   const requirePaperRealizedPeriodProducer = (): PaperRealizedPeriodProducer => {
     if (paperRealizedPeriodProducer == null) throw new Error("PAPER_REALIZED_PERIOD_PERSISTENCE_UNAVAILABLE");
     return paperRealizedPeriodProducer;
@@ -829,7 +848,7 @@ export function startCloudRuntime(
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
     nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(pipelineAlarmTimer); stopHealthExport?.(); clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 

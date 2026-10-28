@@ -1,3 +1,4 @@
+// Not used since 2026-10-28: the owner asked to restore the earlier Learning tab design. Kept for rollback only.
 import React, { useEffect, useMemo, useState } from "react";
 import { StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import { BlurMask, Canvas, Fill, FractalNoise, Group, LinearGradient, Points, RadialGradient, RoundedRect, Rect, rect, rrect, vec } from "@shopify/react-native-skia";

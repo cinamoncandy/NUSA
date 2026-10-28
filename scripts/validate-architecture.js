@@ -79,6 +79,31 @@ function analyzeRepository(root = process.cwd()) {
     }
   }
 
+  // App boundaries: the cloud, desktop, mobile and autopilot apps must not import each other, and shared packages must not
+  // import those apps (apps/execution is a shared domain, see layerOf). Existing references are listed in the boundary
+  // baseline so new ones fail while old ones are removed one by one; a baseline entry that no longer exists also fails.
+  const boundaryBaseline = readBoundaryBaseline(root);
+  const boundarySeen = new Set();
+  for (const edge of edges) {
+    const sourceApp = boundaryApp(edge.source);
+    const targetApp = boundaryApp(edge.target);
+    if (targetApp === null) continue;
+    const crossApp = sourceApp !== null && sourceApp !== targetApp;
+    const packageToApp = edge.source.startsWith("packages/");
+    if (!crossApp && !packageToApp) continue;
+    const key = `${edge.source} -> ${edge.target}`;
+    boundarySeen.add(key);
+    if (boundaryBaseline.has(key)) continue;
+    findings.push(finding(crossApp ? "CROSS_APP_REFERENCE" : "PACKAGE_TO_APP_REFERENCE", edge, crossApp
+      ? "Apps must not import each other; move shared code to packages/ or expose it through a contract."
+      : "Shared packages must not import application modules."));
+  }
+  for (const key of boundaryBaseline) {
+    if (boundarySeen.has(key)) continue;
+    const [source, target] = key.split(" -> ");
+    findings.push(finding("BOUNDARY_BASELINE_STALE", { source, target, kind: "baseline" }, "This boundary reference no longer exists; remove it from .aipos/architecture-boundary-baseline.json."));
+  }
+
   for (const source of nodes) {
     const sourceLayer = layerOf(source);
     if (sourceLayer === "DOMAIN" && /^(packages\/(contracts|core|aipos))\//.test(source)) {
@@ -216,6 +241,23 @@ function isForbiddenMobilePresentationReference(edge) {
   return /^(apps|packages)\//.test(edge.target);
 }
 
+const BOUNDARY_APPS = /^apps\/(cloud|desktop|mobile|autopilot)\//;
+
+function boundaryApp(file) {
+  const match = BOUNDARY_APPS.exec(file);
+  return match === null ? null : match[1];
+}
+
+function readBoundaryBaseline(root) {
+  const file = join(root, ".aipos", "architecture-boundary-baseline.json");
+  if (!existsSync(file)) return new Set();
+  const parsed = JSON.parse(readFileSync(file, "utf8"));
+  if (!Array.isArray(parsed.references) || !parsed.references.every((item) => typeof item === "string" && / -> /.test(item))) {
+    throw new Error("architecture boundary baseline must list \"source -> target\" strings");
+  }
+  return new Set(parsed.references);
+}
+
 function layerOf(file) {
   if (file.startsWith("apps/desktop/renderer/") || isMobilePresentationSource(file)) return "PRESENTATION";
   if (file.startsWith("packages/storage/")) return "INFRASTRUCTURE";
@@ -284,7 +326,8 @@ function writeReports(root, result) {
 
 if (require.main === module) {
   const result = analyzeRepository();
-  writeReports(process.cwd(), result);
+  // Reports are written only when asked for (CI artifacts or an explicit audit), not into the working tree on every check.
+  if (process.argv.includes("--write-reports") || process.env.NUSA_WRITE_ARCHITECTURE_REPORTS === "1") writeReports(process.cwd(), result);
   console.log(`Architecture files=${result.files.length} runtimeEdges=${result.edges.filter((edge) => edge.kind === "runtime").length} typeEdges=${result.edges.filter((edge) => edge.kind === "type").length} runtimeCycles=${result.runtimeCycles.length} typeCycles=${result.typeCycles.length} findings=${result.findings.length}`);
   if (result.unresolved.length > 0) {
     console.error(`Architecture validation found ${result.unresolved.length} unresolved local imports.`);
@@ -299,4 +342,4 @@ if (require.main === module) {
   if (result.runtimeCycles.length > 0 || result.findings.length > 0) process.exit(1);
 }
 
-module.exports = { analyzeRepository, layerOf, parseImports, parseImportExpressions, resolveWorkspaceOwner, workspacePackageOwners };
+module.exports = { analyzeRepository, boundaryApp, layerOf, parseImports, parseImportExpressions, resolveWorkspaceOwner, workspacePackageOwners };

@@ -73,14 +73,14 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
       : "QUIET";
 
   const statusLabel = connectionRecoveryRequired
-    ? "PAPER · RECOVERY REQUIRED"
+    ? "PAPER · 재연결 필요"
     : input.accountSource === "CLOUD"
-    ? `PAPER · ${runtimeState === "RUNNING" ? "RUNNING" : runtimeState === "DEGRADED" ? "DEGRADED" : runtimeState === "HALTED" ? "HALTED" : runtimeState === "ERROR" ? "ERROR" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "STOPPED" : signalReady ? "READY" : "CHECK"}`
+    ? `PAPER · ${runtimeState === "RUNNING" ? "실행 중" : runtimeState === "DEGRADED" ? "성능 저하" : runtimeState === "HALTED" ? "정지됨" : runtimeState === "ERROR" ? "오류" : runtimeState === "STOPPED" || runtimeState === "STOPPING" ? "멈춤" : signalReady ? "준비됨" : "확인 필요"}`
     : input.accountSource === "LOCAL"
-      ? "PAPER · LOCAL"
+      ? "PAPER · 이 기기"
       : input.disconnected
-        ? "PAPER · OFFLINE"
-        : "PAPER · STANDBY";
+        ? "PAPER · 오프라인"
+        : "PAPER · 대기";
 
   const statusTone: HomeDecisionTone = connectionRecoveryRequired
     ? "danger"
