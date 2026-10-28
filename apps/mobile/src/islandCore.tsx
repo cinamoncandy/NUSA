@@ -4,7 +4,7 @@ import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, 
 import { type IslandStill, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, islandHeight, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, WAVE_PULSE_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
-import { readableFont, wavePalette } from "./designSystem";
+import { islandPalette, readableFont, wavePalette } from "./designSystem";
 
 /**
  * The island, the motion graphic of "지금" (owner-chosen 2026-10-28; NUSA means "island"): stacked hairlines draw a small island over
@@ -18,7 +18,7 @@ const FRAME_MS = 33;
 const PINK = [255, 95, 162];
 const WHITE = [236, 240, 255];
 const LIT = [205, 222, 255];
-const GROUND = "#090A13";
+const GROUND = islandPalette.ground;
 // Fixed star positions (share of width, share of the sky height, radius); drawn only while live.
 const STARS: readonly (readonly [number, number, number])[] = Array.from({ length: 28 }, (_, i) => {
   const r = (n: number) => { const v = Math.sin((i + 1) * 12.9898 * n) * 43758.5453; return v - Math.floor(v); };
@@ -169,7 +169,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
       {scene.grey ? null : <Rect x={0} y={0} width={width} height={height} opacity={scene.glow * 1.6}>
         <RadialGradient c={vec(width / 2, height * 0.35)} r={width * 0.6} colors={[scene.pink > 0.05 ? wavePalette.pink : wavePalette.glow, "transparent"]} />
       </Rect>}
-      {scene.grey || still != null ? null : STARS.map(([sx, sy, r], i) => <Circle key={`st${i}`} cx={sx * width} cy={4 + sy * height * 0.2} r={r} color="#C8CDFF" opacity={0.15 + 0.3 * ((i * 7) % 5) / 4} />)}
+      {scene.grey || still != null ? null : STARS.map(([sx, sy, r], i) => <Circle key={`st${i}`} cx={sx * width} cy={4 + sy * height * 0.2} r={r} color={islandPalette.star} opacity={0.15 + 0.3 * ((i * 7) % 5) / 4} />)}
       {scene.rows.map((row) => <Group key={row.key}>
         <Path path={row.body} color={GROUND} />
         {row.line == null ? null : <>
@@ -178,17 +178,17 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
         </>}
       </Group>)}
       <Rect x={width * 0.02} y={shoreY + 2} width={width * 0.96} height={1.2}>
-        <LinearGradient start={vec(width * 0.02, 0)} end={vec(width * 0.98, 0)} colors={["transparent", scene.grey ? wavePalette.idle : "#78DCFF", "transparent"]} />
+        <LinearGradient start={vec(width * 0.02, 0)} end={vec(width * 0.98, 0)} colors={["transparent", scene.grey ? wavePalette.idle : islandPalette.horizon, "transparent"]} />
       </Rect>
       {scene.sea.map((s) => <Path key={`sea${s.key}`} path={s.path} style="stroke" strokeWidth={0.8} opacity={s.opacity}>
         <LinearGradient start={vec(s.x0, 0)} end={vec(s.x1, 0)} colors={["transparent", scene.grey ? wavePalette.idle : wavePalette.cyan, "transparent"]} />
       </Path>)}
       {scene.summit == null ? null : <>
         <Rect x={scene.summit.x - 1} y={shoreY + 4} width={2} height={height * (ISLAND_SEA_END - ISLAND_SHORE)} opacity={0.35}>
-          <LinearGradient start={vec(0, shoreY)} end={vec(0, height * ISLAND_SEA_END)} colors={["#C8D7FF", "transparent"]} />
+          <LinearGradient start={vec(0, shoreY)} end={vec(0, height * ISLAND_SEA_END)} colors={[islandPalette.reflection, "transparent"]} />
         </Rect>
-        <Circle cx={scene.summit.x} cy={scene.summit.y} r={12}><RadialGradient c={vec(scene.summit.x, scene.summit.y)} r={12} colors={["#FFFFFFE6", scene.pink > 0.05 ? "#FF5FA266" : "#96BEFF66", "transparent"]} /></Circle>
-        <Circle cx={scene.summit.x} cy={scene.summit.y} r={1.8} color="#FFFFFF" />
+        <Circle cx={scene.summit.x} cy={scene.summit.y} r={12}><RadialGradient c={vec(scene.summit.x, scene.summit.y)} r={12} colors={[islandPalette.summitCore, scene.pink > 0.05 ? islandPalette.summitPink : islandPalette.summitBlue, "transparent"]} /></Circle>
+        <Circle cx={scene.summit.x} cy={scene.summit.y} r={1.8} color={calmColors.text} />
       </>}
       {still != null ? null : <><Rect x={width * 0.04} y={stripY} width={width * 0.92} height={1}>
         <LinearGradient start={vec(width * 0.04, 0)} end={vec(width * 0.96, 0)} colors={["transparent", calmColors.line, calmColors.line, "transparent"]} positions={[0, 0.1, 0.9, 1]} />
