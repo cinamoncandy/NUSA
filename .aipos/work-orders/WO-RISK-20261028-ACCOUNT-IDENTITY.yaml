@@ -1,0 +1,45 @@
+id: WO-RISK-20261028-ACCOUNT-IDENTITY
+title: Key Cloud PAPER risk state and evidence by the real PAPER account id, not a fixed paper-default label
+status: PROPOSED_NEEDS_REQUALIFICATION_AND_FORMAL_VALIDATOR
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+authority_impact: none
+objective: >-
+  Make the canonical risk gateway's daily-loss state, idempotency records, approval ids and risk evidence belong to the
+  PAPER account they protect, so switching to a new owner-decided account (PR 2916, KRW 100,000) starts with its own
+  risk state instead of inheriting another account's.
+evidence:
+  source: 'apps/cloud/src/cloudPaperCanonicalRiskGateway.ts:11 const ACCOUNT_ID = "paper-default", used at lines 327, 345 and 364.'
+  storage: 'packages/storage/src/risk-safety.ts keys risk_daily_loss_state and risk_idempotency_records by account_id.'
+  found_by: non-author review on PR 2916 and the CORE session on 2026-10-28.
+impact:
+  - 'The daily-loss limit is checked twice. The independent gateway compares the new account''s own realized PnL for the KST day (realizedLossState, from its own fills) with maxDailyLoss; it does not use ACCOUNT_ID, so after PR 2917 (merged, not yet deployed) the KRW 10,000 realized-loss limit binds from the first day. Only the canonical equity-based check (risk-safety-integration.ts:179-183) loads risk_daily_loss_state by "paper-default". If that saved row has the same KST trading_day as the new account''s first evaluation, the check measures from the old start (about KRW 8,398, a runtime value not verified from code) against about KRW 100,000 equity, so it would trip only after a loss of about KRW 101,600 and in practice does not bind that day; a row from an earlier day resets to the new account''s equity. The consecutive-loss limit is disabled (consecutiveLossLimitEnabled: false). Session drawdown, price deviation, and the order and exposure caps still apply.'
+  - 'Risk evidence and approval ids carry the same account label for every account, so evidence cannot be separated per account.'
+  - 'Idempotency records are shared across accounts; collisions need the same command id, so they are unlikely but possible.'
+constraints:
+  - 'cloudPaperCanonicalRiskGateway.ts is the qualification-pinned RISK entrypoint (MODULE_QUALIFICATION_SOURCE_BLOB_BY_STAGE_V1.RISK); a change needs re-qualification evidence, never a hash edit to make CI pass (WO-GOV-20261027-QUALIFICATION-PIN-SCOPE).'
+design:
+  - 'Pass the real account id (paperAccountIdForCapital) into CloudPaperCanonicalRiskGatewayOptions and use it in place of the constant.'
+  - 'Existing paper-default rows stay as historical evidence; nothing is rewritten or deleted.'
+  - 'Replay and restart tests prove the new account starts its own daily-loss state and keeps idempotency per account.'
+exclusions:
+  - No risk limit, threshold, loss-limit or capital change.
+  - No deletion or rewrite of existing risk evidence.
+  - No LIVE authority.
+acceptance:
+  - A new account's first evaluation records its own day_start_equity.
+  - Risk evidence and idempotency rows carry the evaluated account id.
+  - Re-qualification evidence is recorded by a non-author validator.
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'Design record only.'
+precommit_review: 'Not yet requested.'
+publication_blockers:
+  - 'Re-qualification of the RISK entrypoint and a formal validator review.'
+next: 'Until fixed, on a same-day switch the canonical equity-based daily-loss check measures from the old account''s start for that day. The realized-loss daily limit (KRW 10,000 once PR 2917 is deployed) still applies.'
