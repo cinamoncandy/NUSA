@@ -14,7 +14,7 @@ evidence:
   storage: 'packages/storage/src/risk-safety.ts keys risk_daily_loss_state and risk_idempotency_records by account_id.'
   found_by: non-author review on PR 2916 and the CORE session on 2026-10-28.
 impact:
-  - 'On the day the runtime first runs paper-krw-100000, risk_daily_loss_state for "paper-default" still holds the old account''s day_start_equity (about KRW 8,398). Daily loss is computed from that start, so the daily-loss limit does not bind for the rest of that KST trading day; it is recorded again for the new account from the next trading day. Other vetoes (consecutive losses, session drawdown, price deviation, order and exposure caps) still apply.'
+  - 'Before PR 2917 the gateway used the unscaled maxDailyLoss of KRW 1,000,000, which cannot bind on a KRW 100,000 account on any day. PR 2917 (merged, not yet deployed) scales it to 10% of capital, KRW 10,000. Once deployed, on the first KST trading day that paper-krw-100000 runs, risk_daily_loss_state for "paper-default" still holds the old account''s day_start_equity (about KRW 8,398), so the daily-loss check measures from the wrong start for that day. The new account''s own start is recorded from the next trading day. The consecutive-loss limit is disabled (consecutiveLossLimitEnabled: false). Session drawdown, price deviation, and the order and exposure caps still apply.'
   - 'Risk evidence and approval ids carry the same account label for every account, so evidence cannot be separated per account.'
   - 'Idempotency records are shared across accounts; collisions need the same command id, so they are unlikely but possible.'
 constraints:
