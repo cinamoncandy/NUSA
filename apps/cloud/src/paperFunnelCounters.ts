@@ -30,11 +30,15 @@ const CODE = /^[A-Z][A-Z0-9_]{1,47}$/;
 const MAX_CODES_PER_EVENT = 4;
 
 /** The fixed codes in a reason string: its comma/semicolon/colon separated pieces that are already plain upper-case codes. */
+const LONG_INTENT_PREFIX = "PAPER_EXECUTION_INTENT_";
+
 export function funnelReasonCodes(reason: string | undefined): readonly string[] {
   // The whole reason must be code pieces joined by , ; or :. A sentence, a key=value pair or anything with a space is not a code list.
   if (reason == null || reason.length === 0 || reason.length > 400 || !/^[A-Z0-9_]+(?:[,;:][A-Z0-9_]+)*$/.test(reason)) return [];
   const out: string[] = [];
-  for (const piece of reason.split(/[,;:]/)) {
+  for (const raw of reason.split(/[,;:]/)) {
+    // Codes over 48 characters would be dropped; the long PAPER execution-intent codes keep their meaning under a short prefix.
+    const piece = raw.startsWith(LONG_INTENT_PREFIX) ? `INTENT_${raw.slice(LONG_INTENT_PREFIX.length)}` : raw;
     if (CODE.test(piece) && !out.includes(piece)) out.push(piece);
     if (out.length >= MAX_CODES_PER_EVENT) break;
   }
