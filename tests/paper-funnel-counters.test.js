@@ -133,3 +133,22 @@ test("recording the same order intent twice counts its reason code once, and the
   assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
   assert.equal(recorded.reason, "paper account persistence failed");
 });
+
+test("long PAPER execution-intent codes keep a short funnel code instead of disappearing", () => {
+  const { funnelReasonCodes, orderIntentFunnelCode } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  assert.deepEqual(funnelReasonCodes("PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING"), ["INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING"]);
+  assert.deepEqual(funnelReasonCodes("PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH"), ["INTENT_MINIMUM_ORDER_EXCEEDS_CASH"]);
+  assert.deepEqual(funnelReasonCodes("PAPER_EXECUTION_INTENT_PORTFOLIO_ALLOCATION_REQUIRED"), ["INTENT_PORTFOLIO_ALLOCATION_REQUIRED"]);
+  assert.equal(orderIntentFunnelCode("BLOCKED", "PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING"), undefined, "now a code list, so no uncoded bucket");
+  assert.deepEqual(funnelReasonCodes("PAPER_LIMIT_OPEN"), ["PAPER_LIMIT_OPEN"], "other codes are unchanged");
+  assert.deepEqual(funnelReasonCodes("not a code"), []);
+});
+
+test("the app explains the minimum-order stop in plain words and what unblocks it", () => {
+  const { describePaperOrderReason } = require("../dist/apps/mobile/src/paperOrderReason.js");
+  const ceiling = describePaperOrderReason("BLOCKED:PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING");
+  assert.equal(ceiling.category, "EXECUTION_BLOCKED");
+  assert.match(ceiling.text, /자산이 너무 작아 매수하지 않았어요/);
+  assert.match(ceiling.text, /₩8,417/);
+  assert.match(describePaperOrderReason("BLOCKED:PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH").text, /최소 주문금액\(₩5,050\)/);
+});
