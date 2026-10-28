@@ -23,6 +23,8 @@ scope:
   - "A successful workflow_run wrapper with its guarded applicable job skipped is not an owner; require the named workflow job itself to be active or completed successfully."
   - "Fail closed on unexpected workflow states or API-read failure."
   - "Add focused regression coverage for disabled-manually and duplicate-suppression behavior."
+  - "android-stable-release-trigger.yml and android-stable-release-watchdog.yml also read the android-stable-release.yml state before dispatch: disabled_manually exits 0 with a notice, any other non-active state (including disabled_inactivity) fails with an error."
+  - "Known liveness gap (not a safety gap): a queued or in-progress same-SHA run that later fails has still suppressed this dispatch; Android recovers through the 5-minute trigger and watchdog, wo-0059-actual-paper-runtime and Windows have no retry from this step."
 acceptance:
   - "Focused deterministic Audit/Release tests pass."
   - "Workflow YAML parses."
