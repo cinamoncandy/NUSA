@@ -394,3 +394,38 @@ test("superseded releases are pruned before helper proof download so a full disk
   assert.equal(workflow.split('"$STEP" prune').length - 1, 1, "prune is invoked exactly once");
   assert.doesNotMatch(workflow, /rm -rf|find .* -delete/, "the workflow itself never deletes; only the bounded helper does");
 });
+
+test("the sealed release ships dist and scripts without the workspace node_modules, plus only the ws runtime package", () => {
+  const sealStart = workflow.indexOf("      - name: Seal the built release");
+  const sealEnd = workflow.indexOf("      - name: Upload built release", sealStart);
+  assert.ok(sealStart > 0 && sealEnd > sealStart);
+  const seal = workflow.slice(sealStart, sealEnd);
+  orderIn(seal, [
+    'tar -cf - --exclude=.git --exclude=node_modules . | tar -xf - -C "$STAGE"',
+    'cp -RL node_modules/ws "$STAGE/node_modules/ws"',
+    'require("./dist/apps/cloud/src/closedLearningProductionRuntime.js")',
+    'tar -czf "$RUNNER_TEMP/nusa-release.tar.gz" -C "$STAGE" .',
+    "157286400",
+    'echo "sha=',
+  ]);
+  assert.doesNotMatch(seal, /tar -czf "\$RUNNER_TEMP\/nusa-release\.tar\.gz" --exclude=\.git \./, "the old whole-workspace seal must not return");
+});
+
+test("the host runtime needs no package besides ws: every bare import in compiled production code is ws or a test/desktop-only package", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const allowed = new Set(["ws", "vitest", "electron", "@cloudflare/sandbox"]);
+  const bare = new Map();
+  const walk = (dir) => { for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const file = path.join(dir, entry.name);
+    if (entry.isDirectory()) { if (!/^dist[\\/]apps[\\/](desktop|mobile)$/.test(path.relative(".", file))) walk(file); continue; }
+    if (!entry.name.endsWith(".js") || /\.(test|vitest)\.js$/.test(entry.name)) continue;
+    for (const match of fs.readFileSync(file, "utf8").matchAll(/require\(\s*"([^."\/][^"]*)"\s*\)/g)) {
+      const name = match[1].startsWith("@") ? match[1].split("/").slice(0, 2).join("/") : match[1].split("/")[0];
+      if (!name.startsWith("node:")) bare.set(name, file);
+    }
+  } };
+  if (!fs.existsSync("dist")) return;
+  walk("dist");
+  for (const [name, file] of bare) assert.ok(allowed.has(name), `${file} requires ${name}; add it to the sealed release (oracle-paper-release.yml) or to this allowlist`);
+});
