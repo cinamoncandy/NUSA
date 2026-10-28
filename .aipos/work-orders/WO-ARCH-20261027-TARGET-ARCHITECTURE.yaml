@@ -1,0 +1,39 @@
+id: WO-ARCH-20261027-TARGET-ARCHITECTURE
+title: Target architecture proposal - small trading core, separate research data, off-host observability, code census
+status: PROPOSED_NEEDS_FORMAL_VALIDATOR_AND_OWNER_APPROVAL
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2770
+authority_impact: none
+objective: >-
+  Re-center NUSA on the one loop that matters (market, decision, order, fill, learning) under the existing core
+  architecture principle: a small stable trading core, research data and learning outside it, observability that does
+  not depend on the host, and only code that production reaches in the build and required CI.
+evidence:
+  proposal: docs/PROPOSAL_TARGET_ARCHITECTURE_2026-10.md
+  reachability: '108 to 141 of 301 top-level apps/cloud/src modules are not statically reachable, depending on the entry set (non-author review on PR 2909); about 33 are product surfaces and 20 live* modules are LIVE-blocking boundaries that stay.'
+  outcome: 'ORDER_INTENT 4824/4824 FAIL 2026-10-18..27 and research candles stale more than a week, neither raised by the system; release about 2 h and not read back.'
+  related: [WO-ARCH-20261027-STATE-DB-SPLIT, WO-OPS-20261027-HOST-INDEPENDENT-HEALTH, WO-GOV-20261027-QUALIFICATION-PIN-SCOPE, PR 2899, PR 2902, PR 2907]
+scope:
+  - Phase 0 to 6 as listed in the proposal, each as its own work order and PR, each reversible.
+  - The code census (phase 4) records, per unreached module, its owner and reason before any attic or deletion PR.
+exclusions:
+  - No change to docs/NUSA_CORE_ARCHITECTURE_PRINCIPLE.md or other governed paths in this publication.
+  - No LIVE or real-money authority; no relaxation of risk, loss-limit, threshold, capital or writer-lease settings.
+  - No deletion of code or evidence on a guess; no big-bang rewrite; no host change from an agent session.
+acceptance:
+  - Formal validator review and owner approval recorded before phase 1.
+  - Each later phase meets its exit evidence in the proposal table.
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'Proposal and work order only; no code, schema, workflow or host change.'
+precommit_review: 'Not yet requested.'
+publication_blockers:
+  - 'Owner approval and a formal validator review of the target architecture.'
+next: Review the proposal; if approved, start phase 0 (already in flight through PR 2899, 2902, 2907 and one approved release).
