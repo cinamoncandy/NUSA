@@ -4201,13 +4201,16 @@ completed_data_2002_dataset_identity:
 
 current_issue_903_l1_execution_lease_handoff:
   work_order: WO-ISSUE-903-L1-EXECUTION-LEASE-HANDOFF
-  status: MAIN_ALIGNMENT_LOCAL_VALIDATION_PENDING
+  status: P1_METADATA_REPAIR_LOCAL_VALIDATION_PENDING
   issue: 903
   pull_request: 2039
   branch: agent/903-canonical-portfolio-autopilot
   base_sha: e7f8a426a57a08339eae3778ca50de6512d6acd9
   exact_head_at_start: f695ae8a91179c005024df81693747771d90c4f2
   published_successor_before_recovery_metadata_repair: f68344e08d493a6db1ec1b397ae1feafcfba2c55
+  alignment_main: a60acc7926fd790b9e230a097c04afe7131a6a96
+  pre_repair_head: f2067cce4338f66a74ed77f078d32323613e5928
+  pre_repair_evidence: "CI 40653497992 and companions 5/5 PASS; review completed with P1 metadata finding; predecessor only after repair."
   current_head_resolution: "Fetch the remote implementation branch and PR #2039 head at every recovery; predecessor SHA receipts never substitute for current-head evidence."
   local_validation: "preflight/build/typecheck/validate:full/security/lint PASS; focused 38/38; full isolated suite 1285 files PASS"
   finding: "Fresh exact-head review found two P1 lease lifecycle defects: active HANDED_OFF records could be overwritten by a competing acquire, and consumer handoff retained the producer's shorter expiry."

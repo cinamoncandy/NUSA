@@ -1,6 +1,6 @@
 id: WO-ISSUE-903-L1-EXECUTION-LEASE-HANDOFF
 title: "Issue #903 close the scheduled producer to consumer lease handoff race"
-status: MAIN_ALIGNMENT_LOCAL_VALIDATION_PENDING
+status: P1_METADATA_REPAIR_LOCAL_VALIDATION_PENDING
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -66,7 +66,7 @@ evidence:
   formal_validator: PENDING_CURRENT_SUCCESSOR
 next: "At each recovery, fetch the live PR #2039 head/base and branch ref. Treat f68344e0 CI/review as predecessor evidence; require CI and companions plus fresh non-author review on the fetched SHA, then separate Formal Validator. Do not begin L2 before exact-head Formal Validator ACCEPTED."
 
-main_alignment_20261028:
+historical_first_main_alignment_20261028:
   previous_validated_head: cbb638d5d4d50ca6e290dbb4dcb597a1da44e7f3
   aligned_main: 2a1f91773d89b7c9959a9add0fae406b39293705
   method: merge_without_history_rewrite
@@ -75,3 +75,17 @@ main_alignment_20261028:
   old_validator_and_audit: HISTORICAL_ONLY_FOR_SUCCESSOR
   successor_validation: PENDING
   next: Resolve live PR head; require successor local gates, exact-head CI/companions and fresh independent gates before Release. No L2 or Oracle mutation.
+
+pre_repair_alignment_20261028:
+  previous_head: cde48630cd727de53b6173296dd91386d8496aaf
+  aligned_main: a60acc7926fd790b9e230a097c04afe7131a6a96
+  pre_repair_head: f2067cce4338f66a74ed77f078d32323613e5928
+  alignment: ALIGNMENT_ONLY_NO_SEMANTIC_CHANGE
+  history_rewritten: false
+  conflicts: none
+  local_validation: preflight_build_typecheck_validate_full_security_lint_diff_PASS_focused_49_regression_13
+  exact_head_ci: PASS_40653497992_PRE_REPAIR_HEAD_ONLY
+  companions: PASS_5_OF_5_PRE_REPAIR_HEAD_ONLY
+  review: COMPLETED_WITH_P1_METADATA_FINDING_THREAD_PRRT_kwDOTUbne86xClwW
+  predecessor_formal_6461472488_and_audit_6461585760: CDE48630_HISTORICAL_ONLY
+  successor_gates: Fetch live head; require new exact-head CI, companions and fresh non-author review before independent Formal Validator and Audit.

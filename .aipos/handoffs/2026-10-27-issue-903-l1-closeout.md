@@ -20,11 +20,11 @@ The first two are implemented in `ExecutionCoordinator` and covered by regressio
 
 The exact CI and companion results above belong only to predecessor `f68344e0`. Any successor SHA created to correct these records requires fresh exact-head CI, five companion workflows, and non-author review. The Codex review on `f68344e0` is completed with findings and is not acceptance for a successor.
 
-Formal Validator remains pending and must be a separate session. No Ready, Audit, Release, merge, Oracle mutation, or L2 implementation before formal L1 acceptance. PR #2039 remains Draft/HOLD.
+Historical f68344e0 checkpoint: Formal Validator was then pending and PR was then Draft/HOLD. Resolve current PR state and exact-head independent gates from GitHub; do not treat historical status as current.
 
 ## Next action
 
-After this recovery-record correction is published, fetch the remote implementation branch and PR head afresh; run the required exact-head CI and companions, then request one fresh non-author review of that exact SHA. Keep L2 gated on Formal Validator acceptance for L1.
+Fetch the live PR head; require CI, companions and one non-author review for that exact head, followed by independent Formal Validator and Audit. L2 remains gated on governed L1 closure.
 
 ## Safety
 
@@ -35,3 +35,7 @@ After this recovery-record correction is published, fetch the remote implementat
 Owner authorized merging protected main 2a1f91773d89b7c9959a9add0fae406b39293705 into the existing PR branch without rewriting history. The merge is conflict-free and changes no lease coordinator/scheduler semantics. Recovery status is updated as part of this required alignment, not as a separate cosmetic successor.
 
 The direct Formal Validator receipt 6456386741 and independent Audit PASS_WITH_NOTES apply only to historical head cbb638d5d4d50ca6e290dbb4dcb597a1da44e7f3. They do not approve the aligned successor. Resolve current local/remote head dynamically. Successor local validation, exact-head CI/companions, fresh non-author review and independent exact-SHA gates remain pending. No Release, protected merge, Oracle mutation or L2 authority is granted.
+
+## Second main alignment and P1 repair — 2026-10-28
+
+Pre-repair head f2067cce4338f66a74ed77f078d32323613e5928 merged actual main a60acc7926fd790b9e230a097c04afe7131a6a96 into previous cde48630cd727de53b6173296dd91386d8496aaf without history rewrite, conflicts, or lease semantic changes. Pre-repair local focused 49/49, regression 13/13, build/typecheck/validate:full/security/lint/diff PASS; exact-head CI 40653497992 and five companions PASS. Fresh review found P1 recovery provenance thread PRRT_kwDOTUbne86xClwW. This metadata repair is a successor: f2067cce CI/review are historical for its new head. Fetch live head and require new CI/companions/review, independent Formal Validator and Audit. Formal receipt 6461472488 and Audit receipt 6461585760 apply only to cde48630. No Release, merge, L2 or Oracle authority.
