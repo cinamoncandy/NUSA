@@ -1,4 +1,5 @@
 import type { PrimaryDestination } from "./navigationContract";
+import { islandPalette } from "./designSystem";
 
 /**
  * Tab icons in the island style (owner-approved mockup 2026-10-28): 1.6 px round line icons on a 24 grid. The selected tab draws in
@@ -17,5 +18,5 @@ export const TAB_ICON_PATHS: Readonly<Record<PrimaryDestination, readonly (reado
   More: [["M5 6h14", 1], ["M5 12h14", 0.7], ["M5 18h9", 0.45]],
 });
 
-export const TAB_ICON_ACTIVE = ["#7C54FF", "#46D7FF"] as const;
+export const TAB_ICON_ACTIVE = [islandPalette.violet, islandPalette.cyan] as const;
 
