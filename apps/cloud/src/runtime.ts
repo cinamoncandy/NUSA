@@ -175,6 +175,56 @@ function buildCloudRuntimeReadiness(durableRepository: CloudDashboardSnapshotRep
   } catch { return failed(); }
 }
 
+/** Named form of the startCloudRuntime parameters, so a caller cannot shift an argument into the wrong slot. */
+export interface CloudRuntimeOptions {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly stateProvider?: CloudDashboardStateProvider;
+  readonly dashboardHydrator?: CloudRuntimeDashboardHydratorLike;
+  readonly marketDataClientFactory?: CloudRuntimeMarketDataClientFactory;
+  readonly snapshotRepository?: CloudDashboardSnapshotRepository;
+  readonly paperAccountRepository?: PaperAccountRepository;
+  readonly paperExecutionLoop?: PaperTradingExecutionLoop;
+  readonly researchRuntime?: CloudRuntimeResearchRuntimeLike;
+  readonly researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike;
+  readonly researchAutomation?: CloudRuntimeResearchAutomationLike;
+  readonly aiRuntime?: CloudAiRuntime;
+  readonly shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider;
+  readonly liveReadinessSourceReaders?: LiveReadinessSourceReaders;
+  readonly realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider;
+  readonly engineeringOperatingSource?: NusaEngineeringOperatingSource;
+  readonly closedLearningStatus?: Parameters<typeof startCloudRuntime>[15];
+  readonly researchIntervalTicks?: Parameters<typeof startCloudRuntime>[16];
+  readonly microstructureRecorder?: MarketMicrostructureRecorder;
+  readonly orderBookCollector?: ResearchOrderBookCollector;
+  readonly futuresCollector?: ResearchFuturesCollector;
+}
+
+/** Same runtime as startCloudRuntime; undefined options take the same defaults. */
+export function startCloudRuntimeFromOptions(options: CloudRuntimeOptions): CloudRuntimeHandle {
+  return startCloudRuntime(
+    options.env,
+    options.stateProvider,
+    options.dashboardHydrator,
+    options.marketDataClientFactory,
+    options.snapshotRepository,
+    options.paperAccountRepository,
+    options.paperExecutionLoop,
+    options.researchRuntime,
+    options.researchRecoveryCoordinator,
+    options.researchAutomation,
+    options.aiRuntime,
+    options.shadowObservabilityProvider,
+    options.liveReadinessSourceReaders,
+    options.realReadOnlyObservabilityProvider,
+    options.engineeringOperatingSource,
+    options.closedLearningStatus,
+    options.researchIntervalTicks,
+    options.microstructureRecorder,
+    options.orderBookCollector,
+    options.futuresCollector,
+  );
+}
+
 export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
