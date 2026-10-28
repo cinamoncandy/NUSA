@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SectionLabel } from "./instrumentKit";
+import { IslandMark } from "./islandMark";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 import { buildStudyTimeline } from "./learningPanelsModel";
@@ -42,6 +43,7 @@ export function CostWaterfall({ raw }: { readonly raw: unknown }) {
   const { cost } = buildLearningLoopPanels(raw);
   if (cost == null) return <Missing title="그림자 거래 한 번의 손익" />;
   return <View style={styles.block} testID="learning-cost-waterfall" accessibilityLabel={`그림자 거래 한 번의 손익. 모의투자 주문이 아닌 기준 거래예요. 거래 ${cost.trades}건 기준. ${cost.rows.map((r) => `${r.label} ${fmt(r.bp)}bp`).join(", ")}. ${cost.summary}`}>
+    <Deco />
     <SectionLabel left="그림자 거래 한 번의 손익" right={`${cost.trades.toLocaleString("en-US")}건 · bp`} />
     <View style={styles.rows}>
       {cost.rows.map((r) => <View key={r.label} style={styles.row}>
@@ -62,6 +64,7 @@ export function PaperResultBars({ raw }: { readonly raw: unknown }) {
   if (paper == null) return <Missing title="모의투자 성과" />;
   const rows = [paper.netBp == null ? null : { label: "모의투자 순결과", bp: paper.netBp }, paper.excessBp == null ? null : { label: "전부 사기 대비", bp: paper.excessBp }].filter((x): x is { label: string; bp: number } => x != null);
   return <View style={styles.block} testID="learning-paper-result" accessibilityLabel={`모의투자 성과. ${paper.summary}`}>
+    <Deco />
     <SectionLabel left="모의투자 성과" right={paper.periods == null ? "bp" : `${paper.periods}구간 · bp`} />
     <View style={styles.rows}>
       {rows.map((r) => <View key={r.label} style={styles.row}>
@@ -79,6 +82,7 @@ export function OverfitGate({ raw }: { readonly raw: unknown }) {
   if (overfit == null) return <Missing title="새 데이터에서의 결과" />;
   const total = Math.max(overfit.discoveryPasses, 1);
   return <View style={styles.block} testID="learning-overfit-gate" accessibilityLabel={`새 데이터에서의 결과. ${overfit.summary}`}>
+    <Deco />
     <SectionLabel left="새 데이터에서의 결과" right={overfit.overfitRatePercent == null ? null : `탈락 ${overfit.overfitRatePercent}%`} />
     <View style={styles.gate} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
       <View style={[styles.gatePassed, { flex: overfit.holdoutPasses / total }]} />
@@ -92,8 +96,14 @@ export function OverfitGate({ raw }: { readonly raw: unknown }) {
   </View>;
 }
 
+/** A faint island mark at the top right of a learning card (owner-approved island design 2026-10-28). Decoration only. */
+function Deco() {
+  return <View style={styles.deco} pointerEvents="none" importantForAccessibility="no-hide-descendants"><IslandMark size={40} opacity={0.32} /></View>;
+}
+
 function Missing({ title }: { readonly title: string }) {
   return <View style={styles.block} accessibilityLabel={`${title}. 서버에서 아직 받지 못했어요`}>
+    <Deco />
     <SectionLabel left={title} right={null} />
     <Text style={styles.note}>서버에서 아직 받지 못했어요. 값을 지어내지 않고 비워 둬요.</Text>
   </View>;
@@ -101,6 +111,7 @@ function Missing({ title }: { readonly title: string }) {
 
 const styles = StyleSheet.create({
   block: { paddingHorizontal: 20, marginTop: 22, gap: 12 },
+  deco: { position: "absolute", right: 16, top: -8 },
   note: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 18 },
   tl: { paddingLeft: 26, gap: 20, marginTop: 6 },
   tlLine: { position: "absolute", left: 5, top: 8, bottom: 8, width: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
