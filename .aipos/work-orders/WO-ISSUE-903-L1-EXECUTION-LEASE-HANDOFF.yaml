@@ -1,6 +1,6 @@
 id: WO-ISSUE-903-L1-EXECUTION-LEASE-HANDOFF
 title: "Issue #903 close the scheduled producer to consumer lease handoff race"
-status: LOCAL_METADATA_REPAIR_PENDING_EXACT_HEAD_CI
+status: MAIN_ALIGNMENT_LOCAL_VALIDATION_PENDING
 priority: P1
 owner: codex
 repository: cinamoncandy/NUSA
@@ -65,3 +65,13 @@ evidence:
   fresh_non_author_review: "COMPLETED_ON_F68344E0_WITH_FINDINGS; includes AIPOS recovery-record P1; predecessor only"
   formal_validator: PENDING_CURRENT_SUCCESSOR
 next: "At each recovery, fetch the live PR #2039 head/base and branch ref. Treat f68344e0 CI/review as predecessor evidence; require CI and companions plus fresh non-author review on the fetched SHA, then separate Formal Validator. Do not begin L2 before exact-head Formal Validator ACCEPTED."
+
+main_alignment_20261028:
+  previous_validated_head: cbb638d5d4d50ca6e290dbb4dcb597a1da44e7f3
+  aligned_main: 2a1f91773d89b7c9959a9add0fae406b39293705
+  method: merge_without_history_rewrite
+  conflicts: none
+  lease_semantic_change: none
+  old_validator_and_audit: HISTORICAL_ONLY_FOR_SUCCESSOR
+  successor_validation: PENDING
+  next: Resolve live PR head; require successor local gates, exact-head CI/companions and fresh independent gates before Release. No L2 or Oracle mutation.

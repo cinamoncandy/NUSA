@@ -1,3 +1,4 @@
+import { learningPipelineProjection, type LearningPipelineProjection } from "./learningPipelineStage";
 import { createHash, randomUUID } from "node:crypto";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import {
@@ -298,6 +299,11 @@ function periodEvidence(raw: Record<string, unknown>): Record<string, unknown> {
     if (!Number.isSafeInteger(lastIncrementAt) || Number(lastIncrementAt) < Number(periodStartedAt) || Number(lastIncrementAt) > Number(evaluatedAt)) return {};
   }
   return { periodIdentity, periodStartedAt: Number(periodStartedAt), lastIncrementAt: lastIncrementAt === null ? null : Number(lastIncrementAt) };
+}
+
+/** `learningPipeline` is derived only from the already-public runtime object, so it cannot publish anything `runtime` does not. */
+function publicRuntimeWithPipeline(runtime: CloudRuntimeLivenessSnapshot): { runtime: CloudRuntimeLivenessSnapshot; learningPipeline: LearningPipelineProjection } {
+  return { runtime, learningPipeline: learningPipelineProjection(runtime as unknown as Readonly<Record<string, unknown>>, Date.now()) };
 }
 
 function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntimeLivenessSnapshot {
@@ -716,7 +722,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) }),
+          ...(liveness === undefined ? {} : publicRuntimeWithPipeline(publicRuntimeLiveness(liveness))),
           ...(runtimeHealth === undefined ? {} : { runtimeHealth })
         }));
         return;

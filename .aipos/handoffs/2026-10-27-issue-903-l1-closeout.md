@@ -29,3 +29,9 @@ After this recovery-record correction is published, fetch the remote implementat
 ## Safety
 
 `PAPER_ONLY`; `liveAuthority=NONE`; `productionMutationAllowed=false`; `realOrderAuthority=false`; `realTransferAuthority=false`; `aiAuthority=ZERO_AUTHORITY`.
+
+## Main alignment — 2026-10-28
+
+Owner authorized merging protected main 2a1f91773d89b7c9959a9add0fae406b39293705 into the existing PR branch without rewriting history. The merge is conflict-free and changes no lease coordinator/scheduler semantics. Recovery status is updated as part of this required alignment, not as a separate cosmetic successor.
+
+The direct Formal Validator receipt 6456386741 and independent Audit PASS_WITH_NOTES apply only to historical head cbb638d5d4d50ca6e290dbb4dcb597a1da44e7f3. They do not approve the aligned successor. Resolve current local/remote head dynamically. Successor local validation, exact-head CI/companions, fresh non-author review and independent exact-SHA gates remain pending. No Release, protected merge, Oracle mutation or L2 authority is granted.

@@ -4201,7 +4201,7 @@ completed_data_2002_dataset_identity:
 
 current_issue_903_l1_execution_lease_handoff:
   work_order: WO-ISSUE-903-L1-EXECUTION-LEASE-HANDOFF
-  status: LOCAL_METADATA_REPAIR_PENDING_EXACT_HEAD_CI
+  status: MAIN_ALIGNMENT_LOCAL_VALIDATION_PENDING
   issue: 903
   pull_request: 2039
   branch: agent/903-canonical-portfolio-autopilot

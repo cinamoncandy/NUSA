@@ -236,3 +236,32 @@ global.Date = class FixedDate extends RealDate {
 
   fs.rmSync(root, { recursive: true, force: true });
 });
+
+test("sqlite backup digest is computed in chunks and matches the whole-file sha256 of a multi-chunk snapshot", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-sqlite-backup-chunks-"));
+  const source = path.join(root, "cloud-state.db");
+  const setup = new DatabaseSync(source);
+  try {
+    setup.exec("CREATE TABLE blob_rows(id INTEGER PRIMARY KEY, body BLOB)");
+    const insert = setup.prepare("INSERT INTO blob_rows(body) VALUES (?)");
+    for (let i = 0; i < 40; i += 1) insert.run(crypto.randomBytes(80 * 1024));
+  } finally {
+    setup.close();
+  }
+  const destination = path.join(root, "backups");
+  const result = runBackup(source, destination, null);
+  assert.equal(result.status, 0, result.stderr);
+  const payload = JSON.parse(result.stdout);
+  const bytes = fs.readFileSync(payload.output);
+  assert.ok(bytes.length > 2 * 1024 * 1024, "the snapshot spans several 1 MiB chunks");
+  const expected = crypto.createHash("sha256").update(bytes).digest("hex");
+  assert.equal(payload.sha256, expected);
+  assert.equal(fs.readFileSync(`${payload.output}.sha256`, "utf8"), `${expected}  ${path.basename(payload.output)}\n`);
+  fs.rmSync(root, { recursive: true, force: true });
+});
+
+test("sqlite backup never reads a whole snapshot into memory to hash it", () => {
+  const text = fs.readFileSync(script, "utf8");
+  assert.doesNotMatch(text, /update\(fs\.readFileSync\(/);
+  assert.match(text, /fs\.readSync\(fd, buffer, 0, buffer\.length, null\)/);
+});
