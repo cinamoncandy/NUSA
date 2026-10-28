@@ -48,7 +48,8 @@ import { ClosedLearningLoopCoordinator, closedLearningCycleId, isCompleteClosedL
 import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
 import { ClosedLearningPendingPeriodReader } from "./closedLearningPendingPeriodReader";
 import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
-import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdentity";
+import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT, cloudPaperRiskPolicyFingerprint } from "./cloudPaperRiskPolicyIdentity";
+import { cloudPaperRiskLimitsForCapital } from "./paperRiskLimitScaling";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import { ClosedLearningInitialPaperBootstrap, type ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import { buildPaperPerformanceFromLedger, type PaperPerformanceFromLedgerResult } from "./paperPerformanceFromLedger";
@@ -285,7 +286,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     paperEvidenceTransformationVersion: PAPER_COVERED_DAY_SCORING_VERSION,
     bindings: challengerBindings,
     replaySnapshots,
-    readRiskConfigHash: () => CLOUD_PAPER_RISK_POLICY_FINGERPRINT,
+    // The same capital-scaled limits the canonical risk gateway enforces (runtime.ts), so evidence names the enforced policy.
+    readRiskConfigHash: () => config.paperInitialCapitalKrw === undefined ? CLOUD_PAPER_RISK_POLICY_FINGERPRINT : cloudPaperRiskPolicyFingerprint(cloudPaperRiskLimitsForCapital(config.paperInitialCapitalKrw)),
     readCanonicalBenchmarkEvidence: (market, periodStartAt, periodEndAt) => readCanonicalPaperTickerBenchmark(minuteObservationReader, market, periodStartAt, periodEndAt),
   });
   const rollover = new ClosedLearningRolloverScheduler({
