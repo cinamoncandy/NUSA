@@ -48,7 +48,32 @@ test("the Now tab draws the island; the badge shows only a real decision count",
   assert.match(now, /import \{ IslandCore \} from "\.\/islandCore";/);
   assert.doesNotMatch(now, /WaveCore|ContourCore/);
   const core = read("islandCore.tsx");
-  assert.match(core, /scene\.summit != null && validCount \? <View style=\{\[styles\.badge/);
+  assert.match(core, /const badgeText = still != null \? still\.badge : validCount \? `오늘 판단 \$\{decisionCount\.toLocaleString\("en-US"\)\}` : null;/);
+  assert.match(core, /scene\.summit != null && badgeText != null \? <View style=\{\[styles\.badge/);
   assert.match(core, /const validCount = decisionCount != null && Number\.isSafeInteger\(decisionCount\);/);
   assert.match(read("waveCore.tsx"), /UNUSED since 2026-10-28 \(the Now tab draws IslandCore\)/);
+});
+
+test("실거래 island rises only with real passed gates and stays grey; no counts, no badge", () => {
+  assert.deepEqual(m.liveIsland(null, 12), { lift: 0, grey: true, badge: null });
+  assert.deepEqual(m.liveIsland(13, 12), { lift: 0, grey: true, badge: null });
+  assert.deepEqual(m.liveIsland(1.5, 12), { lift: 0, grey: true, badge: null });
+  const low = m.liveIsland(2, 12), high = m.liveIsland(10, 12);
+  assert.ok(high.lift > low.lift && low.grey && high.grey);
+  assert.equal(high.badge, "관문 10 / 12 통과");
+});
+
+test("선물 island is low and grey before start, coloured once running, and uses only the server headline", () => {
+  const before = m.futuresIsland(false, ["선물 모의는", "시작 전이에요"]);
+  const running = m.futuresIsland(true, ["선물 모의로", "배우는 중이에요"]);
+  assert.ok(before.grey && !running.grey && running.lift > before.lift);
+  assert.equal(before.badge, "선물 모의는 시작 전이에요");
+});
+
+test("실거래 and 선물 screens draw a still island from those real values", () => {
+  assert.match(read("liveReadinessMonitorView.tsx"), /still=\{liveIsland\(gates\?\.passed \?\? null, gates\?\.total \?\? null\)\} testID="live-island"/);
+  assert.match(read("futuresView.tsx"), /still=\{futuresIsland\(model\.started, model\.headline\)\} testID="futures-island"/);
+  const core = read("islandCore.tsx");
+  assert.match(core, /const motion = still == null \? reducedMotion : true;/, "a still island never animates");
+  assert.doesNotMatch(core, /reducedMotion !== false/);
 });
