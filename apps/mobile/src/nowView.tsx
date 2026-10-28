@@ -1,4 +1,5 @@
 import React from "react";
+import { firstBrokenStage } from "./firstBrokenStageModel";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { HomeDestination } from "./homeView";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
@@ -59,6 +60,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const orderReason = blocked ? null : describePaperOrderReason(heartbeat?.lastPaperDecisionOutcome);
   const todayRealized = blocked ? null : buildTodayRealizedLine(heartbeat?.todayRealized, Date.now());
   const lossLimit = blocked ? null : buildLossLimitLine(heartbeat?.lossLimit, Date.now(), haltCause != null || field.phase === "HALTED");
+  const brokenStage = blocked ? null : firstBrokenStage(heartbeat, Date.now());
   const model = buildNowScreen({
     phase: field.phase,
     phaseHeadline: field.headline,
@@ -86,6 +88,10 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
       {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} terrain={terrain} decisionCount={dailyCounts.decisionCount} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} orderCount={blocked ? null : dailyCounts.paperOrderCount} fillCount={blocked ? null : heartbeat?.paperFillCount ?? null} stats={model.stats} lastHeartbeatAt={blocked ? null : heartbeat?.lastHeartbeatAt ?? null} />}
       <InstrumentEquity value={model.equity} caption={model.delta} tone={model.deltaTone} dim={model.dim} />
       {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
+      {brokenStage == null ? null : <View style={styles.why} testID="now-first-broken-stage" accessible accessibilityLabel={`막힌 곳: ${brokenStage.label}. ${brokenStage.text}`}>
+        <Text style={[styles.whyText, { color: calmColors.attention }]}>막힌 곳 · {brokenStage.label}</Text>
+        <Text style={styles.footnote}>{brokenStage.text}</Text>
+      </View>}
       {lossLimit == null || gate ? null : <View style={styles.why} testID="now-loss-limit">
         <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
       </View>}
