@@ -40,7 +40,7 @@ test("production composition preserves PAPER-only authority through the canonica
   assert.doesNotMatch(productionSource, /productionMutationAllowed\s*:\s*true/);
   assert.doesNotMatch(productionSource, /liveAuthority\s*:\s*["'](?:LIVE|FULL|ENABLED)["']/);
   assert.doesNotMatch(productionSource, /disposeIncompletePeriodFromCanonicalAccount/);
-  assert.match(productionSource, /startCloudRuntime\(/);
+  assert.match(productionSource, /startCloudRuntimeFromOptions\(/);
   assert.doesNotMatch(bareRuntimeSource, /disposeIncompletePaperRealizedPeriod/);
   assert.match(bareRuntimeSource, /productionMutationAllowed:\s*false/);
   assert.match(bareRuntimeSource, /liveAuthority:\s*["']NONE["']/);
