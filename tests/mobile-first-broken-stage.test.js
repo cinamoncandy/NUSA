@@ -2,7 +2,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
-const { firstBrokenStage, FIRST_BROKEN_WARMUP_MS, FIRST_BROKEN_MARKET_STALE_MS } = require("../dist/apps/mobile/src/firstBrokenStageModel.js");
+const { firstBrokenStage, FIRST_BROKEN_WARMUP_MS, FIRST_BROKEN_MARKET_STALE_MS, FIRST_BROKEN_SNAPSHOT_MAX_AGE_MS } = require("../dist/apps/mobile/src/firstBrokenStageModel.js");
 
 const now = 10_000_000_000;
 const base = { startedAt: now - 3_600_000, lastHeartbeatAt: now, lastMarketEventAt: now - 1000, eventCount: 5000, decisionCount: 4800, buySignalCount: 0, paperOrderCount: 0, paperFillCount: 0 };
