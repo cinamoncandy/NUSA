@@ -1,4 +1,5 @@
 import React from "react";
+import { firstBrokenStage } from "./firstBrokenStageModel";
 import { IslandMark } from "./islandMark";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { HomeDestination } from "./homeView";
@@ -80,6 +81,8 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
   const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount, consecutiveLossCount: rawLossLimit?.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit?.maxConsecutiveLosses, periodStartedAt: rawLossLimit?.periodStartedAt, limitReachedAt: rawLossLimit?.limitReachedAt, now: Date.now() });
   const terrain = buildDecisionTerrain({ trace: blocked ? null : traceSource?.decisionTrace, now: Date.now(), limitReachedAt: blocked ? null : rawLossLimit?.limitReachedAt });
+  // The risk-gate flow and the loss-limit line already explain a designed hold, so the first-broken-stage line stays out of their way.
+  const brokenStage = blocked || gate != null || lossLimit != null ? null : firstBrokenStage(heartbeat, Date.now());
   const needsSetup = notConfigured != null || readOnlyError != null;
   return <View style={styles.shell} testID="now-screen">
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
@@ -87,6 +90,10 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
       {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} terrain={terrain} decisionCount={dailyCounts.decisionCount} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} orderCount={blocked ? null : dailyCounts.paperOrderCount} fillCount={blocked ? null : heartbeat?.paperFillCount ?? null} stats={model.stats} lastHeartbeatAt={blocked ? null : heartbeat?.lastHeartbeatAt ?? null} />}
       <InstrumentEquity value={model.equity} caption={model.delta} tone={model.deltaTone} dim={model.dim} />
       {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
+      {brokenStage == null ? null : <View style={styles.why} testID="now-first-broken-stage" accessible accessibilityLabel={`막힌 곳: ${brokenStage.label}. ${brokenStage.text}`}>
+        <Text style={[styles.whyText, { color: calmColors.attention }]}>막힌 곳 · {brokenStage.label}</Text>
+        <Text style={styles.footnote}>{brokenStage.text}</Text>
+      </View>}
       {lossLimit == null || gate ? null : <View style={styles.why} testID="now-loss-limit">
         <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
       </View>}
