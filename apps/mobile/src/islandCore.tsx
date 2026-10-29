@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, islandHeight, islandMinFrameGapMs, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandHeight, islandMinFrameGapMs, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
@@ -41,7 +41,11 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
   readonly still?: IslandStill | null;
   readonly testID?: string;
 }) {
-  const motion = still == null ? reducedMotion : true;
+  // A still island moves only when it breathes (and the OS allows motion); its height and colour stay fixed by the given values.
+  const breathe = still?.breathe === true;
+  const motion = still == null || breathe ? reducedMotion : true;
+  const breatheRef = useRef(breathe);
+  breatheRef.current = breathe;
   const height = Math.round(width * (still != null ? 0.6 : compact ? 0.55 : 0.88));
   const pulses = useRef<readonly WavePulse[]>([]);
   const ticks = useRef<readonly WavePulse[]>([]);
@@ -88,7 +92,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
     let alive = true, last = 0, handle = 0, gap = 16, minGap = 0, prev = 0;
     const loop = (ts: number) => {
       if (!alive) return;
-      if (!liveRef.current && state.current.flat > 0.99 && pulses.current.length === 0 && state.current.pink < 0.02) { setFrame((n) => n + 1); return; }
+      if (!breatheRef.current && !liveRef.current && state.current.flat > 0.99 && pulses.current.length === 0 && state.current.pink < 0.02) { setFrame((n) => n + 1); return; }
       // Measure the display's own cadence on every callback (not only on drawn frames), or a throttle would read as a slow device and never lift.
       if (prev !== 0) { gap += (Math.min(ts - prev, 100) - gap) * 0.05; minGap = islandMinFrameGapMs(gap); }
       prev = ts;
@@ -100,7 +104,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
         st.energy *= Math.exp(-dt / 3); st.pink *= Math.exp(-dt / 1.8);
         st.flat += ((isLive ? 0 : 1) - st.flat) * Math.min(1, dt * 2.5);
         st.speed += ((isLive ? 0.4 + Math.min(1, st.energy) * 1.2 : 0) - st.speed) * Math.min(1, dt * 1.5);
-        st.phase += dt * st.speed;
+        st.phase += dt * (breatheRef.current ? ISLAND_STILL_DRIFT : st.speed);
         pulses.current = pulses.current.filter((p) => now - p.born < ISLAND_PULSE_MS);
         setFrame((n) => n + 1);
       }
@@ -108,7 +112,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
     };
     handle = requestAnimationFrame(loop);
     return () => { alive = false; cancelAnimationFrame(handle); };
-  }, [motion, active, live]);
+  }, [motion, active, live, breathe]);
   useEffect(() => {
     // Reduce-motion only redraws on events, so age out the last-minute dots every few seconds while any are left.
     if (motion !== false) {

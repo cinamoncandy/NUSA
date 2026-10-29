@@ -99,19 +99,23 @@ export const rowOpacity = (d: number, index: number, light: number): number =>
   Math.min(1, (index % 5 === 4 ? 1.25 : 1) * (0.18 + 0.82 * Math.pow(d, 0.9)) + 0.35 * light);
 
 /** A still island for screens that are not the Now tab: how high it stands (0..1), whether it is grey, and the summit badge. */
-export interface IslandStill { readonly lift: number; readonly grey: boolean; readonly badge: string | null }
+/** A still island: fixed height, colour and badge from real values. `breathe` lets its contour lines drift slowly (decoration only; it adds no signal). */
+export interface IslandStill { readonly lift: number; readonly grey: boolean; readonly badge: string | null; readonly breathe?: boolean }
+
+/** How fast a breathing still island drifts: slower than the live island at rest (0.4), so it reads as calm, not active. */
+export const ISLAND_STILL_DRIFT = 0.22;
 
 /** 실거래: the island rises with the share of LIVE readiness gates that pass, and stays grey while LIVE is locked. Real counts only. */
 export function liveIsland(passed: number | null, total: number | null): IslandStill {
   if (passed == null || total == null || !Number.isSafeInteger(passed) || !Number.isSafeInteger(total) || total <= 0 || passed < 0 || passed > total) {
     return { lift: 0, grey: true, badge: null };
   }
-  return { lift: 0.15 + 0.85 * (passed / total), grey: true, badge: `관문 ${passed} / ${total} 통과` };
+  return { lift: 0.15 + 0.85 * (passed / total), grey: true, badge: `관문 ${passed} / ${total} 통과`, breathe: true };
 }
 
 /** 선물: a low grey island before PAPER futures start; coloured once the server reports it running; no badge text the server did not send. */
 export function futuresIsland(started: boolean, headline: readonly [string, string]): IslandStill {
-  return started ? { lift: 0.75, grey: false, badge: `${headline[0]} ${headline[1]}` } : { lift: 0.25, grey: true, badge: `${headline[0]} ${headline[1]}` };
+  return started ? { lift: 0.75, grey: false, badge: `${headline[0]} ${headline[1]}`, breathe: true } : { lift: 0.25, grey: true, badge: `${headline[0]} ${headline[1]}`, breathe: true };
 }
 
 /** Draw every display frame (0) while the device keeps up; hold a steady 33 ms once the average gap between display callbacks passes 25 ms. */
