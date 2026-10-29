@@ -4,6 +4,8 @@ import { HeartbeatPulse } from "./heartbeatPulse";
 import { splitHeroLines } from "./learningScreenModel";
 import { InstrumentHero, Odometer, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { IslandCore } from "./islandCore";
+import { GlassPanel } from "./aiKit";
+import { aiIslandPalette } from "./designSystem";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
 import { readableFont } from "./designSystem";
@@ -39,12 +41,12 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCo
       <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} live={live} />
       {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={44} reducedMotion={reduced} />}
     </Reveal>
-    <View style={styles.ledger}>
-      {stats.filter((s) => s.label !== "판단").map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={styles.row}>
+    <GlassPanel style={styles.ledger}>
+      {stats.filter((s) => s.label !== "판단").map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={[styles.row, i === 0 && styles.firstRow]}>
         <Text style={styles.rowLabel}>{s.label}</Text>
         <Text style={[fieldFonts.mono, styles.rowValue, { color: calmToneColor(s.tone) }]}>{s.value}</Text>
       </Reveal>)}
-    </View>
+    </GlassPanel>
   </View>;
 }
 
@@ -72,8 +74,9 @@ const styles = StyleSheet.create({
   equityCaption: { fontSize: readableFont(12), marginTop: 4, letterSpacing: 0.4 },
   countWrap: { paddingHorizontal: 20, marginTop: 14 },
   empty: { color: calmColors.muted, fontSize: 44 },
-  ledger: { paddingHorizontal: 20, marginTop: 16 },
-  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
-  rowLabel: { color: calmColors.muted, fontSize: readableFont(13), fontWeight: "500" },
+  ledger: { marginHorizontal: 14, marginTop: 16, paddingVertical: 2 },
+  row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: aiIslandPalette.glassEdge },
+  firstRow: { borderTopWidth: 0 },
+  rowLabel: { color: aiIslandPalette.label, fontSize: readableFont(13), fontWeight: "500" },
   rowValue: { fontSize: readableFont(14) },
 });
