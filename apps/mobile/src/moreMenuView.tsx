@@ -4,6 +4,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MORE_DESTINATIONS, type MoreDestination } from "./navigationContract";
 import { fieldPalette, readableFont } from "./designSystem";
 import { HoloSphere } from "./holoSphere";
+import { AiShell } from "./aiKit";
+import { plainScreenChip } from "./stageTraceModel";
 
 /** Field-style index grouped by what the owner is trying to do; thin rows, no cards. */
 const LABELS: Readonly<Record<MoreDestination, { readonly title: string; readonly hint: string }>> = Object.freeze({
@@ -32,7 +34,7 @@ if (grouped.length !== MORE_DESTINATIONS.length || MORE_DESTINATIONS.some((desti
 }
 
 export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDestination) => void }>) {
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="more-view">
+  return <AiShell chip={plainScreenChip("MORE")}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="more-view">
     <View style={styles.titleRow}>
       <HoloSphere decisionCount={null} fillCount={null} tone="normal" reducedMotion size={34} points={300} testID="more-holo" />
       <Text style={styles.title}>더보기</Text>
@@ -57,11 +59,11 @@ export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDe
       </View>
     </View>)}
     <Text style={styles.footer}>PAPER 전용 · LIVE 권한 없음 · AI 권한 없음</Text>
-  </ScrollView>;
+  </ScrollView></AiShell>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: fieldPalette.void },
+  screen: { flex: 1, backgroundColor: "transparent" },
   content: { paddingHorizontal: 20, paddingTop: 18, paddingBottom: 120, gap: 22 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   title: { color: fieldPalette.text, fontSize: 28, lineHeight: 36, ...fieldFonts.displayLight },

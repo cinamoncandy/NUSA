@@ -1,3 +1,5 @@
+import { AiShell } from "./aiKit";
+import { plainScreenChip } from "./stageTraceModel";
 import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { PaperLearningMonitorView } from "./paperLearningMonitorView";
@@ -32,11 +34,11 @@ const HINT: Readonly<Record<MonitorMode, string>> = Object.freeze({
   REAL: "실제 계좌를 읽기만 한 결과 · 주문 없음",
 });
 
-export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, realReason, refreshing, onRefresh, onClose }: Readonly<{ paper: PaperLearningScreenState; shadow: ShadowObservabilitySnapshot | null; shadowReason?: string; real?: RealReadOnlyObservabilitySnapshot | null; realReason?: string; refreshing: boolean; onRefresh: () => void | Promise<void>; onClose: () => void }>) {
+export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, realReason, refreshing, onRefresh, onClose, embedded = false }: Readonly<{ embedded?: boolean; paper: PaperLearningScreenState; shadow: ShadowObservabilitySnapshot | null; shadowReason?: string; real?: RealReadOnlyObservabilitySnapshot | null; realReason?: string; refreshing: boolean; onRefresh: () => void | Promise<void>; onClose: () => void }>) {
   const [mode, setMode] = useState<MonitorMode>("PAPER");
   const credentialSession = useMemo(() => new InMemoryDashboardCredentialSession(), []);
   const supervisorEndpoint = getConfiguredPaperEndpoint() ?? "";
-  return <View style={styles.wrapper}>
+  const body = <View style={styles.wrapper}>
     <View style={styles.switcher} accessibilityRole="tablist" testID="paper-shadow-monitor-switcher">
       {MODES.map((item) => <Pressable key={item} accessibilityLabel={`${modeLabel(item)} read only monitor`} accessibilityRole="tab" accessibilityState={{ selected: mode === item }} hitSlop={{ top: 6, bottom: 6 }} onPress={() => setMode(item)} style={[styles.switch, { borderBottomColor: mode === item ? fieldPalette.accent : "transparent" }]} testID={`monitor-mode-${item.toLowerCase()}`}><Text style={[styles.switchText, { color: mode === item ? fieldPalette.text : fieldPalette.muted }]}>{shortLabel(item)}</Text></Pressable>)}
       <Text style={styles.readOnly} accessibilityLabel="READ ONLY">읽기 전용</Text>
@@ -47,6 +49,7 @@ export function PaperShadowMonitorView({ paper, shadow, shadowReason, real, real
       : mode === "SHADOW" ? <ShadowObservabilityMonitorView snapshot={shadow} unavailableReason={shadowReason} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />
       : <RealReadOnlyMonitorView snapshot={real ?? null} unavailableReason={realReason} refreshing={refreshing} onRefresh={onRefresh} onClose={onClose} />}
   </View>;
+  return embedded ? body : <AiShell chip={plainScreenChip("PAPER")}>{body}</AiShell>;
 }
 
 const styles = StyleSheet.create({

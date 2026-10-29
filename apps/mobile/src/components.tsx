@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, TextInput, View, type StyleProp, type TextInputProps, type ViewStyle } from "react-native";
-import { fieldRadii, buttonTokens, cardTokens, fieldMotion, fieldTokens, type ButtonTone, labelFont, readableFont } from "./designSystem";
+import { aiIslandPalette, fieldRadii, buttonTokens, cardTokens, fieldMotion, fieldTokens, type ButtonTone, labelFont, readableFont } from "./designSystem";
 import { revealDelayMs } from "./revealStagger";
 import { useTheme } from "./ThemeProvider";
 
@@ -97,7 +97,8 @@ export function NusaTextField({ label, value, onChangeText, placeholder, secureT
 export function NusaCard({ children, testID, raised = false, neon = false }: Readonly<{ children: React.ReactNode; testID?: string; raised?: boolean; neon?: boolean }>) {
   const { theme } = useTheme();
   const tokens = cardTokens(theme);
-  return <View style={[styles.card, { backgroundColor: raised ? theme.colors.surfaceRaised : tokens.background, borderColor: neon ? theme.colors.neonBlue : (raised ? theme.colors.borderStrong : tokens.border), borderRadius: tokens.radius, padding: tokens.padding, shadowColor: neon ? theme.colors.neonBlue : tokens.shadow.color, shadowOffset: tokens.shadow.offset, shadowOpacity: 0, shadowRadius: 0, elevation: 0, borderWidth: neon ? 1.5 : 1 }]} testID={testID}>{children}</View>;
+  // AI island look (2026-10-29): a frosted glass panel with a hairline edge; neon keeps its accent edge.
+  return <View style={[styles.card, { backgroundColor: raised ? aiIslandPalette.glassStrong : aiIslandPalette.glass, borderColor: neon ? theme.colors.neonBlue : aiIslandPalette.glassEdge, borderRadius: Math.max(tokens.radius, 18), padding: tokens.padding, shadowColor: tokens.shadow.color, shadowOffset: tokens.shadow.offset, shadowOpacity: 0, shadowRadius: 0, elevation: 0, borderWidth: neon ? 1.5 : StyleSheet.hairlineWidth }]} testID={testID}>{children}</View>;
 }
 
 export type StatusTone = "primary" | "success" | "warning" | "danger" | "info" | "neutral";

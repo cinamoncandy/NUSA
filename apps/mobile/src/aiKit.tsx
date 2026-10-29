@@ -1,10 +1,12 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Animated, Easing, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { Canvas, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec } from "@shopify/react-native-skia";
 import { aiIslandMotion, aiIslandPalette, readableFont } from "./designSystem";
 import { fieldFonts } from "./fieldFonts";
 import { calmColors } from "./uiKitModel";
-import type { TraceStep } from "./stageTraceModel";
+import { IslandMark } from "./islandMark";
+import { useReducedMotion } from "./instrumentKit";
+import type { AiChip, TraceStep } from "./stageTraceModel";
 
 /**
  * AI island kit (owner-chosen 2026-10-29): the backdrop, frosted glass panels, the status chip and the stage trace that every screen
@@ -97,7 +99,29 @@ export function StageTrace({ steps, testID = "stage-trace" }: { readonly steps: 
   </View>;
 }
 
+/**
+ * The common frame of every tab screen: the navy backdrop, a fixed top bar (island mark, NUSA, status chip) and the screen below it.
+ * Scroll views placed inside must use a transparent background so the backdrop shows through.
+ */
+export function AiShell({ chip, children, testID }: { readonly chip: AiChip; readonly children: React.ReactNode; readonly testID?: string }) {
+  const reduced = useReducedMotion();
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  return <View testID={testID} style={styles.shell} onLayout={(e) => setSize({ width: Math.round(e.nativeEvent.layout.width), height: Math.round(e.nativeEvent.layout.height) })}>
+    <AiBackdrop width={size.width} height={size.height} />
+    <View style={styles.topBar}>
+      <View style={styles.topBrand}><IslandMark size={18} /><Text style={styles.topBrandText}>NUSA</Text></View>
+      <AiStatusChip text={chip.text} live={chip.live} reducedMotion={reduced} />
+    </View>
+    <View style={styles.shellBody}>{children}</View>
+  </View>;
+}
+
 const styles = StyleSheet.create({
+  shell: { flex: 1, backgroundColor: aiIslandPalette.ground },
+  shellBody: { flex: 1 },
+  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 14, paddingBottom: 6 },
+  topBrand: { flexDirection: "row", alignItems: "center", gap: 8 },
+  topBrandText: { color: aiIslandPalette.label, fontSize: readableFont(12), letterSpacing: 5 },
   glass: { backgroundColor: aiIslandPalette.glass, borderRadius: 18, borderWidth: StyleSheet.hairlineWidth, borderColor: aiIslandPalette.glassEdge, paddingHorizontal: 16, paddingVertical: 14 },
   glassStrong: { backgroundColor: aiIslandPalette.glassStrong },
   panelLabel: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
