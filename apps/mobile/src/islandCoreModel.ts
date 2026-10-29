@@ -1,4 +1,4 @@
-import { WAVE_PULSE_MS, type WavePulse } from "./waveCoreModel";
+import { type WavePulse } from "./waveCoreModel";
 
 /**
  * Pure model for the Now tab's island (owner-chosen 2026-10-28; NUSA means "island"): stacked hairlines drawn as a small island over
@@ -48,11 +48,14 @@ export function islandHeight(u: number, d: number, phase: number, amp: number, s
   return h * Math.pow(Math.sin(Math.PI * Math.max(0, Math.min(1, u))), 1.6);
 }
 
-/** Where a pulse's band of light is, as a depth 0..1 (it travels from the front row to the back); null outside its life. */
+/** How long a band of light takes from the front row to the back; slower than the wave it replaced so it reads as a glide. */
+export const ISLAND_PULSE_MS = 2600;
+
+/** Where a pulse's band of light is, as a depth 0..1 (it travels from the front row to the back, easing in and out); null outside its life. */
 export function swellDepth(p: WavePulse, now: number): number | null {
-  const k = (now - p.born) / WAVE_PULSE_MS;
+  const k = (now - p.born) / ISLAND_PULSE_MS;
   if (k < 0 || k > 1) return null;
-  return 1 - k;
+  return 1 - k * k * (3 - 2 * k);
 }
 
 /** How strongly a row at depth d is lit by a band at depth pos (0 when far). */

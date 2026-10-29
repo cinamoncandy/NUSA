@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, islandHeight, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
-import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, WAVE_PULSE_MS, type WavePulse } from "./waveCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, islandHeight, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
+import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
 
@@ -50,7 +50,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
   const lastFills = useRef<number | null>(fillCount);
   const fillAt = useRef<number | null>(null);
   const fillTicks = useRef<readonly number[]>([]);
-  const state = useRef({ amp: restAmplitude(live, 0), v: 0, energy: 0, pink: 0, flat: live ? 0 : 1, phase: 0 });
+  const state = useRef({ amp: restAmplitude(live, 0), v: 0, energy: 0, pink: 0, flat: live ? 0 : 1, phase: 0, speed: 0.4 });
   const liveRef = useRef(live);
   liveRef.current = live;
   const [frame, setFrame] = useState(0);
@@ -70,7 +70,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
     if (motion !== false) { setFrame((n) => n + 1); return; }
     pulses.current = [...pulses.current, ...fresh].slice(-8);
     const st = state.current;
-    for (const p of fresh) { st.v += pulseKick(p.order); st.energy = Math.min(1.5, st.energy + 0.4); if (p.order) st.pink = 1; }
+    for (const p of fresh) { st.v += pulseKick(p.order) * 0.6; st.energy = Math.min(1.5, st.energy + 0.4); if (p.order) st.pink = 1; }
   }, [decisionCount, orderCount, motion]);
   useEffect(() => {
     const n = fillRise(lastFills.current, fillCount);
@@ -96,8 +96,9 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
         st.amp = next.amp; st.v = next.velocity;
         st.energy *= Math.exp(-dt / 3); st.pink *= Math.exp(-dt / 1.8);
         st.flat += ((isLive ? 0 : 1) - st.flat) * Math.min(1, dt * 2.5);
-        st.phase += dt * (isLive ? 0.4 + st.energy * 2 : 0);
-        pulses.current = pulses.current.filter((p) => now - p.born < WAVE_PULSE_MS);
+        st.speed += ((isLive ? 0.4 + Math.min(1, st.energy) * 1.2 : 0) - st.speed) * Math.min(1, dt * 1.5);
+        st.phase += dt * st.speed;
+        pulses.current = pulses.current.filter((p) => now - p.born < ISLAND_PULSE_MS);
         setFrame((n) => n + 1);
       }
       handle = requestAnimationFrame(loop);
