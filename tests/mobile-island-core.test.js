@@ -76,8 +76,20 @@ test("실거래 and 선물 screens draw a still island from those real values", 
   assert.match(read("liveReadinessMonitorView.tsx"), /still=\{liveIsland\(gates\?\.passed \?\? null, gates\?\.total \?\? null\)\} testID="live-island"/);
   assert.match(read("futuresView.tsx"), /still=\{futuresIsland\(model\.started, model\.headline\)\} testID="futures-island"/);
   const core = read("islandCore.tsx");
-  assert.match(core, /const motion = still == null \? reducedMotion : true;/, "a still island never animates");
+  // A still island animates only when it breathes, and then only as the OS reduce-motion setting allows.
+  assert.match(core, /const motion = still == null \|\| breathe \? reducedMotion : true;/);
+  assert.match(core, /const breathe = still\?\.breathe === true;/);
+  assert.match(read("liveReadinessMonitorView.tsx"), /const reducedMotion = useReducedMotion\(\);/);
+  assert.match(read("futuresView.tsx"), /reducedMotion=\{reduced\} still=\{futuresIsland/);
   assert.doesNotMatch(core, /reducedMotion !== false/);
+});
+
+test("a breathing still island keeps its real height, colour and badge and drifts slower than the live island", () => {
+  assert.equal(m.liveIsland(6, 12).breathe, true);
+  assert.equal(m.liveIsland(6, 12).grey, true, "LIVE stays grey while locked");
+  assert.equal(m.liveIsland(null, 12).breathe, undefined, "no real gate counts: flat and still");
+  assert.equal(m.futuresIsland(false, ["a", "b"]).breathe, true);
+  assert.ok(m.ISLAND_STILL_DRIFT > 0 && m.ISLAND_STILL_DRIFT < 0.4);
 });
 
 test("it draws every display frame on a fast device and holds a steady 30 fps on a slow one", () => {
