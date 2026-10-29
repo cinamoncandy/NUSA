@@ -113,3 +113,8 @@ export function liveIsland(passed: number | null, total: number | null): IslandS
 export function futuresIsland(started: boolean, headline: readonly [string, string]): IslandStill {
   return started ? { lift: 0.75, grey: false, badge: `${headline[0]} ${headline[1]}` } : { lift: 0.25, grey: true, badge: `${headline[0]} ${headline[1]}` };
 }
+
+/** Draw every display frame (0) while the device keeps up; hold a steady 33 ms once the average gap between display callbacks passes 25 ms. */
+export function islandMinFrameGapMs(averageGapMs: number): number {
+  return averageGapMs > 25 ? 33 : 0;
+}
