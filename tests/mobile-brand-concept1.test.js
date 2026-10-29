@@ -27,15 +27,15 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  // Owner-chosen wave N mark (2026-10-26): the N monogram with a wave diagonal, cyan-violet-pink gradient on near-black.
+  // Owner-approved island mark (2026-10-28; NUSA means island): nested island contours over a horizon, violet-blue-cyan on near-black.
   for (const drawable of [fallback, fallbackRound, logo, splash]) {
-    assert.match(drawable, /NUSA wave N mark/);
+    assert.match(drawable, /NUSA island mark/);
     assert.match(drawable, /4F7BFF/i);
     assert.doesNotMatch(drawable, /#B6F04B/, "the retired lime must not return");
   }
   for (const drawable of [fallback, fallbackRound]) assert.match(drawable, /#0B0C0E/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
-  assert.match(notification, /NUSA wave N mark/);
+  assert.match(notification, /NUSA island mark/);
   assert.doesNotMatch(notification, /#(?!FFFFFFFF|00000000)[0-9A-F]{6}/i, "notification icon must stay monochrome");
   assert.match(api31Theme, /windowSplashScreenAnimatedIcon/);
 });
