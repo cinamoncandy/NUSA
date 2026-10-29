@@ -1,4 +1,7 @@
 import React, { useState } from "react";
+import { IslandCore } from "./islandCore";
+import { futuresIsland } from "./islandCoreModel";
+import { IslandWidth } from "./islandWidth";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { FUTURES_SCREEN_LIMITS } from "./futuresLimits";
 import { FUTURES_SAMPLE_NOW, FUTURES_SAMPLE_SNAPSHOT } from "./futuresSample";
@@ -27,6 +30,7 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="futures-view">
     <InstrumentHero index="04 / 선물" lines={[{ text: model.headline[0] }, { text: model.headline[1], amber: !model.started }]} />
     <View style={styles.sub}><SectionLabel left={model.sub} /></View>
+    <IslandWidth>{(w) => <IslandCore decisionCount={null} orderCount={null} live={false} width={w} reducedMotion={true} still={futuresIsland(model.started, model.headline)} testID="futures-island" />}</IslandWidth>
     {preview ? <View style={styles.banner} testID="futures-preview-banner" accessible accessibilityLabel="예시 데이터예요. 실제 거래가 아니에요"><Text style={[fieldFonts.mono, styles.bannerText]}>예시 데이터 · 실제 거래가 아니에요</Text></View> : null}
     {sections.map((s, g) => <Reveal key={s.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={s.title} right={`${s.rows.length}`} />

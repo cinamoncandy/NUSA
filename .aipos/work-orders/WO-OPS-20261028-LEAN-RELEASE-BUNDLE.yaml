@@ -1,0 +1,38 @@
+id: WO-OPS-20261028-LEAN-RELEASE-BUNDLE
+title: Seal only what the PAPER host runs, so a release can finish on the 1 vCPU host
+status: IN_REVIEW
+priority: P0
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2770
+authority_impact: none
+objective: >-
+  Make the Oracle PAPER release complete inside its job budget. The sealed bundle carried the whole workspace node_modules
+  (Electron, React Native, Skia), so the host spent its budget downloading and unpacking files it never runs.
+evidence:
+  failed_run: '40697488340 (2026-10-28, main fa032d3b0, owner-approved): build and backup succeeded; "Verify and unpack the exact built release" was still running when the 40-minute release job was cancelled; stage, preflight and activation were skipped. The host still runs c59b522 (2026-10-26), so the capital, risk-limit and observability merges are not applied.'
+  bundle_size: 'nusa-paper-release artifact 372 MiB compressed; the tree is 1.6 GB, of which node_modules is 1.5 GB (Electron 314 MiB, react-native-skia platform builds over 700 MiB).'
+  host_speed: 'Download of 372 MiB took 8.5 min (about 0.7 MiB/s). The backup step documents 0.8 MiB/s as its observed envelope.'
+  runtime_needs: 'A static scan of compiled production code (dist excluding tests and desktop), scripts, services and deploy finds one runtime package, ws (dist/packages/core/src/upbitWebSocket.js). Tests need vitest and desktop needs electron; the host runs neither. The root package.json has one dependency: ws.'
+  measured_result: 'Sealing the tree without node_modules plus node_modules/ws gives 89 MiB uncompressed and 23.4 MiB compressed (16x smaller), and the host runtime modules load from it.'
+scope:
+  - 'oracle-paper-release.yml "Seal the built release" ships the tree without node_modules, copies the ws package, loads the host runtime from the slim tree on the builder (fails fast if a package is missing) and refuses a bundle above 150 MiB.'
+  - 'tests/oracle-paper-release-workflow.test.js pins the seal order and scans compiled production code so a new runtime package fails the test until it is added to the seal.'
+exclusions:
+  - 'No change to the backup, stage, preflight or activation steps, the exact-main recheck, timeouts, the host helper, risk limits, capital or authority.'
+  - 'No host change from an agent session. The release itself is dispatched by the owner-approved path.'
+acceptance:
+  - 'Release workflow tests pass.'
+  - 'A real release run shows the bundle under 150 MiB and the host unpack step finishing in minutes (UNVERIFIED until that run).'
+verification_commands:
+  - node -r ./tests/register-dist.cjs --test tests/oracle-paper-release-workflow.test.js
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+risks:
+  - 'A host script that needs a package other than ws would fail at the host. The compiled-code scan and the builder load check reduce this; scripts that need dev tools (typescript, js-yaml, electron, playwright) are not run by any host unit.'
+precommit_review: 'Not yet requested.'
+next: 'Draft PR, non-author review, owner approval of the release-workflow change, then one owner-approved release run to confirm.'
