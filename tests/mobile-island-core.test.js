@@ -79,3 +79,10 @@ test("실거래 and 선물 screens draw a still island from those real values", 
   assert.match(core, /const motion = still == null \? reducedMotion : true;/, "a still island never animates");
   assert.doesNotMatch(core, /reducedMotion !== false/);
 });
+
+test("it draws every display frame on a fast device and holds a steady 30 fps on a slow one", () => {
+  assert.equal(m.islandMinFrameGapMs(16.7), 0);
+  assert.equal(m.islandMinFrameGapMs(25), 0);
+  assert.equal(m.islandMinFrameGapMs(33), 33);
+  assert.equal(m.islandMinFrameGapMs(100), 33);
+});

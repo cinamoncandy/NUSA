@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, islandHeight, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, islandHeight, islandMinFrameGapMs, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
@@ -14,7 +14,7 @@ import { islandPalette, readableFont, wavePalette } from "./designSystem";
  * Presentation only: it invents nothing. Reduce-motion (or before the OS answers) draws one settled frame, and frames stop while the
  * app is in the background.
  */
-const FRAME_MS = 33;
+// Draw every display frame while the device keeps up; if the average gap says it cannot (about 40 fps or less), hold a steady 30 fps instead, which looks smoother than an uneven 40.
 const PINK = [255, 95, 162];
 const WHITE = [236, 240, 255];
 const LIT = [205, 222, 255];
@@ -25,7 +25,7 @@ const STARS: readonly (readonly [number, number, number])[] = Array.from({ lengt
   return [0.06 + 0.88 * r(1), Math.pow(r(2), 1.4), r(3) < 0.15 ? 1 : 0.55] as const;
 });
 
-interface Row { readonly key: number; readonly body: SkPath; readonly line: SkPath | null; readonly color: string; readonly opacity: number; readonly glow: number; readonly width: number }
+interface Row { readonly key: number; readonly body: SkPath; readonly line: SkPath | null; readonly color: string; readonly opacity: number; readonly glow: number; readonly halo: number; readonly width: number }
 
 export function IslandCore({ decisionCount, orderCount, fillCount = null, live, compact = false, width, reducedMotion, still = null, testID = "now-core" }: {
   readonly decisionCount: number | null;
@@ -85,11 +85,14 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
   useEffect(() => {
     if (motion !== false) { setFrame((n) => n + 1); return undefined; }
     if (!active) return undefined;
-    let alive = true, last = 0, handle = 0;
+    let alive = true, last = 0, handle = 0, gap = 16, minGap = 0, prev = 0;
     const loop = (ts: number) => {
       if (!alive) return;
       if (!liveRef.current && state.current.flat > 0.99 && pulses.current.length === 0 && state.current.pink < 0.02) { setFrame((n) => n + 1); return; }
-      if (ts - last >= FRAME_MS) {
+      // Measure the display's own cadence on every callback (not only on drawn frames), or a throttle would read as a slow device and never lift.
+      if (prev !== 0) { gap += (Math.min(ts - prev, 100) - gap) * 0.05; minGap = islandMinFrameGapMs(gap); }
+      prev = ts;
+      if (ts - last >= minGap) {
         const dt = last === 0 ? 0 : Math.min(0.1, (ts - last) / 1000); last = ts;
         const st = state.current, isLive = liveRef.current, now = Date.now();
         const next = springStep(st.amp, st.v, restAmplitude(isLive, st.energy), dt);
@@ -146,7 +149,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
         for (let i = s + 1; i <= e; i += 1) line.lineTo(xs[i], ys[i]);
       }
       const color = grey ? wavePalette.idle : lock > 0.05 ? rowColor(d, WHITE, lock * 0.8) : order > 0.3 ? rowColor(d, PINK, order) : rowColor(d, LIT, light * 0.9);
-      rows.push({ key: r, body, line, color, opacity: grey ? (still != null ? 0.3 + 0.5 * Math.pow(d, 0.9) : 0.45) : rowOpacity(d, r, light), glow: grey ? 0 : (d > 0.6 ? 3 * d : 0) + 8 * light + 5 * lock, width: (r % 5 === 4 ? 1.5 : 0.75) * (0.6 + 0.9 * d) + light });
+      rows.push({ key: r, body, line, color, opacity: grey ? (still != null ? 0.3 + 0.5 * Math.pow(d, 0.9) : 0.45) : rowOpacity(d, r, light), glow: grey ? 0 : 8 * light + 5 * lock, halo: grey || d <= 0.6 ? 0 : 0.14 * d, width: (r % 5 === 4 ? 1.5 : 0.75) * (0.6 + 0.9 * d) + light });
     }
     const sea = Array.from({ length: 7 }, (_, k) => {
       const t = k / 6, y = height * (ISLAND_SHORE + 0.02 + (ISLAND_SEA_END - ISLAND_SHORE - 0.02) * Math.pow(t, 1.5));
@@ -174,6 +177,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
       {scene.rows.map((row) => <Group key={row.key}>
         <Path path={row.body} color={GROUND} />
         {row.line == null ? null : <>
+          {row.halo > 0 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 3} strokeCap="round" color={row.color} opacity={row.opacity * row.halo} /> : null}
           {row.glow > 0.5 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 2} strokeCap="round" color={row.color} opacity={row.opacity * 0.4}><BlurMask blur={row.glow} style="normal" /></Path> : null}
           <Path path={row.line} style="stroke" strokeWidth={row.width} strokeCap="round" strokeJoin="round" color={row.color} opacity={row.opacity} />
         </>}
