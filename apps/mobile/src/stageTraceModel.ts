@@ -28,9 +28,14 @@ export function stageTraceIndex(broken: BrokenStageId | null | undefined): strin
   return at < 0 ? null : `0${at + 1} / 0${TRACE_STAGES.length}`;
 }
 
-/** The status chip on "지금". It says PAPER in every state and is lit only while a fresh, unblocked snapshot arrived. */
-export function nowStatusChip(input: { readonly stale: boolean; readonly blocked: boolean; readonly hasHeartbeat: boolean }): { readonly text: string; readonly live: boolean } {
+/**
+ * The status chip on "지금". It says PAPER in every state and is lit only when the island itself is live: a fresh, unblocked snapshot
+ * whose phase is running (not halted, not dimmed) and that carries today's decision count.
+ */
+export function nowStatusChip(input: { readonly stale: boolean; readonly blocked: boolean; readonly hasHeartbeat: boolean; readonly halted: boolean; readonly dim: boolean; readonly hasDecisionCount: boolean }): { readonly text: string; readonly live: boolean } {
   if (input.stale) return { text: "PAPER · 지난 값", live: false };
   if (input.blocked || !input.hasHeartbeat) return { text: "PAPER · 연결 대기", live: false };
+  if (input.halted) return { text: "PAPER · 멈춤", live: false };
+  if (input.dim || !input.hasDecisionCount) return { text: "PAPER · 확인 중", live: false };
   return { text: "PAPER · 모의 운영", live: true };
 }

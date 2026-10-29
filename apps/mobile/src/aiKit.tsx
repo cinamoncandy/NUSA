@@ -29,7 +29,8 @@ export function AiBackdrop({ width, height }: { readonly width: number; readonly
     <Rect x={0} y={0} width={width} height={height}>
       <RadialGradient c={vec(width / 2, 0)} r={Math.max(width, height * 0.6)} colors={[aiIslandPalette.groundGlow, "transparent"]} />
     </Rect>
-    <Group>
+    {/* layer: the dstIn mask must apply to the grid alone, not to the ground and glow drawn before it. */}
+    <Group layer>
       <Path path={grid} style="stroke" strokeWidth={1} color={aiIslandPalette.grid} />
       <Rect x={0} y={0} width={width} height={height} blendMode="dstIn">
         <RadialGradient c={vec(width / 2, height * 0.32)} r={width * 0.8} colors={["black", "transparent"]} />

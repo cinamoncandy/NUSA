@@ -17,10 +17,25 @@ test("without a real first broken stage there is no trace, so nothing is claimed
   assert.equal(m.stageTraceIndex("ORDER"), "03 / 04");
 });
 
-test("the status chip is lit only for a fresh, unblocked snapshot with a heartbeat", () => {
-  assert.deepEqual(m.nowStatusChip({ stale: false, blocked: false, hasHeartbeat: true }), { text: "PAPER · 모의 운영", live: true });
-  assert.equal(m.nowStatusChip({ stale: false, blocked: false, hasHeartbeat: false }).live, false);
-  assert.equal(m.nowStatusChip({ stale: false, blocked: true, hasHeartbeat: true }).live, false);
-  assert.deepEqual(m.nowStatusChip({ stale: true, blocked: true, hasHeartbeat: true }), { text: "PAPER · 지난 값", live: false });
-  for (const s of [true, false]) for (const b of [true, false]) for (const h of [true, false]) assert.match(m.nowStatusChip({ stale: s, blocked: b, hasHeartbeat: h }).text, /^PAPER/);
+const ok = { stale: false, blocked: false, hasHeartbeat: true, halted: false, dim: false, hasDecisionCount: true };
+
+test("the status chip is lit only when the island itself is live", () => {
+  assert.deepEqual(m.nowStatusChip(ok), { text: "PAPER · 모의 운영", live: true });
+  assert.equal(m.nowStatusChip({ ...ok, hasHeartbeat: false }).live, false);
+  assert.equal(m.nowStatusChip({ ...ok, blocked: true }).live, false);
+  assert.deepEqual(m.nowStatusChip({ ...ok, stale: true, blocked: true }), { text: "PAPER · 지난 값", live: false });
+  assert.deepEqual(m.nowStatusChip({ ...ok, halted: true }), { text: "PAPER · 멈춤", live: false });
+  assert.deepEqual(m.nowStatusChip({ ...ok, dim: true }), { text: "PAPER · 확인 중", live: false });
+  assert.equal(m.nowStatusChip({ ...ok, hasDecisionCount: false }).live, false);
+});
+
+test("the status chip says PAPER in every combination and is lit in exactly one", () => {
+  let lit = 0;
+  for (let bits = 0; bits < 64; bits += 1) {
+    const [stale, blocked, hasHeartbeat, halted, dim, hasDecisionCount] = [0, 1, 2, 3, 4, 5].map((i) => Boolean(bits & (1 << i)));
+    const chip = m.nowStatusChip({ stale, blocked, hasHeartbeat, halted, dim, hasDecisionCount });
+    assert.match(chip.text, /^PAPER/);
+    if (chip.live) lit += 1;
+  }
+  assert.equal(lit, 1);
 });

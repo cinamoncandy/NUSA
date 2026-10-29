@@ -89,7 +89,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const brokenStage = blocked || gate != null || lossLimit != null ? null : firstBrokenStage(heartbeat, Date.now());
   const needsSetup = notConfigured != null || readOnlyError != null;
   const trace = buildStageTrace(brokenStage?.stage);
-  const chip = nowStatusChip({ stale, blocked, hasHeartbeat: heartbeat != null });
+  const chip = nowStatusChip({ stale, blocked, hasHeartbeat: heartbeat != null, halted: haltCause != null || field.phase === "HALTED", dim: model.dim, hasDecisionCount: dailyCounts.decisionCount != null });
   const reduced = useReducedMotion();
   const [size, setSize] = useState({ width: 0, height: 0 });
   return <View style={styles.shell} testID="now-screen" onLayout={(e) => setSize({ width: Math.round(e.nativeEvent.layout.width), height: Math.round(e.nativeEvent.layout.height) })}>
