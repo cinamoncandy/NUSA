@@ -20,8 +20,10 @@ test("without data (amp 0) the island lies flat, and a swell lights the row it p
   assert.ok(m.rowLight(0.5, 0.5) > 0.99 && m.rowLight(0.5, 0.95) < 0.01 && m.rowLight(0.5, null) === 0);
   const p = { born: 0, order: false };
   assert.equal(m.swellDepth(p, 0), 1, "a band starts at the front row");
-  assert.equal(m.swellDepth(p, w.WAVE_PULSE_MS), 0, "and ends at the back");
-  assert.equal(m.swellDepth(p, w.WAVE_PULSE_MS + 1), null);
+  assert.equal(m.swellDepth(p, m.ISLAND_PULSE_MS), 0, "and ends at the back");
+  assert.equal(m.swellDepth(p, m.ISLAND_PULSE_MS + 1), null);
+  assert.equal(m.swellDepth(p, m.ISLAND_PULSE_MS / 2), 0.5, "eased: the middle of the glide is the middle row");
+  assert.ok(m.swellDepth(p, m.ISLAND_PULSE_MS * 0.1) > 0.97, "and it leaves the front slowly");
 });
 
 test("the island stays above the shore and below the top edge at full energy", () => {
