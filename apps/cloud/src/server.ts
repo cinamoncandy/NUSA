@@ -472,6 +472,12 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         shadowSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         shadowWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowGrossGainBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         shadowGrossLossBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowFeeBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        // Null comparators (buy-and-hold, seeded random entry): counts and SIGNED basis points; no amount or price.
+        nullSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullSeed: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        nullBaseTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullBaseNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) <= 10_000_000,
+        nullHoldMarkets: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullHoldNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) <= 10_000_000,
+        nullRandTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullRandWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        nullRandNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) <= 10_000_000, nullRandSkipped: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
       };
       const evidence: Record<string, string | number> = {};
       for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }

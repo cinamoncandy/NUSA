@@ -7,6 +7,7 @@ import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator"
 import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
 import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integration";
 import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
+import type { NullComparatorSummary } from "./paperNullComparators";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -81,6 +82,12 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
    */
   replayPeriodId: string; replayBars: number; replayTrades: number; replayClosedNetBp: number; replayOpenMarkBp: number; replayPaperNetBp: number;
   shadowSince: number; shadowTrades: number; shadowWins: number; shadowGrossGainBp: number; shadowGrossLossBp: number; shadowFeeBp: number;
+  /**
+   * Null comparators of the baseline shadow (buy-and-hold and fixed-seed random entry, same bars and fee model). Counts and signed basis
+   * points only; a comparison, NOT PAPER evidence and never a promotion input (see paperNullComparators.ts).
+   */
+  nullSince: number; nullSeed: number; nullBaseTrades: number; nullBaseNetBp: number; nullHoldMarkets: number; nullHoldNetBp: number;
+  nullRandTrades: number; nullRandWins: number; nullRandNetBp: number; nullRandSkipped: number;
 }>>;
 
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
@@ -107,6 +114,7 @@ export class ClosedLearningLoopStatusTracker {
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
   private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
+  private nulls: ClosedLearningEvidenceCorrelation = {};
   private replay: ClosedLearningEvidenceCorrelation = {};
   private metaLearning: ClosedLearningMetaLearningStatus | undefined;
 
@@ -183,6 +191,23 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  /** Display-only null comparator figures; a malformed value withdraws the null keys. Absent optional fields stay absent (never zero). */
+  public observeNullComparators(summary: NullComparatorSummary | undefined): void {
+    const count = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+    const signed = (value: unknown): value is number => Number.isSafeInteger(value) && Math.abs(Number(value)) <= 10_000_000;
+    const ok = summary != null && count(summary.since) && summary.since > 0 && count(summary.seed)
+      && count(summary.randomTrades) && count(summary.randomWins) && summary.randomWins <= summary.randomTrades && signed(summary.randomNetBp) && count(summary.randomSkipped)
+      && (summary.baselineTrades === undefined) === (summary.baselineNetBp === undefined) && (summary.baselineTrades === undefined || (count(summary.baselineTrades) && signed(summary.baselineNetBp)))
+      && (summary.holdMarkets === undefined) === (summary.holdNetBp === undefined) && (summary.holdMarkets === undefined || (count(summary.holdMarkets) && summary.holdMarkets > 0 && signed(summary.holdNetBp)));
+    this.nulls = !ok || summary == null ? {} : Object.freeze({
+      nullSince: summary.since, nullSeed: summary.seed,
+      ...(summary.baselineTrades === undefined || summary.baselineNetBp === undefined ? {} : { nullBaseTrades: summary.baselineTrades, nullBaseNetBp: summary.baselineNetBp }),
+      ...(summary.holdMarkets === undefined || summary.holdNetBp === undefined ? {} : { nullHoldMarkets: summary.holdMarkets, nullHoldNetBp: summary.holdNetBp }),
+      nullRandTrades: summary.randomTrades, nullRandWins: summary.randomWins, nullRandNetBp: summary.randomNetBp, nullRandSkipped: summary.randomSkipped,
+    });
+    this.publish();
+  }
+
   /** The durable ledger could not be read: withdraw everything published from it, so /health never presents stale durable evidence as current. */
   public clearDurableCycles(): void {
     this.durable = null;
@@ -213,6 +238,7 @@ export class ClosedLearningLoopStatusTracker {
       ...this.periods,
       ...this.cycle,
       ...this.shadow,
+      ...this.nulls,
       ...this.replay,
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
