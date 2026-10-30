@@ -73,3 +73,11 @@ test("tab changes and rolling digits use the one island motion rule", () => {
   assert.match(kit, /key=\{`d\$\{chars\.length - 1 - i\}`\}/, "a digit keeps its place, so a change rolls from the old digit instead of restarting at 0");
   assert.doesNotMatch(kit, /y\.setValue\(0\);\n\s*const anim/, "no reset to zero before rolling");
 });
+
+test("the shell draws only the status chip: the NUSA name and mark are already in the app header", () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const kit = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/aiKit.tsx"), "utf8").replace(/\r\n/g, "\n");
+  const shell = kit.slice(kit.indexOf("export function AiShell"), kit.indexOf("const styles = StyleSheet.create"));
+  assert.doesNotMatch(shell, /IslandMark|>NUSA</, "no second NUSA row under the app header");
+  assert.match(shell, /<AiStatusChip /);
+});
