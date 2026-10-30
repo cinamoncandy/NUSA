@@ -484,7 +484,7 @@ jobs:
           set +e
           emit() { local body; body="$(printf '%s' "${2:0:3400}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
           if [ -f "$RUNNER_TEMP/lite.txt" ]; then
-            for n in 1 2 3 4 5 6; do
+            for n in 1 2 3 4 5 6 7 8; do
               s=$(( (n-1)*20 + 1 )); e=$(( n*20 ))
               chunk="$(sed -n "${s},${e}p" "$RUNNER_TEMP/lite.txt")"
               [ -n "$chunk" ] && emit "probe-lite-$n" "$chunk"
