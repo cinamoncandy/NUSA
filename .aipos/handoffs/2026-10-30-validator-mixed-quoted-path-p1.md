@@ -1,37 +1,22 @@
 # NUSA #2772 — mixed quoted/unquoted Git path P1 handoff
 
-## Current work
+## Current transition
 
 - Work order: `WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE`
-- PR: `#2772`, remains OPEN / Draft.
-- Canonical branch: `fix/validator-evidence-gate-2760`.
-- Latest protected main observed: `f144b940925dc04df7c0849fbaad9e5f14f5befe`.
-- Remote PR head before this local successor: `d2817a60faf2126fc2351158f4188800a1fdc1d6`.
-- PR base metadata returned by GitHub: `e7f8a426a57a08339eae3778ca50de6512d6acd9`.
-- The local merge incorporates current main `f144b940`; the final local successor commit SHA must be resolved from Git after the merge commit.
+- PR #2772: OPEN / Draft; branch `fix/validator-evidence-gate-2760`.
+- Protected main and PR base at last fresh verification: `f144b940925dc04df7c0849fbaad9e5f14f5befe`.
+- Published predecessor successor: `15e034dc69662a7da51335535365c71c9c1ba600`.
+- On that exact SHA, CI `41072337072` and required companion workflows `41072341740`, `41072336897`, `41072336926`, `41072336965`, `41072337022` are terminal SUCCESS.
+- The AIPOS receipt update is a new metadata-only successor, so resolve its current branch-tip SHA and require new exact-head checks before review.
 
-## Finding and repair
+## Repair and validation
 
-Fresh non-author P1 `4387534372` identified a fail-closed parser gap for a Git rename header where one path is C-quoted (for example, a UTF-8 octal escape) and the other is unquoted. The parser now tries whitespace boundaries and independently decodes each token, then accepts only the unique pair matching exact changed-file metadata. Ambiguous and unsafe paths still fail closed.
+The P1 at review comment `4387972671` is addressed: each side of a Git diff header is decoded independently as quoted or unquoted, safe candidate boundaries are enumerated, and exact changed-file metadata must select one unique path pair. Both quote orientations and unsafe paths have regression coverage. The review thread remains unresolved for independent adjudication.
 
-Regression coverage exercises both quote orientations and an unsafe path. The existing canonical `#2772` PR is reused; no thread was self-resolved.
-
-## Local validation
-
-On the final local tree after current-main reconciliation, Node 24.19:
-
-- Focused `auditRunner` tests: 36/36 PASS.
-- `pnpm test`: PASS, including preflight, build, and 1,310 isolated test files.
-- `pnpm run typecheck`: PASS.
-- `pnpm run validate:full`: PASS, including AIPOS drift/conformance and safety invariants.
-- `pnpm run security:gate`: PASS, zero unmitigated findings and zero secrets.
-- `pnpm run lint`: PASS, zero errors and 47 warnings; clean protected-main lint baseline is also 47.
-- Net diff check against current main: PASS.
-
-These are local implementation checks, not independent acceptance. Exact-head CI and review are pending after successor publication.
+Final source tree before the metadata-only successor passed Node 24.19 validation: focused auditRunner 36/36; `pnpm test` with 1,310 isolated files; typecheck; `validate:full`; `security:gate`; lint with zero errors and 47 warnings, matching clean-main baseline; net diff check against main.
 
 ## Next transition
 
-Freshly verify that the remote branch still equals `d2817a60...` and protected main is still `f144b940...` (or re-evaluate if either changed). Publish one non-force successor to the existing PR branch only. Keep Draft and all review threads unresolved. Then wait for exact-head CI/companions and a fresh non-author review before requesting the separate Formal Validator.
+Freshly verify PR #2772, protected main, and branch tip. Wait for exact-head CI/companions for the metadata successor, then request one fresh non-author review. Keep the PR Draft and every review thread unresolved for independent adjudication. No Formal Validator, Audit, Release, merge, Oracle mutation, or L2 transition is authorized here.
 
-Safety remains: `PAPER_ONLY`; `liveAuthority=NONE`; `productionMutationAllowed=false`; `realOrderAuthority=false`; `realTransferAuthority=false`; `aiAuthority=ZERO_AUTHORITY`. No Oracle mutation, Audit, Release, merge, or L2 transition is authorized by this handoff.
+Safety: `PAPER_ONLY`; `liveAuthority=NONE`; `productionMutationAllowed=false`; `realOrderAuthority=false`; `realTransferAuthority=false`; `aiAuthority=ZERO_AUTHORITY`.

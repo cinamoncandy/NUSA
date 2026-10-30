@@ -539,3 +539,23 @@ current_mixed_quoted_path_repair_20261030:
     audit_release_merge: NOT_STARTED
   next: "Re-fetch protected main and existing PR head immediately before publication. Publish one non-force successor only if PR head remains d2817a60... and the successor is based on the reviewed current main; keep Draft and unresolved threads, then require exact-head CI/companions and fresh independent review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+
+published_successor_ci_20261030:
+  status: EXACT_HEAD_CI_AND_COMPANIONS_PASS_FRESH_REVIEW_PENDING
+  issue: 2760
+  pull_request: 2772
+  branch: fix/validator-evidence-gate-2760
+  validated_head: 15e034dc69662a7da51335535365c71c9c1ba600
+  protected_main_and_pr_base: f144b940925dc04df7c0849fbaad9e5f14f5befe
+  ci: 41072337072_SUCCESS
+  companions:
+    actual_paper: 41072341740_SUCCESS
+    capability_guard: 41072336897_SUCCESS
+    transport_readiness: 41072336926_SUCCESS
+    activation_rehearsal: 41072336965_SUCCESS
+    read_only_broker: 41072337022_SUCCESS
+  finding: "Mixed quoted/unquoted Git rename path P1 is addressed by independently decoding each token and binding the unique candidate against exact PR file metadata. The corresponding historical review thread is left unresolved for independent adjudication."
+  local_validation: "Final reconciled tree: Node 24.19; focused auditRunner 36/36; pnpm test PASS (1310 isolated files); typecheck, validate:full, security:gate and lint PASS; zero new lint warnings against 47-warning current-main baseline."
+  next: "Resolve the current remote branch head after this AIPOS receipt successor, wait for its exact-head CI/companions, then request one fresh non-author review. Preserve Draft and all unresolved threads. Formal Validator, Audit, Release, merge and Oracle mutation remain not started."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
