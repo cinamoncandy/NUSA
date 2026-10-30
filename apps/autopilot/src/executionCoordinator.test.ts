@@ -119,8 +119,13 @@ describe("persistent execution coordination", () => {
     const ns = memoryNamespace();
     const input = { dedupeKey: "coding:handoff", executionId: "exec:handoff", now: 100, leaseExpiresAt: 200 };
     assert.deepEqual(await acquirePersistentExecution(ns, input), { acquired: true });
-    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: 210 }), { acquired: true });
+    const consumerLeaseExpiry = 1_200;
+    assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 110, leaseExpiresAt: consumerLeaseExpiry }), { acquired: true });
+    const handedOff = await readPersistentExecution(ns, input.dedupeKey);
+    assert.equal(handedOff?.state, "HANDED_OFF");
+    assert.equal(handedOff?.leaseExpiresAt, consumerLeaseExpiry, "handoff extends ownership through the consumer execution window");
     assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 120, leaseExpiresAt: 220 }), { acquired: false, reason: "LEASE_ACTIVE" });
+    assert.deepEqual(await acquirePersistentExecution(ns, { ...input, executionId: "exec:competing-producer", now: 130, leaseExpiresAt: 230 }), { acquired: false, reason: "LEASE_ACTIVE" });
     await markPersistentExecutionDispatched(ns, { dedupeKey: input.dedupeKey, executionId: input.executionId, now: 130 });
     assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, { ...input, now: 140, leaseExpiresAt: 240 }), { acquired: false, reason: "ALREADY_DISPATCHED" });
   });

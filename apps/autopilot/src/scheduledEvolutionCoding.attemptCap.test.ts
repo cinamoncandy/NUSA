@@ -1,12 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MAX_SCHEDULED_CODING_ATTEMPTS, runScheduledEvolutionCoding } from "./scheduledEvolutionCoding";
-import { ExecutionCoordinator, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
+import { ExecutionCoordinator, handoffOrAcquirePersistentExecution, readPersistentExecution, releasePersistentExecution, type ExecutionCoordinatorNamespace } from "./executionCoordinator";
 
 const MAIN_SHA = "a".repeat(40);
 const RUN_ID = 9001;
 const NOW = 1_787_968_000_000;
 const FIVE_MINUTES = 5 * 60 * 1000;
+const CODING_EXECUTION_WINDOW = 20 * 60 * 1000;
 
 class MemoryStorage {
   private readonly values = new Map<string, unknown>();
@@ -78,6 +79,16 @@ test("the scheduler stops re-dispatching the same unfixable failure after the at
       const dedupeKey = `evolve-coding:${MAIN_SHA}:${workIdentity}`;
       const record = await readPersistentExecution(ns, dedupeKey);
       assert.ok(record, "dispatched work keeps a durable record");
+      assert.equal(record.state, "LEASED", "the producer keeps the lease available for the asynchronous consumer handoff");
+      assert.deepEqual(await handoffOrAcquirePersistentExecution(ns, {
+        dedupeKey: record.dedupeKey,
+        executionId: record.executionId,
+        now: now + 500,
+        leaseExpiresAt: now + CODING_EXECUTION_WINDOW,
+      }), { acquired: true });
+      const handedOff = await readPersistentExecution(ns, dedupeKey);
+      assert.equal(handedOff?.state, "HANDED_OFF");
+      assert.equal(handedOff?.leaseExpiresAt, now + CODING_EXECUTION_WINDOW, "consumer lease expiry supersedes the shorter producer lease");
       await releasePersistentExecution(ns, { dedupeKey: record.dedupeKey, executionId: record.executionId, now: now + 1_000 });
     }
   }
