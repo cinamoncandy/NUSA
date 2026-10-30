@@ -29,10 +29,10 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
     { title: "한도 사용량", rows: model.usage, bars: true },
     { title: "고정 한도", rows: futuresSafetyRows() },
   ];
-  return <AiShell chip={futuresScreenChip(model.started, preview)}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="futures-view">
+  return <AiShell chip={futuresScreenChip(model.started, preview, model.resting)}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="futures-view">
     <InstrumentHero index="04 / 선물" lines={[{ text: model.headline[0] }, { text: model.headline[1], amber: !model.started }]} />
     <View style={styles.sub}><SectionLabel left={model.sub} /></View>
-    <IslandWidth>{(w) => <IslandCore decisionCount={null} orderCount={null} live={false} width={w} reducedMotion={true} still={futuresIsland(model.started, model.headline)} testID="futures-island" />}</IslandWidth>
+    <IslandWidth>{(w) => <IslandCore decisionCount={null} orderCount={null} live={false} width={w} reducedMotion={reduced} still={futuresIsland(model.started, model.headline)} testID="futures-island" />}</IslandWidth>
     {preview ? <View style={styles.banner} testID="futures-preview-banner" accessible accessibilityLabel="예시 데이터예요. 실제 거래가 아니에요"><Text style={[fieldFonts.mono, styles.bannerText]}>예시 데이터 · 실제 거래가 아니에요</Text></View> : null}
     {sections.map((s, g) => <Reveal key={s.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={s.title} right={`${s.rows.length}`} />

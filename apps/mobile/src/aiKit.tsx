@@ -5,6 +5,8 @@ import { aiIslandMotion, aiIslandPalette, readableFont } from "./designSystem";
 import { fieldFonts } from "./fieldFonts";
 import { calmColors } from "./uiKitModel";
 import { IslandMark } from "./islandMark";
+import { AiShellContext } from "./aiShellContext";
+import { ForceDarkTheme } from "./ThemeProvider";
 import { useReducedMotion } from "./instrumentKit";
 import type { AiChip, TraceStep } from "./stageTraceModel";
 
@@ -112,7 +114,7 @@ export function AiShell({ chip, children, testID }: { readonly chip: AiChip; rea
       <View style={styles.topBrand}><IslandMark size={18} /><Text style={styles.topBrandText}>NUSA</Text></View>
       <AiStatusChip text={chip.text} live={chip.live} reducedMotion={reduced} />
     </View>
-    <View style={styles.shellBody}>{children}</View>
+    <View style={styles.shellBody}><AiShellContext.Provider value><ForceDarkTheme>{children}</ForceDarkTheme></AiShellContext.Provider></View>
   </View>;
 }
 

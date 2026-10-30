@@ -47,10 +47,11 @@ export function liveScreenChip(): AiChip {
   return { text: "LIVE · 잠김", live: false };
 }
 
-/** 선물: lit only while the server reports PAPER futures running; sample data and "not started" are grey. */
-export function futuresScreenChip(started: boolean, preview: boolean): AiChip {
+/** 선물: lit only while the server reports PAPER futures running and still entering; sample data, "not started" and "resting" are grey. */
+export function futuresScreenChip(started: boolean, preview: boolean, resting = false): AiChip {
   if (preview) return { text: "FUTURES · 예시", live: false };
-  return started ? { text: "FUTURES · 모의 운영", live: true } : { text: "FUTURES · 시작 전", live: false };
+  if (!started) return { text: "FUTURES · 시작 전", live: false };
+  return resting ? { text: "FUTURES · 쉬는 중", live: false } : { text: "FUTURES · 모의 운영", live: true };
 }
 
 /** 모의, 학습, 더보기: these screens carry no live signal of their own, so their chip names the screen and stays grey. */
