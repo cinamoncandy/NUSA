@@ -3,7 +3,7 @@ import { AccessibilityInfo, Animated, Easing, Pressable, StyleSheet, Text, View,
 import { Canvas, Path, Skia } from "@shopify/react-native-skia";
 import { calmColors } from "./uiKitModel";
 import { fieldFonts } from "./fieldFonts";
-import { readableFont } from "./designSystem";
+import { aiIslandMotion, readableFont } from "./designSystem";
 
 /**
  * Instrument kit (redesign 2026-10-20, owner-chosen "계기판" direction): hairline panels with corner ticks, mono section labels,
@@ -122,7 +122,7 @@ export function Odometer({ value, size, color = calmColors.text, reducedMotion }
   const chars = value.toLocaleString("en-US").split("");
   return <View style={styles.odo} accessible accessibilityLabel={value.toLocaleString("en-US")}>
     {chars.map((ch, i) => /\d/.test(ch)
-      ? <OdometerDigit key={`${value}-${i}`} digit={Number(ch)} size={size} color={color} delay={(chars.length - 1 - i) * 70} reducedMotion={reducedMotion} />
+      ? <OdometerDigit key={`d${chars.length - 1 - i}`} digit={Number(ch)} size={size} color={color} delay={(chars.length - 1 - i) * 70} reducedMotion={reducedMotion} />
       : <Text key={`${value}-${i}`} style={[fieldFonts.displayStrong, { fontSize: size, lineHeight: size * 1.08, height: size * 1.08, color }]}>{ch}</Text>)}
   </View>;
 }
@@ -133,8 +133,8 @@ function OdometerDigit({ digit, size, color, delay, reducedMotion }: { readonly 
   useEffect(() => {
     if (reducedMotion === null) return undefined;
     if (reducedMotion) { y.setValue(-digit * h); return undefined; }
-    y.setValue(0);
-    const anim = Animated.timing(y, { toValue: -digit * h, duration: 800, delay, easing: Easing.out(Easing.exp), useNativeDriver: true });
+    // The digit keeps its place (keyed by position from the right), so a change rolls from the old digit to the new one instead of restarting at 0.
+    const anim = Animated.timing(y, { toValue: -digit * h, duration: 700, delay, easing: Easing.bezier(...aiIslandMotion.curve), useNativeDriver: true });
     anim.start();
     return () => anim.stop();
   }, [digit, h, delay, reducedMotion, y]);
