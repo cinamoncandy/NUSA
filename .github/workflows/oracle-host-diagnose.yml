@@ -430,10 +430,23 @@ jobs:
             echo "== local paper runtime probe (3s)"
             curl -s -m 3 -o /dev/null -w 'http=%{http_code}\n' http://127.0.0.1:41731/health 2>&1
             echo "== all listening ports"
-            ss -ltn 2>&1 | awk 'NR==1 || $4 ~ /:(80|443|41731|3001)$/' | head -8
+            ss -ltn 2>&1 | head -25
+            echo "== docker containers"
+            docker ps --format '{{.Names}} {{.Image}} {{.Ports}}' 2>&1 | head -10
             echo "== caddy unit"
-            systemctl show caddy -p ActiveState,SubState,NRestarts,ExecMainStartTimestamp 2>&1 | tr '\n' ' '
+            systemctl show caddy -p ActiveState,SubState,NRestarts,ExecMainStartTimestamp,ExecStart 2>&1 | tr '\n' ' '
             echo
+            echo "== caddy upstream config (grep only)"
+            for c in /etc/caddy/Caddyfile /etc/caddy/Caddyfile.d/*.conf; do
+              [ -f "$c" ] || continue
+              echo "-- $c"
+              grep -n -E 'reverse_proxy|duckdns|upstream|41731|localhost|127\.0\.0\.1' "$c" 2>&1 | head -20
+            done
+            echo "== caddy exec-user"
+            systemctl show caddy -p User,Group,WorkingDirectory 2>&1 | tr '\n' ' '
+            echo
+            echo "== caddy serves /health locally (5s)"
+            curl -s -m 5 -o /dev/null -w 'local_https_host=%{http_code} remote=%{remote_ip}\n' -k https://127.0.0.1/health -H 'Host: nusa-api.duckdns.org' 2>&1
           } > "$OUT" 2>&1
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
           redact < "$OUT"
