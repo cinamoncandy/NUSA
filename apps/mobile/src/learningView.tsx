@@ -12,7 +12,7 @@ import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 import { CostWaterfall, NullComparison, OverfitGate, PaperResultBars, StudyTimeline } from "./learningPanels";
 
-type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown; /** Server heartbeat learningLoop (display only): measured numbers for the panels; null when absent. */ readonly learningLoop?: unknown };
+type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown; /** Server heartbeat learningLoop (display only): measured numbers for the panels; null when absent. */ readonly learningLoop?: unknown; /** Server heartbeat orderBookStudy (display only): the pre-registered study result; null when absent. */ readonly orderBookStudy?: unknown };
 
 /**
  * "학습" — calm redesign of the PAPER tab. The summary is new; the full read-only monitors
@@ -21,7 +21,7 @@ type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server 
 export function LearningView(props: Props) {
   const [details, setDetails] = useState(false);
   const reduced = useReducedMotion();
-  const { learningFunnel, learningLoop, ...monitorProps } = props;
+  const { learningFunnel, learningLoop, orderBookStudy, ...monitorProps } = props;
   const model = buildLearningScreen(props.paper);
   const funnel = buildLearningFunnel(learningFunnel);
   if (details) return <AiShell chip={plainScreenChip("LEARN")}><View style={styles.screen}>
@@ -50,7 +50,7 @@ export function LearningView(props: Props) {
     <NullComparison raw={learningLoop} />
     <PaperResultBars raw={learningLoop} />
     <OverfitGate raw={learningLoop} />
-    <StudyTimeline nowMs={Date.now()} />
+    <StudyTimeline nowMs={Date.now()} orderBookStudy={orderBookStudy} />
   </ScrollView></AiShell>;
 }
 

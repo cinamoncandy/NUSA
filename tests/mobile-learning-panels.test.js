@@ -18,9 +18,9 @@ test("the study timeline is sorted, marks the next verdict and counts days", () 
   assert.match(rows[1].status, /설계 고정됨/);
 });
 
-test("a verdict time in the past asks for the result instead of claiming progress", () => {
+test("a verdict time in the past without a server result says so instead of claiming progress", () => {
   const rows = m.buildStudyTimeline(Date.parse("2026-11-01T00:00:00Z"));
-  assert.match(rows[0].status, /판정 시점이 지났어요/);
+  assert.match(rows[0].status, /판정 시점이 지났는데 서버가 결과를 아직 안 보냈어요/);
   assert.equal(rows[0].tone, "ATTENTION");
   assert.equal(rows[1].next, true);
 });
@@ -69,6 +69,53 @@ test("the learning panels contain no example values and no heavy weights, and th
   assert.doesNotMatch(view, /DecisionBars|CostWall\b/);
   const app = fs.readFileSync(path.join(__dirname, "..", "apps/mobile/App.tsx"), "utf8");
   assert.equal((app.match(/learningLoop=\{snapshot\?\.operations\.heartbeat\?\.learningLoop \?\? null\}/g) || []).length, 2);
+});
+
+// WO-UI-20261030-ORDERBOOK-STUDY-RESULT: the 호가 row follows the server's study result and never guesses.
+const study = { schemaVersion: 1, studyId: "ML_ORDERBOOK_60M_20261029", status: "HOLDOUT_FAIL", eligible: 180, discoveryPass: true, resultFileMtimeMs: 1793000000000 };
+const after = Date.parse("2026-10-30T09:00:00Z");
+const row = (raw, now = after) => m.buildStudyTimeline(now, undefined, raw)[0];
+
+test("a server FAIL reads as 불합격, keeps ATTENTION and shows the market count", () => {
+  const r = row(study);
+  assert.equal(r.status, "불합격 · 그대로 기록해요 · 대상 시장 180개");
+  assert.equal(r.tone, "ATTENTION");
+});
+
+test("a server PASS is a paper-only candidate and never reads as live or authority", () => {
+  const r = row({ ...study, status: "HOLDOUT_PASS" });
+  assert.equal(r.status, "합격 · 앞으로 모의로만 검증할 후보예요 (실전 아님) · 대상 시장 180개");
+  assert.match(r.status, /모의로만/);
+  assert.match(r.status, /실전 아님/);
+  assert.doesNotMatch(r.status, /실전 투자|실거래 가능|자동 매매|승인|라이브/);
+});
+
+test("no object, or a malformed one, after the verdict time says the server has not sent it and never claims pass/fail", () => {
+  const waiting = "판정 시점이 지났는데 서버가 결과를 아직 안 보냈어요";
+  const bads = [undefined, null, [], "HOLDOUT_PASS", { ...study, status: "WAITING_DATA" }, { ...study, studyId: "OTHER" }, { ...study, schemaVersion: 2 }, { ...study, eligible: -1 }, { ...study, eligible: 1.5 }, { ...study, eligible: "180" }, { ...study, discoveryPass: "yes" }, { ...study, extra: 1 }, { ...study, resultFileMtimeMs: "x" }];
+  for (const bad of bads) {
+    const r = row(bad);
+    assert.equal(r.status, waiting, JSON.stringify(bad));
+    assert.equal(r.tone, "ATTENTION");
+  }
+});
+
+test("before the verdict time the row is unchanged even if an object is present", () => {
+  const before = Date.parse("2026-10-22T12:00:00Z");
+  assert.match(row(study, before).status, /결과 대기 · 7일 남음/);
+  assert.match(row(undefined, before).status, /결과 대기 · 7일 남음/);
+});
+
+test("other studies are not touched by the result object", () => {
+  const rows = m.buildStudyTimeline(Date.parse("2026-12-30T00:00:00Z"), undefined, study);
+  assert.match(rows[1].status, /판정 시점이 지났어요 · 결과를 확인하세요/);
+});
+
+test("the result is wired from the heartbeat, with no raw colour in the model and CRLF-safe source reads", () => {
+  const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8").replace(/\r\n/g, "\n");
+  assert.match(read("apps/mobile/App.tsx"), /orderBookStudy=\{snapshot\?\.operations\.heartbeat\?\.orderBookStudy \?\? null\}/);
+  assert.match(read("apps/mobile/src/learningView.tsx"), /<StudyTimeline nowMs=\{Date\.now\(\)\} orderBookStudy=\{orderBookStudy\} \/>/);
+  assert.doesNotMatch(read("apps/mobile/src/learningPanelsModel.ts"), /#[0-9a-fA-F]{3,8}\b/);
 });
 
 // The comparison panel: baseline minus each null, "no data" instead of a zero, and the not-evidence label.

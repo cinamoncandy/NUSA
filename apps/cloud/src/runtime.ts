@@ -45,6 +45,7 @@ import {
   type PersonalPaperLossLimit,
   type PersonalPaperLearningFunnel,
   type PersonalPaperLearningLoop,
+  type PersonalPaperOrderBookStudy,
   type PersonalPaperTodayRealized
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
@@ -96,6 +97,7 @@ import {
   type NusaEngineeringOperatingSource,
 } from "./engineeringOperatingReadModel";
 import { composeResearchExperiments } from "./researchExperimentComposition";
+import { readOrderBookStudyDisplay } from "./researchStudyResult";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -369,6 +371,14 @@ export function startCloudRuntime(
       return { learningLoop: Object.freeze({ ...out, evaluatedAt: Date.now() }) as PersonalPaperLearningLoop };
     } catch { return {}; }
   };
+  // Display only: the pre-registered ORDERBOOK study result the host wrote next to the state DB. Absent or malformed => nothing is sent.
+  const orderBookStudyHeartbeat = (): { orderBookStudy?: PersonalPaperOrderBookStudy } => {
+    try {
+      if (env.NUSA_CLOUD_STATE_DB_PATH === undefined) return {};
+      const study = readOrderBookStudyDisplay(config.cloudStateDbPath);
+      return study == null ? {} : { orderBookStudy: study };
+    } catch { return {}; }
+  };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
@@ -384,7 +394,7 @@ export function startCloudRuntime(
     const research = researchProgress != null
       ? { researchCollection: researchProgress }
       : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
-    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat() });
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat(), ...orderBookStudyHeartbeat() });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
