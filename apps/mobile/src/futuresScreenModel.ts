@@ -76,6 +76,8 @@ export function buildFuturesReasons(raw: unknown, nowMs: number = Date.now()): r
 }
 export interface FuturesScreenModel {
   readonly started: boolean;
+  /** The consecutive-loss limit has stopped new entries (the snapshot exists but nothing is entering). */
+  readonly resting: boolean;
   readonly headline: readonly [string, string];
   readonly sub: string;
   readonly status: readonly FuturesRow[];
@@ -116,6 +118,7 @@ export function buildFuturesScreen(raw: unknown, limits: FuturesLimits, nowMs: n
   if (snap == null) {
     return Object.freeze({
       started: false,
+      resting: false,
       headline: ["선물 모의는", "시작 전이에요"] as const,
       sub: "서버가 선물 값을 보내지 않아서 아래 칸은 비어 있어요. 비어 있다고 0이라는 뜻은 아니에요.",
       status: Object.freeze(status),
@@ -133,6 +136,7 @@ export function buildFuturesScreen(raw: unknown, limits: FuturesLimits, nowMs: n
   const stopped = snap.consecutiveLosses >= limits.maxConsecutiveLosses;
   return Object.freeze({
     started: true,
+    resting: stopped,
     headline: stopped ? ["선물 모의는", "쉬고 있어요"] as const : ["선물 모의로", "배우는 중이에요"] as const,
     sub: stopped ? "연속 손실 한도에 닿아서 새 선물 진입을 멈췄어요." : "모의 선물 포지션만 보여줘요. 실제 돈은 쓰지 않아요.",
     status: Object.freeze(status),

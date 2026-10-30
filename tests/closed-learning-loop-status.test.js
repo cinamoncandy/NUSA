@@ -46,7 +46,7 @@ test("the production composition feeds every loop tick into the status and hands
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\);\r?\n\s*persistLastBlocked\(\);/, "a blocked tick persists its reason");
   assert.match(src, /loopStatus\.seedLastBlocked\(readClosedLearningBlocked\(config\.cloudStateDbPath\)\)/, "the persisted reason seeds the status after a restart");
   assert.match(src, /loopStatus\.observePeriods\(periods\.listOpenPeriods\(\)\[0\], periods\.listRealizedPeriods\(\)(?:, pendingPeriods\.dispositions\(\))?\)/, "every tick reads the canonical period identities");
-  assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*microstructureRecorder,\r?\n\s*orderBookCollector,\r?\n\s*futuresCollector,\r?\n\s*\);/);
+  assert.match(src, /closedLearningStatus: \(\) => loopStatus\.snapshot\(\),\r?\n\s*researchIntervalTicks: \(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*microstructureRecorder,\r?\n\s*orderBookCollector,\r?\n\s*futuresCollector,\r?\n\s*\}\);/);
 });
 
 test("evidence correlates the open period, the latest realized period and the latest Research cycle", () => {
@@ -389,4 +389,27 @@ test("tickErrorClass never throws, accepts only conventional codes, and a later 
   t.observeRollover({ status: "BLOCKED", reason: "REASON_X" }, 2);
   assert.equal(t.snapshot().lastBlockedReason, "REASON_X");
   assert.equal(t.snapshot().lastErrorClass, undefined, "the class is not paired with a different block reason");
+});
+
+test("null comparator figures appear as counts and signed bp, absent fields stay absent, and a malformed or inconsistent value withdraws them", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, 1);
+  const full = { since: 5, seed: 20261030, baselineTrades: 3, baselineNetBp: -40, holdMarkets: 2, holdNetBp: -15, randomTrades: 3, randomWins: 1, randomNetBp: -55, randomSkipped: 0 };
+  t.observeNullComparators(full);
+  assert.deepEqual({ ...t.snapshot().evidence }, { nullSince: 5, nullSeed: 20261030, nullBaseTrades: 3, nullBaseNetBp: -40, nullHoldMarkets: 2, nullHoldNetBp: -15, nullRandTrades: 3, nullRandWins: 1, nullRandNetBp: -55, nullRandSkipped: 0 });
+  t.observeNullComparators({ since: 5, seed: 20261030, randomTrades: 0, randomWins: 0, randomNetBp: 0, randomSkipped: 2 });
+  const sparse = { ...t.snapshot().evidence };
+  assert.equal(sparse.nullHoldNetBp, undefined, "no measurable hold span: absent, not zero");
+  assert.equal(sparse.nullBaseNetBp, undefined, "baseline not comparable: absent, not zero");
+  for (const bad of [{ ...full, randomWins: 4 }, { ...full, since: 0 }, { ...full, baselineNetBp: undefined }, { ...full, holdMarkets: 0 }, { ...full, randomNetBp: 1.5 }, { ...full, baselineTrades: -1 }, undefined]) {
+    t.observeNullComparators(full);
+    t.observeNullComparators(bad);
+    assert.equal(t.snapshot().evidence, undefined, `withdrawn for ${JSON.stringify(bad)}`);
+  }
+});
+
+test("the runtime publishes the null comparators beside the shadow and persists them on change", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
+  assert.match(src, /loopStatus\.observeNullComparators\(nullComparators\.summary\(\)\)/);
+  assert.match(src, /writeNullComparatorsRecord\(config\.cloudStateDbPath, persistableNulls\)\) nullComparators\.markUnpersisted\(\)/);
 });

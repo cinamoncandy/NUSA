@@ -1,0 +1,7 @@
+current_arch_unreached_baseline_20261028:
+  work_order: WO-ARCH-20261028-UNREACHED-BASELINE
+  status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  branch: claude/unreached-baseline
+  validation: "baseline test PASS (3); validate-aipos-yaml PASS."
+  next: "Non-author review, CI, merge; then attic or delete per module."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

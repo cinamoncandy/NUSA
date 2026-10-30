@@ -623,8 +623,76 @@ jobs:
           set -euo pipefail
           CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           if [ "$CURRENT_MAIN" != "$MERGED_MAIN" ]; then echo "Main advanced from $MERGED_MAIN to $CURRENT_MAIN; newer Release chain owns post-merge evidence."; exit 0; fi
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/wo-0059-actual-paper-runtime.yml/dispatches" -f ref=main
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/autopilot-cloudflare-promote.yml/dispatches" -f ref=main -f "inputs[head_sha]=$MERGED_MAIN"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release-trigger.yml/dispatches" -f ref=main
-          gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/windows-desktop-stable-release.yml/dispatches" -f ref=main
-          echo "Dispatched Actual PAPER runtime evidence, Cloudflare Promote, Android stable trigger, and Windows Desktop Stable Release for $MERGED_MAIN."
+          dispatch_exact_main_downstream() {
+            local workflow="$1"
+            local allow_manual_disable="$2"
+            local expected_job="$3"
+            shift 3
+            local state runs owner candidate_run candidate_status candidate_event jobs applicable_job
+            state="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow" --jq '.state')"
+            if [ "$state" = "disabled_manually" ] && [ "$allow_manual_disable" = "true" ]; then
+              echo "::notice::Skipping intentionally disabled optional downstream workflow $workflow for $MERGED_MAIN."
+              return 0
+            fi
+            if [ "$state" != "active" ]; then
+              echo "::error::Unexpected downstream workflow state: workflow=$workflow state=$state" >&2
+              return 1
+            fi
+            runs="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?head_sha=$MERGED_MAIN&per_page=100")"
+            owner=""
+            while IFS=$'\t' read -r candidate_run candidate_status candidate_event; do
+              [ -n "$candidate_run" ] || continue
+              jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$candidate_run/jobs?per_page=100")"
+              applicable_job="$(jq -r --arg name "$expected_job" '
+                [.jobs[] | select(.name == $name) | select(
+                  .status == "queued" or .status == "pending" or .status == "in_progress" or .status == "waiting" or .status == "requested"
+                  or (.status == "completed" and .conclusion == "success")
+                )] | length > 0' <<<"$jobs")"
+              if [ "$applicable_job" = "true" ] && [ "$workflow" = "autopilot-cloudflare-promote.yml" ]; then
+                if [ "$candidate_status" != "completed" ] && [ "$candidate_event" != "workflow_run" ]; then
+                  echo "Active Cloudflare workflow_dispatch run $candidate_run cannot prove its head_sha matches the requested promotion input; it does not own convergence."
+                  applicable_job="false"
+                elif [ "$candidate_status" = "completed" ]; then
+                  production_sha="$(gh api "repos/$GITHUB_REPOSITORY/branches/cloudflare-production" --jq '.commit.sha')"
+                  production_relation="$(gh api "repos/$GITHUB_REPOSITORY/compare/$MERGED_MAIN...$production_sha" --jq '.status')"
+                  if [ "$production_relation" = "ahead" ] || [ "$production_relation" = "identical" ]; then
+                    echo "Cloudflare run $candidate_run completed successfully and production contains exact main $MERGED_MAIN."
+                  else
+                    verified_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$MERGED_MAIN" --jq '.tree.sha')"
+                    production_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/commits/$production_sha" --jq '.tree.sha')"
+                    verified_apps_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$verified_tree" --jq '.tree[] | select(.path == "apps" and .type == "tree") | .sha')"
+                    production_apps_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$production_tree" --jq '.tree[] | select(.path == "apps" and .type == "tree") | .sha')"
+                    verified_autopilot_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$verified_apps_tree" --jq '.tree[] | select(.path == "autopilot" and .type == "tree") | .sha')"
+                    production_autopilot_tree="$(gh api "repos/$GITHUB_REPOSITORY/git/trees/$production_apps_tree" --jq '.tree[] | select(.path == "autopilot" and .type == "tree") | .sha')"
+                    if [ -n "$verified_autopilot_tree" ] && [ "$verified_autopilot_tree" = "$production_autopilot_tree" ]; then
+                      echo "Cloudflare run $candidate_run completed successfully and apps/autopilot tree matches exact main $MERGED_MAIN; no deployment-relevant change remains."
+                    else
+                      echo "Cloudflare run $candidate_run completed without proving exact-main promotion: main=$MERGED_MAIN production=$production_sha relation=$production_relation; it does not own convergence."
+                      applicable_job="false"
+                    fi
+                  fi
+                fi
+              fi
+              if [ "$applicable_job" = "true" ]; then
+                owner="$candidate_run"
+                break
+              fi
+            done < <(jq -r --arg sha "$MERGED_MAIN" '[.workflow_runs[]
+              | select(.head_sha == $sha and (
+                  .status == "queued" or .status == "in_progress" or .status == "pending"
+                  or .status == "waiting" or .status == "requested"
+                  or (.status == "completed" and .conclusion == "success")
+                ))]
+              | sort_by(.created_at) | reverse[] | [.id, .status, .event] | @tsv' <<<"$runs")
+            if [ -n "$owner" ]; then
+              echo "Exact-main downstream $workflow applicable job '$expected_job' owns convergence for $MERGED_MAIN via run $owner; suppressing duplicate dispatch."
+              return 0
+            fi
+            gh api --method POST "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/dispatches" -f ref=main "$@"
+            echo "Dispatched exact-main downstream $workflow for $MERGED_MAIN."
+          }
+
+          dispatch_exact_main_downstream wo-0059-actual-paper-runtime.yml false actual-paper-runtime
+          dispatch_exact_main_downstream autopilot-cloudflare-promote.yml false "Promote exact CI-verified Worker revision" -f "inputs[head_sha]=$MERGED_MAIN"
+          dispatch_exact_main_downstream android-stable-release-trigger.yml true dispatch
+          dispatch_exact_main_downstream windows-desktop-stable-release.yml false "Build and publish exact-main Windows installer"

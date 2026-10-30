@@ -18,7 +18,7 @@ This contract applies to ChatGPT, Codex, Claude, Gemini, Cursor, Windsurf, Kimi,
 Every AI taking over NUSA work must, before changing implementation:
 
 1. Read `.aipos/aipos.yaml`.
-2. Read `.aipos/state.yaml`.
+2. Read `.aipos/state.yaml` and every `.aipos/state.d/*.yaml` (newer entries live one per file there).
 3. Read `.aipos/architecture.md` and the current core architecture documents referenced by AIPOS.
 4. Read the active work order and its dependencies.
 5. Read relevant durable decisions and evidence references.

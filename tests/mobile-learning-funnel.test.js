@@ -13,13 +13,13 @@ test("the heartbeat carries the Research funnel as integers from the closed-lear
   assert.match(runtime, /const learningFunnelHeartbeat = \(\): \{ learningFunnel\?: PersonalPaperLearningFunnel \} =>/);
   assert.match(runtime, /holdoutPasses > discoveryPasses\) return \{\};/);
   assert.match(runtime, /Number\.isSafeInteger\(v\) && \(v as number\) >= 0/);
-  assert.match(runtime, /\.\.\.research, \.\.\.learningFunnelHeartbeat\(\), \.\.\.learningLoopHeartbeat\(\) \}\)/);
+  assert.match(runtime, /\.\.\.research, \.\.\.learningFunnelHeartbeat\(\), \.\.\.learningLoopHeartbeat\(\), \.\.\.orderBookStudyHeartbeat\(\) \}\)/);
 });
 
 test("the Learning screen shows the funnel only from a live snapshot, and its motion respects reduce-motion", () => {
   assert.equal((app.match(/learningFunnel=\{snapshot\?\.operations\.heartbeat\?\.learningFunnel \?\? null\}/g) || []).length, 2, "both entries to the Learning screen");
   assert.match(view, /const funnel = buildLearningFunnel\(learningFunnel\);/);
-  assert.match(view, /<PaperShadowMonitorView \{\.\.\.monitorProps\} \/>/, "the detail monitors do not receive the extra prop");
+  assert.match(view, /<PaperShadowMonitorView \{\.\.\.monitorProps\} embedded \/>/, "the detail monitors receive only the shared props and `embedded` (the shell is already drawn)");
   assert.match(funnel, /const reducedMotion = useReducedMotion\(\);/);
   assert.match(funnel, /if \(reducedMotion === null \|\| inner <= 0\) return undefined;/, "nothing moves before the OS answers");
   assert.match(funnel, /if \(reducedMotion\) \{ wipe\.setValue\(1\); return undefined; \}/);

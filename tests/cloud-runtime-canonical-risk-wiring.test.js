@@ -8,6 +8,7 @@ const source = fs.readFileSync(runtimePath, "utf8");
 
 test("startCloudRuntime constructs one canonical risk adapter and one execution boundary for runtime-owned PAPER", () => {
   assert.match(source, /import \{ CloudPaperCanonicalRiskGateway \} from "\.\/cloudPaperCanonicalRiskGateway";/);
+  assert.match(source, /limits: cloudPaperRiskLimitsForCapital\(config\.paperInitialCapitalKrw\)/, "the canonical gateway gets capital-scaled limits");
   assert.match(source, /import \{ CloudPaperExecutionBoundary \} from "\.\/cloudPaperExecutionBoundary";/);
   assert.match(source, /const productionPaperRiskGate = config\.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository/);
   assert.match(source, /new CloudPaperCanonicalRiskGateway\(/);

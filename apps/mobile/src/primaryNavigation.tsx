@@ -8,7 +8,8 @@ import {
 } from "./navigationContract";
 import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
-import { readableFont } from "./designSystem";
+import { aiIslandPalette, readableFont } from "./designSystem";
+import { TabIcon } from "./tabIcons";
 
 const DESCRIPTIONS: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
   Home: "현재 NUSA 상태",
@@ -30,7 +31,7 @@ export function PrimaryNavigation({
   const { theme } = useTheme();
   const ui = visualSystem(theme);
   return <View style={styles.frame} pointerEvents="box-none">
-    <View style={[styles.navigation, { backgroundColor: theme.colors.navSurface, borderColor: ui.color.border }]}>
+    <View style={[styles.navigation, { backgroundColor: aiIslandPalette.navGlass, borderColor: aiIslandPalette.glassEdge }]}>
       <View accessibilityRole="tablist" style={styles.inner} testID="primary-navigation">
         {PRIMARY_DESTINATIONS.map((destination) => {
           const active = !obscured && activeDestination === destination;
@@ -47,7 +48,8 @@ export function PrimaryNavigation({
             ]}
             testID={`tab-${destination}`}
           >
-            <View style={[styles.indicator, { backgroundColor: active ? theme.colors.aiSignalEnd : ui.color.border, opacity: active ? 1 : 0.3 }]} />
+            <View style={[styles.indicator, { backgroundColor: active ? theme.colors.aiSignalEnd : ui.color.border, opacity: active ? 1 : 0 }]} />
+            <TabIcon destination={destination} active={active} muted={ui.color.textMuted} />
             <Text numberOfLines={1} style={[styles.label, { color: active ? ui.color.text : ui.color.textMuted }, active && styles.activeLabel]}>
               {primaryDestinationDisplayLabels[destination]}
             </Text>
@@ -59,11 +61,12 @@ export function PrimaryNavigation({
 }
 
 const styles = StyleSheet.create({
-  frame: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0, alignItems: "center" },
-  navigation: { width: "100%", maxWidth: 720, borderTopWidth: StyleSheet.hairlineWidth, alignItems: "center" },
+  // A floating glass pill (AI island look, 2026-10-29); the selected tab is a rounded lit cell inside it.
+  frame: { paddingHorizontal: 14, paddingTop: 6, paddingBottom: 10, alignItems: "center", backgroundColor: aiIslandPalette.ground },
+  navigation: { width: "100%", maxWidth: 720, borderWidth: StyleSheet.hairlineWidth, borderRadius: 32, alignItems: "center", paddingHorizontal: 6, paddingVertical: 6 },
   inner: { width: "100%", flexDirection: "row" },
-  item: { flex: 1, minHeight: 50, alignItems: "center", justifyContent: "center", gap: 4, paddingHorizontal: 2 },
-  indicator: { height: 2, width: 20, borderRadius: 999 },
+  item: { flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 2, borderRadius: 24 },
+  indicator: { height: 2, width: 14, borderRadius: 999 },
   label: { fontSize: readableFont(10), fontWeight: "700" },
   activeLabel: { fontWeight: "600" },
 });

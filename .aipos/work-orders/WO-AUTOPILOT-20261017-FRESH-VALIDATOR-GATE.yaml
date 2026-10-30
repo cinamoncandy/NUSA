@@ -496,3 +496,46 @@ latest_exact_head_review_repairs_20261027:
     audit_release_merge: NOT_STARTED
   next: "Re-fetch protected main and PR #2772, then publish one substantive non-force successor only if the remote head remains e533309376cc563649ef5d2c8faf09a699ed8ab2. Require exact-successor CI/companions and fresh non-author review; do not start Formal Validator until that review is clean. Keep Draft; no Audit, Release, merge, or Oracle mutation."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_mixed_quoted_path_repair_20261030:
+  status: LOCAL_VALIDATION_PASS_PENDING_SUCCESSOR_PUBLICATION
+  owner: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
+  issue: 2760
+  pull_request: 2772
+  branch: fix/validator-evidence-gate-2760
+  repository_verified:
+    protected_main: f144b940925dc04df7c0849fbaad9e5f14f5befe
+    current_pr_head: d2817a60faf2126fc2351158f4188800a1fdc1d6
+    current_pr_base: e7f8a426a57a08339eae3778ca50de6512d6acd9
+    pr_state: OPEN_DRAFT_MERGEABLE
+    local_main_reconciliation: f144b940925dc04df7c0849fbaad9e5f14f5befe
+    latest_main_delta_overlap: NONE_WITH_PR_CHANGED_PATHS
+  finding:
+    review_comment: 4387534372
+    severity: P1
+    summary: "Git diff path parser assumed both sides had matching quote mode; a rename with one C-quoted non-ASCII path and one unquoted path failed exact metadata binding."
+  repair:
+    files:
+      - apps/autopilot/src/auditRunner.ts
+      - apps/autopilot/src/auditRunner.test.ts
+    contract: "Enumerate whitespace boundaries and decode each Git path token independently; bind only to the unique exact pull-files metadata pair and fail closed on unsafe or ambiguous paths."
+  local_validation:
+    final_tree: PASS
+    node: 24.19.0
+    focused_audit_runner: PASS_36_OF_36
+    preflight: PASS
+    build: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS_0_UNMITIGATED_0_SECRETS
+    lint: PASS_0_ERRORS_47_WARNINGS_CLEAN_MAIN_BASELINE_47_NEW_WARNINGS_0
+    full_tests: PASS_1310_ISOLATED_TEST_FILES
+    diff_check_against_current_main: PASS
+  remote:
+    successor_head: PENDING_LOCAL_MERGE_COMMIT
+    exact_head_ci: PENDING
+    fresh_non_author_review: PENDING
+    formal_validator: PENDING
+    audit_release_merge: NOT_STARTED
+  next: "Re-fetch protected main and existing PR head immediately before publication. Publish one non-force successor only if PR head remains d2817a60... and the successor is based on the reviewed current main; keep Draft and unresolved threads, then require exact-head CI/companions and fresh independent review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

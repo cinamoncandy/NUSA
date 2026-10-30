@@ -589,18 +589,20 @@ function resolveGitDiffHeader(header: string, files: readonly ChangedPullFile[],
 }
 
 function parseGitDiffHeaderCandidates(header: string): readonly { readonly oldPath: string; readonly newPath: string }[] {
-  if (header.startsWith('"')) {
-    const firstEnd = findGitQuotedPathEnd(header, 0);
-    const rest = header.slice(firstEnd).trimStart();
-    const secondEnd = findGitQuotedPathEnd(rest, 0);
-    if (rest.slice(secondEnd).trim() !== "") throw new Error("VALIDATOR_DIFF_PATH_INVALID");
-    return Object.freeze([validateDiffPathPair(decodeDiffHeaderPath(header.slice(0, firstEnd)), decodeDiffHeaderPath(rest.slice(0, secondEnd)))]);
-  }
   const candidates: Array<{ readonly oldPath: string; readonly newPath: string }> = [];
-  for (let delimiter = header.indexOf(" b/"); delimiter >= 0; delimiter = header.indexOf(" b/", delimiter + 1)) {
-    const oldPath = header.slice(0, delimiter);
-    const newPath = `b/${header.slice(delimiter + 3)}`;
-    try { candidates.push(validateDiffPathPair(oldPath, newPath)); }
+  const decodeToken = (value: string): string => {
+    if (!value.startsWith('"')) return value;
+    const end = findGitQuotedPathEnd(value, 0);
+    if (value.slice(end).trim() !== "") throw new Error("VALIDATOR_DIFF_PATH_INVALID");
+    return decodeDiffHeaderPath(value.slice(0, end));
+  };
+  // Git may quote each side independently when only one name needs escaping. Enumerate
+  // whitespace boundaries, then let exact pull-files metadata select the unique pair;
+  // this also preserves support for unquoted filenames that themselves contain spaces.
+  for (let delimiter = header.indexOf(" "); delimiter >= 0; delimiter = header.indexOf(" ", delimiter + 1)) {
+    const oldToken = header.slice(0, delimiter);
+    const newToken = header.slice(delimiter + 1);
+    try { candidates.push(validateDiffPathPair(decodeToken(oldToken), decodeToken(newToken))); }
     catch { /* Ignore malformed candidate boundaries; exact metadata chooses among valid paths. */ }
   }
   return Object.freeze(candidates);

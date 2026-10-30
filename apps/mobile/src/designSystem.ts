@@ -115,6 +115,54 @@ export const wavePalette = Object.freeze({
   idle: "#787890",
 } as const);
 
+/** Island palette (owner-approved island design 2026-10-28; NUSA means "island"): violet to blue to cyan light on near-black, soft white/pink/blue summit glow. */
+export const islandPalette = Object.freeze({
+  ground: "#090A13",
+  violet: "#7C54FF",
+  blue: "#4F7BFF",
+  cyan: "#46D7FF",
+  star: "#C8CDFF",
+  horizon: "#78DCFF",
+  reflection: "#C8D7FF",
+  summitCore: "#FFFFFFE6",
+  summitPink: "#FF5FA266",
+  summitBlue: "#96BEFF66",
+} as const);
+
+/**
+ * AI island look (owner-chosen 2026-10-29, "AI스럽고 미래지향적이고 세련되게"): a deep navy ground with a faint coordinate grid, frosted
+ * glass panels, one violet-blue-cyan light and a monospaced instrument face for numbers. One motion rule for every transition.
+ */
+export const aiIslandPalette = Object.freeze({
+  ground: "#05060D",
+  groundGlow: "#14123A",
+  grid: "rgba(120,140,255,0.06)",
+  glass: "rgba(255,255,255,0.045)",
+  glassEdge: "rgba(255,255,255,0.08)",
+  glassStrong: "rgba(255,255,255,0.07)",
+  navGlass: "rgba(14,16,36,0.86)",
+  navActive: "rgba(138,107,255,0.30)",
+  accentStart: "#B7A4FF",
+  accentMid: "#5B86FF",
+  accentEnd: "#4FE0FF",
+  chipFill: "rgba(79,224,255,0.08)",
+  chipEdge: "rgba(79,224,255,0.28)",
+  idleFill: "rgba(140,146,184,0.08)",
+  idleEdge: "rgba(140,146,184,0.28)",
+  label: "#7E86AE",
+  traceIdle: "rgba(140,146,184,0.22)",
+} as const);
+
+/** The one motion rule: every transition takes the same time on the same curve; panels rise in a short stagger; the status dot breathes. */
+export const aiIslandMotion = Object.freeze({
+  transitionMs: 420,
+  /** cubic-bezier(0.45, 0, 0.2, 1): a soft start and a long, calm settle. */
+  curve: [0.45, 0, 0.2, 1] as const,
+  riseDistance: 14,
+  staggerMs: 80,
+  breathMs: 2600,
+} as const);
+
 /** Aura palette (Learning tab): near-black ground with the wave blue/violet light and grain (was green until 2026-10-26). Presentation only. */
 export const auraPalette = Object.freeze({
   ground: "#09090E",

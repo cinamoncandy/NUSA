@@ -129,7 +129,7 @@ export function PaperLearningMonitorView({ state, refreshing, onRefresh, onClose
   return <ScrollView
     contentContainerStyle={styles.content}
     refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />}
-    style={[styles.screen, { backgroundColor: theme.colors.background }]}
+    style={[styles.screen, { backgroundColor: "transparent" }]}
     showsVerticalScrollIndicator={false}
     testID="paper-learning-monitor"
   >

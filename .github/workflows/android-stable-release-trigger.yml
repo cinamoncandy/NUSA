@@ -36,6 +36,19 @@ jobs:
           MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
           printf '%s' "$MAIN_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'
 
+          # The owner may disable the Android stable publisher on purpose (for example while a server release is pending).
+          # Dispatching a disabled workflow fails with HTTP 422 on every run, which hides real failures. Skip only that
+          # explicit owner state; any other non-active state still fails closed.
+          PUBLISHER_STATE="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release.yml" --jq '.state')"
+          if [ "$PUBLISHER_STATE" = "disabled_manually" ]; then
+            echo "::notice::Android Stable Release is disabled by the owner; not dispatching for $MAIN_SHA."
+            exit 0
+          fi
+          if [ "$PUBLISHER_STATE" != "active" ]; then
+            echo "::error::Unexpected Android Stable Release workflow state: $PUBLISHER_STATE"
+            exit 1
+          fi
+
           CI_CONCLUSION=""
           for attempt in $(seq 1 60); do
             CURRENT_MAIN="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"

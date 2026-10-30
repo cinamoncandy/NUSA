@@ -180,6 +180,52 @@ test("diff evidence binds deleted lines to the old path and resets at file bound
   assert.ok(!refs.has("previous.ts:-3"));
 });
 
+test("parses mixed quoted and unquoted Git rename paths against exact pull-file metadata", () => {
+  const cases = [
+    {
+      diff: String.raw`diff --git "a/\303\251.ts" b/e.ts
+--- "a/\303\251.ts"
++++ b/e.ts
+@@ -1 +1 @@
+-before
++after`,
+      changedFile: { filename: "e.ts", previousFilename: "é.ts", status: "renamed" as const },
+      previousPath: "é.ts",
+      currentPath: "e.ts",
+    },
+    {
+      diff: String.raw`diff --git a/e.ts "b/\303\251.ts"
+--- a/e.ts
++++ "b/\303\251.ts"
+@@ -1 +1 @@
+-before
++after`,
+      changedFile: { filename: "é.ts", previousFilename: "e.ts", status: "renamed" as const },
+      previousPath: "e.ts",
+      currentPath: "é.ts",
+    },
+  ];
+
+  for (const { diff, changedFile, previousPath, currentPath } of cases) {
+    const refs = currentDiffEvidenceRefs(diff, [changedFile]);
+    assert.ok(refs.has(`${previousPath}:-1`));
+    assert.ok(refs.has(`${currentPath}:+1`));
+  }
+});
+
+test("fails closed when a mixed-quote diff header contains an unsafe path", () => {
+  const diff = String.raw`diff --git "a/\303\251.ts" b/../escape.ts
+--- "a/\303\251.ts"
++++ b/../escape.ts
+@@ -1 +1 @@
+-before
++after`;
+  assert.throws(
+    () => currentDiffEvidenceRefs(diff, [{ filename: "../escape.ts", previousFilename: "é.ts", status: "renamed" }]),
+    /VALIDATOR_REPOSITORY_PATH_INVALID|VALIDATOR_DIFF_PATH_LIST_MISMATCH/,
+  );
+});
+
 test("authenticates every GitHub evidence request without exposing the token", async () => {
   const sequence = fetchSequence();
   const requests: RequestInit[] = [];

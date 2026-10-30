@@ -6,6 +6,7 @@ import { calmColors } from "./uiKitModel";
 import { readableFont, wavePalette } from "./designSystem";
 
 /**
+ * UNUSED since 2026-10-28 (the Now tab draws IslandCore); kept so the wave can be restored.
  * The wave, the motion graphic of "지금" (owner-chosen 2026-10-26): overlapping blue, cyan and violet light waves. A real rise in the
  * decision count kicks the waves up and sends a pulse of light along them; a real rise in PAPER orders adds a pink wave and glow;
  * the strip below keeps one tick per rise seen in the last minute. Without data the waves lie flat and grey. Presentation only: it
@@ -124,7 +125,7 @@ export function WaveCore({ decisionCount, orderCount, fillCount = null, live, co
   const scene = useMemo(() => {
     const st = state.current, now = Date.now();
     if (reducedMotion !== false) { st.flat = live ? 0 : 1; st.amp = restAmplitude(live, 0); }
-    const amp = height * 0.21 * st.amp * (1 - st.flat * 0.97);
+    const amp = height * 0.105 * st.amp * (1 - st.flat * 0.97);
     const waves = WAVES.map((w) => {
       const mul = w.kind === "order" ? st.pink : w.a * (1 - st.pink * 0.25);
       return { w, mul, path: mul < 0.01 ? null : wavePath(w, width, cy, amp * mul * (w.kind === "order" ? 1.35 : 1), height * WAVE_REACH, st.phase, pulses.current, now, fillAt.current == null ? 0 : fillLock(now - fillAt.current)) };
