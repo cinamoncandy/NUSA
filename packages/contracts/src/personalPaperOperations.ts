@@ -72,6 +72,21 @@ export interface PersonalPaperLearningLoop {
   readonly shadowGrossGainBp?: number;
   readonly shadowGrossLossBp?: number;
   readonly shadowFeeBp?: number;
+  /**
+   * Null comparators of that shadow, on the same bars and fee model: buy-and-hold (one unit per market with a measurable span) and a
+   * fixed-seed random entry with the same number of round trips and holding times. Counts, and signed basis points. A comparison only:
+   * not PAPER evidence, not promotable. nullBase* is the baseline shadow's own count and net result since the comparators started.
+   */
+  readonly nullSince?: number;
+  readonly nullSeed?: number;
+  readonly nullBaseTrades?: number;
+  readonly nullBaseNetBp?: number;
+  readonly nullHoldMarkets?: number;
+  readonly nullHoldNetBp?: number;
+  readonly nullRandTrades?: number;
+  readonly nullRandWins?: number;
+  readonly nullRandNetBp?: number;
+  readonly nullRandSkipped?: number;
   readonly evaluatedAt: number;
 }
 
@@ -463,8 +478,8 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.learningLoop !== undefined && !isValidLearningLoop(record.learningLoop)) delete record.learningLoop;
 }
 
-const LEARNING_LOOP_COUNT_KEYS = ["experiments", "configurations", "discoveryPasses", "holdoutPasses", "paperPeriodsConsumed", "shadowSince", "shadowTrades", "shadowWins", "shadowGrossGainBp", "shadowGrossLossBp", "shadowFeeBp"] as const;
-const LEARNING_LOOP_SIGNED_KEYS = ["paperNetBp", "paperExcessBp"] as const;
+const LEARNING_LOOP_COUNT_KEYS = ["experiments", "configurations", "discoveryPasses", "holdoutPasses", "paperPeriodsConsumed", "shadowSince", "shadowTrades", "shadowWins", "shadowGrossGainBp", "shadowGrossLossBp", "shadowFeeBp", "nullSince", "nullSeed", "nullBaseTrades", "nullHoldMarkets", "nullRandTrades", "nullRandWins", "nullRandSkipped"] as const;
+const LEARNING_LOOP_SIGNED_KEYS = ["paperNetBp", "paperExcessBp", "nullBaseNetBp", "nullHoldNetBp", "nullRandNetBp"] as const;
 /** Display only. Unknown keys, non-integers, out-of-range values and a part larger than its whole make the whole object unusable. */
 function isValidLearningLoop(value: unknown): boolean {
   if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
@@ -476,7 +491,7 @@ function isValidLearningLoop(value: unknown): boolean {
   for (const k of LEARNING_LOOP_SIGNED_KEYS) if (v[k] !== undefined && !(int(v[k]) && Math.abs(v[k]) <= 10_000_000)) return false;
   if (v.overfitRatePercent !== undefined && !(int(v.overfitRatePercent) && v.overfitRatePercent >= 0 && v.overfitRatePercent <= 100)) return false;
   const le = (a: unknown, b: unknown) => a === undefined || b === undefined || (a as number) <= (b as number);
-  return le(v.discoveryPasses, v.configurations) && le(v.holdoutPasses, v.discoveryPasses) && le(v.shadowWins, v.shadowTrades);
+  return le(v.discoveryPasses, v.configurations) && le(v.holdoutPasses, v.discoveryPasses) && le(v.shadowWins, v.shadowTrades) && le(v.nullRandWins, v.nullRandTrades);
 }
 
 function isValidDecisionTrace(value: unknown): boolean {
