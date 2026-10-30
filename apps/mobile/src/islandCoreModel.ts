@@ -135,6 +135,18 @@ export function futuresIsland(started: boolean, headline: readonly [string, stri
   return started ? { lift: 0.75, grey: false, badge: `${headline[0]} ${headline[1]}`, breathe: true } : { lift: 0.25, grey: true, badge: `${headline[0]} ${headline[1]}`, breathe: true };
 }
 
+/** Frame-time smoothing: irregular callbacks would make the drift stutter, so the step used for motion follows the real gap through a low-pass (never above 0.1 s, never negative). */
+export function smoothDt(previous: number, raw: number): number {
+  const r = Math.max(0, Math.min(0.1, Number.isFinite(raw) ? raw : 0));
+  const p = Math.max(0, Math.min(0.1, Number.isFinite(previous) ? previous : 0));
+  return p === 0 ? r : p + (r - p) * 0.25;
+}
+
+/** How finely each contour line is sampled: full detail while the device keeps up, fewer points when callbacks run long, so a slow phone holds its frame rate instead of dropping it. */
+export function islandSteps(averageGapMs: number): number {
+  return averageGapMs <= 20 ? ISLAND_STEPS : averageGapMs <= 25 ? 72 : 54;
+}
+
 /** Draw every display frame (0) while the device keeps up; hold a steady 33 ms once the average gap between display callbacks passes 25 ms. */
 export function islandMinFrameGapMs(averageGapMs: number): number {
   return averageGapMs > 25 ? 33 : 0;
