@@ -64,10 +64,6 @@ function state(input: StateInput = {}): PaperAccountState {
   });
 }
 
-function position(quantity: number, markPrice: number): PaperAccountState["positions"][number] {
-  return Object.freeze({ market: "KRW-BTC", quantity, averageEntryPrice: markPrice, realizedPnL: 0, unrealizedPnL: 0, markPrice });
-}
-
 function request(overrides: Partial<CloudPaperRiskRequest> & { readonly state: PaperAccountState }): CloudPaperRiskRequest {
   return Object.freeze({
     path: "STRATEGY",
