@@ -446,7 +446,13 @@ jobs:
             systemctl show caddy -p User,Group,WorkingDirectory 2>&1 | tr '\n' ' '
             echo
             echo "== caddy serves /health locally (5s)"
-            curl -s -m 5 -o /dev/null -w 'local_https_host=%{http_code} remote=%{remote_ip}\n' -k https://127.0.0.1/health -H 'Host: nusa-api.duckdns.org' 2>&1            echo "== caddyfile (full, redacted later)"
+            curl -s -m 5 -o /dev/null -w 'local_https_host=%{http_code} remote=%{remote_ip}\n' -k https://127.0.0.1/health -H 'Host: nusa-api.duckdns.org' 2>&1
+            echo "== SNI-matched local probe through this caddy"
+            curl -s -m 5 -o /dev/null -w 'caddy_local_health=%{http_code}\n' -k --resolve nusa-api.duckdns.org:443:127.0.0.1 https://nusa-api.duckdns.org/health 2>&1
+            echo "== caddyfile line count"
+            wc -l /etc/caddy/Caddyfile 2>&1
+            echo "== public origin comparison (headers only, own domain)"
+            curl -s -m 6 -o /dev/null -D - https://nusa-api.duckdns.org/health 2>&1 | head -6            echo "== caddyfile (full, redacted later)"
             cat /etc/caddy/Caddyfile 2>&1 | head -80
             echo "== listener pids"
             ss -ltnp 2>&1 | grep -E ':(8787|8790|8791|3001|41731|2019) ' | head -10
@@ -478,8 +484,8 @@ jobs:
           set +e
           emit() { local body; body="$(printf '%s' "${2:0:3400}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
           if [ -f "$RUNNER_TEMP/lite.txt" ]; then
-            for n in 1 2 3 4; do
-              s=$(( (n-1)*22 + 1 )); e=$(( n*22 ))
+            for n in 1 2 3 4 5 6; do
+              s=$(( (n-1)*20 + 1 )); e=$(( n*20 ))
               chunk="$(sed -n "${s},${e}p" "$RUNNER_TEMP/lite.txt")"
               [ -n "$chunk" ] && emit "probe-lite-$n" "$chunk"
             done
