@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeIndependentAudit, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
+import { currentDiffEvidenceRefs, executeIndependentAudit, executeIndependentValidator, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest, type ValidatorRunnerRequest } from "./auditRunner";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -90,14 +90,19 @@ function fetchSequence(options: {
 } = {}) {
   const firstRun = options.firstRun ?? run();
   const secondRun = options.secondRun ?? firstRun;
+  const firstPull = options.firstPull ?? pull();
+  const secondPull = options.secondPull ?? firstPull;
+  const fileList = (value: unknown) => Array.from({ length: Number((value as { changed_files?: number }).changed_files ?? 1) }, (_, index) => ({ filename: index === 0 ? "a.ts" : `file-${index}.ts`, status: "modified" }));
   const queue = [
-    response(200, options.firstPull ?? pull()),
+    response(200, firstPull),
     response(200, firstRun),
     ...(needsFallback(firstRun) ? [response(200, options.firstHeadPulls ?? headPulls())] : []),
+    response(200, fileList(firstPull)),
     response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+const safe = true;\n"),
-    response(200, options.secondPull ?? options.firstPull ?? pull()),
+    response(200, secondPull),
     response(200, secondRun),
     ...(needsFallback(secondRun) ? [response(200, options.secondHeadPulls ?? options.firstHeadPulls ?? headPulls())] : []),
+    response(200, fileList(secondPull)),
   ];
   return async () => {
     const next = queue.shift();
@@ -140,6 +145,87 @@ test("validates the immutable read-only audit request contract", () => {
   assert.equal(validated.aiAuthority, "ZERO_AUTHORITY");
 });
 
+test("diff evidence binds deleted lines to the old path and resets at file boundaries", () => {
+  const refs = currentDiffEvidenceRefs([
+    "diff --git a/previous.ts b/previous.ts",
+    "index 1111111..2222222 100644",
+    "--- a/previous.ts",
+    "+++ b/previous.ts",
+    "@@ -1,2 +1,2 @@",
+    "-removed from previous",
+    "+replacement in previous",
+    "diff --git a/deleted/security.ts b/deleted/security.ts",
+    "deleted file mode 100644",
+    "index 3333333..0000000",
+    "--- a/deleted/security.ts",
+    "+++ /dev/null",
+    "@@ -1,2 +0,0 @@",
+    "-removed safety check",
+    "-removed authority guard",
+    "diff --git a/new/module.ts b/new/module.ts",
+    "new file mode 100644",
+    "index 0000000..4444444",
+    "--- /dev/null",
+    "+++ b/new/module.ts",
+    "@@ -0,0 +1,1 @@",
+    "+new module",
+    "",
+  ].join("\n"));
+
+  assert.ok(refs.has("previous.ts:-1"));
+  assert.ok(refs.has("previous.ts:+1"));
+  assert.ok(refs.has("deleted/security.ts:-1"));
+  assert.ok(refs.has("deleted/security.ts:-2"));
+  assert.ok(refs.has("new/module.ts:+1"));
+  assert.ok(!refs.has("previous.ts:-3"));
+});
+
+test("parses mixed quoted and unquoted Git rename paths against exact pull-file metadata", () => {
+  const cases = [
+    {
+      diff: String.raw`diff --git "a/\303\251.ts" b/e.ts
+--- "a/\303\251.ts"
++++ b/e.ts
+@@ -1 +1 @@
+-before
++after`,
+      changedFile: { filename: "e.ts", previousFilename: "é.ts", status: "renamed" as const },
+      previousPath: "é.ts",
+      currentPath: "e.ts",
+    },
+    {
+      diff: String.raw`diff --git a/e.ts "b/\303\251.ts"
+--- a/e.ts
++++ "b/\303\251.ts"
+@@ -1 +1 @@
+-before
++after`,
+      changedFile: { filename: "é.ts", previousFilename: "e.ts", status: "renamed" as const },
+      previousPath: "e.ts",
+      currentPath: "é.ts",
+    },
+  ];
+
+  for (const { diff, changedFile, previousPath, currentPath } of cases) {
+    const refs = currentDiffEvidenceRefs(diff, [changedFile]);
+    assert.ok(refs.has(`${previousPath}:-1`));
+    assert.ok(refs.has(`${currentPath}:+1`));
+  }
+});
+
+test("fails closed when a mixed-quote diff header contains an unsafe path", () => {
+  const diff = String.raw`diff --git "a/\303\251.ts" b/../escape.ts
+--- "a/\303\251.ts"
++++ b/../escape.ts
+@@ -1 +1 @@
+-before
++after`;
+  assert.throws(
+    () => currentDiffEvidenceRefs(diff, [{ filename: "../escape.ts", previousFilename: "é.ts", status: "renamed" }]),
+    /VALIDATOR_REPOSITORY_PATH_INVALID|VALIDATOR_DIFF_PATH_LIST_MISMATCH/,
+  );
+});
+
 test("authenticates every GitHub evidence request without exposing the token", async () => {
   const sequence = fetchSequence();
   const requests: RequestInit[] = [];
@@ -157,6 +243,57 @@ test("authenticates every GitHub evidence request without exposing the token", a
     const headers = init.headers as Record<string, string>;
     assert.equal(headers.Authorization, "Bearer github-token");
   }
+});
+
+for (const candidate of [
+  { name: "tracked TypeScript source", extension: ".ts" },
+  { name: "runtime JavaScript before declaration", extension: ".js" },
+] as const) test(`resolves emitted .js import to ${candidate.name} in exact-head validator context`, async () => {
+  const changedPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.test.ts";
+  const dependencyPath = `apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler${candidate.extension}`;
+  const declarationPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.d.ts";
+  const diff = `diff --git a/${changedPath} b/${changedPath}\n--- a/${changedPath}\n+++ b/${changedPath}\n@@ -1,0 +1,1 @@\n+const portfolio = buildEngineeringWorkPortfolio([]);\n`;
+  const source = 'import { buildEngineeringWorkPortfolio } from "./nusaEngineeringPortfolioScheduler.js";\nconst before = true;\nconst portfolio = buildEngineeringWorkPortfolio([]);\n';
+  const dependency = "export function buildEngineeringWorkPortfolio() { return 'EXACT_TRACKED_TYPESCRIPT_SOURCE'; }\n";
+  const protocol = `NUSA grill-me protocol\n${"Review safety, evidence, exact-head identity and dependencies. ".repeat(8)}`;
+  const validatorRequest: ValidatorRunnerRequest = Object.freeze({
+    kind: "VALIDATOR_REQUEST", repository: request.repository, prNumber: request.prNumber,
+    headSha: HEAD, baseSha: BASE, workflowRunId: request.workflowRunId,
+    executionId: "validator:1362:33450000001", dedupeKey: `validator:1362:${HEAD}`,
+    mutationAllowed: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY",
+  });
+  const promptParts: string[] = [];
+  const fetchImpl = async (input: string) => {
+    const url = new URL(input);
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}`)) return response(200, pull(HEAD, BASE, 1));
+    if (url.pathname.endsWith(`/actions/runs/${request.workflowRunId}`)) return response(200, run());
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}/files`)) return response(200, [{ filename: changedPath, status: "modified" }]);
+    if (url.pathname.includes("/compare/")) return response(200, {}, diff);
+    if (url.pathname.endsWith("/contents/docs/GRILL_ME_PROTOCOL.md")) return response(200, {}, protocol);
+    if (url.pathname.includes("/git/commits/")) return response(200, { tree: { sha: "c".repeat(40) } });
+    if (url.pathname.includes("/git/trees/")) return response(200, { truncated: false, tree: [
+      { type: "blob", path: changedPath }, { type: "blob", path: dependencyPath }, { type: "blob", path: declarationPath },
+    ] });
+    if (url.pathname.endsWith(`/contents/${changedPath}`)) return response(200, {}, source);
+    if (url.pathname.endsWith(`/contents/${dependencyPath}`)) return response(200, {}, dependency);
+    throw new Error(`unexpected GitHub request: ${url}`);
+  };
+  const model = {
+    async run(_name: string, input: unknown) {
+      promptParts.push((input as { prompt: string }).prompt);
+      return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) };
+    },
+  };
+
+  const result = await executeIndependentValidator(validatorRequest, {
+    NUSA_AUDIT_GITHUB_TOKEN: "github-token", AI: model as never,
+  }, fetchImpl as never, () => 1234);
+
+  assert.equal(result.verdict, "PASS");
+  assert.ok(result.evidenceRefs.includes(`github:dependency/${dependencyPath}@${HEAD}`));
+  assert.ok(!result.evidenceRefs.includes(`github:dependency/${declarationPath}@${HEAD}`));
+  assert.match(promptParts[0] ?? "", new RegExp(`EXACT-HEAD DEPENDENCY ${dependencyPath} @ ${HEAD}`));
+  assert.match(promptParts[0] ?? "", /EXACT_TRACKED_TYPESCRIPT_SOURCE/);
 });
 
 test("rejects any repository or production mutation attempt", () => {

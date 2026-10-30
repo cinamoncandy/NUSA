@@ -62,7 +62,8 @@ test("Audit execution is isolated from coding mutation endpoint", () => {
 });
 
 test("independent Audit re-fetches exact PR/head/base/CI and rejects partial diff evidence", () => {
-  assert.equal((auditRunner.match(/verifyCurrentPullAndCi\(request,/g) ?? []).length, 2);
+  const auditExecution = auditRunner.slice(auditRunner.indexOf("export async function executeIndependentAudit"), auditRunner.indexOf("export const AUDIT_PROVIDER"));
+  assert.equal((auditExecution.match(/verifyCurrentPullAndCi\(request,/g) ?? []).length, 2);
   assert.match(auditRunner, /method: "GET"/);
   assert.doesNotMatch(auditRunner, /method: "POST"|method: "PATCH"|method: "PUT"|method: "DELETE"/);
   assert.match(auditRunner, /AUDIT_PR_HEAD_MISMATCH/);
@@ -82,7 +83,7 @@ test("Audit treats repository diff as untrusted data rather than model instructi
 
 test("Audit supplies deterministic current added-line refs without weakening blocker validation", () => {
   assert.match(auditRunner, /BEGIN CURRENT ADDED-LINE EVIDENCE REFS/);
-  assert.match(auditRunner, /\.\.\.\[\.\.\.currentDiffEvidenceRefs\(diff\)\]\.sort\(\)/);
+  assert.match(auditRunner, /\.\.\.\[\.\.\.currentDiffEvidenceRefs\(diff, changedFiles\)\]\.sort\(\)/);
   assert.match(auditRunner, /Never invent or transform an evidenceRef/);
   assert.match(auditRunner, /AUDIT_VERDICT_BLOCKER_EVIDENCE_NOT_CURRENT/);
   assert.match(auditRunner, /!currentRefs\.has\(finding\.evidenceRef\)/);
@@ -168,7 +169,7 @@ test("malformed or unsafe Audit evidence cannot advance Release", () => {
   assert.match(auditJob, /process\.exit\(1\)/);
   assert.match(auditRunner, /AUDIT_VERDICT_KEYS_INVALID/);
   assert.match(auditRunner, /AUDIT_VERDICT_SAFETY_REQUIRES_FAIL/);
-  assert.match(auditRunner, /AUDIT_RUNNER_MUTATION_FORBIDDEN/);
+  assert.match(auditRunner, /RUNNER_MUTATION_FORBIDDEN/);
 });
 
 test("Audit prompt pins finding-code and blocker-list shape to strict validation", () => {
