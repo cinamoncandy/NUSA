@@ -422,6 +422,18 @@ jobs:
             echo "== unit enablement"
             systemctl is-enabled nusa-cloud-paper.service 2>&1
             systemctl is-enabled nusa.service 2>&1
+            echo "== local addresses"
+            hostname -I 2>&1
+            ip -4 -o addr show scope global 2>&1 | awk '{print $2, $4}' | head -5
+            echo "== domain resolution on this host"
+            getent hosts nusa-api.duckdns.org 2>&1 | head -3
+            echo "== local paper runtime probe (3s)"
+            curl -s -m 3 -o /dev/null -w 'http=%{http_code}\n' http://127.0.0.1:41731/health 2>&1
+            echo "== all listening ports"
+            ss -ltn 2>&1 | awk 'NR==1 || $4 ~ /:(80|443|41731|3001)$/' | head -8
+            echo "== caddy unit"
+            systemctl show caddy -p ActiveState,SubState,NRestarts,ExecMainStartTimestamp 2>&1 | tr '\n' ' '
+            echo
           } > "$OUT" 2>&1
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
           redact < "$OUT"
