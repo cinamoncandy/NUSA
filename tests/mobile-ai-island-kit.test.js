@@ -39,3 +39,26 @@ test("the status chip says PAPER in every combination and is lit in exactly one"
   }
   assert.equal(lit, 1);
 });
+
+test("each tab screen has a chip that is grey unless it carries a real live signal", () => {
+  assert.deepEqual(m.liveScreenChip(), { text: "LIVE · 잠김", live: false }, "LIVE never reads as open");
+  assert.deepEqual(m.futuresScreenChip(true, false), { text: "FUTURES · 모의 운영", live: true });
+  assert.equal(m.futuresScreenChip(false, false).live, false);
+  assert.deepEqual(m.futuresScreenChip(true, false, true), { text: "FUTURES · 쉬는 중", live: false }, "a snapshot that has stopped entering is not running");
+  assert.deepEqual(m.futuresScreenChip(true, true), { text: "FUTURES · 예시", live: false }, "sample data is never lit");
+  for (const name of ["PAPER", "LEARN", "MORE"]) assert.equal(m.plainScreenChip(name).live, false);
+});
+
+test("every tab screen sits in the shared shell and its scroll view lets the backdrop show", () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8");
+  for (const [file, chip] of [["liveReadinessMonitorView.tsx", "liveScreenChip\\(\\)"], ["futuresView.tsx", "futuresScreenChip\\("], ["learningView.tsx", "plainScreenChip\\(\"LEARN\"\\)"], ["moreMenuView.tsx", "plainScreenChip\\(\"MORE\"\\)"], ["paperShadowMonitorView.tsx", "plainScreenChip\\(\"PAPER\"\\)"]]) {
+    assert.match(read(file), new RegExp(`<AiShell chip=\\{${chip}`), file);
+  }
+  for (const file of ["liveReadinessMonitorView.tsx", "futuresView.tsx", "learningView.tsx", "moreMenuView.tsx", "paperLearningMonitorView.tsx"]) {
+    assert.match(read(file), /backgroundColor: "transparent"/, `${file} lets the backdrop show`);
+  }
+  assert.match(read("components.tsx"), /if \(inShell\) return/, "NusaCard is glass only inside the shell");
+  assert.match(read("aiKit.tsx"), /<ForceDarkTheme>/, "the shell is always dark, so text never lands dark-on-navy");
+  assert.match(read("futuresScreenModel.ts"), /resting: stopped/);
+});

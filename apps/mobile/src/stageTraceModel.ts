@@ -39,3 +39,22 @@ export function nowStatusChip(input: { readonly stale: boolean; readonly blocked
   if (input.dim || !input.hasDecisionCount) return { text: "PAPER · 확인 중", live: false };
   return { text: "PAPER · 모의 운영", live: true };
 }
+
+export interface AiChip { readonly text: string; readonly live: boolean }
+
+/** 실거래: LIVE has no authority (liveAuthority=NONE), so the chip is always grey and says it is locked; it never reads as open. */
+export function liveScreenChip(): AiChip {
+  return { text: "LIVE · 잠김", live: false };
+}
+
+/** 선물: lit only while the server reports PAPER futures running and still entering; sample data, "not started" and "resting" are grey. */
+export function futuresScreenChip(started: boolean, preview: boolean, resting = false): AiChip {
+  if (preview) return { text: "FUTURES · 예시", live: false };
+  if (!started) return { text: "FUTURES · 시작 전", live: false };
+  return resting ? { text: "FUTURES · 쉬는 중", live: false } : { text: "FUTURES · 모의 운영", live: true };
+}
+
+/** 모의, 학습, 더보기: these screens carry no live signal of their own, so their chip names the screen and stays grey. */
+export function plainScreenChip(name: "PAPER" | "LEARN" | "MORE"): AiChip {
+  return { text: name === "PAPER" ? "PAPER · 모의 증거" : name === "LEARN" ? "LEARN · 학습" : "NUSA · 더보기", live: false };
+}

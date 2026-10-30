@@ -64,6 +64,17 @@ export function ThemeProvider({ children, initialMode = "dark", initialPreset = 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
+/** The island shell is always dark: screens inside it get the dark theme whatever the OS or Settings choose, so their text never lands dark-on-navy. */
+export function ForceDarkTheme({ children }: Readonly<{ children: React.ReactNode }>) {
+  const outer = useContext(ThemeContext);
+  const value = useMemo(() => {
+    if (!outer) return null;
+    return Object.freeze({ ...outer, mode: "dark" as const, theme: createTheme("dark", outer.preset) });
+  }, [outer]);
+  if (!value) return <>{children}</>;
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+}
+
 export function useTheme(): ThemeContextValue {
   const value = useContext(ThemeContext);
   if (!value) throw new Error("useTheme must be used inside ThemeProvider");
