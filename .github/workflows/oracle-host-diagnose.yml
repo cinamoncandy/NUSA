@@ -20,6 +20,11 @@ on:
         required: false
         default: false
         type: boolean
+      lite_probe:
+        description: "true = DIAGNOSTIC BRANCH ONLY. One tiny read-only step: disk headroom, leftover probe copy removal, unit active states, /etc/nusa names, listening ports, state db stat. No du, no hashing, no journal scan, no database copy."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -37,7 +42,7 @@ jobs:
       HEALTH_PROBE_BASENAME: nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - name: Disk, memory and state files
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' && inputs.lite_probe != true && inputs.lite_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -52,7 +57,7 @@ jobs:
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' && inputs.lite_probe != true && inputs.lite_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -99,7 +104,7 @@ jobs:
             echo "HEALTH_PROBE_UNAVAILABLE"
           fi
       - name: Publish the same read-only findings as job annotations
-        if: ${{ inputs.state_probe != true && inputs.state_probe != 'true' }}
+        if: ${{ inputs.state_probe != true && inputs.state_probe != 'true' && inputs.lite_probe != true && inputs.lite_probe != 'true' }}
         # The job log is only downloadable from GitHub's blob storage; annotations are readable through the REST API, so a
         # session without blob access (and the owner on a phone) can read the outcome. Same redaction, bounded size.
         shell: bash
@@ -142,7 +147,7 @@ jobs:
           emit "diag-autopilot-log" "$autopilot"
       # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
       - name: Disk consumers (read-only, after the health probe)
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' && inputs.lite_probe != true && inputs.lite_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -165,7 +170,7 @@ jobs:
       # each release bundle is extracted, was missing from diagnosis 39357215278). Candidates are measured one at a time with their own
       # hard limit, lowest I/O priority, read-only; an unreadable or timed-out directory is named, never guessed.
       - name: Disk consumers by directory (read-only, one at a time)
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' && inputs.lite_probe != true && inputs.lite_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -388,3 +393,42 @@ jobs:
             body="$(redact < "$f")"
             emit "probe-$name" "$body"
           done
+      - name: Lite probe - headroom, cleanup, unit identity
+        if: ${{ inputs.lite_probe == true || inputs.lite_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/lite.txt"
+          {
+            echo "time=$(date -u +%FT%TZ)"
+            echo "host=$(hostname)"
+            echo "== headroom"
+            df -h / /opt /var/lib/nusa /var/backups/nusa 2>&1 | sort -u
+            echo "== leftover probe copy"
+            if [ -e "$RUNNER_TEMP/dbcopy" ]; then du -sh "$RUNNER_TEMP/dbcopy" 2>&1; rm -rf "$RUNNER_TEMP/dbcopy"; echo "removed=1"; else echo "no_leftover_copy"; fi
+            echo "== runner temp entries"
+            ls -la "$RUNNER_TEMP" 2>&1 | head -8
+            echo "== active state per unit"
+            for unit in nusa nusa-cloud-paper nusa-autopilot nusa-github-mcp nusa-mcp nusa-mcp-composer nusa-upbit-readonly caddy; do
+              printf '%s=%s ' "$unit" "$(systemctl is-active "$unit" 2>&1)"
+            done
+            echo
+            echo "== /etc/nusa entries"
+            ls -1 /etc/nusa 2>&1 | head -10
+            echo "== listening 41731/3001"
+            ss -ltn 2>&1 | grep -E ':41731|:3001' | head -5
+            echo "== state db stat"
+            stat -c '%n size=%s mtime=%y' /var/lib/nusa/state.sqlite 2>&1
+            echo "== unit enablement"
+            systemctl is-enabled nusa-cloud-paper.service 2>&1
+            systemctl is-enabled nusa.service 2>&1
+          } > "$OUT" 2>&1
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          redact < "$OUT"
+      - name: Lite probe - publish annotation
+        if: ${{ inputs.lite_probe == true || inputs.lite_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          emit() { local body; body="$(printf '%s' "${2:0:3400}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          if [ -f "$RUNNER_TEMP/lite.txt" ]; then emit "probe-lite" "$(sed -E 's/[0-9a-fA-F]{32,}/[hex]/g' < "$RUNNER_TEMP/lite.txt")"; fi
