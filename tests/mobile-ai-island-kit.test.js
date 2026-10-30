@@ -51,7 +51,7 @@ test("each tab screen has a chip that is grey unless it carries a real live sign
 
 test("every tab screen sits in the shared shell and its scroll view lets the backdrop show", () => {
   const fs = require("node:fs"), path = require("node:path");
-  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8");
+  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8").replace(/\r\n/g, "\n");
   for (const [file, chip] of [["liveReadinessMonitorView.tsx", "liveScreenChip\\(\\)"], ["futuresView.tsx", "futuresScreenChip\\("], ["learningView.tsx", "plainScreenChip\\(\"LEARN\"\\)"], ["moreMenuView.tsx", "plainScreenChip\\(\"MORE\"\\)"], ["paperShadowMonitorView.tsx", "plainScreenChip\\(\"PAPER\"\\)"]]) {
     assert.match(read(file), new RegExp(`<AiShell chip=\\{${chip}`), file);
   }
@@ -61,4 +61,15 @@ test("every tab screen sits in the shared shell and its scroll view lets the bac
   assert.match(read("components.tsx"), /if \(inShell\) return/, "NusaCard is glass only inside the shell");
   assert.match(read("aiKit.tsx"), /<ForceDarkTheme>/, "the shell is always dark, so text never lands dark-on-navy");
   assert.match(read("futuresScreenModel.ts"), /resting: stopped/);
+});
+
+test("tab changes and rolling digits use the one island motion rule", () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8").replace(/\r\n/g, "\n");
+  const tab = read("tabTransition.tsx");
+  assert.match(tab, /aiIslandMotion\.transitionMs/);
+  assert.match(tab, /Easing\.bezier\(\.\.\.aiIslandMotion\.curve\)/);
+  const kit = read("instrumentKit.tsx");
+  assert.match(kit, /key=\{`d\$\{chars\.length - 1 - i\}`\}/, "a digit keeps its place, so a change rolls from the old digit instead of restarting at 0");
+  assert.doesNotMatch(kit, /y\.setValue\(0\);\n\s*const anim/, "no reset to zero before rolling");
 });
