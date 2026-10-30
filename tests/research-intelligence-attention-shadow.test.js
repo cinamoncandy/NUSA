@@ -17,46 +17,57 @@ const {
 const {
   createResearchIntelligenceRecord,
 } = require("../dist/packages/contracts/src/researchIntelligence.js");
+const {
+  fetchResearchIntelligenceSourceCapture,
+  deriveCanonicalArxivInterpretation,
+  issueResearchIntelligenceSourceVerificationReceipt,
+} = require("../dist/packages/contracts/src/researchIntelligenceVerificationInternal.js");
+const { createHash } = require("node:crypto");
 
 const ENABLED = { NUSA_JEV_RESEARCH_ATTENTION_SHADOW_ENABLED: "true" };
 const DISABLED = {};
 const NOW_ISO = "2026-09-26T00:00:00.000Z";
+const RAW_SOURCE = "<entry><id>http://arxiv.org/abs/2603.29086v1</id><published>2026-03-30T17:55:21Z</published><title>Realistic Market Impact Modeling for Reinforcement Learning Trading Environments</title><summary>We add nonlinear market impact and transaction cost models to reinforcement learning trading.</summary><author><name>NUSA Test</name></author></entry>";
+let sourceCapture;
+test.before(async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(`<feed>${RAW_SOURCE}</feed>`);
+  try {
+    sourceCapture = await fetchResearchIntelligenceSourceCapture(
+      "https://export.arxiv.org/api/query?id_list=2603.29086",
+      "ARXIV_API_V1",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 function record(overrides = {}) {
-  return createResearchIntelligenceRecord({
+  const rawContent = RAW_SOURCE;
+  const interpretation = deriveCanonicalArxivInterpretation(
+    "Realistic Market Impact Modeling for Reinforcement Learning Trading Environments",
+    "We add nonlinear market impact and transaction cost models to reinforcement learning trading.",
+  );
+  const unverified = createResearchIntelligenceRecord({
     sourceId: "arxiv:2603.29086",
     sourceType: "ARXIV",
     sourceUrl: "https://arxiv.org/abs/2603.29086",
-    sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+    sourceVerification: "UNVERIFIED",
     title: "Realistic Market Impact Modeling for Reinforcement Learning Trading Environments",
     authors: ["NUSA Test"],
     publishedAt: "2026-03-30T17:55:21.000Z",
-    discoveredAt: "2026-09-20T03:50:00.000Z",
-    rawContentSha256: "a".repeat(64),
-    topic: ["market-microstructure"],
-    market: "UNSPECIFIED",
-    timeframe: "UNSPECIFIED",
-    method: "order-book-modeling",
+    discoveredAt: sourceCapture.capturedAt,
+    rawContentSha256: createHash("sha256").update(rawContent).digest("hex"),
+    ...interpretation,
     claimedContribution:
       "We add nonlinear market impact and transaction cost models to reinforcement learning trading.",
-    testableHypothesis:
-      "Under canonical point-in-time cost-aware validation, the directional effect remains observable.",
-    assumptions: ["External claims are not canonical NUSA evidence."],
-    requiredData: ["Canonical point-in-time market data."],
-    codeAvailable: "UNKNOWN",
-    datasetAvailable: "UNKNOWN",
-    reproducibilityStatus: "NOT_ATTEMPTED",
-    evidenceQuality: "PRIMARY_SOURCE_CLAIM_ONLY",
-    nusaRelevance: "HIGH",
-    implementationCost: "UNKNOWN",
-    expectedEconomicValue: "UNKNOWN",
-    leakageRisk: "UNKNOWN",
-    overfittingRisk: "UNKNOWN",
-    regimeDependence: "UNKNOWN",
-    transactionCostSensitivity: "UNKNOWN",
-    validationStatus: "SOURCE_VERIFIED",
+    validationStatus: "DISCOVERED",
     ...overrides,
   });
+  if (unverified.sourceId !== "arxiv:2603.29086"
+    || unverified.sourceUrl !== "https://arxiv.org/abs/2603.29086"
+    || unverified.rawContentSha256 !== createHash("sha256").update(rawContent).digest("hex")) return unverified;
+  return issueResearchIntelligenceSourceVerificationReceipt(unverified, sourceCapture, rawContent);
 }
 
 function collectorFor(records, sourceId = "arxiv") {
@@ -333,7 +344,7 @@ test("I: LOW relevance REVIEW_SOON does not create AXIOM handoff", async () => {
 
 // J. HIGH with DEFER keeps #2124 handoff
 test("J: HIGH relevance DEFER keeps #2124 AXIOM handoff", async () => {
-  const rec = record({ rawContentSha256: "d".repeat(64) });
+  const rec = record();
   const plain = await new ResearchIntelligenceScout([collectorFor([rec])]).run();
   const observer = observerFor({ decision: "DEFER", confidence: 0.85, reasonCode: "DEFER_COST" });
   const shadowed = await new ResearchIntelligenceScout([collectorFor([rec])], undefined, {

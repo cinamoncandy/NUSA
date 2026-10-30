@@ -12,6 +12,256 @@ current_learning_identity_failure_20261014:
   issue: 2589
   next: "Persist actual post-close identity failure using existing ledger; no claimed cycle completion."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_arxiv_entry_binding_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 46eb5ef73ad7e7b7d2930461df712c91ae3c8f0c
+  finding: "Fresh exact-head review found the source verifier accepted a target arXiv ID substring as rawContent while allowing unbound title, publication time, and contribution metadata. Verification now requires the complete exact entry, validates all trust-bearing record fields against parsed source content, and binds the source-entry projection fingerprint into the authenticated receipt and persisted-record check."
+  validation: "Node 24.19 preflight and required local gates previously passed; on this repair, focused Research Intelligence tests 6/6, Scout/attention tests 26/26, build, validate:full, security:gate, lint (45 existing warnings/0 errors), full pnpm test (1284 isolated test files), and git diff check PASS. Exact-head CI and successor review pending."
+  next: "Confirm protected main and PR/remote branch identity, commit and non-force push this substantive repair to the existing PR, then require exact-successor CI and fresh non-author review. Formal NUSA Validator remains separate. Keep Draft; no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_canonical_source_binding_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_FULL_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4c8d02212284752804f4c9c42b59ed1656836e9
+  finding: "Fresh review found that allowlisted sourceVerification values could still be caller-selected at news PIT binding. Binding now accepts only a canonical source record ID and injected reader; SQLite resolution validates stored row identity and semantic provenance before returning the source record."
+  validation: "Node 24.19 TypeScript compile and focused contracts/storage tests 19/19 PASS. Full preflight/build/typecheck/validate:full/security/lint/full test suite and exact-head CI are pending."
+  next: "Complete required local gates, verify current protected main and PR identity, commit substantive source/tests/AIPOS repair to the existing branch, then obtain exact-head CI and fresh non-author review. Formal Validator remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_canonical_source_binding_validated_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4c8d02212284752804f4c9c42b59ed1656836e9
+  finding: "Fresh review found caller-selectable source verification labels at crypto-news PIT binding. The binder now resolves only a canonical persisted Research Intelligence ID through the SQLite store, with row identity and semantic provenance checked before binding."
+  validation: "Node 24.19 preflight PASS; focused Research Intelligence and external intake tests 19/19 PASS; build/typecheck/validate:full/security:gate PASS; lint PASS with 45 warnings and 0 errors; pnpm test PASS (1281 isolated test files); diff check PASS."
+  next: "Commit the substantive repair to the existing PR branch after fresh remote identity check; obtain successor exact-head CI and fresh non-author review, then separate formal Validator. Production Scout composition and genuine Research/PAPER outcome remain unverified."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_canonical_store_binding_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_FULL_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: c007a0d2fae8c8769322df010263bc93cc3f82f1
+  finding: "Fresh exact-head review found the injected reader still caller-forgeable. The contracts package no longer exports news PIT promotion; only the canonical SQLite Research Intelligence repository resolves a source record ID internally and verifies its persisted row plus semantic provenance before binding."
+  validation: "Node 24.19 TypeScript compile PASS. Focused/full gates pending for this successor."
+  next: "Run focused and required local gates; confirm PR/main identity; publish one substantive non-force successor; obtain exact-head CI and fresh independent review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_canonical_store_binding_local_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: c007a0d2fae8c8769322df010263bc93cc3f82f1
+  finding: "The caller-supplied reader P1 was closed by removing trust-promoting contract exports; the canonical SQLite Research Intelligence repository now accepts only a source record ID and validates persisted row plus semantic provenance internally."
+  validation: "Node 24.19 preflight, focused contracts 15/15, Research Intelligence storage 4/4, build, typecheck, validate:full, security:gate, lint (45 warnings/0 errors), pnpm test (1281 isolated test files), AIPOS drift/provenance, and git diff --check PASS."
+  next: "Confirm remote branch identity, publish one substantive non-force successor commit, then obtain exact-head CI and fresh non-author review. Formal NUSA Validator remains separate; production Scout composition and genuine Research/PAPER outcome remain unverified."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_capture_clock_and_auth_carry_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: ab530a26d5171101ef201a737f9bc061c984ea53
+  finding: "Fresh exact-head review found caller-injected collector time could backdate canonical arXiv capture, and generic authentication carry could preserve trust after changing unbound hypothesis, relevance, evidence-quality, assumption, or required-data fields."
+  fix: "The canonical HTTPS fetch stamps capturedAt after reading the complete response; issuer and record discoveredAt bind to that opaque timestamp. Authentication carry now compares the complete record projection and allows only canonical relation/handoff metadata deltas, rejecting interpretation-field changes even with recomputed public semantic fingerprints."
+  validation: "Node 24.19 preflight, typecheck, validate:full, security:gate, lint (45 existing warnings/0 errors), build, focused Research Intelligence tests 34/34, full pnpm test (1284 isolated test files), and git diff check PASS. Successor exact-head CI and fresh review pending."
+  next: "Recheck protected main and PR/remote branch identity, commit and non-force push the substantive repair to existing PR #2878, then require exact-successor CI and fresh non-author review. Formal NUSA Validator remains separate; keep Draft; no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_chronology_and_canonical_precommit_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATION_PENDING_EXACT_HEAD_CI_AND_FRESH_REVIEW
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: b028337047048180e01ab40208ca065cc18fb2a5
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  findings: "Fresh exact-head review on predecessor b0283370 found recapture could replace first-seen chronology and break source receipt binding, direct caller-constructed crypto-news precommits could be stored without canonical PIT binding, and publicationDate accepted arbitrary non-timestamp text."
+  fixes: "Fresh canonical arXiv capture now authenticates unchanged source bytes while an internal rebind preserves durable first-discovery chronology and the original relation decision; caller-forged news precommits are rejected unless the exact object came from the canonical persisted-memory binder; non-UNKNOWN publicationDate must be a strict timezone-bearing, calendar-valid timestamp."
+  validation: "Focused changed-file TypeScript compilation PASS; focused contracts/storage/research-intelligence tests 35/35 PASS; preflight PASS; validate:full PASS; git diff --check PASS. Full build/typecheck/lint could not run because this checkout lacks local TypeScript/ESLint package links; existing security:gate fails only at the license metadata check (41/991 locked package metadata entries available, 854 absent). No gate was weakened. This uncommitted successor has no exact-head CI or review yet."
+  next: "Refresh protected main, PR #2878 and its branch head; if unchanged and canonical, commit this source/test/evidence/state/work-order/handoff change and non-force push only to the existing Draft PR. Then require exact-successor CI/companions and one fresh non-author review. Keep Formal Validator, Audit, Release, merge, deployment and Oracle runtime acceptance separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_duplicate_classification_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 088a3b9a18cdd68eae983ecb94d9961317df9853
+  finding: "Fresh exact-head review found that recapturing an already durable DUPLICATE Research Intelligence record with default NEW relation metadata could restore source authentication while replacing the durable duplicate relation and related-record lineage in the current-process trust projection."
+  fix: "The canonical SQLite repository now restores authentication while preserving durable DUPLICATE classification, related-record lineage, and DUPLICATE_SUPPRESSED handoff state on both append and read resolution. Source recapture authenticates bytes only and cannot change the stored relation decision."
+  validation: "Node 24.19 preflight, build, focused Research Intelligence memory tests 10/10, typecheck, validate:full, security:gate, lint (45 existing warnings/0 errors), full pnpm test (1284 isolated test files), and git diff --check PASS."
+  next: "Recheck current protected main and PR/remote head; publish one substantive non-force successor to existing Draft PR #2878, then require exact-head CI/companions and a fresh non-author review. Formal NUSA Validator remains separate. No Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_final_local_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 186cbcf7ed2163404c7f1ce3bf31650d74d5967e
+  finding: "Exact-head review found placeholder dataset/PIT/OOS identities and non-canonical replication receipts."
+  fix: "Strategy and news precommit paths reject UNKNOWN/N/A dataset and policy identities; receipt verification reconstructs canonical fields before accepting its fingerprint."
+  validation: "Final source tree: Node 24.19 preflight; contracts 15/15; storage 4/4; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1281 isolated files); AIPOS YAML/drift/provenance and git diff checks PASS."
+  next: "Commit/push one substantive successor to the existing Draft PR; await exact-head CI and fresh non-author review. Formal Validator remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_news_precommit_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FRESH_REVIEW
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 987f24b97d09573c4d6c1a31227426e8dd009e15
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  findings: "Fresh review found repeated crypto-news intake could create multiple durable precommits for one experiment when createdAt changed; inherited PIT/OOS policy identifiers could satisfy plan validation; uppercase source SHA could produce a second news experiment identity."
+  fixes: "Reuse the original durable crypto-news precommit by experiment identity while rejecting changes to authority-bearing content; require PIT/OOS policy values to be own properties; lowercase source SHA before news identity and persistence."
+  validation: "Focused TypeScript compile PASS; changed contract/storage tests 35/35 PASS; preflight PASS; validate:full PASS; git diff --check pending final run. Local security:gate audit found dependency metadata for only 41 of 991 locked packages (854 missing); license gate cannot be established locally and was not weakened. New exact-head CI and fresh non-author review are pending."
+  next: "Recheck current protected main, PR #2878, and canonical branch; commit and non-force push only to that existing Draft PR after all local validations. Inspect new exact-head CI and companion workflows, then request one fresh non-author review. Keep Formal Validator, Audit, Release, merge, deployment, and Oracle runtime acceptance separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_parent_storage_key_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: b0f279ab38add287cc09c6ed54ce30dd3f41a30c
+  finding: "Variant lineage parent lookup also needed to bind the canonical row primary key to the original payload fingerprint."
+  fix: "Canonical parent resolution now checks stored row key, verified parent fingerprint, exact original spec, and exact parent precommit; write and read reject orphan or mismatched-key rows."
+  validation: "Node 24.19 preflight; focused contracts/storage 19/19; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1282 isolated files); AIPOS YAML/drift/provenance and git diff checks PASS."
+  next: "Fresh verify PR/main identity, publish a substantive non-force successor, then obtain exact-head CI and fresh non-author review. Formal NUSA Validator is separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_persisted_variant_parent_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 0d43f3de0b8eb737d72a8630574f37a9d2d7f5cd
+  finding: "Fresh exact-head review found that a caller-provided original spec and syntactically valid variantOf could authorize an orphan descendant without a persisted canonical parent."
+  fix: "Bind the exact original ResearchPrecommit into variant lineage; canonical SQLite create and get now verify the exact persisted original spec/precommit and fail closed on orphan writes and legacy orphan reads."
+  validation: "Node 24.19 preflight; focused contract/storage 18/18; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1282 isolated files); final receipt-orphan focused regression/build and git diff checks PASS."
+  next: "Fresh verify PR/main identity, publish one substantive non-force successor, then exact-head CI and fresh non-author review. Formal NUSA Validator is separate; Draft/Audit/Release/merge and Oracle changes remain prohibited."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_placeholder_identity_repair_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: IMPLEMENTED_PENDING_FULL_LOCAL_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 186cbcf7ed2163404c7f1ce3bf31650d74d5967e
+  finding: "Fresh review found placeholder dataset and PIT/OOS policy IDs could satisfy presence checks, and receipt verification did not enforce canonical casing/whitespace/order."
+  fix: "Require known non-placeholder identifiers and reconstruct the canonical receipt during verification; add placeholder and recomputed-fingerprint tampering regressions."
+  validation: "Focused contract tests 15/15 and Research Intelligence storage tests 4/4 PASS. Full local gates pending."
+  next: "Complete full local gates, verify PR/main identity, publish a substantive non-force successor, then obtain exact-head CI and fresh independent review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_placeholder_identity_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 186cbcf7ed2163404c7f1ce3bf31650d74d5967e
+  finding: "Fresh exact-head review found placeholder dataset/PIT/OOS identities and non-canonical receipt verification."
+  fix: "Require known non-placeholder dataset, policy, and evaluator identifiers; reconstruct and compare canonical receipt form before accepting its fingerprint."
+  validation: "Node 24.19 preflight; focused contracts 15/15; storage 4/4; build/typecheck; validate:full; security:gate; lint (45 warnings/0 errors); pnpm test (1281 isolated files); AIPOS and diff checks PASS."
+  next: "Confirm the existing PR and base identity; publish one substantive non-force successor; obtain exact-head CI and fresh non-author review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_recapture_taxonomy_identity_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_REPOSITORY_GATES
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: e630650b9be3c8129a6661dc7fd35e7800d03e9a
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  finding: "Fresh review found recapture could relabel durable novelty, inherited taxonomy/plans could pass but disappear during JSON serialization, and news experiment identity omitted source SHA and validation policy identity."
+  fix: "Preserve durable classification/lineage/handoff state on every recapture; require own taxonomy properties and canonical plain plans; bind source SHA and validation policy identity into experiment identity."
+  validation: "Focused TypeScript compile PASS; focused contract/storage tests 27/27 PASS; git diff check PASS. Full repository build/typecheck awaits dependency tree repair (typescript, node, ws, vitest, react packages are incomplete locally); exact-head CI still required."
+  next: "Complete available repository gates, then non-force push the successor to existing Draft #2878 and wait for exact-head CI plus fresh non-author review. Formal Validator/Audit/Release/merge/deployment remain separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_repeat_capture_dedup_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: fdc4269faee64b5008950171c28e34a1d7c924f5
+  finding: "Fresh review on the prior exact head also identified that repeat captures of the same source/spec changed sourceObservedAt and createdAt, yielding a different precommit fingerprint for the same experimentIdentity and allowing duplicate evaluation authority."
+  fix: "Strategy precommit experiment identity now includes source SHA and validation policy; the canonical SQLite precommit repository reuses the earliest durable precommit for the same experiment identity only when execution-authority projections match, and fails closed on conflicts. Capture chronology remains provenance and the original immutable receipt is retained."
+  validation: "Node 24.19 preflight, build/typecheck, focused contract/storage regressions 22/22, validate:full, security:gate, lint (45 existing warnings/0 errors), full pnpm test (1,284 isolated test files), and git diff check PASS."
+  next: "Publish one substantive non-force successor to PR #2878; require exact-head CI and fresh non-author review. Keep Draft; separate Formal NUSA Validator, no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_source_authentication_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_FULL_SUITE_AND_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4394b25bfda06f5807193eddeedcb70e234e4d7
+  finding: "Fresh exact-head review found caller-created VERIFIED_PRIMARY_SOURCE / SOURCE_VERIFIED records could be persisted and bound to PIT without authenticating the source capture. Public creation now rejects those taxonomy values; canonical verification fetches an opaque arXiv response capture, binds the exact entry bytes and response hash, and SQLite append/read revalidate authenticated receipt and canonical record reconstruction."
+  validation: "Node 24.19 preflight, build/typecheck, validate:full, security:gate, lint (45 existing warnings/0 errors), focused Research Intelligence/Scout/contract tests 48/48, and git diff --check PASS. Full pnpm test had one stale fixture failure because it expected caller-selected SOURCE_VERIFIED; fixture corrected and affected tests PASS, full suite rerun pending."
+  next: "Rerun full pnpm test, then publish one substantive non-force successor to the existing PR and require exact-head CI plus fresh non-author review. Formal NUSA Validator remains separate; no Draft/governance/release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_source_authentication_full_validated_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: f4394b25bfda06f5807193eddeedcb70e234e4d7
+  finding: "Caller-forged trusted Research Intelligence taxonomy could be persisted and bound to news PIT. Canonical source capture now owns the HTTPS fetch and opaque capture capability; SQLite append requires authenticated capture, and persisted reads verify receipt and canonical record reconstruction."
+  validation: "Node 24.19 preflight; build; typecheck; validate:full; security:gate; lint (45 existing warnings/0 errors); focused Research Intelligence/Scout/contract tests 48/48; pnpm test PASS (1,282 isolated test files); git diff --check PASS."
+  next: "Verify protected main and existing remote branch identity, publish one substantive non-force successor, then obtain exact-head CI and fresh non-author review. Formal Validator remains separate; no Draft/governance/release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_taxonomy_parent_binding_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 7969db661b45c3068480afe76eb4a3e1103cf59d
+  finding: "Fresh exact-head review found two P1s: caller-forged Research Intelligence taxonomy values could be reconstructed into trusted source/evidence fields, and variantOf accepted an arbitrary SHA without binding a verified original parent. Canonical record creation now validates all runtime taxonomy allowlists; variants require a verified matching ORIGINAL_STRATEGY parent, which is retained in and revalidated from the immutable precommit. Receipt verification also binds the receipt dataset identity to that precommit."
+  validation: "Focused Research intake 15/15 PASS; pnpm build PASS; Node 24.19 pnpm run preflight PASS; pnpm run typecheck PASS; pnpm run validate:full PASS; pnpm run security:gate PASS; pnpm run lint PASS (45 existing warnings, 0 errors); pnpm test PASS (1281 isolated test files); git diff --check PASS. Exact-head CI/review for this successor pending."
+  next: "Confirm the existing PR 2878 remote branch remains at predecessor 7969db661b45c3068480afe76eb4a3e1103cf59d, commit the substantive repair and AIPOS evidence, push non-force, then obtain exact-successor CI and fresh non-author review/Validator. Keep Draft; no Audit/Release/merge or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_trust_boundary_repairs_20261026:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 7253e3a4bd1540524a1d0bf939c6dde3554a5a01
+  protected_main: 235b9bb3b538d411002933f0b84dfa59f14a8564
+  findings: "Fresh exact-head review at 088a3b9a18cdd68eae983ecb94d9961317df9853 found that a variant could embed an equivalent but unpersisted parent precommit, strategy precommit verification accepted a noncanonical regimePlan, and crypto-news observation identity retained unknown runtime keys."
+  fixes: "Variant admission now requires the exact persisted original precommit; adapter verification requires the canonical empty regimePlan; observation identity rejects unknown own string and symbol keys. Regression tests cover all three. The rebased tree preserves the remote durable duplicate classification/read-time guard."
+  validation: "Node 24.18 preflight, build, typecheck, validate:full, security:gate, lint (45 existing warnings, 0 errors), focused contract/storage tests 35/35, full pnpm test (1,284 isolated test files), AIPOS YAML/drift/conformance, and git diff --check PASS. The initial Electron 42.11.18 download timeout was resolved by installing the official release; no tests were skipped."
+  next: "Verify current protected main and PR #2878 head, commit and non-force push the validated successor to the existing Draft PR, then require exact-head CI/companions and fresh non-author review. Formal Validator is separate; no Audit/Release/merge/Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_intake_unused_import_ci_repair_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_REPAIR_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 3f79b8d1412eade7f566713eefca6d03a5e23de9
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  exact_head_ci: "Run 40490299965 and companion runs on exact head 3f79b8d1412eade7f566713eefca6d03a5e23de9; actual-paper-runtime and discover-public-research failed in strict TypeScript compilation because the replaced carryResearchIntelligenceSourceAuthentication import was unused. Their artifact-not-found errors were downstream of compilation stopping. Other observed jobs were still running or successful at inspection."
+  fix: "Removed the unused import; no runtime logic change."
+  validation: "Changed-file TypeScript compile with noUnusedLocals/noUnusedParameters PASS; focused contracts/storage/research-intelligence tests 35/35 PASS; preflight PASS; validate:full PASS; git diff --check PASS. Full package build/typecheck/lint remain locally unavailable because TypeScript/ESLint links are absent; security:gate license-metadata limitation is unchanged and was not weakened."
+  next: "Refresh origin/main, PR #2878 and remote branch. If base/head remain e7f8a426/3f79b8d1 and canonical, commit and non-force push this one-line cleanup to the same Draft #2878. Verify exact-head CI/companions terminally, then request one fresh non-author review. Do not advance Formal Validator, Audit, Release, merge, deployment, or Oracle runtime acceptance."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_parameter_boundary_20261013:
   work_order: WO-LEARNING-20261013-STRATEGY-PARAMETER-BOUNDARY
   status: LOCAL_VALIDATED_PENDING_CI
@@ -4008,6 +4258,37 @@ current_research_failure_reasons:
   owner_approval: "2026-10-07 in chat (master directive section 14; reply '해')"
   finding: "Non-winning Research validations are now counted under one bounded failure reason derived from ledger evidence; repeat detection against earlier runs is the follow-up"
 
+current_strategy_replication_intake_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  validation: "PR 2878 head 33b89e1952c1d819e9765bb5e85f2c99634a70d2 exact-head CI and companion workflows PASS; fresh Codex review 5643319844 found P1: malformed optional StrategySpec metadata (e.g. sourceCodeAvailable and publicationDate) could survive identity recomputation, and P2: transmissionChannels lacked canonical trim/dedupe/sort. Local successor rejects malformed optional scalar/enums/arrays/records before precommit reconstruction, canonicalizes metadata lists and news channels, and adds forged-identity and normalization regressions. Node 24.19 preflight, focused intake 13/13, build, typecheck, validate:full, security:gate, lint (45 existing warnings, 0 errors), pnpm test (1281 isolated test files), and git diff --check PASS. This successor's exact-head CI and independent review are pending; generated docs/audits outputs are excluded."
+  next: "Commit and publish the locally validated metadata-boundary repair to existing Draft PR 2878 once after confirming the remote head, then obtain successor exact-head CI and fresh non-author review/Validator. Formal NUSA Validator, production Scout/store wiring, and genuine Research/PAPER outcomes remain unverified."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_replication_review_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 72bb17b87ccdc952a8f44e727b975ea5716b05bc
+  review: "Fresh Codex review on predecessor found P1s for non-string/malformed provenance timestamps and placeholder fee/slippage assumptions, plus P2 for evidence fields lost by canonical JSON. The branch now requires timezone-bearing ISO timestamps, known cost assumptions, and non-empty canonical evidence records; undefined, sparse arrays, accessors, cycles, and non-JSON values fail closed."
+  validation: "Node 24.19 preflight PASS; focused Research intake 14/14 PASS; build/typecheck/validate:full/security:gate/lint PASS (45 existing warnings, 0 errors); pnpm test PASS (1281 isolated files); final build + focused tests on latest source PASS; git diff --check PASS."
+  next: "Confirm PR 2878 remote head still equals predecessor, commit source/tests/AIPOS together, push non-force to existing Draft PR, then obtain exact-successor CI and fresh non-author review/Validator. Do not self-approve or advance governance gates."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_timestamp_hardening_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 66601c752e34399ab2b6733ea00f49239451482b
+  finding: "Date.parse normalizes an impossible calendar date such as 2026-02-30 into a later valid date. Timestamp provenance now checks timezone-bearing ISO syntax, Gregorian calendar day/month/leap-year validity, clock fields, and parseability before PIT chronology admission."
+  validation: "Node 24.19 preflight, focused Research intake tests 14/14, build, AIPOS drift/conformance/provenance, and git diff --check PASS. Full pnpm test (1281 isolated files), typecheck, validate:full, security:gate, and lint passed immediately before this calendar-specific refinement; exact-head CI for the successor remains required."
+  next: "Commit with regression and AIPOS update, push non-force to existing PR 2878, await exact-head CI/companions, then fresh non-author review. Formal Validator remains separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
 current_strategy_validation_20261016:
   work_order: WO-RESEARCH-20261016-A-GRADE-VALIDATION
   status: FIRST_GATE_COMPLETENESS_LOCAL_VALIDATED
@@ -4016,6 +4297,17 @@ current_strategy_validation_20261016:
   evidence: "Code6f6a6c6d;3 red regressions reproduced then18 focused tests and1231 isolated files PASS. Build/typecheck/validate:full/security/lint PASS24 existing warnings. Fresh committed-head pre-Audit review PASS_WITH_NOTES0/0/0; not whole A-grade approval."
   a_grade_acceptance: UNVERIFIED
   next: "Finish exact-head gate repair; extend existing Research Factory policy/precommit/receipt identity next, no new engine or fabricated statistical/PAPER evidence."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+current_strategy_window_boundary_hardening_20261025:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: ab65dea11a23d7046b0d38bf7a5ade7291bf16d0
+  finding: "PIT/OOS timeWindowBounds used permissive Date.parse, which accepts timezone-ambiguous/date-only values and normalizes impossible calendar dates. Window bounds now reuse the strict timezone-bearing calendar-valid timestamp validator; regressions reject February 30, timezone-less timestamps, and date-only strings."
+  validation: "Node 24.19 pnpm preflight PASS; focused Research intake 14/14 PASS; build PASS; validate:full PASS; security:gate PASS; lint PASS (45 pre-existing warnings, 0 errors); pnpm test PASS (1281 isolated files); git diff --check PASS. Prior ab65dea exact-head workflows are historical after this source change."
+  next: "Commit substantive source/test/AIPOS repair and push non-force to existing Draft PR 2878 after remote-head check. Obtain successor exact-head CI and fresh non-author review; Formal NUSA Validator remains separate."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 current_ui_app_icon_flow:

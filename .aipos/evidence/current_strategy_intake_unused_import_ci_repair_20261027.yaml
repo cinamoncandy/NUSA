@@ -1,0 +1,12 @@
+current_strategy_intake_unused_import_ci_repair_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_REPAIR_VALIDATED_PENDING_SUCCESSOR_EXACT_HEAD_CI
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 3f79b8d1412eade7f566713eefca6d03a5e23de9
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  exact_head_ci: "Run 40490299965 and companion runs on exact head 3f79b8d1412eade7f566713eefca6d03a5e23de9; actual-paper-runtime and discover-public-research failed in strict TypeScript compilation because the replaced carryResearchIntelligenceSourceAuthentication import was unused. Their artifact-not-found errors were downstream of compilation stopping. Other observed jobs were still running or successful at inspection."
+  fix: "Removed the unused import; no runtime logic change."
+  validation: "Changed-file TypeScript compile with noUnusedLocals/noUnusedParameters PASS; focused contracts/storage/research-intelligence tests 35/35 PASS; preflight PASS; validate:full PASS; git diff --check PASS. Full package build/typecheck/lint remain locally unavailable because TypeScript/ESLint links are absent; security:gate license-metadata limitation is unchanged and was not weakened."
+  next: "Refresh origin/main, PR #2878 and remote branch. If base/head remain e7f8a426/3f79b8d1 and canonical, commit and non-force push this one-line cleanup to the same Draft #2878. Verify exact-head CI/companions terminally, then request one fresh non-author review. Do not advance Formal Validator, Audit, Release, merge, deployment, or Oracle runtime acceptance."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

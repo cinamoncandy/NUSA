@@ -7,8 +7,14 @@ import {
   reclassifyResearchIntelligenceRecord,
   type AxiomResearchIntelligenceHandoff,
   type ResearchIntelligenceRecord,
-  type ResearchIntelligenceRelevance,
 } from "../../../packages/contracts/src/researchIntelligence";
+import {
+  carryResearchIntelligenceSourceAuthentication,
+  deriveCanonicalArxivInterpretation,
+  fetchResearchIntelligenceSourceCapture,
+  issueResearchIntelligenceSourceVerificationReceipt,
+  isResearchIntelligenceSourceRecordAuthenticated,
+} from "../../../packages/contracts/src/researchIntelligenceVerificationInternal";
 
 import {
   summarizeJevResearchAttentionShadows,
@@ -32,6 +38,7 @@ export interface ResearchIntelligenceCollector {
 
 export interface ResearchIntelligenceMemory {
   list(): readonly ResearchIntelligenceRecord[];
+  get(recordId: string): ResearchIntelligenceRecord | null;
   append(record: ResearchIntelligenceRecord): ResearchIntelligenceRecord;
 }
 
@@ -62,8 +69,6 @@ export interface ResearchIntelligenceScoutResult {
 }
 
 export interface ArxivResearchIntelligenceCollectorOptions {
-  readonly fetchFn?: typeof fetch;
-  readonly now?: () => Date;
   readonly maxResults?: number;
   readonly searchQuery?: string;
 }
@@ -119,70 +124,12 @@ function arxivSourceId(entryId: string): string {
   throw new Error("arXiv entry id is missing a canonical identifier");
 }
 
-function classifyTopics(text: string): readonly string[] {
-  const normalized = text.toLowerCase();
-  const rules: readonly [string, RegExp][] = [
-    ["reinforcement-learning", /\breinforcement learning\b|\bppo\b|\bsac\b|\bddpg\b|\btd3\b|\ba2c\b/],
-    ["market-microstructure", /market microstructure|limit order book|order book/],
-    ["execution", /trade execution|order execution|execution algorithm|market impact|slippage|transaction cost|almgren|square-root law/],
-    ["portfolio-risk", /portfolio optimization|portfolio allocation|risk management|drawdown/],
-    ["time-series", /time[- ]series|forecasting|sequence model|transformer|state space/],
-    ["statistical-arbitrage", /statistical arbitrage|mean reversion|pairs trading/],
-    ["volatility", /volatility|variance|stochastic volatility/],
-    ["crypto", /crypto|bitcoin|ethereum|digital asset/],
-    ["llm-agents", /\bllm\b|large language model|multi-agent|agentic/],
-  ];
-  const topics = rules.filter(([, pattern]) => pattern.test(normalized)).map(([topic]) => topic);
-  return Object.freeze(topics.length > 0 ? topics : ["quantitative-finance"]);
-}
-
-function classifyMethod(text: string): string {
-  const normalized = text.toLowerCase();
-  if (/\breinforcement learning\b|\bppo\b|\bsac\b|\bddpg\b|\btd3\b|\ba2c\b/.test(normalized)) {
-    return "reinforcement-learning";
-  }
-  if (/limit order book|order book/.test(normalized)) return "order-book-modeling";
-  if (/market impact|trade execution|order execution|execution algorithm|slippage|transaction cost/.test(normalized)) return "execution-cost-modeling";
-  if (/transformer|state space|sequence model/.test(normalized)) return "sequence-modeling";
-  if (/portfolio optimization|portfolio allocation/.test(normalized)) return "portfolio-optimization";
-  if (/statistical arbitrage|mean reversion|pairs trading/.test(normalized)) return "statistical-arbitrage";
-  return "quantitative-research";
-}
-
-function classifyRelevance(text: string): ResearchIntelligenceRelevance {
-  const normalized = text.toLowerCase();
-  const strongFinancialAnchor =
-    /algorithmic trading|quantitative trading|systematic trading|\btrading\b|quantitative finance|financial market|stock market|capital market|market microstructure|limit order book|order book|bid[- ]ask|market impact|transaction cost|slippage|trade execution|order execution|liquidity|automated market mak|prediction market|\bclob\b|\bamm\b|\bstock\b|\bequity\b|asset pricing|\bcrypto(?:currency)?\b|\bbitcoin\b|\bethereum\b|order flow|sharpe|drawdown/;
-  const portfolioFinancialContext =
-    /(portfolio optimization|asset allocation)/.test(normalized) &&
-    /asset|investment|return|risk|financial|stock|equity|crypto|sharpe|drawdown|volatility/.test(normalized);
-  if (!strongFinancialAnchor.test(normalized) && !portfolioFinancialContext) return "LOW";
-
-  const highSignal =
-    /algorithmic trading|quantitative trading|systematic trading|reinforcement learning.{0,120}trading|trading.{0,120}reinforcement learning|market microstructure|limit order book|order book|market impact|trade execution|order execution|statistical arbitrage|pairs trading|automated market mak|\bclob\b|\bamm\b|order flow|equity index forecasting|high[- ]frequency swapping/;
-  if (highSignal.test(normalized)) return "HIGH";
-  return "MEDIUM";
-}
-
-function testableReplicationHypothesis(title: string): string {
-  return (
-    'Under NUSA canonical point-in-time, leakage-controlled, transaction-cost-aware OOS validation, ' +
-    'an independent reproduction of the source methodology "' +
-    title.replace(/\s+/g, " ").trim() +
-    '" will preserve the claimed directional effect relative to the source-stated baseline; otherwise the claim is rejected or remains insufficient.'
-  );
-}
-
 export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceCollector {
   public readonly sourceId = "arxiv";
-  private readonly fetchFn: typeof fetch;
-  private readonly now: () => Date;
   private readonly maxResults: number;
   private readonly searchQuery: string;
 
   public constructor(options: ArxivResearchIntelligenceCollectorOptions = {}) {
-    this.fetchFn = options.fetchFn ?? fetch;
-    this.now = options.now ?? (() => new Date());
     this.maxResults = options.maxResults ?? 20;
     this.searchQuery = options.searchQuery ?? DEFAULT_ARXIV_QUERY;
     if (!Number.isSafeInteger(this.maxResults) || this.maxResults < 1 || this.maxResults > 100) {
@@ -198,21 +145,13 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
     url.searchParams.set("sortBy", "submittedDate");
     url.searchParams.set("sortOrder", "descending");
 
-    const response = await this.fetchFn(url, {
-      method: "GET",
-      headers: Object.freeze({
-        Accept: "application/atom+xml",
-        "User-Agent": "NUSA-Research-Intelligence/1.0 (PAPER_ONLY; research provenance collector)",
-      }),
-      redirect: "follow",
-    });
-    if (!response.ok) throw new Error("arXiv request failed with HTTP " + response.status);
-    const xml = await response.text();
+    const capture = await fetchResearchIntelligenceSourceCapture(url.toString(), "ARXIV_API_V1");
+    const xml = capture.responseBody;
     if (!xml.includes("<feed") || !xml.includes("<entry")) {
       throw new Error("arXiv response is not a usable Atom feed");
     }
 
-    const discoveredAt = this.now().toISOString();
+    const discoveredAt = capture.capturedAt;
     const records: ResearchIntelligenceRecord[] = [];
     for (const match of xml.matchAll(/<entry\b[\s\S]*?<\/entry>/gi)) {
       const entry = match[0];
@@ -223,51 +162,23 @@ export class ArxivResearchIntelligenceCollector implements ResearchIntelligenceC
       const authors = allTextTags(entry, "name");
       if (!entryId || !title || !summary || !publishedAt || authors.length === 0) continue;
 
-      const combined = title + "\n" + summary;
+      const interpretation = deriveCanonicalArxivInterpretation(title, summary);
       const rawContentSha256 = createHash("sha256").update(entry, "utf8").digest("hex");
-      records.push(
-        createResearchIntelligenceRecord({
+      const unverifiedRecord = createResearchIntelligenceRecord({
           sourceId: arxivSourceId(entryId),
           sourceType: "ARXIV",
           sourceUrl: entryId,
-          sourceVerification: "VERIFIED_PRIMARY_SOURCE",
+          sourceVerification: "UNVERIFIED",
           title,
           authors,
           publishedAt,
           discoveredAt,
           rawContentSha256,
-          topic: classifyTopics(combined),
-          market: "UNSPECIFIED",
-          timeframe: "UNSPECIFIED",
-          method: classifyMethod(combined),
+          ...interpretation,
           claimedContribution: summary,
-          testableHypothesis: testableReplicationHypothesis(title),
-          assumptions: [
-            "Source claims remain unverified until canonical NUSA replication.",
-            "Dataset, evaluator, benchmark, cost and execution semantics must be reconstructed from the source before protected validation.",
-          ],
-          requiredData: [
-            "Source-described dataset or a provenance-equivalent NUSA dataset.",
-            "Canonical point-in-time market data and transaction-cost/execution evidence.",
-          ],
-          codeAvailable: /github\.com|code (?:is )?available|open[- ]source/i.test(combined)
-            ? "AVAILABLE"
-            : "UNKNOWN",
-          datasetAvailable: "UNKNOWN",
-          reproducibilityStatus: "NOT_ATTEMPTED",
-          evidenceQuality: /github\.com|code (?:is )?available|open[- ]source/i.test(combined)
-            ? "CODE_AVAILABLE_UNVERIFIED"
-            : "PRIMARY_SOURCE_CLAIM_ONLY",
-          nusaRelevance: classifyRelevance(combined),
-          implementationCost: "UNKNOWN",
-          expectedEconomicValue: "UNKNOWN",
-          leakageRisk: "UNKNOWN",
-          overfittingRisk: "UNKNOWN",
-          regimeDependence: "UNKNOWN",
-          transactionCostSensitivity: "UNKNOWN",
-          validationStatus: "SOURCE_VERIFIED",
-        }),
-      );
+          validationStatus: "DISCOVERED",
+        });
+      records.push(issueResearchIntelligenceSourceVerificationReceipt(unverifiedRecord, capture, entry));
     }
 
     return Object.freeze(records.sort((left, right) => {
@@ -336,10 +247,14 @@ export class ResearchIntelligenceScout {
           candidate,
           Object.freeze([...historical, ...records]),
         );
-        let record = reclassifyResearchIntelligenceRecord(candidate, classification);
+        let record = carryResearchIntelligenceSourceAuthentication(
+          candidate,
+          reclassifyResearchIntelligenceRecord(candidate, classification),
+        );
 
         if (record.novelty === "DUPLICATE") {
           duplicatesSuppressed += 1;
+          record = this.memory?.append(record) ?? record;
           records.push(record);
           continue;
         }
@@ -355,8 +270,11 @@ export class ResearchIntelligenceScout {
 
         let handoffOutcome: JevResearchAttentionAxiomOutcome = "HANDOFF_FAILED_CLOSED";
         try {
+          if (!isResearchIntelligenceSourceRecordAuthenticated(record)) {
+            throw new Error("canonical source capture receipt is required before AXIOM handoff");
+          }
           const handoff = createAxiomResearchIntelligenceHandoff(record);
-          record = markResearchIntelligenceReadyForAxiom(record);
+          record = carryResearchIntelligenceSourceAuthentication(record, markResearchIntelligenceReadyForAxiom(record));
           axiomHandoffs.push(handoff);
           handoffOutcome = "HANDOFF";
         } catch {
