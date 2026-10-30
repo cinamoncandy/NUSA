@@ -473,7 +473,21 @@ jobs:
             systemctl show nusa-upbit-readonly -p NRestarts,ActiveEnterTimestamp,ExecMainStartTimestamp,ExecMainStatus 2>&1 | tr '\n' ' '
             echo
             echo "== upbit namespace markers (bounded 3000 lines, last 24h)"
-            journalctl -u nusa-upbit-readonly --since "-24 hours" -o cat --no-pager 2>/dev/null | head -3000 | grep -Ec "NAMESPACE|status=226"
+            journalctl -u nusa-upbit-readonly --since "-24 hours" -o cat --no-pager 2>/dev/null | head -3000 | grep -Ec "NAMESPACE|status=226"            echo "== runner identity and groups"
+            id 2>&1
+            echo "== directory modes (no traversal)"
+            stat -c '%A %U:%G %n' /var/lib/nusa /var/backups/nusa /opt/nusa /opt/nusa/current 2>&1
+            echo "== path walk"
+            namei -l /var/lib/nusa/state.sqlite 2>&1 | head -8
+            echo "== nusa group members"
+            getent group nusa 2>&1
+            echo "== sudo availability (query only, nothing executed)"
+            sudo -n -l 2>&1 | head -3
+            echo "== log dir existence"
+            ls -ld /var/log/nusa 2>&1
+            echo "== unit sandbox directives (upbit)"
+            systemctl show nusa-upbit-readonly -p LogsDirectory,ReadWritePaths,ProtectSystem,PrivateTmp 2>&1 | tr '\n' ' '
+            echo
           } > "$OUT" 2>&1
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
           redact < "$OUT"
