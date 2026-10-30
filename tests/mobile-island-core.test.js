@@ -109,3 +109,15 @@ test("the band of light has a softer wake behind it, front rows drift faster, an
   assert.equal(m.rowPhase(0, 0.7), 0, "a settled island with no drift stays put");
   assert.ok(m.islandBreath(0) === 1 && Math.abs(m.islandBreath(2.6) - 1) <= 0.03 + 1e-9);
 });
+
+test("motion steps are smoothed and a slow device samples fewer points instead of dropping frames", () => {
+  assert.equal(m.smoothDt(0, 0.016), 0.016, "the first step is taken as is");
+  const s = m.smoothDt(0.016, 0.1);
+  assert.ok(s > 0.016 && s < 0.1, "a long frame is eased in, not applied at once");
+  assert.ok(Math.abs(m.smoothDt(0.05, -1) - 0.0375) < 1e-9, "a negative gap is clamped to 0 before smoothing");
+  assert.equal(m.smoothDt(NaN, 0.02), 0.02);
+  assert.ok(m.smoothDt(0.1, 5) <= 0.1, "never above 0.1 s");
+  assert.equal(m.islandSteps(16.7), m.ISLAND_STEPS);
+  assert.ok(m.islandSteps(23) < m.ISLAND_STEPS && m.islandSteps(23) > m.islandSteps(40));
+  assert.ok(m.islandSteps(40) >= 40, "never so coarse that the contour breaks into segments");
+});
