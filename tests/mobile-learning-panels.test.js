@@ -48,7 +48,7 @@ test("paper result and the holdout gate use the measured values and say plainly 
 });
 
 test("missing, malformed or inconsistent inputs produce no panel instead of a guessed number", () => {
-  for (const raw of [null, undefined, 5, "x", [], {}]) assert.deepEqual(loop.buildLearningLoopPanels(raw), { cost: null, paper: null, overfit: null });
+  for (const raw of [null, undefined, 5, "x", [], {}]) assert.deepEqual(loop.buildLearningLoopPanels(raw), { cost: null, paper: null, overfit: null, comparison: null });
   assert.equal(loop.buildLearningLoopPanels({ ...live, shadowTrades: 0 }).cost, null);
   assert.equal(loop.buildLearningLoopPanels({ ...live, shadowWins: 581 }).cost, null);
   assert.equal(loop.buildLearningLoopPanels({ ...live, shadowFeeBp: -5 }).cost, null);
@@ -116,4 +116,49 @@ test("the result is wired from the heartbeat, with no raw colour in the model an
   assert.match(read("apps/mobile/App.tsx"), /orderBookStudy=\{snapshot\?\.operations\.heartbeat\?\.orderBookStudy \?\? null\}/);
   assert.match(read("apps/mobile/src/learningView.tsx"), /<StudyTimeline nowMs=\{Date\.now\(\)\} orderBookStudy=\{orderBookStudy\} \/>/);
   assert.doesNotMatch(read("apps/mobile/src/learningPanelsModel.ts"), /#[0-9a-fA-F]{3,8}\b/);
+});
+
+// The comparison panel: baseline minus each null, "no data" instead of a zero, and the not-evidence label.
+const nulls = { nullSince: 5, nullSeed: 20261030, nullBaseTrades: 4, nullBaseNetBp: -60, nullHoldMarkets: 3, nullHoldNetBp: -150, nullRandTrades: 4, nullRandWins: 1, nullRandNetBp: -90, nullRandSkipped: 0 };
+
+test("the comparison shows baseline minus each null in basis points, in plain Korean, labelled as not PAPER evidence", () => {
+  const { comparison } = loop.buildLearningLoopPanels(nulls);
+  assert.deepEqual(comparison.rows.map((r) => r.diffBp), [90, 30]);
+  assert.match(comparison.rows[0].detail, /기준 규칙이 90bp 더 벌었어요/);
+  assert.match(comparison.rows[1].detail, /기준 규칙이 30bp 더 벌었어요.*같은 4번, 같은 보유 시간/);
+  assert.match(comparison.summary, /모의투자 증거가 아니고 승격에도 쓰이지 않아요/);
+  const worse = loop.buildLearningLoopPanels({ ...nulls, nullHoldNetBp: 20 }).comparison;
+  assert.equal(worse.rows[0].diffBp, -80);
+  assert.match(worse.rows[0].detail, /80bp 덜 벌었어요/);
+  assert.ok(comparison.scaleBp >= 90);
+});
+
+test("missing data is shown as no data, never a zero, and unequal trade counts are not compared", () => {
+  const { comparison: none } = loop.buildLearningLoopPanels({ shadowTrades: 5 });
+  assert.equal(none, null, "no comparator started");
+  const noBars = loop.buildLearningLoopPanels({ nullSince: 5, nullSeed: 1, nullRandTrades: 0, nullRandWins: 0, nullRandNetBp: 0, nullRandSkipped: 0 }).comparison;
+  assert.deepEqual(noBars.rows.map((r) => r.diffBp), [null, null]);
+  assert.ok(noBars.rows.every((r) => /데이터 없음/.test(r.detail)));
+  assert.match(noBars.summary, /0으로 채우지 않고 비워 둬요/);
+  const noHold = loop.buildLearningLoopPanels({ ...nulls, nullHoldMarkets: undefined, nullHoldNetBp: undefined }).comparison;
+  assert.equal(noHold.rows[0].diffBp, null);
+  assert.equal(noHold.rows[1].diffBp, 30);
+  const unequal = loop.buildLearningLoopPanels({ ...nulls, nullRandTrades: 3, nullRandSkipped: 1 }).comparison;
+  assert.equal(unequal.rows[1].diffBp, null);
+  assert.match(unequal.rows[1].detail, /거래 수가 아직 달라요 \(기준 4건, 무작위 3건\).*1건을 건너뛰었어요/);
+  const noBase = loop.buildLearningLoopPanels({ ...nulls, nullBaseTrades: 0, nullBaseNetBp: 0 }).comparison;
+  assert.deepEqual(noBase.rows.map((r) => r.diffBp), [null, null]);
+  const badBase = loop.buildLearningLoopPanels({ ...nulls, nullBaseNetBp: 1.5 }).comparison;
+  assert.deepEqual(badBase.rows.map((r) => r.diffBp), [null, null]);
+  assert.equal(loop.buildLearningLoopPanels({ ...nulls, nullSince: 0 }).comparison, null);
+});
+
+test("the learning screen shows the comparison with a not-evidence label and a no-data state, and uses no raw colour", () => {
+  const panels = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "learningPanels.tsx"), "utf8");
+  const view = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "learningView.tsx"), "utf8");
+  assert.match(panels, /export function NullComparison/);
+  assert.match(panels, /모의투자 증거 아님/);
+  assert.match(panels, /r\.diffBp == null \? "데이터 없음"/);
+  assert.match(view, /<NullComparison raw=\{learningLoop\} \/>/);
+  assert.doesNotMatch(panels.slice(panels.indexOf("export function NullComparison"), panels.indexOf("export function PaperResultBars")), /#[0-9a-fA-F]{3,8}\b/);
 });

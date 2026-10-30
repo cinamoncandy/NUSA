@@ -58,6 +58,27 @@ export function CostWaterfall({ raw }: { readonly raw: unknown }) {
   </View>;
 }
 
+/** The baseline shadow next to two rules with no signal (hold, random entry): baseline minus each, or "no data" instead of a zero. Not PAPER evidence. */
+export function NullComparison({ raw }: { readonly raw: unknown }) {
+  const { comparison } = buildLearningLoopPanels(raw);
+  if (comparison == null) return <Missing title="아무 규칙 없이 한 것과 비교" />;
+  return <View style={styles.block} testID="learning-null-comparison" accessibilityLabel={`아무 규칙 없이 한 것과 비교. 모의투자 증거가 아니에요. ${comparison.rows.map((r) => `${r.label} ${r.diffBp == null ? "데이터 없음" : `${r.diffBp > 0 ? "+" : ""}${r.diffBp}bp`}. ${r.detail}`).join(" ")} ${comparison.summary}`}>
+    <Deco />
+    <SectionLabel left="아무 규칙 없이 한 것과 비교" right="모의투자 증거 아님 · bp" />
+    <View style={styles.rows}>
+      {comparison.rows.map((r) => <View key={r.label} style={styles.row}>
+        <View style={styles.rowHead}>
+          <Text style={styles.rowLabel}>{r.label}</Text>
+          <Text style={[styles.rowValue, { color: r.diffBp == null ? calmColors.muted : r.diffBp < 0 ? calmColors.attention : calmColors.text }]}>{r.diffBp == null ? "데이터 없음" : r.diffBp > 0 ? `+${r.diffBp}` : `${r.diffBp}`}</Text>
+        </View>
+        {r.diffBp == null ? null : <SignedBar bp={r.diffBp} scaleBp={comparison.scaleBp} color={r.diffBp < 0 ? calmColors.attention : calmColors.text} />}
+        <Text style={styles.note}>{r.detail}</Text>
+      </View>)}
+    </View>
+    <Text style={styles.note}>{comparison.summary}</Text>
+  </View>;
+}
+
 /** The owner baseline's PAPER result over the periods the learner consumed, and against buying everything. */
 export function PaperResultBars({ raw }: { readonly raw: unknown }) {
   const { paper } = buildLearningLoopPanels(raw);

@@ -10,7 +10,7 @@ import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } fr
 import { CalmRow } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
-import { CostWaterfall, OverfitGate, PaperResultBars, StudyTimeline } from "./learningPanels";
+import { CostWaterfall, NullComparison, OverfitGate, PaperResultBars, StudyTimeline } from "./learningPanels";
 
 type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown; /** Server heartbeat learningLoop (display only): measured numbers for the panels; null when absent. */ readonly learningLoop?: unknown; /** Server heartbeat orderBookStudy (display only): the pre-registered study result; null when absent. */ readonly orderBookStudy?: unknown };
 
@@ -47,6 +47,7 @@ export function LearningView(props: Props) {
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
     <View style={styles.list}>{model.rows.map((row, i) => <Reveal key={row.label} index={2 + i} reducedMotion={reduced}><CalmRow label={row.label} value={row.value} tone={row.tone} /></Reveal>)}</View>
     <CostWaterfall raw={learningLoop} />
+    <NullComparison raw={learningLoop} />
     <PaperResultBars raw={learningLoop} />
     <OverfitGate raw={learningLoop} />
     <StudyTimeline nowMs={Date.now()} orderBookStudy={orderBookStudy} />

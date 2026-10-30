@@ -360,10 +360,13 @@ export function startCloudRuntime(
       put("paperNetBp", signed(meta?.paperNetBp)); put("paperExcessBp", signed(meta?.paperExcessBp));
       put("shadowSince", nonNeg(evidence?.shadowSince)); put("shadowTrades", nonNeg(evidence?.shadowTrades)); put("shadowWins", nonNeg(evidence?.shadowWins));
       put("shadowGrossGainBp", nonNeg(evidence?.shadowGrossGainBp)); put("shadowGrossLossBp", nonNeg(evidence?.shadowGrossLossBp)); put("shadowFeeBp", nonNeg(evidence?.shadowFeeBp));
+      for (const key of ["nullSince", "nullSeed", "nullBaseTrades", "nullHoldMarkets", "nullRandTrades", "nullRandWins", "nullRandSkipped"] as const) put(key, nonNeg(evidence?.[key]));
+      for (const key of ["nullBaseNetBp", "nullHoldNetBp", "nullRandNetBp"] as const) put(key, signed(evidence?.[key]));
       // Consistency: a part cannot exceed its whole. An inconsistent pair is dropped rather than drawn.
       if (out.discoveryPasses != null && out.configurations != null && out.discoveryPasses > out.configurations) { delete out.discoveryPasses; delete out.holdoutPasses; }
       if (out.holdoutPasses != null && out.discoveryPasses != null && out.holdoutPasses > out.discoveryPasses) delete out.holdoutPasses;
       if (out.shadowWins != null && out.shadowTrades != null && out.shadowWins > out.shadowTrades) { delete out.shadowWins; }
+      if (out.nullRandWins != null && out.nullRandTrades != null && out.nullRandWins > out.nullRandTrades) { delete out.nullRandWins; }
       if (Object.keys(out).length === 0) return {};
       return { learningLoop: Object.freeze({ ...out, evaluatedAt: Date.now() }) as PersonalPaperLearningLoop };
     } catch { return {}; }
