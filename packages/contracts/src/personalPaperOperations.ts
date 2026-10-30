@@ -52,6 +52,19 @@ export interface PersonalPaperTodayRealized {
  * realized PAPER periods, owner-baseline shadow trades). Integers only (signed where a basis-point result can be negative); any field the
  * runtime cannot read consistently is omitted instead of guessed. It is measurement, never an input to Risk, qualification or Research.
  */
+/**
+ * Display only: the final result of the pre-registered ORDERBOOK study as the host Research service wrote it. Read-only; PASS here means
+ * only "a candidate for PAPER-only verification", never LIVE or any authority. Absent when the result file is absent or malformed.
+ */
+export interface PersonalPaperOrderBookStudy {
+  readonly schemaVersion: 1;
+  readonly studyId: "ML_ORDERBOOK_60M_20261029";
+  readonly status: "HOLDOUT_PASS" | "HOLDOUT_FAIL";
+  readonly eligible: number;
+  readonly discoveryPass: boolean;
+  readonly resultFileMtimeMs?: number;
+}
+
 export interface PersonalPaperLearningLoop {
   /** Recorded Research experiments and the configurations they tested. */
   readonly experiments?: number;
@@ -169,6 +182,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly learningFunnel?: PersonalPaperLearningFunnel;
   /** Display only: measured learning-loop numbers (see PersonalPaperLearningLoop). Absent when the closed-learning loop reports no ledger. */
   readonly learningLoop?: PersonalPaperLearningLoop;
+  /** Display only: the pre-registered ORDERBOOK study result (see PersonalPaperOrderBookStudy). Absent until the host writes a valid result. */
+  readonly orderBookStudy?: PersonalPaperOrderBookStudy;
   /** Display only: the same window's decisions and orders per 5 minutes, for the app's decision terrain. Absent without a canonical PAPER boundary. */
   readonly decisionTrace?: PersonalPaperDecisionTrace;
   /** Display only: PAPER futures positions and limit usage. Absent while the futures engine has not traded; a malformed value is dropped on its own. */
@@ -476,6 +491,17 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.decisionTrace !== undefined && !isValidDecisionTrace(record.decisionTrace)) delete record.decisionTrace;
   if (record.futures !== undefined && !isValidFuturesSnapshot(record.futures)) delete record.futures;
   if (record.learningLoop !== undefined && !isValidLearningLoop(record.learningLoop)) delete record.learningLoop;
+  if (record.orderBookStudy !== undefined && !isValidOrderBookStudy(record.orderBookStudy)) delete record.orderBookStudy;
+}
+
+/** Display only. Any unknown key, wrong version/study id/status, non-boolean or non-integer value makes the whole object unusable. */
+function isValidOrderBookStudy(value: unknown): boolean {
+  if (value == null || typeof value !== "object" || Array.isArray(value)) return false;
+  const v = value as Record<string, unknown>;
+  if (Object.keys(v).some((k) => !["schemaVersion", "studyId", "status", "eligible", "discoveryPass", "resultFileMtimeMs"].includes(k))) return false;
+  return v.schemaVersion === 1 && v.studyId === "ML_ORDERBOOK_60M_20261029" && (v.status === "HOLDOUT_PASS" || v.status === "HOLDOUT_FAIL")
+    && typeof v.eligible === "number" && Number.isSafeInteger(v.eligible) && v.eligible >= 0 && v.eligible <= 1_000_000
+    && typeof v.discoveryPass === "boolean" && (v.resultFileMtimeMs === undefined || isTimeMs(v.resultFileMtimeMs));
 }
 
 const LEARNING_LOOP_COUNT_KEYS = ["experiments", "configurations", "discoveryPasses", "holdoutPasses", "paperPeriodsConsumed", "shadowSince", "shadowTrades", "shadowWins", "shadowGrossGainBp", "shadowGrossLossBp", "shadowFeeBp", "nullSince", "nullSeed", "nullBaseTrades", "nullHoldMarkets", "nullRandTrades", "nullRandWins", "nullRandSkipped"] as const;
