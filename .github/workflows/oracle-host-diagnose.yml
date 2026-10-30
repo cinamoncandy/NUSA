@@ -192,7 +192,7 @@ jobs:
       # ---- read-only state probe (diagnostic branch only; state_probe=true) ----
       # Writes nothing to /var/lib/nusa. The only write is a bounded copy of the state database under
       # $RUNNER_TEMP, opened there for PRAGMA quick_check and deleted inside the same step.
-      - name: State probe: host, mounts, disk, memory
+      - name: State probe - host, mounts, disk, memory
         if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
         shell: bash
         run: |
@@ -217,7 +217,7 @@ jobs:
             free -m 2>&1 | head -2
           } > "$OUT" 2>&1
           redact < "$OUT"
-      - name: State probe: units, failed units, timers
+      - name: State probe - units, failed units, timers
         if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
         shell: bash
         run: |
@@ -236,7 +236,7 @@ jobs:
             systemctl list-timers --all --no-legend 2>&1 | head -20
           } > "$OUT" 2>&1
           cat "$OUT"
-      - name: State probe: state dir, backups, sidecars, migration evidence
+      - name: State probe - state dir, backups, sidecars, migration evidence
         if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
         shell: bash
         run: |
@@ -277,7 +277,7 @@ jobs:
             head -2 /opt/nusa/.previous-release 2>&1
           } > "$OUT" 2>&1
           cat "$OUT"
-      - name: State probe: DB copy, quick_check, table inventory
+      - name: State probe - DB copy, quick_check, table inventory
         if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
         shell: bash
         run: |
@@ -350,7 +350,7 @@ jobs:
             echo "DB_COPY_SKIPPED_SIZE=$SIZE" >> "$OUT"
           fi
           cat "$OUT"
-      - name: State probe: Upbit relay and recent activity
+      - name: State probe - Upbit relay and recent activity
         if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
         shell: bash
         run: |
@@ -375,7 +375,7 @@ jobs:
             journalctl -u nusa-autopilot -n 15 --no-pager -o cat 2>/dev/null | tail -8
           } > "$OUT" 2>&1
           redact < "$OUT"
-      - name: State probe: publish annotations
+      - name: State probe - publish annotations
         if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
         shell: bash
         run: |
