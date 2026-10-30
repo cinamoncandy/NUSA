@@ -98,3 +98,14 @@ test("it draws every display frame on a fast device and holds a steady 30 fps on
   assert.equal(m.islandMinFrameGapMs(33), 33);
   assert.equal(m.islandMinFrameGapMs(100), 33);
 });
+
+test("the band of light has a softer wake behind it, front rows drift faster, and the island breathes", () => {
+  assert.ok(m.rowGlow(0.5, 0.5) > 0.99, "the band itself is at full light");
+  assert.ok(m.rowGlow(0.6, 0.5) > m.rowLight(0.6, 0.5), "the wake (toward the front) is lit beyond the band's own falloff");
+  assert.ok(m.rowGlow(0.35, 0.5) < 0.1, "nothing is lit ahead of the band");
+  assert.equal(m.rowGlow(0.5, null), 0);
+  assert.ok(m.rowGlow(0, 0.5) <= 1 && m.rowGlow(1, 0.5) <= 1);
+  assert.ok(m.rowPhase(10, 1) > m.rowPhase(10, 0), "front rows move faster than back rows");
+  assert.equal(m.rowPhase(0, 0.7), 0, "a settled island with no drift stays put");
+  assert.ok(m.islandBreath(0) === 1 && Math.abs(m.islandBreath(2.6) - 1) <= 0.03 + 1e-9);
+});
