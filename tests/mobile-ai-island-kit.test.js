@@ -51,7 +51,7 @@ test("each tab screen has a chip that is grey unless it carries a real live sign
 
 test("every tab screen sits in the shared shell and its scroll view lets the backdrop show", () => {
   const fs = require("node:fs"), path = require("node:path");
-  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8");
+  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8").replace(/\r\n/g, "\n");
   for (const [file, chip] of [["liveReadinessMonitorView.tsx", "liveScreenChip\\(\\)"], ["futuresView.tsx", "futuresScreenChip\\("], ["learningView.tsx", "plainScreenChip\\(\"LEARN\"\\)"], ["moreMenuView.tsx", "plainScreenChip\\(\"MORE\"\\)"], ["paperShadowMonitorView.tsx", "plainScreenChip\\(\"PAPER\"\\)"]]) {
     assert.match(read(file), new RegExp(`<AiShell chip=\\{${chip}`), file);
   }
@@ -65,7 +65,7 @@ test("every tab screen sits in the shared shell and its scroll view lets the bac
 
 test("tab changes and rolling digits use the one island motion rule", () => {
   const fs = require("node:fs"), path = require("node:path");
-  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8");
+  const read = (f) => fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src", f), "utf8").replace(/\r\n/g, "\n");
   const tab = read("tabTransition.tsx");
   assert.match(tab, /aiIslandMotion\.transitionMs/);
   assert.match(tab, /Easing\.bezier\(\.\.\.aiIslandMotion\.curve\)/);
