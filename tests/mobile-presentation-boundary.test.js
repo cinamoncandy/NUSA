@@ -25,7 +25,8 @@ test("field motion timing comes from tokens, not literals", () => {
   for (const file of ["intelligenceField.tsx", "fieldHeader.tsx", "tabTransition.tsx"]) {
     const source = read(`apps/mobile/src/${file}`);
     assert.doesNotMatch(source, /duration: \d/, `${file} must use fieldMotion tokens`);
-    assert.match(source, /fieldMotion\./);
+    // tabTransition moved to the shared AI island motion rule (2026-10-30); either token set is fine, a literal duration is not.
+    assert.match(source, /fieldMotion\.|aiIslandMotion\./);
   }
 });
 
