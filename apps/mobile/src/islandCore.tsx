@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandHeight, islandMinFrameGapMs, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, landRuns, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, swellDepth } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
@@ -135,10 +135,10 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
     for (let r = 0; r < ISLAND_ROWS; r += 1) {
       const d = r / (ISLAND_ROWS - 1), base = rowBase(d) * height, [a, b] = rowSpan(d), lift = rowLift(d) * height;
       let light = 0, order = 0;
-      for (const s of swells) { const l = rowLight(d, s.pos); light = Math.max(light, l); if (s.order) order = Math.max(order, l); }
+      for (const s of swells) { const l = rowGlow(d, s.pos); light = Math.max(light, l); if (s.order) order = Math.max(order, l); }
       const hs: number[] = [], xs: number[] = [], ys: number[] = [];
       for (let i = 0; i <= ISLAND_STEPS; i += 1) {
-        const u = i / ISLAND_STEPS, h = islandHeight(u, d, st.phase, amp, swells.map((s) => ({ pos: s.pos, k: 0.25 }))) * lift;
+        const u = i / ISLAND_STEPS, h = islandHeight(u, d, rowPhase(st.phase, d), amp * islandBreath(st.phase), swells.map((s) => ({ pos: s.pos, k: 0.25 }))) * lift;
         hs.push(h / lift); xs.push((a + (b - a) * u) * width); ys.push(base - h);
         if ((!grey || still != null) && d > 0.3 && (summit == null || h > summit.lift)) summit = { x: xs[i], y: ys[i], lift: h };
       }
