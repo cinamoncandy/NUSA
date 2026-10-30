@@ -446,7 +446,28 @@ jobs:
             systemctl show caddy -p User,Group,WorkingDirectory 2>&1 | tr '\n' ' '
             echo
             echo "== caddy serves /health locally (5s)"
-            curl -s -m 5 -o /dev/null -w 'local_https_host=%{http_code} remote=%{remote_ip}\n' -k https://127.0.0.1/health -H 'Host: nusa-api.duckdns.org' 2>&1
+            curl -s -m 5 -o /dev/null -w 'local_https_host=%{http_code} remote=%{remote_ip}\n' -k https://127.0.0.1/health -H 'Host: nusa-api.duckdns.org' 2>&1            echo "== caddyfile (full, redacted later)"
+            cat /etc/caddy/Caddyfile 2>&1 | head -80
+            echo "== listener pids"
+            ss -ltnp 2>&1 | grep -E ':(8787|8790|8791|3001|41731|2019) ' | head -10
+            echo "== local port health"
+            for port in 8787 8790 8791 41731; do
+              printf 'port=%s ' "$port"
+              curl -s -m 3 -o "$RUNNER_TEMP/p$port.json" -w 'http=%{http_code}\n' "http://127.0.0.1:$port/health" 2>&1
+              [ -s "$RUNNER_TEMP/p$port.json" ] && { head -c 260 "$RUNNER_TEMP/p$port.json"; echo; rm -f "$RUNNER_TEMP/p$port.json"; }
+            done
+            echo "== mcp unit start commands"
+            systemctl show nusa-mcp -p ExecStart,WorkingDirectory,User 2>&1 | tr '\n' ' '
+            echo
+            systemctl show nusa-mcp-composer -p ExecStart,WorkingDirectory,User 2>&1 | tr '\n' ' '
+            echo
+            echo "== node processes (bounded)"
+            ps -eo pid,user,lstart,args 2>&1 | grep -i -E 'node|paper' | grep -v grep | head -8
+            echo "== upbit stability"
+            systemctl show nusa-upbit-readonly -p NRestarts,ActiveEnterTimestamp,ExecMainStartTimestamp,ExecMainStatus 2>&1 | tr '\n' ' '
+            echo
+            echo "== upbit namespace markers (bounded 3000 lines, last 24h)"
+            journalctl -u nusa-upbit-readonly --since "-24 hours" -o cat --no-pager 2>/dev/null | head -3000 | grep -Ec "NAMESPACE|status=226"
           } > "$OUT" 2>&1
           redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
           redact < "$OUT"
