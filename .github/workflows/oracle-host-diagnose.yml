@@ -477,4 +477,10 @@ jobs:
         run: |
           set +e
           emit() { local body; body="$(printf '%s' "${2:0:3400}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
-          if [ -f "$RUNNER_TEMP/lite.txt" ]; then emit "probe-lite" "$(sed -E 's/[0-9a-fA-F]{32,}/[hex]/g' < "$RUNNER_TEMP/lite.txt")"; fi
+          if [ -f "$RUNNER_TEMP/lite.txt" ]; then
+            for n in 1 2 3 4; do
+              s=$(( (n-1)*22 + 1 )); e=$(( n*22 ))
+              chunk="$(sed -n "${s},${e}p" "$RUNNER_TEMP/lite.txt")"
+              [ -n "$chunk" ] && emit "probe-lite-$n" "$chunk"
+            done
+          fi
