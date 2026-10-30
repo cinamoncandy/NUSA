@@ -159,4 +159,26 @@ describe("RISK gateway account key and persisted drawdown peak", () => {
       assert.ok(decision.reasonCodes.includes("PERSISTENCE_UNHEALTHY"));
     } finally { db.close(); }
   });
+
+  it("counts a loss already taken today under the legacy account id on the first evaluation of the new account", () => {
+    const seeded = (): SqliteDatabase => {
+      const db = new SqliteDatabase(":memory:");
+      new SqliteRiskSafetyPersistence(db).saveDailyLoss({ accountId: "paper-default", tradingDay: "2026-10-30", dayStartEquity: 3_000_000, updatedAtMs: NOW - 3_600_000 });
+      return db;
+    };
+    const control = new SqliteDatabase(":memory:");
+    const withLegacy = seeded();
+    try {
+      assert.equal(gateway(control).evaluate(request(CAPITAL, "c")).status, "ALLOW", "without a legacy row the first evaluation sets today's baseline");
+      assert.notEqual(gateway(withLegacy).evaluate(request(CAPITAL, "d")).status, "ALLOW", "a 2,000,000 loss against the legacy day start exceeds the daily limit");
+    } finally { control.close(); withLegacy.close(); }
+  });
+
+  it("ignores a legacy day row from an earlier day and never borrows the session peak key", () => {
+    const db = new SqliteDatabase(":memory:");
+    try {
+      new SqliteRiskSafetyPersistence(db).saveDailyLoss({ accountId: "paper-default", tradingDay: "2026-10-29", dayStartEquity: 3_000_000, updatedAtMs: NOW - 86_400_000 });
+      assert.equal(gateway(db).evaluate(request(CAPITAL, "e")).status, "ALLOW", "yesterday's legacy row does not count today");
+    } finally { db.close(); }
+  });
 });

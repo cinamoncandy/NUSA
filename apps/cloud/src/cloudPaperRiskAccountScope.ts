@@ -16,7 +16,7 @@ export function resolveRiskAccountId(initialCapital: number, explicit?: string):
  * Risk persistence scoped to one PAPER account. Writes and the daily-loss row always use that account. Reads that can only make
  * the decision stricter (a duplicate command, an open order) also see the rows written under the legacy "paper-default" account
  * before risk rows were keyed per account, so an old row is honoured and a command id already claimed there is never accepted
- * twice. The legacy daily-loss row is not borrowed: it is another account's starting equity.
+ * twice. The legacy daily-loss row is offered only while this account has none of its own (see loadDailyLoss).
  */
 export class AccountScopedRiskPersistence implements RiskSafetyPersistence {
   public constructor(
@@ -28,7 +28,18 @@ export class AccountScopedRiskPersistence implements RiskSafetyPersistence {
   public saveApproval: RiskSafetyPersistence["saveApproval"] = (approval) => this.inner.saveApproval(approval);
   public loadApproval: RiskSafetyPersistence["loadApproval"] = (approvalId) => this.inner.loadApproval(approvalId);
   public revokeApproval: RiskSafetyPersistence["revokeApproval"] = (approvalId, reason) => this.inner.revokeApproval(approvalId, reason);
-  public loadDailyLoss(accountId: string): DailyLossState | undefined { return this.inner.loadDailyLoss(accountId); }
+  /**
+   * The account's own day row wins. Only when it has none (the first evaluation after the risk rows moved off "paper-default") is the
+   * legacy row of the same trading day offered under this account id, so a loss already taken earlier that day still counts. The
+   * gate compares the trading day itself, so a stale legacy row is ignored like any old row; a namespaced key (session peak) is never
+   * borrowed. Worst case a legacy starting equity larger than this account's halts new entries for the rest of the day (fail closed).
+   */
+  public loadDailyLoss(accountId: string): DailyLossState | undefined {
+    const own = this.inner.loadDailyLoss(accountId);
+    if (own != null || accountId !== this.accountId || accountId === this.legacyAccountId) return own;
+    const legacy = this.inner.loadDailyLoss(this.legacyAccountId);
+    return legacy == null ? undefined : Object.freeze({ ...legacy, accountId });
+  }
   public saveDailyLoss(state: DailyLossState): void { this.inner.saveDailyLoss(state); }
   public claimIdempotency(record: RiskIdempotencyRecord): void { this.inner.claimIdempotency(record); }
   public saveOrder(record: RiskOrderRecord): void { this.inner.saveOrder(record); }
