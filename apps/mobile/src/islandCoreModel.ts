@@ -65,6 +65,23 @@ export function rowLight(d: number, pos: number | null): number {
   return Math.exp(-x * x);
 }
 
+/** The band of light plus a softer, wider tail behind it (toward the front), so the light reads as a glide with a wake and not a dot. */
+export function rowGlow(d: number, pos: number | null): number {
+  if (pos == null) return 0;
+  const tail = (d - (pos + 0.1)) / 0.12;
+  return Math.min(1, rowLight(d, pos) + 0.35 * Math.exp(-tail * tail));
+}
+
+/** Parallax: front rows drift a little faster than back rows, so the island has depth while it moves. */
+export function rowPhase(phase: number, d: number): number {
+  return phase * (0.8 + 0.4 * Math.max(0, Math.min(1, d)));
+}
+
+/** A slow overall breath (about 3% in height) so a settled island is never perfectly frozen. */
+export function islandBreath(phase: number): number {
+  return 1 + 0.03 * Math.sin(phase * 0.6);
+}
+
 /** Index runs [start, end] of consecutive land points (height above the threshold); open sea between them is not drawn. */
 export function landRuns(heights: readonly number[], threshold: number): readonly (readonly [number, number])[] {
   const out: [number, number][] = [];
