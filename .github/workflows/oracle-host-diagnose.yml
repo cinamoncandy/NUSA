@@ -15,6 +15,11 @@ on:
         required: false
         default: false
         type: boolean
+      state_probe:
+        description: "true = DIAGNOSTIC BRANCH ONLY. Skip the heavy steps and run the read-only state/backup/DB probe instead (state db copy under RUNNER_TEMP, quick_check, backup sidecar, migration evidence, Upbit counters). Still writes nothing to /var/lib/nusa."
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -27,12 +32,12 @@ jobs:
   diagnose:
     name: Read-only PAPER host diagnosis
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    timeout-minutes: 5
+    timeout-minutes: 12
     env:
       HEALTH_PROBE_BASENAME: nusa-health-${{ github.run_id }}-${{ github.run_attempt }}.json
     steps:
       - name: Disk, memory and state files
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -47,7 +52,7 @@ jobs:
           echo "== release dir count"; ls -1 /opt/nusa/releases 2>&1 | wc -l
           echo "== release dirs"; ls -1 /opt/nusa/releases 2>&1 | tail -8; readlink -f /opt/nusa/current 2>&1
       - name: Service state and redacted recent errors
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -94,6 +99,7 @@ jobs:
             echo "HEALTH_PROBE_UNAVAILABLE"
           fi
       - name: Publish the same read-only findings as job annotations
+        if: ${{ inputs.state_probe != true && inputs.state_probe != 'true' }}
         # The job log is only downloadable from GitHub's blob storage; annotations are readable through the REST API, so a
         # session without blob access (and the owner on a phone) can read the outcome. Same redaction, bounded size.
         shell: bash
@@ -136,7 +142,7 @@ jobs:
           emit "diag-autopilot-log" "$autopilot"
       # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
       - name: Disk consumers (read-only, after the health probe)
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -159,7 +165,7 @@ jobs:
       # each release bundle is extracted, was missing from diagnosis 39357215278). Candidates are measured one at a time with their own
       # hard limit, lowest I/O priority, read-only; an unreadable or timed-out directory is named, never guessed.
       - name: Disk consumers by directory (read-only, one at a time)
-        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' && inputs.state_probe != true && inputs.state_probe != 'true' }}
         shell: bash
         run: |
           set +e
@@ -183,3 +189,202 @@ jobs:
           } 2>&1 | redact)"
           printf '%s\n' "$out"
           emit "diag-disk-by-dir" "$out"
+      # ---- read-only state probe (diagnostic branch only; state_probe=true) ----
+      # Writes nothing to /var/lib/nusa. The only write is a bounded copy of the state database under
+      # $RUNNER_TEMP, opened there for PRAGMA quick_check and deleted inside the same step.
+      - name: State probe: host, mounts, disk, memory
+        if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          OUT="$RUNNER_TEMP/p1-host.txt"
+          {
+            echo "host=$(hostname)"
+            echo "time=$(date -u +%FT%TZ)"
+            echo "kernel=$(uname -r)"
+            echo "== mount source per path"
+            for p in /var/lib/nusa /var/backups/nusa /opt/nusa; do
+              printf '%s -> ' "$p"
+              findmnt -T "$p" -no SOURCE,FSTYPE 2>&1 | tr '\n' ' '
+              echo
+            done
+            echo "== df"
+            df -h / /var/lib/nusa /var/backups/nusa /opt/nusa 2>&1 | sort -u
+            echo "== inodes"
+            df -i / 2>&1 | tail -1
+            echo "== memory"
+            free -m 2>&1 | head -2
+          } > "$OUT" 2>&1
+          redact < "$OUT"
+      - name: State probe: units, failed units, timers
+        if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/p2-units.txt"
+          {
+            echo "== units"
+            for unit in nusa nusa-autopilot nusa-github-mcp nusa-mcp nusa-mcp-composer nusa-upbit-readonly caddy nusa-research.service nusa-research.timer nusa-health-guard.timer nusa-resource-guard.timer nusa-disk-guard.timer; do
+              printf '%s ' "$unit"
+              systemctl show "$unit" -p ActiveState,SubState,Result,NRestarts,ExecMainStatus,ActiveEnterTimestamp 2>&1 | tr '\n' ' '
+              echo
+            done
+            echo "== failed units"
+            systemctl --failed --no-legend 2>&1 | head -10
+            echo "== timers"
+            systemctl list-timers --all --no-legend 2>&1 | head -20
+          } > "$OUT" 2>&1
+          cat "$OUT"
+      - name: State probe: state dir, backups, sidecars, migration evidence
+        if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/p3-state.txt"
+          {
+            echo "== /var/lib/nusa (names only)"
+            ls -la /var/lib/nusa 2>&1 | head -30
+            echo "== state db candidates"
+            for f in /var/lib/nusa/state.sqlite /var/lib/nusa/cloud-state.db; do
+              if [ -e "$f" ]; then stat -c 'file=%n size=%s owner=%U:%G mode=%a mtime=%y' "$f" 2>&1; else echo "absent=$f"; fi
+              for ext in -wal -shm; do
+                if [ -e "$f$ext" ]; then stat -c 'file=%n size=%s mtime=%y' "$f$ext" 2>&1; fi
+              done
+            done
+            echo "== autopilot state"
+            stat -c 'file=%n size=%s mtime=%y' /var/lib/nusa/autopilot/runtime-state.json 2>&1
+            echo "== migration snapshot"
+            ls -la /var/lib/nusa/.migration-final 2>&1 | head -15
+            for f in /var/lib/nusa/.migration-final/*.json; do
+              [ -f "$f" ] && { echo "-- $f"; head -c 1200 "$f"; echo; }
+            done
+            echo "== /var/backups/nusa"
+            du -sh /var/backups/nusa 2>&1
+            ls -lat /var/backups/nusa 2>&1 | head -15
+            echo "== backup db count"
+            ls -1 /var/backups/nusa/*.db 2>/dev/null | wc -l
+            echo "== newest sidecar verification (read-only)"
+            newest="$(ls -1t /var/backups/nusa/*.sha256 2>/dev/null | head -1)"
+            if [ -n "$newest" ]; then
+              echo "sidecar=$(basename "$newest")"
+              ( cd /var/backups/nusa && sha256sum -c "$(basename "$newest")" 2>&1 | head -3 )
+            else
+              echo "SIDECAR_UNAVAILABLE"
+            fi
+            echo "== release identity"
+            readlink -f /opt/nusa/current 2>&1
+            head -2 /opt/nusa/.previous-release 2>&1
+          } > "$OUT" 2>&1
+          cat "$OUT"
+      - name: State probe: DB copy, quick_check, table inventory
+        if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          OUT="$RUNNER_TEMP/p4-db.txt"
+          SRC=""
+          for candidate in /var/lib/nusa/state.sqlite /var/lib/nusa/cloud-state.db; do
+            [ -f "$candidate" ] && { SRC="$candidate"; break; }
+          done
+          if [ -z "$SRC" ]; then
+            echo "STATE_DB_ABSENT" > "$OUT"
+            cat "$OUT"
+            exit 0
+          fi
+          echo "source=$SRC" > "$OUT"
+          if ! command -v node >/dev/null 2>&1; then
+            echo "NODE_UNAVAILABLE" >> "$OUT"
+            cat "$OUT"
+            exit 0
+          fi
+          echo "node=$(node --version)" >> "$OUT"
+          SIZE="$(stat -c %s "$SRC" 2>/dev/null || echo 0)"
+          echo "source_size=$SIZE" >> "$OUT"
+          if [ "$SIZE" -le 805306368 ] && [ "$SIZE" -gt 0 ]; then
+            COPYDIR="$RUNNER_TEMP/dbcopy"
+            rm -rf "$COPYDIR"
+            mkdir -p "$COPYDIR"
+            cp --preserve=mode,timestamps "$SRC" "$COPYDIR/" 2>>"$OUT"
+            [ -f "$SRC-wal" ] && cp --preserve=mode,timestamps "$SRC-wal" "$COPYDIR/" 2>>"$OUT"
+            cat > "$RUNNER_TEMP/dbprobe.cjs" <<'NODEEOF'
+          "use strict";
+          const path = require("node:path");
+          const { DatabaseSync } = require("node:sqlite");
+          const dir = process.argv[2];
+          const src = process.argv[3];
+          const file = path.join(dir, path.basename(src));
+          const db = new DatabaseSync(file);
+          const one = (sql) => { try { return JSON.stringify(db.prepare(sql).get()); } catch (e) { return "ERR:" + (e && e.message); } };
+          console.log("quick_check=" + one("PRAGMA quick_check"));
+          console.log("integrity_check=" + one("PRAGMA integrity_check"));
+          console.log("page_count=" + one("PRAGMA page_count"));
+          console.log("freelist_count=" + one("PRAGMA freelist_count"));
+          const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map((r) => r.name);
+          console.log("table_count=" + tables.length);
+          console.log("tables=" + tables.join(","));
+          const timeName = /(^|_)(at|time|timestamp|ms)$/i;
+          for (const t of tables) {
+            let rows = "ERR";
+            try { rows = db.prepare('SELECT COUNT(*) AS n FROM "' + t + '"').get().n; } catch (e) { rows = "ERR"; }
+            let latest = "";
+            let cols = [];
+            try { cols = db.prepare('PRAGMA table_info("' + t + '")').all(); } catch (e) { cols = []; }
+            const intTime = cols.find((c) => /INT/i.test(String(c.type)) && timeName.test(String(c.name)));
+            if (intTime) {
+              try {
+                const r = db.prepare('SELECT MAX("' + intTime.name + '") AS m FROM "' + t + '"').get();
+                const v = r && r.m;
+                if (typeof v === "number" && v > 1e12 && v < 2.2e12) latest = " latest_" + intTime.name + "=" + v + "(" + new Date(v).toISOString() + ")";
+                else if (v != null) latest = " max_" + intTime.name + "=" + v;
+              } catch (e) { /* not aggregatable */ }
+            }
+            console.log("table " + t + " rows=" + rows + latest);
+          }
+          db.close();
+          NODEEOF
+            node "$RUNNER_TEMP/dbprobe.cjs" "$COPYDIR" "$SRC" >> "$OUT" 2>&1
+            rm -rf "$COPYDIR"
+            echo "copy_removed=true" >> "$OUT"
+          else
+            echo "DB_COPY_SKIPPED_SIZE=$SIZE" >> "$OUT"
+          fi
+          cat "$OUT"
+      - name: State probe: Upbit relay and recent activity
+        if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          OUT="$RUNNER_TEMP/p5-activity.txt"
+          {
+            echo "== upbit unit"
+            systemctl show nusa-upbit-readonly -p ActiveState,SubState,NRestarts,ExecMainStatus,ActiveEnterTimestamp 2>&1 | tr '\n' ' '
+            echo
+            echo "== listening 3001 (count)"
+            ss -ltn 2>&1 | grep -c ':3001'
+            echo "== upbit namespace/restart markers last 3 days (count)"
+            journalctl -u nusa-upbit-readonly --since "-3 days" --no-pager -o cat 2>/dev/null | grep -Ec "NAMESPACE|status=226|226/"
+            echo "== upbit log tail"
+            journalctl -u nusa-upbit-readonly -n 20 --no-pager -o cat 2>/dev/null | tail -8
+            echo "== nusa log tail"
+            journalctl -u nusa -n 25 --no-pager -o cat 2>/dev/null | tail -12
+            echo "== nusa lease/error markers last 24h (count)"
+            journalctl -u nusa --since "-24 hours" --no-pager -o cat 2>/dev/null | grep -Ec "LEASE_LOST|lease|EACCES|ENOSPC|SQLITE|corrupt"
+            echo "== autopilot tail"
+            journalctl -u nusa-autopilot -n 15 --no-pager -o cat 2>/dev/null | tail -8
+          } > "$OUT" 2>&1
+          redact < "$OUT"
+      - name: State probe: publish annotations
+        if: ${{ inputs.state_probe == true || inputs.state_probe == 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3400}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          for name in p1-host p2-units p3-state p4-db p5-activity; do
+            f="$RUNNER_TEMP/$name.txt"
+            [ -f "$f" ] || continue
+            body="$(redact < "$f")"
+            emit "probe-$name" "$body"
+          done
