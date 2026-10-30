@@ -887,12 +887,13 @@ function resolveBlobModulePath(base: string, blobPaths: ReadonlySet<string>): st
   // its extension substitution before considering runtime JS paths so the
   // validator includes the source definition the compiler resolves.
   const emittedExtension = base.match(/\.(js|jsx|mjs|cjs)$/i)?.[1]?.toLowerCase();
-  const sourceExtensions = emittedExtension === "js" ? [".ts", ".tsx", ".d.ts"]
-    : emittedExtension === "jsx" ? [".tsx", ".d.ts"]
-      : emittedExtension === "mjs" ? [".mts", ".d.mts"]
-        : emittedExtension === "cjs" ? [".cts", ".d.cts"]
+  const sourceExtensions = emittedExtension === "js" ? [".ts", ".tsx"]
+    : emittedExtension === "jsx" ? [".tsx"]
+      : emittedExtension === "mjs" ? [".mts"]
+        : emittedExtension === "cjs" ? [".cts"]
           : [];
   const sourceStem = emittedExtension ? base.slice(0, -(emittedExtension.length + 1)) : "";
+  const declarationExtension = emittedExtension === "mjs" ? ".d.mts" : emittedExtension === "cjs" ? ".d.cts" : emittedExtension ? ".d.ts" : undefined;
   const candidates = [...sourceExtensions.map((extension) => `${sourceStem}${extension}`), ...moduleCandidates(base)];
   if (base.startsWith("dist/")) {
     const trackedBase = base.slice("dist/".length);
@@ -900,6 +901,7 @@ function resolveBlobModulePath(base: string, blobPaths: ReadonlySet<string>): st
     const sourceStem = trackedBase.replace(/\.(?:mjs|cjs|js|jsx)$/i, "");
     candidates.push(`${sourceStem}.ts`, `${sourceStem}.tsx`, `${sourceStem}.js`, `${sourceStem}.jsx`);
   }
+  if (declarationExtension) candidates.push(`${sourceStem}${declarationExtension}`);
   return candidates.find((candidate) => blobPaths.has(candidate));
 }
 

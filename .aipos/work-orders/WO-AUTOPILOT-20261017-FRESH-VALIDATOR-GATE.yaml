@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: THIRD_FRESH_REVIEW_P1_REPAIR_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
+status: RUNTIME_DEPENDENCY_P1_REPAIR_LOCAL_VALIDATION_PASS_AWAITING_PUBLICATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -607,4 +607,19 @@ published_successor_ci_20261030:
   finding: "Mixed quoted/unquoted Git rename path P1 is addressed by independently decoding each token and binding the unique candidate against exact PR file metadata. The corresponding historical review thread is left unresolved for independent adjudication."
   local_validation: "Final reconciled tree: Node 24.19; focused auditRunner 36/36; pnpm test PASS (1310 isolated files); typecheck, validate:full, security:gate and lint PASS; zero new lint warnings against 47-warning current-main baseline."
   next: "Resolve the current remote branch head after this AIPOS receipt successor, wait for its exact-head CI/companions, then request one fresh non-author review. Preserve Draft and all unresolved threads. Formal Validator, Audit, Release, merge and Oracle mutation remain not started."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_runtime_dependency_review_20261030:
+  predecessor_head: 8c53adc89039caca4e99df7429ee8ffafcb2406d
+  protected_main_and_pr_base: f144b940925dc04df7c0849fbaad9e5f14f5befe
+  review_request: 6526776526
+  finding_comment: 4425523632
+  finding_thread: PRRT_kwDOTUbne86yCNZM
+  severity: P1
+  finding: "Declaration-only dependency candidates could precede a tracked executable JS module and conceal its implementation from the validator."
+  repair: "Prefer tracked TS implementations and existing runtime and dist-fallback candidates before declarations; keep declaration as fallback. Exercise validator context with both a declaration and executable JS module present."
+  focused_tests: PASS_38_OF_38
+  local_validation: "Node 24.19: focused auditRunner 38/38, pnpm test 1310 isolated files, preflight/build/typecheck/validate:full/security, lint 0 errors and 47 baseline warnings, AIPOS YAML/drift/conformance/provenance, and diff check PASS."
+  exact_head_ci_review: PENDING_SUCCESSOR
+  next: "Complete local gates; reverify current PR head/main; publish only a non-force successor on the existing branch; require exact-head CI/companions and fresh independent review. Leave threads unresolved and PR Draft."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

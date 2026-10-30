@@ -245,9 +245,13 @@ test("authenticates every GitHub evidence request without exposing the token", a
   }
 });
 
-test("resolves an emitted .js import to its tracked TypeScript source in exact-head validator context", async () => {
+for (const candidate of [
+  { name: "tracked TypeScript source", extension: ".ts" },
+  { name: "runtime JavaScript before declaration", extension: ".js" },
+] as const) test(`resolves emitted .js import to ${candidate.name} in exact-head validator context`, async () => {
   const changedPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.test.ts";
-  const dependencyPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.ts";
+  const dependencyPath = `apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler${candidate.extension}`;
+  const declarationPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.d.ts";
   const diff = `diff --git a/${changedPath} b/${changedPath}\n--- a/${changedPath}\n+++ b/${changedPath}\n@@ -1,0 +1,1 @@\n+const portfolio = buildEngineeringWorkPortfolio([]);\n`;
   const source = 'import { buildEngineeringWorkPortfolio } from "./nusaEngineeringPortfolioScheduler.js";\nconst before = true;\nconst portfolio = buildEngineeringWorkPortfolio([]);\n';
   const dependency = "export function buildEngineeringWorkPortfolio() { return 'EXACT_TRACKED_TYPESCRIPT_SOURCE'; }\n";
@@ -268,7 +272,7 @@ test("resolves an emitted .js import to its tracked TypeScript source in exact-h
     if (url.pathname.endsWith("/contents/docs/GRILL_ME_PROTOCOL.md")) return response(200, {}, protocol);
     if (url.pathname.includes("/git/commits/")) return response(200, { tree: { sha: "c".repeat(40) } });
     if (url.pathname.includes("/git/trees/")) return response(200, { truncated: false, tree: [
-      { type: "blob", path: changedPath }, { type: "blob", path: dependencyPath },
+      { type: "blob", path: changedPath }, { type: "blob", path: dependencyPath }, { type: "blob", path: declarationPath },
     ] });
     if (url.pathname.endsWith(`/contents/${changedPath}`)) return response(200, {}, source);
     if (url.pathname.endsWith(`/contents/${dependencyPath}`)) return response(200, {}, dependency);
@@ -287,6 +291,7 @@ test("resolves an emitted .js import to its tracked TypeScript source in exact-h
 
   assert.equal(result.verdict, "PASS");
   assert.ok(result.evidenceRefs.includes(`github:dependency/${dependencyPath}@${HEAD}`));
+  assert.ok(!result.evidenceRefs.includes(`github:dependency/${declarationPath}@${HEAD}`));
   assert.match(promptParts[0] ?? "", new RegExp(`EXACT-HEAD DEPENDENCY ${dependencyPath} @ ${HEAD}`));
   assert.match(promptParts[0] ?? "", /EXACT_TRACKED_TYPESCRIPT_SOURCE/);
 });
