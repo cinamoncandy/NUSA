@@ -1,4 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
+import { firstBrokenStage } from "./firstBrokenStageModel";
+import { AiBackdrop, AiRise, AiStatusChip, GlassPanel, PanelLabel, StageTrace } from "./aiKit";
+import { buildStageTrace, nowStatusChip, stageTraceIndex } from "./stageTraceModel";
+import { useReducedMotion } from "./instrumentKit";
+import { aiIslandPalette } from "./designSystem";
+import { IslandMark } from "./islandMark";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { HomeDestination } from "./homeView";
 import type { PersonalPaperOperationsLoadResult } from "./personalPaperOperationsClient";
@@ -79,16 +85,32 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   // Redesign 2026-10-19: when the loss limit holds new buys, say where the flow stopped (the risk gate), not just "no execution".
   const gate = blocked || field.phase !== "ATTENTION" ? null : buildRiskGate({ lossLimitState: lossLimit?.state ?? null, decisionCount: dailyCounts.decisionCount, paperOrderCount: dailyCounts.paperOrderCount, buySignalCount: heartbeat?.buySignalCount, buyBlockedCount: heartbeat?.buyBlockedCount, consecutiveLossCount: rawLossLimit?.consecutiveLossCount, maxConsecutiveLosses: rawLossLimit?.maxConsecutiveLosses, periodStartedAt: rawLossLimit?.periodStartedAt, limitReachedAt: rawLossLimit?.limitReachedAt, now: Date.now() });
   const terrain = buildDecisionTerrain({ trace: blocked ? null : traceSource?.decisionTrace, now: Date.now(), limitReachedAt: blocked ? null : rawLossLimit?.limitReachedAt });
+  // The risk-gate flow and the loss-limit line already explain a designed hold, so the first-broken-stage line stays out of their way.
+  const brokenStage = blocked || gate != null || lossLimit != null ? null : firstBrokenStage(heartbeat, Date.now());
   const needsSetup = notConfigured != null || readOnlyError != null;
-  return <View style={styles.shell} testID="now-screen">
+  const trace = buildStageTrace(brokenStage?.stage);
+  const chip = nowStatusChip({ stale, blocked, hasHeartbeat: heartbeat != null, halted: haltCause != null || field.phase === "HALTED", dim: model.dim, hasDecisionCount: dailyCounts.decisionCount != null });
+  const reduced = useReducedMotion();
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  return <View style={styles.shell} testID="now-screen" onLayout={(e) => setSize({ width: Math.round(e.nativeEvent.layout.width), height: Math.round(e.nativeEvent.layout.height) })}>
+    <AiBackdrop width={size.width} height={size.height} />
     <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={onRefresh} />} showsVerticalScrollIndicator={false}>
-      <Text style={styles.brand}>NUSA</Text>
+      <View style={styles.brandRow}><View style={styles.brandLeft}><IslandMark size={18} /><Text style={styles.brand}>NUSA</Text></View><AiStatusChip text={chip.text} live={chip.live} reducedMotion={reduced} /></View>
       {gate ? <RiskGateFlow gate={gate} lossText={lossLimit?.text ?? null} windowNote={partialWindowNote(heartbeat?.buyCountsSince, Date.now())} terrain={terrain} decisionCount={dailyCounts.decisionCount} /> : <InstrumentNow tone={model.tone} headline={model.headline} sub={model.sub} dim={model.dim} decisionCount={blocked ? null : dailyCounts.decisionCount} orderCount={blocked ? null : dailyCounts.paperOrderCount} fillCount={blocked ? null : heartbeat?.paperFillCount ?? null} stats={model.stats} lastHeartbeatAt={blocked ? null : heartbeat?.lastHeartbeatAt ?? null} />}
       <InstrumentEquity value={model.equity} caption={model.delta} tone={model.deltaTone} dim={model.dim} />
       {todayRealized == null ? null : <Text style={[styles.footnote, { color: todayRealized.tone === "LOSS" ? calmColors.loss : calmColors.text }]} testID="now-today-realized">{todayRealized.text}</Text>}
-      {lossLimit == null || gate ? null : <View style={styles.why} testID="now-loss-limit">
-        <Text style={[styles.whyText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
-      </View>}
+      {brokenStage == null ? null : <AiRise index={1} reducedMotion={reduced} style={styles.panelWrap}><GlassPanel strong testID="now-first-broken-stage">
+        <View accessible accessibilityLabel={`막힌 곳: ${brokenStage.label}. ${brokenStage.text}`}>
+          <PanelLabel left="막힌 곳" right={stageTraceIndex(brokenStage.stage)} rightColor={aiIslandPalette.accentStart} />
+          <Text style={styles.panelValue}>{brokenStage.label} 단계에서 멈췄어요</Text>
+          <Text style={styles.panelNote}>{brokenStage.text}</Text>
+          {trace == null ? null : <StageTrace steps={trace} />}
+        </View>
+      </GlassPanel></AiRise>}
+      {lossLimit == null || gate ? null : <AiRise index={2} reducedMotion={reduced} style={styles.panelWrap}><GlassPanel testID="now-loss-limit">
+        <PanelLabel left="손실 한도" />
+        <Text style={[styles.whyText, styles.panelText, { color: calmColors.attention }]}>{lossLimit.text}</Text>
+      </GlassPanel></AiRise>}
       {model.why == null ? null : <Pressable accessibilityRole="button" onPress={() => onNavigate("Paper")} style={styles.why} testID="now-why">
         <Text style={styles.whyText}>{model.why} <Text style={styles.link}>왜요?</Text></Text>
       </Pressable>}
@@ -101,9 +123,15 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: calmColors.ground },
+  shell: { flex: 1, backgroundColor: aiIslandPalette.ground },
   content: { paddingBottom: 32, width: "100%", maxWidth: 720, alignSelf: "center" },
-  brand: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 5, paddingHorizontal: 20, paddingTop: 18 },
+  brandRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 18 },
+  brandLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  panelWrap: { marginHorizontal: 14, marginTop: 14 },
+  panelValue: { color: calmColors.text, fontSize: readableFont(18), fontWeight: "600", marginTop: 4 },
+  panelNote: { color: calmColors.muted, fontSize: readableFont(13), lineHeight: 19, marginTop: 4 },
+  panelText: { marginTop: 4 },
+  brand: { color: calmColors.muted, fontSize: readableFont(12), letterSpacing: 5 },
   dim: { opacity: 0.55 },
   why: { marginHorizontal: 20, marginTop: 14, paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   whyText: { color: calmColors.text, fontSize: readableFont(15), lineHeight: 23 },

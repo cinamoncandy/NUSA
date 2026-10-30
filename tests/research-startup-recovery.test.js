@@ -166,10 +166,10 @@ for (const competingOwner of [false, true]) {
     t.mock.method(storage, "SqliteDatabase", function () { return db; });
     const boundary = new Error("SYNTHETIC_RUNTIME_BOUNDARY");
     let repository;
-    t.mock.method(runtime, "startCloudRuntime", (...args) => {
-      repository = args[5];
+    t.mock.method(runtime, "startCloudRuntimeFromOptions", (options) => {
+      repository = options.paperAccountRepository;
       repository.verifyWriterLease();
-      assert.equal(args[9].recover().status, "READY");
+      assert.equal(options.researchAutomation.recover().status, "READY");
       repository.verifyWriterLease();
       assert.equal(validations, 1, "legitimate writer/session writes must not replay evidence validation under the lease");
       throw boundary; // No listener, timers, market connection, or autonomous execution.
@@ -210,13 +210,13 @@ for (const handoff of [
       handoffCalls++;
       return realVerify.call(this);
     });
-    t.mock.method(runtime, "startCloudRuntime", (...args) => {
-      repository = args[5];
+    t.mock.method(runtime, "startCloudRuntimeFromOptions", (options) => {
+      repository = options.paperAccountRepository;
       const acquired = db.connection.prepare("SELECT account_id, owner_id, lease_until_ms FROM cloud_paper_writer_leases").get();
       assert.ok(acquired, "writer lease must be acquired before the listener/runtime composition");
       assert.equal(acquired.lease_until_ms, 1_030_000);
       if (handoff.replaceOwner) db.connection.prepare("UPDATE cloud_paper_writer_leases SET owner_id = ? WHERE account_id = ?").run("different-owner", acquired.account_id);
-      now += handoff.advanceMs; // Deterministic synchronous startCloudRuntime composition delay.
+      now += handoff.advanceMs; // Deterministic synchronous runtime composition delay.
       return {
         stop: async () => { runtimeStopped++; },
         listPaperRealizedPeriods: () => [],

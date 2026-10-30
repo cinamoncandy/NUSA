@@ -83,7 +83,8 @@ test("Bottom navigation uses a restrained active rail with the four-destination 
   const contract = read("src/navigationContract.ts");
   const nav = read("src/primaryNavigation.tsx");
   assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "Futures", "More"\]/);
-  assert.match(nav, /backgroundColor: theme\.colors\.navSurface/);
+  // AI island look (2026-10-29): the bar is a floating glass pill from the shared palette.
+  assert.match(nav, /backgroundColor: aiIslandPalette\.navGlass/);
   assert.match(nav, /backgroundColor: active \? theme\.colors\.aiSignalEnd/);
   assert.match(app, /<PrimaryNavigation/);
   assert.doesNotMatch(app, /const tabs = \["Home", "Markets", "Paper", "Portfolio", "AiSignal"\]/);

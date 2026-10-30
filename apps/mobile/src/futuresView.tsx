@@ -1,4 +1,9 @@
 import React, { useState } from "react";
+import { IslandCore } from "./islandCore";
+import { futuresIsland } from "./islandCoreModel";
+import { IslandWidth } from "./islandWidth";
+import { AiShell } from "./aiKit";
+import { futuresScreenChip } from "./stageTraceModel";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { FUTURES_SCREEN_LIMITS } from "./futuresLimits";
 import { FUTURES_SAMPLE_NOW, FUTURES_SAMPLE_SNAPSHOT } from "./futuresSample";
@@ -24,9 +29,10 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
     { title: "한도 사용량", rows: model.usage, bars: true },
     { title: "고정 한도", rows: futuresSafetyRows() },
   ];
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="futures-view">
+  return <AiShell chip={futuresScreenChip(model.started, preview, model.resting)}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="futures-view">
     <InstrumentHero index="04 / 선물" lines={[{ text: model.headline[0] }, { text: model.headline[1], amber: !model.started }]} />
     <View style={styles.sub}><SectionLabel left={model.sub} /></View>
+    <IslandWidth>{(w) => <IslandCore decisionCount={null} orderCount={null} live={false} width={w} reducedMotion={reduced} still={futuresIsland(model.started, model.headline)} testID="futures-island" />}</IslandWidth>
     {preview ? <View style={styles.banner} testID="futures-preview-banner" accessible accessibilityLabel="예시 데이터예요. 실제 거래가 아니에요"><Text style={[fieldFonts.mono, styles.bannerText]}>예시 데이터 · 실제 거래가 아니에요</Text></View> : null}
     {sections.map((s, g) => <Reveal key={s.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={s.title} right={`${s.rows.length}`} />
@@ -48,7 +54,7 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
     <PressScale accessibilityRole="button" accessibilityLabel={preview ? "실제 화면으로 돌아가기" : "예시 화면 보기"} onPress={() => setPreview((v) => !v)} style={styles.previewBtn} testID="futures-preview-toggle">
       <Text style={[fieldFonts.mono, styles.previewText]}>{preview ? "실제 화면으로 돌아가기" : "예시 화면 보기"}</Text>
     </PressScale>
-  </ScrollView>;
+  </ScrollView></AiShell>;
 }
 
 /** A thin track with the fill and the limit line; colour follows the row's tone (amber near the limit, red past it). */
@@ -76,7 +82,7 @@ const styles = StyleSheet.create({
   chipFail: { color: calmColors.attention, borderColor: calmColors.attention },
   previewBtn: { marginHorizontal: 20, marginTop: 24, minHeight: 48, alignItems: "center", justifyContent: "center", borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line },
   previewText: { color: calmColors.muted, fontSize: readableFont(13) },
-  screen: { flex: 1, backgroundColor: calmColors.ground },
+  screen: { flex: 1, backgroundColor: "transparent" },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   sub: { paddingHorizontal: 20, marginTop: 14 },
   group: { paddingHorizontal: 20, marginTop: 18 },

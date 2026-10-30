@@ -1,4 +1,10 @@
 import { Fragment, useState } from "react";
+import { IslandCore } from "./islandCore";
+import { liveIsland } from "./islandCoreModel";
+import { IslandWidth } from "./islandWidth";
+import { AiShell } from "./aiKit";
+import { liveScreenChip } from "./stageTraceModel";
+import { useReducedMotion } from "./instrumentKit";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NusaButton, NusaCard } from "./components";
 import { useTheme } from "./ThemeProvider";
@@ -23,12 +29,14 @@ const state = (value: boolean): string => value ? "ACTIVE" : "CLEAR";
 
 export function LiveReadinessMonitorView({ snapshot, unavailableReason, unavailableKind = "FAILED", refreshing, onRefresh, onClose }: LiveReadinessMonitorViewProps) {
   const { theme } = useTheme();
+  const reducedMotion = useReducedMotion();
   const status = snapshot?.status ?? "UNAVAILABLE";
   const [detailsOpen, setDetailsOpen] = useState(false);
   const gates = buildLiveGates(snapshot);
   const runtimeBlocked = snapshot != null && (snapshot.runtimeSafety.killSwitchActive || snapshot.runtimeSafety.exchangeError || snapshot.runtimeSafety.staleMarketData || snapshot.runtimeSafety.riskBudgetBreached || snapshot.runtimeSafety.reconciliationMismatch || snapshot.runtimeSafety.abnormalBalanceDrift || snapshot.runtimeSafety.strategyInvalidated);
-  return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} style={[styles.screen, { backgroundColor: theme.colors.background }]} testID="live-ready-monitor">
+  return <AiShell chip={liveScreenChip()}><ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} style={[styles.screen, { backgroundColor: "transparent" }]} testID="live-ready-monitor">
     <View style={styles.fieldBleed}><FieldHeader model={buildLiveFieldHeader(snapshot, unavailableReason, unavailableKind)} testID="live-field-header" /></View>
+    <IslandWidth>{(w) => <IslandCore decisionCount={null} orderCount={null} live={false} width={w} reducedMotion={reducedMotion} still={liveIsland(gates?.passed ?? null, gates?.total ?? null)} testID="live-island" />}</IslandWidth>
     {snapshot == null || gates == null ? <NusaCard testID="live-ready-unavailable"><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>LIVE 준비 데이터 없음</Text><Text style={[styles.body, { color: theme.colors.textMuted }]}>{liveUnavailableMessage(unavailableKind)}</Text>{unavailableReason ? <Text style={[styles.body, { color: theme.colors.textMuted, fontSize: readableFont(11), opacity: 0.7 }]} testID="live-ready-unavailable-reason">오류 내용: {unavailableReason}</Text> : null}</NusaCard> : <>
       <View style={styles.hero} testID="live-ready-overview">
         <Text style={[styles.heroTitle, { color: runtimeBlocked ? theme.colors.warning : theme.colors.text }]}>{gates.headline}</Text>
@@ -64,7 +72,7 @@ export function LiveReadinessMonitorView({ snapshot, unavailableReason, unavaila
       </> : null}
     </>}
     {onClose ? <NusaButton label="닫기" onPress={onClose} /> : null}
-  </ScrollView>;
+  </ScrollView></AiShell>;
 }
 
 const GATE_LABEL: Readonly<Record<LiveGateState, string>> = Object.freeze({ PASS: "통과", FAIL: "실패", BLOCKED: "막힘", STALE: "오래됨", CHECKING: "확인 중" });

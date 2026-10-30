@@ -4,6 +4,8 @@ import { PaperShadowMonitorView } from "./paperShadowMonitorView";
 import { buildLearningScreen, splitHeroLines } from "./learningScreenModel";
 import { buildLearningFunnel } from "./learningFunnelModel";
 import { LearningFunnel } from "./learningFunnel";
+import { AiShell } from "./aiKit";
+import { plainScreenChip } from "./stageTraceModel";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { CalmRow } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
@@ -22,11 +24,11 @@ export function LearningView(props: Props) {
   const { learningFunnel, learningLoop, ...monitorProps } = props;
   const model = buildLearningScreen(props.paper);
   const funnel = buildLearningFunnel(learningFunnel);
-  if (details) return <View style={styles.screen}>
+  if (details) return <AiShell chip={plainScreenChip("LEARN")}><View style={styles.screen}>
     <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.back} testID="learning-summary-back"><Text style={styles.backText}>‹ 학습 요약</Text></Pressable>
-    <PaperShadowMonitorView {...monitorProps} />
-  </View>;
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
+    <PaperShadowMonitorView {...monitorProps} embedded />
+  </View></AiShell>;
+  return <AiShell chip={plainScreenChip("LEARN")}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
     {funnel ? <LearningFunnel model={funnel} /> : <>
       <InstrumentHero index="02 / 학습" lines={splitHeroLines(model.headline).map((text) => ({ text, color: calmToneColor(model.tone) }))} label={model.headline} />
       {model.sub ? <Reveal index={1} reducedMotion={reduced}><Text style={styles.sub}>{model.sub}</Text></Reveal> : null}
@@ -48,11 +50,11 @@ export function LearningView(props: Props) {
     <PaperResultBars raw={learningLoop} />
     <OverfitGate raw={learningLoop} />
     <StudyTimeline nowMs={Date.now()} />
-  </ScrollView>;
+  </ScrollView></AiShell>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: calmColors.ground },
+  screen: { flex: 1, backgroundColor: "transparent" },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   sub: { color: calmColors.muted, fontSize: readableFont(14), lineHeight: 21, paddingHorizontal: 20, marginTop: 10, marginBottom: 8 },
   labelWrap: { paddingHorizontal: 20, marginTop: 10 },
@@ -66,6 +68,6 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20 },
   fold: { marginHorizontal: 20, marginTop: 8, minHeight: 52, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   foldText: { color: calmColors.text, fontSize: readableFont(14) },
-  back: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, backgroundColor: calmColors.ground },
+  back: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, backgroundColor: "transparent" },
   backText: { color: calmColors.muted, fontSize: readableFont(14) },
 });

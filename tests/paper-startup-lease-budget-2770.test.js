@@ -98,14 +98,14 @@ function gatewayFor(database) {
 // the runtime it schedules against is up behind the lease.
 test("the listener and the scheduler both start only after the writer lease is held", () => {
   const lease = runtimeSource.indexOf("new SqliteCloudPaperAccountRepository(");
-  const listener = runtimeSource.indexOf("startCloudRuntime(");
+  const listener = runtimeSource.indexOf("startCloudRuntimeFromOptions(");
   const scheduler = runtimeSource.indexOf("rolloverTimer = setInterval(scheduleTick,");
   assert.ok(lease > 0 && listener > lease, "the runtime/listener must not come up before the lease is owned");
   assert.ok(scheduler > listener, "the closed-learning scheduler must start after the runtime it is scheduled against");
 });
 
 test("the synchronous runtime-composition handoff renews only an already-valid writer lease", () => {
-  const listener = runtimeSource.indexOf("const baseHandle = startCloudRuntime(");
+  const listener = runtimeSource.indexOf("const baseHandle = startCloudRuntimeFromOptions({");
   const handoff = runtimeSource.indexOf("paperRepository?.verifyWriterLease();", listener);
   const scheduler = runtimeSource.indexOf("rolloverTimer = setInterval(scheduleTick,", handoff);
   assert.ok(listener > 0 && handoff > listener, "lease handoff must run after the last large synchronous runtime composition step");

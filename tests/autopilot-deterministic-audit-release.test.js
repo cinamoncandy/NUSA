@@ -118,16 +118,51 @@ test("Release recovers bounded post-merge CI and suppresses duplicate Cloudflare
   assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
 });
 
-test("Release dispatches exact-main runtime evidence and guarded downstream release workflows after post-merge CI succeeds", () => {
-  assert.match(workflow, /Dispatch exact-main runtime evidence and CI-gated downstream workflows directly/);
-  assert.match(workflow, /CURRENT_MAIN=.*branches\/main/);
-  assert.match(workflow, /CURRENT_MAIN.*MERGED_MAIN/);
-  assert.match(workflow, /actions\/workflows\/wo-0059-actual-paper-runtime\.yml\/dispatches/);
-  assert.match(workflow, /actions\/workflows\/autopilot-cloudflare-promote\.yml\/dispatches/);
-  assert.match(workflow, /inputs\[head_sha\]=\$MERGED_MAIN/);
-  assert.match(workflow, /actions\/workflows\/android-stable-release-trigger\.yml\/dispatches/);
-  assert.doesNotMatch(workflow, /actions\/workflows\/android-stable-release\.yml\/dispatches/);
-  assert.match(workflow, /actions\/workflows\/windows-desktop-stable-release\.yml\/dispatches/);
+test("Release dispatches only active unowned exact-main downstream workflows after post-merge CI succeeds", () => {
+  const downstream = workflow.split("- name: Dispatch exact-main runtime evidence and CI-gated downstream workflows directly", 2)[1];
+  assert.match(downstream, /CURRENT_MAIN=.*branches\/main/);
+  assert.match(downstream, /CURRENT_MAIN.*MERGED_MAIN/);
+  assert.match(downstream, /dispatch_exact_main_downstream\(\)/);
+  assert.match(downstream, /actions\/workflows\/\$workflow.*--jq '\.state'/);
+  assert.match(downstream, /allow_manual_disable/);
+  assert.match(downstream, /state.*disabled_manually.*allow_manual_disable/s);
+  assert.match(downstream, /Skipping intentionally disabled optional downstream workflow/);
+  assert.match(downstream, /state.*active/);
+  assert.match(downstream, /Unexpected downstream workflow state/);
+  assert.match(downstream, /actions\/workflows\/\$workflow\/runs\?head_sha=\$MERGED_MAIN&per_page=100/);
+  assert.match(downstream, /actions\/runs\/\$candidate_run\/jobs\?per_page=100/);
+  assert.match(downstream, /\.name == \$name/);
+  assert.match(downstream, /\.status == "pending"/);
+  assert.match(downstream, /\.status == "completed" and \.conclusion == "success"/);
+  assert.match(downstream, /applicable_job/);
+  assert.match(downstream, /\.event\] \| @tsv/);
+  assert.match(downstream, /while IFS=.*read -r candidate_run candidate_status candidate_event/s);
+  assert.doesNotMatch(downstream, /candidate_conclusion/);
+  assert.match(downstream, /candidate_event.*workflow_run/s);
+  assert.match(downstream, /Active Cloudflare workflow_dispatch run.*cannot prove/);
+  assert.match(downstream, /candidate_status.*completed.*branches\/cloudflare-production/s);
+  assert.match(downstream, /branches\/cloudflare-production/);
+  assert.match(downstream, /git\/commits\/\$MERGED_MAIN.*\.tree\.sha/s);
+  assert.match(downstream, /git\/trees\/\$verified_apps_tree.*path == "autopilot"/s);
+  assert.match(downstream, /git\/trees\/\$production_apps_tree.*path == "autopilot"/s);
+  assert.match(downstream, /verified_autopilot_tree.*production_autopilot_tree/s);
+  assert.match(downstream, /no deployment-relevant change remains/);
+  assert.match(downstream, /compare\/\$MERGED_MAIN\.\.\.\$production_sha/);
+  assert.match(downstream, /production_relation.*ahead.*identical/s);
+  assert.match(downstream, /completed without proving exact-main promotion/);
+  assert.doesNotMatch(downstream, /\.conclusion == "skipped"/);
+  assert.doesNotMatch(downstream, /\.conclusion == "success"\)\]\s*\|/);
+  assert.doesNotMatch(downstream, /\.conclusion == "skipped"/);
+  assert.doesNotMatch(downstream, /\.conclusion == "success"\)\]\s*\|/);
+  assert.match(downstream, /applicable job '\$expected_job' owns convergence/);
+  assert.match(downstream, /actions\/workflows\/\$workflow\/dispatches/);
+  assert.match(downstream, /dispatch_exact_main_downstream wo-0059-actual-paper-runtime\.yml false actual-paper-runtime/);
+  assert.match(downstream, /dispatch_exact_main_downstream autopilot-cloudflare-promote\.yml false "Promote exact CI-verified Worker revision"/);
+  assert.match(downstream, /inputs\[head_sha\]=\$MERGED_MAIN/);
+  assert.match(downstream, /dispatch_exact_main_downstream android-stable-release-trigger\.yml true dispatch/);
+  assert.doesNotMatch(downstream, /android-stable-release\.yml/);
+  assert.match(downstream, /dispatch_exact_main_downstream windows-desktop-stable-release\.yml false "Build and publish exact-main Windows installer"/);
+  assert.doesNotMatch(downstream, /enable.*workflow|workflows\/.*\/enable/i, "Release must never re-enable an intentionally disabled workflow");
 });
 
 test("safety invariants remain fail-closed", () => {
