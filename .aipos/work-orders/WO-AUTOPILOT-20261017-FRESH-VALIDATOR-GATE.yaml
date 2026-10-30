@@ -1,6 +1,6 @@
 id: WO-AUTOPILOT-20261017-FRESH-VALIDATOR-GATE
 title: "Machine-enforce fresh non-author VALIDATOR evidence before Audit and Release"
-status: TWO_FRESH_REVIEW_P1_REPAIRS_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
+status: THIRD_FRESH_REVIEW_P1_REPAIR_LOCALLY_VALIDATED_AWAITING_SUCCESSOR_PUBLICATION
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -172,6 +172,55 @@ latest_review_successor_findings_2026_10_26:
     formal_validator: PENDING
     audit_release_merge: NOT_STARTED
   next: "Finish full local validation, re-fetch PR #2772 and protected main, then non-force push only if the remote head still equals 6bbe976f1ee544505caf80516cf15d9ee95ec35d. Keep Draft; no author thread resolution, Formal Validator substitution, Audit, Release, merge, or Oracle mutation."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
+
+latest_review_successor_p1_2026_10_30:
+  repository_verified:
+    protected_main: f144b940925dc04df7c0849fbaad9e5f14f5befe
+    pr_2772_head: 832313e9e1993158e46b1c7915eabab07b70bd85
+    pr_2772_base: f144b940925dc04df7c0849fbaad9e5f14f5befe
+    pr_state: OPEN_DRAFT_MERGEABLE
+    review_request_comment: 6525583442
+    review_thread: PRRT_kwDOTUbne86yAvTS
+    review_finding_comment: 4424899846
+  finding:
+    severity: P1
+    summary: "Relative TypeScript imports using emitted .js specifiers did not resolve to tracked .ts/.tsx source files, causing VALIDATOR_DEPENDENCY_UNRESOLVED before independent review."
+    repository_example: apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.test.ts
+  repair:
+    files:
+      - apps/autopilot/src/auditRunner.ts
+      - apps/autopilot/src/auditRunner.test.ts
+    behavior: "Map emitted .js/.jsx/.mjs/.cjs specifiers to their TypeScript source candidates before runtime-extension candidates; retain existing dist-to-source resolution and fail closed on unresolved paths. Add an end-to-end executeIndependentValidator regression with a changed TS file importing an emitted .js specifier and assert exact tracked dependency content is supplied to validation."
+    safety: "Read-only exact-head dependency retrieval only; no caller-selected authority, production mutation, Risk/Release authority, or execution capability added."
+  local_validation:
+    focused_audit_runner: PASS_37_OF_37
+    preflight: PASS
+    build: PASS
+    typecheck: PASS
+    validate_full: PASS
+    security_gate: PASS_0_UNMITIGATED_0_SECRETS
+    lint: PASS_0_ERRORS_47_WARNINGS
+    lint_clean_main_baseline: 47_WARNINGS
+    full_test_suite: PASS_1310_ISOLATED_TEST_FILES
+    aipos_yaml: PASS_547_FILES
+    aipos_drift: PASS
+    aipos_conformance: PASS
+    aipos_provenance: PASS
+    diff_check: PASS
+  predecessor_exact_head_evidence:
+    ci: 41073548219_SUCCESS
+    companion_workflows:
+      actual_paper: 41073548568_SUCCESS
+      capability_guard: 41073548536_SUCCESS
+      activation_rehearsal: 41073548121_SUCCESS
+      transport_readiness: 41073548297_SUCCESS
+      read_only_broker: 41073548126_SUCCESS
+    disposition: HISTORICAL_AFTER_SUCCESSOR_SHA
+  current_head_review_and_workflows: PENDING_SUCCESSOR_PUBLICATION
+  formal_validator: PENDING
+  audit_release_merge: NOT_STARTED
+  next: "Publish the fully locally validated bounded P1 fix and AIPOS receipt as a non-force successor to the existing #2772 branch only if the remote ref still equals 832313e9e1993158e46b1c7915eabab07b70bd85; require fresh exact-head CI/companions and a new non-author review. Keep Draft and do not resolve review threads as author."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
 
 latest_workspace_manifest_and_directory_resolution_repair_2026_10_27:

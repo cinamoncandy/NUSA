@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { currentDiffEvidenceRefs, executeIndependentAudit, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
+import { currentDiffEvidenceRefs, executeIndependentAudit, executeIndependentValidator, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest, type ValidatorRunnerRequest } from "./auditRunner";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -243,6 +243,52 @@ test("authenticates every GitHub evidence request without exposing the token", a
     const headers = init.headers as Record<string, string>;
     assert.equal(headers.Authorization, "Bearer github-token");
   }
+});
+
+test("resolves an emitted .js import to its tracked TypeScript source in exact-head validator context", async () => {
+  const changedPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.test.ts";
+  const dependencyPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.ts";
+  const diff = `diff --git a/${changedPath} b/${changedPath}\n--- a/${changedPath}\n+++ b/${changedPath}\n@@ -1,0 +1,1 @@\n+const portfolio = buildEngineeringWorkPortfolio([]);\n`;
+  const source = 'import { buildEngineeringWorkPortfolio } from "./nusaEngineeringPortfolioScheduler.js";\nconst before = true;\nconst portfolio = buildEngineeringWorkPortfolio([]);\n';
+  const dependency = "export function buildEngineeringWorkPortfolio() { return 'EXACT_TRACKED_TYPESCRIPT_SOURCE'; }\n";
+  const protocol = `NUSA grill-me protocol\n${"Review safety, evidence, exact-head identity and dependencies. ".repeat(8)}`;
+  const validatorRequest: ValidatorRunnerRequest = Object.freeze({
+    kind: "VALIDATOR_REQUEST", repository: request.repository, prNumber: request.prNumber,
+    headSha: HEAD, baseSha: BASE, workflowRunId: request.workflowRunId,
+    executionId: "validator:1362:33450000001", dedupeKey: `validator:1362:${HEAD}`,
+    mutationAllowed: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY",
+  });
+  const promptParts: string[] = [];
+  const fetchImpl = async (input: string) => {
+    const url = new URL(input);
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}`)) return response(200, pull(HEAD, BASE, 1));
+    if (url.pathname.endsWith(`/actions/runs/${request.workflowRunId}`)) return response(200, run());
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}/files`)) return response(200, [{ filename: changedPath, status: "modified" }]);
+    if (url.pathname.includes("/compare/")) return response(200, {}, diff);
+    if (url.pathname.endsWith("/contents/docs/GRILL_ME_PROTOCOL.md")) return response(200, {}, protocol);
+    if (url.pathname.includes("/git/commits/")) return response(200, { tree: { sha: "c".repeat(40) } });
+    if (url.pathname.includes("/git/trees/")) return response(200, { truncated: false, tree: [
+      { type: "blob", path: changedPath }, { type: "blob", path: dependencyPath },
+    ] });
+    if (url.pathname.endsWith(`/contents/${changedPath}`)) return response(200, {}, source);
+    if (url.pathname.endsWith(`/contents/${dependencyPath}`)) return response(200, {}, dependency);
+    throw new Error(`unexpected GitHub request: ${url}`);
+  };
+  const model = {
+    async run(_name: string, input: unknown) {
+      promptParts.push((input as { prompt: string }).prompt);
+      return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) };
+    },
+  };
+
+  const result = await executeIndependentValidator(validatorRequest, {
+    NUSA_AUDIT_GITHUB_TOKEN: "github-token", AI: model as never,
+  }, fetchImpl as never, () => 1234);
+
+  assert.equal(result.verdict, "PASS");
+  assert.ok(result.evidenceRefs.includes(`github:dependency/${dependencyPath}@${HEAD}`));
+  assert.match(promptParts[0] ?? "", new RegExp(`EXACT-HEAD DEPENDENCY ${dependencyPath} @ ${HEAD}`));
+  assert.match(promptParts[0] ?? "", /EXACT_TRACKED_TYPESCRIPT_SOURCE/);
 });
 
 test("rejects any repository or production mutation attempt", () => {

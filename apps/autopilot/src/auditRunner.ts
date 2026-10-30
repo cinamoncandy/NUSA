@@ -882,7 +882,18 @@ async function fetchExactBlobPaths(request: ValidatorRunnerRequest, token: strin
 
 function resolveBlobModulePath(base: string, blobPaths: ReadonlySet<string>): string | undefined {
   const moduleCandidates = (candidateBase: string) => [candidateBase, ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"].map((ext) => `${candidateBase}${ext}`), ...["index.ts", "index.tsx", "index.js", "index.jsx", "index.mjs", "index.cjs", "index.json"].map((name) => `${candidateBase}/${name}`)];
-  const candidates = moduleCandidates(base);
+  // TypeScript permits source imports to use their emitted JavaScript extension
+  // (for example, `./module.js` while the tracked input is `module.ts`). Mirror
+  // its extension substitution before considering runtime JS paths so the
+  // validator includes the source definition the compiler resolves.
+  const emittedExtension = base.match(/\.(js|jsx|mjs|cjs)$/i)?.[1]?.toLowerCase();
+  const sourceExtensions = emittedExtension === "js" ? [".ts", ".tsx", ".d.ts"]
+    : emittedExtension === "jsx" ? [".tsx", ".d.ts"]
+      : emittedExtension === "mjs" ? [".mts", ".d.mts"]
+        : emittedExtension === "cjs" ? [".cts", ".d.cts"]
+          : [];
+  const sourceStem = emittedExtension ? base.slice(0, -(emittedExtension.length + 1)) : "";
+  const candidates = [...sourceExtensions.map((extension) => `${sourceStem}${extension}`), ...moduleCandidates(base)];
   if (base.startsWith("dist/")) {
     const trackedBase = base.slice("dist/".length);
     candidates.push(...moduleCandidates(trackedBase));
