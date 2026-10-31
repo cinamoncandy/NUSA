@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, islandSteps, landRuns, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, smoothDt, swellDepth } from "./islandCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, islandSteps, landFade, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, SEA_LINES, seaLineWidth, seaShimmer, seaWave, smoothDt, swellDepth } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
@@ -25,7 +25,7 @@ const STARS: readonly (readonly [number, number, number])[] = Array.from({ lengt
   return [0.06 + 0.88 * r(1), Math.pow(r(2), 1.4), r(3) < 0.15 ? 1 : 0.55] as const;
 });
 
-interface Row { readonly key: number; readonly body: SkPath; readonly line: SkPath | null; readonly color: string; readonly opacity: number; readonly glow: number; readonly halo: number; readonly width: number }
+interface Row { readonly key: number; readonly body: SkPath; readonly line: SkPath | null; readonly edges: readonly { readonly path: SkPath; readonly k: number }[]; readonly color: string; readonly opacity: number; readonly glow: number; readonly halo: number; readonly width: number }
 
 export function IslandCore({ decisionCount, orderCount, fillCount = null, live, compact = false, width, reducedMotion, still = null, testID = "now-core" }: {
   readonly decisionCount: number | null;
@@ -150,21 +150,27 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
       body.moveTo(xs[0], ys[0]);
       for (let i = 1; i < xs.length; i += 1) body.lineTo(xs[i], ys[i]);
       body.lineTo(xs[xs.length - 1], height * ISLAND_SHORE + 2); body.lineTo(xs[0], height * ISLAND_SHORE + 2); body.close();
+      // The lowest part of a contour fades in and out over a few eps instead of being cut at one height (it used to pop).
       let line: SkPath | null = null;
-      for (const [s, e] of landRuns(hs, grey && still == null ? -1 : ISLAND_LAND_EPS)) {
-        line ??= Skia.Path.Make();
-        line.moveTo(xs[s], ys[s]);
-        for (let i = s + 1; i <= e; i += 1) line.lineTo(xs[i], ys[i]);
+      const edges: { path: SkPath; k: number }[] = [];
+      for (const band of landFade(hs, grey && still == null ? -1 : ISLAND_LAND_EPS)) {
+        if (band.runs.length === 0) continue;
+        const path = Skia.Path.Make();
+        for (const [s, e] of band.runs) {
+          path.moveTo(xs[s], ys[s]);
+          for (let i = s + 1; i <= e; i += 1) path.lineTo(xs[i], ys[i]);
+        }
+        if (band.k === 1) line = path; else edges.push({ path, k: band.k });
       }
       const color = grey ? wavePalette.idle : lock > 0.05 ? rowColor(d, WHITE, lock * 0.8) : order > 0.3 ? rowColor(d, PINK, order) : rowColor(d, LIT, light * 0.9);
-      rows.push({ key: r, body, line, color, opacity: grey ? (still != null ? 0.3 + 0.5 * Math.pow(d, 0.9) : 0.45) : rowOpacity(d, r, light), glow: grey ? 0 : 8 * light + 5 * lock, halo: grey || d <= 0.6 ? 0 : 0.14 * d, width: (r % 5 === 4 ? 1.5 : 0.75) * (0.6 + 0.9 * d) + light });
+      rows.push({ key: r, body, line, edges, color, opacity: grey ? (still != null ? 0.3 + 0.5 * Math.pow(d, 0.9) : 0.45) : rowOpacity(d, r, light), glow: grey ? 0 : 8 * light + 5 * lock, halo: grey || d <= 0.6 ? 0 : 0.14 * d, width: (r % 5 === 4 ? 1.5 : 0.75) * (0.6 + 0.9 * d) + light });
     }
-    const sea = Array.from({ length: 7 }, (_, k) => {
-      const t = k / 6, y = height * (ISLAND_SHORE + 0.02 + (ISLAND_SEA_END - ISLAND_SHORE - 0.02) * Math.pow(t, 1.5));
-      const half = width * (0.16 + 0.28 * (1 - t)) * (0.75 + 0.25 * Math.sin(k * 1.7)), cx = width / 2 + Math.sin(k * 2.3) * width * 0.04;
+    const sea = Array.from({ length: SEA_LINES }, (_, k) => {
+      const t = k / (SEA_LINES - 1), y = height * (ISLAND_SHORE + 0.02 + (ISLAND_SEA_END - ISLAND_SHORE - 0.02) * Math.pow(t, 1.5));
+      const half = width * (0.16 + 0.28 * (1 - t)) * (0.75 + 0.25 * Math.sin(k * 1.7)), cx = width / 2 + Math.sin(k * 2.3) * width * 0.04 + Math.sin(st.phase * 0.35 + k) * width * 0.01;
       const p = Skia.Path.Make();
-      for (let i = 0; i <= 30; i += 1) { const u = i / 30, x = cx - half + 2 * half * u, yy = y + Math.sin(u * 16 + k + st.phase * 2) * 0.6; if (i === 0) p.moveTo(x, yy); else p.lineTo(x, yy); }
-      return { key: k, path: p, x0: cx - half, x1: cx + half, opacity: grey ? 0.25 : 0.12 + 0.5 * (1 - t) };
+      for (let i = 0; i <= 30; i += 1) { const u = i / 30, x = cx - half + 2 * half * u, yy = y + seaWave(u, t, k, st.phase); if (i === 0) p.moveTo(x, yy); else p.lineTo(x, yy); }
+      return { key: k, path: p, x0: cx - half, x1: cx + half, width: seaLineWidth(t), opacity: grey ? 0.25 : (0.12 + 0.5 * (1 - t)) * seaShimmer(k, st.phase) };
     });
     return { rows, sea, grey, lock, summit, pink: st.pink, glow: Math.min(0.5, 0.1 + st.amp * 0.5) * (1 - st.flat), ticks: historyTicks(ticks.current, now), fills: fillTicks.current.filter((t) => now - t <= WAVE_HISTORY_MS).map((t) => ({ x: 1 - (now - t) / WAVE_HISTORY_MS, fresh: Math.max(0, 1 - (now - t) / 2500) })) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -184,6 +190,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
       {scene.grey || still != null ? null : STARS.map(([sx, sy, r], i) => <Circle key={`st${i}`} cx={sx * width} cy={4 + sy * height * 0.2} r={r} color={islandPalette.star} opacity={0.15 + 0.3 * ((i * 7) % 5) / 4} />)}
       {scene.rows.map((row) => <Group key={row.key}>
         <Path path={row.body} color={GROUND} />
+        {row.edges.map((edge, ei) => <Path key={`e${ei}`} path={edge.path} style="stroke" strokeWidth={row.width} strokeCap="round" strokeJoin="round" color={row.color} opacity={row.opacity * edge.k} />)}
         {row.line == null ? null : <>
           {row.halo > 0 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 3} strokeCap="round" color={row.color} opacity={row.opacity * row.halo} /> : null}
           {row.glow > 0.5 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 2} strokeCap="round" color={row.color} opacity={row.opacity * 0.4}><BlurMask blur={row.glow} style="normal" /></Path> : null}
@@ -193,7 +200,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
       <Rect x={width * 0.02} y={shoreY + 2} width={width * 0.96} height={1.2}>
         <LinearGradient start={vec(width * 0.02, 0)} end={vec(width * 0.98, 0)} colors={["transparent", scene.grey ? wavePalette.idle : islandPalette.horizon, "transparent"]} />
       </Rect>
-      {scene.sea.map((s) => <Path key={`sea${s.key}`} path={s.path} style="stroke" strokeWidth={0.8} opacity={s.opacity}>
+      {scene.sea.map((s) => <Path key={`sea${s.key}`} path={s.path} style="stroke" strokeWidth={s.width} opacity={s.opacity}>
         <LinearGradient start={vec(s.x0, 0)} end={vec(s.x1, 0)} colors={["transparent", scene.grey ? wavePalette.idle : wavePalette.cyan, "transparent"]} />
       </Path>)}
       {scene.summit == null ? null : <>
