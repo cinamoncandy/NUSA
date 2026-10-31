@@ -38,6 +38,15 @@ describe("learning loop verdict", () => {
     assert.equal(v.criteria.cycleEvaluated, false);
   });
 
+  it("reads restart persistence as OBSERVED only when this process found earlier cycle records at boot", () => {
+    const at = (value: unknown) => { const r = healthy(); (r.closedLearningLoop as Record<string, unknown>).cyclesRecordedAtBoot = value; return verdict(r).criteria.survivesRestart; };
+    assert.equal(at(2), "OBSERVED");
+    assert.equal(at(0), "NOT_OBSERVED", "an empty ledger at boot proves nothing");
+    assert.equal(at(undefined), "NOT_OBSERVED");
+    assert.equal(at(-1), "NOT_OBSERVED");
+    assert.equal(at("2"), "NOT_OBSERVED", "a non-integer is never read as a pass");
+  });
+
   it("a sticky lastBlockedReason of TICK_ERROR is not a failure by itself; a current error class or ERROR rollover is", () => {
     const sticky = healthy(); (sticky.closedLearningLoop as Record<string, unknown>).lastBlockedReason = "TICK_ERROR";
     assert.equal(verdict(sticky).verdict, "LOOP_VERIFIED");
