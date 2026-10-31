@@ -1,0 +1,7 @@
+current_ops_status_archive_truth_20261030:
+  work_order: WO-OPS-20261030-AIPOS-STATUS-ARCHIVE-TRUTH
+  status: IN_PROGRESS
+  branch: claude/aipos-status-archive-truth
+  validation: "see the work order; local runs recorded in the PR body"
+  next: "Draft PR, non-author review, CI, merge through the release path."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
