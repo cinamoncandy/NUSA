@@ -51,7 +51,8 @@ test("the Now tab draws the island; the badge shows only a real decision count",
   assert.doesNotMatch(now, /WaveCore|ContourCore/);
   const core = read("islandCore.tsx");
   assert.match(core, /const badgeText = still != null \? still\.badge : validCount \? `오늘 판단 \$\{decisionCount\.toLocaleString\("en-US"\)\}` : null;/);
-  assert.match(core, /scene\.summit != null && badgeText != null \? <View style=\{\[styles\.badge/);
+  // The badge glides and fades (scene.badge.a) but is still drawn only while there is a real count to show (badgeText != null).
+  assert.match(core, /scene\.badge\.a > 0\.02 && badgeText != null \? <View style=\{\[styles\.badge/);
   assert.match(core, /const validCount = decisionCount != null && Number\.isSafeInteger\(decisionCount\);/);
   assert.match(read("waveCore.tsx"), /UNUSED since 2026-10-28 \(the Now tab draws IslandCore\)/);
 });
@@ -160,4 +161,19 @@ test("the sea is made of interfering waves that grow towards the viewer, with a 
   assert.notEqual(m.seaWave(0.4, 0.5, 2, 0), m.seaWave(0.4, 0.5, 2, 1), "and it moves with the phase");
   for (let p = 0; p < 40; p += 0.7) assert.ok(m.seaShimmer(3, p) >= 0.64 - 1e-9 && m.seaShimmer(3, p) <= 1 + 1e-9);
   assert.ok(m.seaLineWidth(0) > m.seaLineWidth(1), "thicker by the shore, finer towards the viewer");
+});
+
+test("the summit badge glides instead of jumping, stars twinkle slowly, and the island ends fade", () => {
+  assert.equal(m.easeToward(0, 10, 0, 7), 0, "no time, no move");
+  const a = m.easeToward(0, 10, 0.016, 7), b = m.easeToward(a, 10, 0.016, 7);
+  assert.ok(a > 0 && a < 10 && b > a && b < 10, "it approaches without overshooting");
+  assert.ok(m.easeToward(0, 10, 5, 7) <= 10, "a long gap is capped and never overshoots");
+  assert.equal(m.easeToward(NaN, 4, 0.016, 7), 4);
+  assert.equal(m.easeToward(3, NaN, 0.016, 7), 3);
+  for (let i = 0; i < 28; i += 1) for (let p = 0; p < 30; p += 1.3) assert.ok(m.starTwinkle(i, p) >= 0.7 - 1e-9 && m.starTwinkle(i, p) <= 1 + 1e-9);
+  assert.ok(m.ISLAND_END_FADE > 0 && m.ISLAND_END_FADE < 0.5);
+  const fs = require("node:fs"), path = require("node:path");
+  const core = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/islandCore.tsx"), "utf8").replace(/\r\n/g, "\n");
+  assert.match(core, /<Group layer>/, "the rows are masked in their own layer");
+  assert.doesNotMatch(core, /swells\.map\(\(s\) => \(\{ pos: s\.pos, k: 0\.25 \}\)\)\) \* lift/, "no per-point allocation in the height loop");
 });
