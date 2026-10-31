@@ -19,6 +19,8 @@ const write = (root, rel, body) => {
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-archive-"));
   git(root, "init", "-q");
+  git(root, "config", "core.autocrlf", "false");
+  git(root, "config", "core.eol", "lf");
   git(root, "config", "user.email", "t@example.invalid");
   git(root, "config", "user.name", "t");
   write(root, "README.md", "x\n");

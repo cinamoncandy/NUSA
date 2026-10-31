@@ -7,22 +7,23 @@ Everything below is what the repository's records *claim*. Re-verify on GitHub b
 
 ## Newest handoff
 
-[`.aipos/handoffs/2026-10-28-order-intent-failure-analysis.md`](handoffs/2026-10-28-order-intent-failure-analysis.md) — ORDER_INTENT failure analysis — 2026-10-28 (static code analysis plus the owner's app reading; not yet confirmed on the host)
+[`.aipos/handoffs/2026-10-30-recovery-triage.md`](handoffs/2026-10-30-recovery-triage.md) — Recovery triage — 2026-10-30 (static analysis of the repository; nothing here was read on the host)
 
-> Author: CORE session. Scope: read-only analysis for phase 1 of `docs/PROPOSAL_TARGET_ARCHITECTURE_2026-10.md`.
-> No code, setting or host change. PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`.
-> Revised after the non-author review on PR #2910 (CHANGES REQUESTED: long coded reasons, evidence window).
+> Author: CORE session. Scope: the owner's recovery work order (TICK_ERROR, Research data, MCP, main-vs-runtime delta, learning loop,
+> off-host backup). PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`.
+> No host access: the read-only diagnosis workflow ran on the runner `nusa-paper-host` (still the OLD host) and was cancelled at its time
+> limit three times (runs 40998484773, 41038648650 and earlier). The new host has the runner software installed but not registered.
 
 ## Work orders
 
-513 total: 484 in `.aipos/work-orders/`, 29 closed and merged in `.aipos/work-orders/archive/`.
-Of the 484 active files, 90 carry a closed status that has not been archived (merge not proven, or the path is still referenced) and 394 are open or unclassified.
+518 total: 489 in `.aipos/work-orders/`, 29 closed and merged in `.aipos/work-orders/archive/`.
+Of the 489 active files, 95 carry a closed status that has not been archived (merge not proven, or the path is still referenced) and 394 are open or unclassified.
 
 Most common statuses among the open files (new orders use only `READY_FOR_REVIEW`, `IN_PROGRESS`, `BLOCKED`, `COMPLETED`, `SUPERSEDED`, `ABANDONED`):
 
 | Status | Files |
 |---|---|
-| READY_FOR_REVIEW | 217 |
+| READY_FOR_REVIEW | 218 |
 | IN_PROGRESS | 33 |
 | LOCAL_VALIDATED_PENDING_CI | 20 |
 | VERIFYING | 14 |
