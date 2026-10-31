@@ -47,6 +47,19 @@ describe("learning loop verdict", () => {
     assert.equal(at("2"), "NOT_OBSERVED", "a non-integer is never read as a pass");
   });
 
+  it("names where candidates stop from the meta-learning counters, and reads missing counters as UNKNOWN", () => {
+    const stage = (meta: Record<string, unknown> | undefined) => {
+      const r = healthy(); (r.closedLearningLoop as Record<string, unknown>).metaLearning = meta;
+      return verdict(r).candidateFunnel;
+    };
+    assert.equal(stage({ experiments: 0, discoveryPasses: 0, holdoutPasses: 0 }).stage, "NO_EXPERIMENTS");
+    assert.equal(stage({ experiments: 9, discoveryPasses: 0, holdoutPasses: 0 }).stage, "NO_DISCOVERY");
+    assert.equal(stage({ experiments: 9, discoveryPasses: 2, holdoutPasses: 0 }).stage, "DISCOVERY_ONLY_REJECTED");
+    assert.equal(stage({ experiments: 9, discoveryPasses: 2, holdoutPasses: 1 }).stage, "HOLDOUT_PASSED");
+    assert.equal(stage({ holdoutPasses: 0 }).stage, "UNKNOWN");
+    assert.equal(stage(undefined).stage, "UNKNOWN");
+  });
+
   it("a sticky lastBlockedReason of TICK_ERROR is not a failure by itself; a current error class or ERROR rollover is", () => {
     const sticky = healthy(); (sticky.closedLearningLoop as Record<string, unknown>).lastBlockedReason = "TICK_ERROR";
     assert.equal(verdict(sticky).verdict, "LOOP_VERIFIED");

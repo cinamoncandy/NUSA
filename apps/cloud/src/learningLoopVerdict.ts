@@ -22,6 +22,12 @@ export interface LearningLoopVerdict {
    * state and not a broken pipe. NONE when it does not apply.
    */
   readonly cycleWaitingFor: "NONE" | "NO_DEPLOYABLE_CANDIDATE" | "EVALUATION_WINDOW" | "UNKNOWN";
+  /**
+   * Where Research candidates stop, from the meta-learning counters only (integers, no candidate text): NO_EXPERIMENTS = none run yet,
+   * NO_DISCOVERY = experiments ran but nothing passed discovery (data or signal), DISCOVERY_ONLY_REJECTED = something passed
+   * discovery but nothing passed the independent holdout (overfit), HOLDOUT_PASSED = at least one candidate passed. Display only.
+   */
+  readonly candidateFunnel: Readonly<{ stage: "NO_EXPERIMENTS" | "NO_DISCOVERY" | "DISCOVERY_ONLY_REJECTED" | "HOLDOUT_PASSED" | "UNKNOWN"; experiments: number | null; discoveryPasses: number | null; holdoutPasses: number | null }>;
   readonly criteria: Readonly<{
     tradingChain: "PASS" | "NOT_PASS" | "UNKNOWN";
     researchInputs: "PASS" | "NOT_PASS" | "UNKNOWN";
@@ -71,6 +77,12 @@ export function learningLoopVerdict(runtime: Source, pipeline: LearningPipelineP
     : holdoutPasses === 0 ? "NO_DEPLOYABLE_CANDIDATE"
     : rollover === "WAITING_FOR_EVALUATION_WINDOW" ? "EVALUATION_WINDOW" : "UNKNOWN";
 
+  const experiments = int(meta?.experiments), discoveryPasses = int(meta?.discoveryPasses);
+  const funnelStage: LearningLoopVerdict["candidateFunnel"]["stage"] = experiments === undefined || discoveryPasses === undefined || holdoutPasses === undefined ? "UNKNOWN"
+    : holdoutPasses > 0 ? "HOLDOUT_PASSED"
+    : discoveryPasses > 0 ? "DISCOVERY_ONLY_REJECTED"
+    : experiments > 0 ? "NO_DISCOVERY" : "NO_EXPERIMENTS";
+
   let verdict: LearningLoopVerdictLabel;
   if (failedNow) verdict = "FAILED";
   else if (firstStage === "NONE" && cycleEvaluated === true && cycleRecorded === true) verdict = "LOOP_VERIFIED";
@@ -84,6 +96,7 @@ export function learningLoopVerdict(runtime: Source, pipeline: LearningPipelineP
     firstBrokenTransition: firstStage,
     firstBrokenCode: firstCode,
     cycleWaitingFor,
+    candidateFunnel: Object.freeze({ stage: funnelStage, experiments: experiments ?? null, discoveryPasses: discoveryPasses ?? null, holdoutPasses: holdoutPasses ?? null }),
     criteria: Object.freeze({ tradingChain: tradingState, researchInputs: researchState, cycleEvaluated, cycleRecorded, survivesRestart: recordedAtBoot !== undefined && recordedAtBoot > 0 ? "OBSERVED" as const : "NOT_OBSERVED" as const }),
   });
 }
