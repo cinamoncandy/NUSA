@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
-const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8").replace(/\r\n/g, "\n");
 function jobBlock(job, nextJob) {
   const start = workflow.indexOf(`  ${job}:\n`);
   const end = workflow.indexOf(`\n  ${nextJob}:\n`, start + 1);
