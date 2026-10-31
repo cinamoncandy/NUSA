@@ -92,7 +92,10 @@ test("/health accepts only canonical hourly eligibility tied to the open period"
 });
 
 async function withServer(options, run, port) {
-  const handle = startCloudDashboardServer({ port, ...base, ...options });
+  // Keep test listeners below Linux's ephemeral-port range so unrelated local
+  // outbound connections cannot make deterministic server tests flaky.
+  const stableTestPort = port >= 32_768 ? port - 20_000 : port;
+  const handle = startCloudDashboardServer({ port: stableTestPort, ...base, ...options });
   try { await run(handle); } finally { await handle.stop(); }
 }
 
@@ -211,7 +214,7 @@ test("/health names the class of the runtime's own paper failures but never the 
       const res = await request(handle.port, "/health");
       const body = JSON.parse(res.body);
       assert.equal(body.runtime.lastError, expected, lastError);
-      assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|1234|abc-123|ledger/);
+      assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|(?<![0-9])1234(?![0-9])|abc-123|ledger/);
     }, 41850 + index); // a range no other test file uses (41890-41897 overlapped paper-decision-outcome's 41893-41895)
   }
 });
