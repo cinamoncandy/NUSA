@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandHeight, islandMinFrameGapMs, landRuns, rowBase, rowColor, rowLift, rowLight, rowOpacity, rowSpan, swellDepth } from "./islandCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, islandSteps, landRuns, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, smoothDt, swellDepth } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
@@ -44,6 +44,7 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
   // A still island moves only when it breathes (and the OS allows motion); its height and colour stay fixed by the given values.
   const breathe = still?.breathe === true;
   const motion = still == null || breathe ? reducedMotion : true;
+  const stepsRef = useRef(ISLAND_STEPS);
   const breatheRef = useRef(breathe);
   breatheRef.current = breathe;
   const height = Math.round(width * (still != null ? 0.6 : compact ? 0.55 : 0.88));
@@ -89,15 +90,17 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
   useEffect(() => {
     if (motion !== false) { setFrame((n) => n + 1); return undefined; }
     if (!active) return undefined;
-    let alive = true, last = 0, handle = 0, gap = 16, minGap = 0, prev = 0;
+    let alive = true, last = 0, handle = 0, gap = 16, minGap = 0, prev = 0, dtSmooth = 0;
     const loop = (ts: number) => {
       if (!alive) return;
       if (!breatheRef.current && !liveRef.current && state.current.flat > 0.99 && pulses.current.length === 0 && state.current.pink < 0.02) { setFrame((n) => n + 1); return; }
       // Measure the display's own cadence on every callback (not only on drawn frames), or a throttle would read as a slow device and never lift.
-      if (prev !== 0) { gap += (Math.min(ts - prev, 100) - gap) * 0.05; minGap = islandMinFrameGapMs(gap); }
+      if (prev !== 0) { gap += (Math.min(ts - prev, 100) - gap) * 0.05; minGap = islandMinFrameGapMs(gap); stepsRef.current = islandSteps(gap); }
       prev = ts;
       if (ts - last >= minGap) {
-        const dt = last === 0 ? 0 : Math.min(0.1, (ts - last) / 1000); last = ts;
+        const rawDt = last === 0 ? 0 : (ts - last) / 1000; last = ts;
+        dtSmooth = smoothDt(dtSmooth, rawDt);
+        const dt = dtSmooth;
         const st = state.current, isLive = liveRef.current, now = Date.now();
         const next = springStep(st.amp, st.v, restAmplitude(isLive, st.energy), dt);
         st.amp = next.amp; st.v = next.velocity;
@@ -135,10 +138,11 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
     for (let r = 0; r < ISLAND_ROWS; r += 1) {
       const d = r / (ISLAND_ROWS - 1), base = rowBase(d) * height, [a, b] = rowSpan(d), lift = rowLift(d) * height;
       let light = 0, order = 0;
-      for (const s of swells) { const l = rowLight(d, s.pos); light = Math.max(light, l); if (s.order) order = Math.max(order, l); }
+      for (const s of swells) { const l = rowGlow(d, s.pos); light = Math.max(light, l); if (s.order) order = Math.max(order, l); }
       const hs: number[] = [], xs: number[] = [], ys: number[] = [];
-      for (let i = 0; i <= ISLAND_STEPS; i += 1) {
-        const u = i / ISLAND_STEPS, h = islandHeight(u, d, st.phase, amp, swells.map((s) => ({ pos: s.pos, k: 0.25 }))) * lift;
+      const steps = still != null && !breathe ? ISLAND_STEPS : stepsRef.current;
+      for (let i = 0; i <= steps; i += 1) {
+        const u = i / steps, h = islandHeight(u, d, rowPhase(st.phase, d), amp * islandBreath(st.phase), swells.map((s) => ({ pos: s.pos, k: 0.25 }))) * lift;
         hs.push(h / lift); xs.push((a + (b - a) * u) * width); ys.push(base - h);
         if ((!grey || still != null) && d > 0.3 && (summit == null || h > summit.lift)) summit = { x: xs[i], y: ys[i], lift: h };
       }

@@ -45,6 +45,7 @@ import {
   type PersonalPaperLossLimit,
   type PersonalPaperLearningFunnel,
   type PersonalPaperLearningLoop,
+  type PersonalPaperOrderBookStudy,
   type PersonalPaperTodayRealized
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
@@ -96,6 +97,7 @@ import {
   type NusaEngineeringOperatingSource,
 } from "./engineeringOperatingReadModel";
 import { composeResearchExperiments } from "./researchExperimentComposition";
+import { readOrderBookStudyDisplay } from "./researchStudyResult";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -358,12 +360,23 @@ export function startCloudRuntime(
       put("paperNetBp", signed(meta?.paperNetBp)); put("paperExcessBp", signed(meta?.paperExcessBp));
       put("shadowSince", nonNeg(evidence?.shadowSince)); put("shadowTrades", nonNeg(evidence?.shadowTrades)); put("shadowWins", nonNeg(evidence?.shadowWins));
       put("shadowGrossGainBp", nonNeg(evidence?.shadowGrossGainBp)); put("shadowGrossLossBp", nonNeg(evidence?.shadowGrossLossBp)); put("shadowFeeBp", nonNeg(evidence?.shadowFeeBp));
+      for (const key of ["nullSince", "nullSeed", "nullBaseTrades", "nullHoldMarkets", "nullRandTrades", "nullRandWins", "nullRandSkipped"] as const) put(key, nonNeg(evidence?.[key]));
+      for (const key of ["nullBaseNetBp", "nullHoldNetBp", "nullRandNetBp"] as const) put(key, signed(evidence?.[key]));
       // Consistency: a part cannot exceed its whole. An inconsistent pair is dropped rather than drawn.
       if (out.discoveryPasses != null && out.configurations != null && out.discoveryPasses > out.configurations) { delete out.discoveryPasses; delete out.holdoutPasses; }
       if (out.holdoutPasses != null && out.discoveryPasses != null && out.holdoutPasses > out.discoveryPasses) delete out.holdoutPasses;
       if (out.shadowWins != null && out.shadowTrades != null && out.shadowWins > out.shadowTrades) { delete out.shadowWins; }
+      if (out.nullRandWins != null && out.nullRandTrades != null && out.nullRandWins > out.nullRandTrades) { delete out.nullRandWins; }
       if (Object.keys(out).length === 0) return {};
       return { learningLoop: Object.freeze({ ...out, evaluatedAt: Date.now() }) as PersonalPaperLearningLoop };
+    } catch { return {}; }
+  };
+  // Display only: the pre-registered ORDERBOOK study result the host wrote next to the state DB. Absent or malformed => nothing is sent.
+  const orderBookStudyHeartbeat = (): { orderBookStudy?: PersonalPaperOrderBookStudy } => {
+    try {
+      if (env.NUSA_CLOUD_STATE_DB_PATH === undefined) return {};
+      const study = readOrderBookStudyDisplay(config.cloudStateDbPath);
+      return study == null ? {} : { orderBookStudy: study };
     } catch { return {}; }
   };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
@@ -381,7 +394,7 @@ export function startCloudRuntime(
     const research = researchProgress != null
       ? { researchCollection: researchProgress }
       : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
-    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat() });
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat(), ...orderBookStudyHeartbeat() });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
