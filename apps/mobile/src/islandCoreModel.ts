@@ -65,6 +65,48 @@ export function rowLight(d: number, pos: number | null): number {
   return Math.exp(-x * x);
 }
 
+/** Lines of sea under the island, from the shore (t = 0) towards the viewer (t = 1). */
+export const SEA_LINES = 9;
+
+/**
+ * Vertical offset in px of a sea line at u (0..1 across): two waves of different length and opposite drift interfere, and the swing
+ * grows towards the viewer (perspective), so the sea reads as water instead of a ruled line. Bounded by seaWaveReach(t).
+ */
+export function seaWave(u: number, t: number, k: number, phase: number): number {
+  const reach = 0.5 + 1.8 * Math.max(0, Math.min(1, t));
+  return reach * (0.65 * Math.sin(u * 11 + k * 0.9 + phase * 1.6) + 0.35 * Math.sin(u * 23 - phase * 2.4 + k * 1.7));
+}
+export const seaWaveReach = (t: number): number => 0.5 + 1.8 * Math.max(0, Math.min(1, t));
+
+/** A slow shimmer (0.64..1) that multiplies a sea line's opacity so the water glints without blinking. */
+export function seaShimmer(k: number, phase: number): number {
+  return 0.82 + 0.18 * Math.sin(phase * 1.1 + k * 1.3);
+}
+
+/** Stroke width of a sea line: thicker next to the shore where the island is reflected, finer towards the viewer. */
+export const seaLineWidth = (t: number): number => 0.7 + 0.5 * (1 - Math.max(0, Math.min(1, t)));
+
+/** How strongly a contour segment is drawn, by the lower of its two end heights: the line fades in over a few eps instead of appearing at once. */
+export const LAND_FADE_LEVELS: readonly number[] = Object.freeze([0.3, 0.65, 1]);
+
+/**
+ * Segment runs [start, end] grouped by fade level. A segment whose lower end is at or below `eps` is not drawn; it fades in at 30%,
+ * 65% and then 100% as that end rises past 2.2 and 3.6 times `eps`. A negative `eps` draws everything at full strength (a grey island).
+ * Replaces the hard cut of landRuns at the lowest part of the island, where lines used to pop in and out.
+ */
+export function landFade(heights: readonly number[], eps: number): readonly { readonly k: number; readonly runs: readonly (readonly [number, number])[] }[] {
+  const levelOf = (lowest: number): number => (eps < 0 ? 2 : lowest <= eps ? -1 : lowest < eps * 2.2 ? 0 : lowest < eps * 3.6 ? 1 : 2);
+  const out = LAND_FADE_LEVELS.map((k) => ({ k, runs: [] as [number, number][] }));
+  let start = -1, level = -1;
+  const close = (end: number): void => { if (start >= 0 && level >= 0 && end > start) out[level]!.runs.push([start, end]); start = -1; level = -1; };
+  for (let i = 0; i + 1 < heights.length; i += 1) {
+    const l = levelOf(Math.min(heights[i]!, heights[i + 1]!));
+    if (l !== level) { close(i); if (l >= 0) { start = i; level = l; } }
+  }
+  close(heights.length - 1);
+  return Object.freeze(out.map((band) => Object.freeze({ k: band.k, runs: Object.freeze(band.runs) })));
+}
+
 /** The band of light plus a softer, wider tail behind it (toward the front), so the light reads as a glide with a wake and not a dot. */
 export function rowGlow(d: number, pos: number | null): number {
   if (pos == null) return 0;

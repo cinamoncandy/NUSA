@@ -121,3 +121,43 @@ test("motion steps are smoothed and a slow device samples fewer points instead o
   assert.ok(m.islandSteps(23) < m.ISLAND_STEPS && m.islandSteps(23) > m.islandSteps(40));
   assert.ok(m.islandSteps(40) >= 40, "never so coarse that the contour breaks into segments");
 });
+
+test("the lowest part of a contour fades in and out instead of popping", () => {
+  const e = m.ISLAND_LAND_EPS;
+  const heights = [0, e * 0.5, e * 1.5, e * 2.5, e * 4, e * 6, e * 4, e * 2.5, e * 1.5, e * 0.5, 0];
+  const bands = m.landFade(heights, e);
+  assert.deepEqual(bands.map((b) => b.k), [0.3, 0.65, 1]);
+  const covered = bands.flatMap((b) => b.runs.map(([s, t]) => [s, t, b.k]));
+  assert.ok(covered.every(([s, t]) => t > s), "every run is at least one segment");
+  const strength = (seg) => { const r = covered.find(([s, t]) => seg >= s && seg < t); return r ? r[2] : 0; };
+  const segs = Array.from({ length: heights.length - 1 }, (_, i) => strength(i));
+  assert.equal(segs[0], 0, "a segment whose lower end is at the sea is not drawn");
+  assert.ok(segs[1] === 0.3 || segs[1] === 0, "it fades in at 30% first");
+  assert.equal(Math.max(...segs), 1, "the top of the island is at full strength");
+  for (let i = 1; i < segs.length; i += 1) assert.ok(Math.abs(segs[i] - segs[i - 1]) <= 0.7, "no jump from nothing to full");
+  const rise = segs.slice(0, 6), fall = segs.slice(5);
+  assert.deepEqual(rise, [...rise].sort((a, b) => a - b), "strength only rises towards the peak");
+  assert.deepEqual(fall, [...fall].sort((a, b) => b - a), "and only falls away from it");
+  const grey = m.landFade([0, 0, 0, 0], -1);
+  assert.deepEqual(grey.map((b) => b.runs.length), [0, 0, 1], "a negative eps draws everything at full strength");
+  assert.deepEqual(m.landFade([], e).map((b) => b.runs.length), [0, 0, 0]);
+});
+
+test("the sea is made of interfering waves that grow towards the viewer, with a gentle shimmer", () => {
+  assert.equal(m.SEA_LINES, 9);
+  for (let k = 0; k < m.SEA_LINES; k += 1) {
+    const t = k / (m.SEA_LINES - 1);
+    let prev = m.seaWave(0, t, k, 3.1);
+    for (let i = 1; i <= 60; i += 1) {
+      const v = m.seaWave(i / 60, t, k, 3.1);
+      assert.ok(Math.abs(v) <= m.seaWaveReach(t) + 1e-9, "bounded by the reach of its distance");
+      assert.ok(Math.abs(v - prev) < m.seaWaveReach(t) * 0.9, "no jump between neighbouring points");
+      prev = v;
+    }
+  }
+  assert.ok(m.seaWaveReach(1) > m.seaWaveReach(0) * 3, "the swing grows towards the viewer");
+  assert.equal(m.seaWave(0.4, 0.5, 2, 0), m.seaWave(0.4, 0.5, 2, 0), "deterministic at a settled phase");
+  assert.notEqual(m.seaWave(0.4, 0.5, 2, 0), m.seaWave(0.4, 0.5, 2, 1), "and it moves with the phase");
+  for (let p = 0; p < 40; p += 0.7) assert.ok(m.seaShimmer(3, p) >= 0.64 - 1e-9 && m.seaShimmer(3, p) <= 1 + 1e-9);
+  assert.ok(m.seaLineWidth(0) > m.seaLineWidth(1), "thicker by the shore, finer towards the viewer");
+});
