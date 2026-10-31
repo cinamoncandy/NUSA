@@ -123,25 +123,19 @@ test("motion steps are smoothed and a slow device samples fewer points instead o
   assert.ok(m.islandSteps(40) >= 40, "never so coarse that the contour breaks into segments");
 });
 
-test("the lowest part of a contour fades in and out instead of popping", () => {
+test("the lowest part of a contour fades by height with one stroke per row, never in pieces", () => {
   const e = m.ISLAND_LAND_EPS;
-  const heights = [0, e * 0.5, e * 1.5, e * 2.5, e * 4, e * 6, e * 4, e * 2.5, e * 1.5, e * 0.5, 0];
-  const bands = m.landFade(heights, e);
-  assert.deepEqual(bands.map((b) => b.k), [0.3, 0.65, 1]);
-  const covered = bands.flatMap((b) => b.runs.map(([s, t]) => [s, t, b.k]));
-  assert.ok(covered.every(([s, t]) => t > s), "every run is at least one segment");
-  const strength = (seg) => { const r = covered.find(([s, t]) => seg >= s && seg < t); return r ? r[2] : 0; };
-  const segs = Array.from({ length: heights.length - 1 }, (_, i) => strength(i));
-  assert.equal(segs[0], 0, "a segment whose lower end is at the sea is not drawn");
-  assert.ok(segs[1] === 0.3 || segs[1] === 0, "it fades in at 30% first");
-  assert.equal(Math.max(...segs), 1, "the top of the island is at full strength");
-  for (let i = 1; i < segs.length; i += 1) assert.ok(Math.abs(segs[i] - segs[i - 1]) <= 0.7, "no jump from nothing to full");
-  const rise = segs.slice(0, 6), fall = segs.slice(5);
-  assert.deepEqual(rise, [...rise].sort((a, b) => a - b), "strength only rises towards the peak");
-  assert.deepEqual(fall, [...fall].sort((a, b) => b - a), "and only falls away from it");
-  const grey = m.landFade([0, 0, 0, 0], -1);
-  assert.deepEqual(grey.map((b) => b.runs.length), [0, 0, 1], "a negative eps draws everything at full strength");
-  assert.deepEqual(m.landFade([], e).map((b) => b.runs.length), [0, 0, 0]);
+  const f = m.lowFadeY(200, 100, e);
+  assert.ok(f.y0 < 200 && f.y1 < f.y0, "transparent a little above the base, opaque higher up (smaller y)");
+  assert.ok(Math.abs((200 - f.y0) - e * 0.5 * 100) < 1e-9 && Math.abs((200 - f.y1) - e * 4.5 * 100) < 1e-9);
+  assert.equal(m.lowFadeY(200, 100, -1), null, "a grey island draws everything at full strength");
+  assert.equal(m.lowFadeY(NaN, 100, e), null);
+  assert.equal(m.lowFadeY(200, 0, e), null);
+  assert.equal(m.lowFadeY(200, 100, NaN), null);
+  const fs = require("node:fs"), path = require("node:path");
+  const core = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/islandCore.tsx"), "utf8").replace(/\r\n/g, "\n");
+  assert.doesNotMatch(core, /landFade|landRuns|row\.edges/, "no splitting of a contour into runs or bands");
+  assert.match(core, /lowFadeY\(base, lift,/);
 });
 
 test("the sea is made of interfering waves that grow towards the viewer, with a gentle shimmer", () => {
