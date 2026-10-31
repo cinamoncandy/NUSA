@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { validatePaperRuntimeExecutionCostEvidence } from "./paperRuntimeExecutionCostEvidence";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 import {
@@ -6,7 +7,10 @@ import {
   SqlitePersistedPaperPeriodStore,
   type PersistedPaperCandidateProvenance,
   type PersistedPaperPeriodEnvelope,
+  type PersistedPaperPeriodRetentionResult,
   type PersistedPaperPendingPeriod,
+  type RealizedPeriodRetentionGuard,
+  type PersistedPaperPendingDisposition,
 } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { LeagueCapitalAllocationAdvisory } from "../../../packages/contracts/src/leagueCapitalAllocation";
 import { PaperCanonicalOutcomeReconciliationError, reconcileCanonicalPaperOutcomeWindow } from "./paperCanonicalOutcomeReconciliation";
@@ -90,7 +94,13 @@ export interface PaperPeriodMixedBindingReceipt {
   readonly evidenceFingerprintSha256: string;
 }
 
+export interface PaperIncompletePeriodDispositionResult {
+  readonly disposition: PersistedPaperPendingDisposition;
+  readonly successor: PersistedPaperRealizedPeriodPlan;
+}
+
 export interface PaperRealizedPeriodProducerOptions {
+  readonly sourceRuntimeSha?: string;
   readonly onLifecycleEvent?: (event: PaperRealizedPeriodLifecycleEvent) => void;
   readonly now?: () => number;
   readonly maximumPeriods?: number;
@@ -100,6 +110,12 @@ export interface PaperRealizedPeriodProducerOptions {
   readonly readCanonicalPaperFills?: () => readonly PaperFillRecord[];
   /** Read-only benchmark source; absent means canonical period admission remains fail-closed. */
   readonly readCanonicalBenchmarkEvidence?: (periodStartAt: number, periodEndAt: number, market?: string) => PaperCanonicalBenchmarkEvidence | undefined;
+  /**
+   * Required. Retention is the one place realized PAPER evidence is physically deleted, so it may
+   * never run without a reference-aware guard (v2 Impact Analysis M1 / A7). Production supplies the
+   * guard derived from the evolution ledger, whose surviving records cite `paper-period:<recordId>`.
+   */
+  readonly retentionGuard: RealizedPeriodRetentionGuard;
 }
 
 export class PaperRealizedPeriodProducerError extends Error {
@@ -288,14 +304,22 @@ function decodePlan(pending: PersistedPaperPendingPeriod): PersistedPaperRealize
 
 export class PaperRealizedPeriodProducer {
   private readonly openPeriods = new Map<string, PersistedPaperRealizedPeriodPlan>();
+  private lastRetention: PersistedPaperPeriodRetentionResult | undefined;
 
-  public constructor(private readonly repository: SqlitePersistedPaperPeriodStore, private readonly options: PaperRealizedPeriodProducerOptions = {}) {
+  public constructor(private readonly repository: SqlitePersistedPaperPeriodStore, private readonly options: PaperRealizedPeriodProducerOptions) {
+    if (options.retentionGuard == null || typeof options.retentionGuard.referencedRecordIds !== "function") throw new PaperRealizedPeriodProducerError("MISSING_RETENTION_GUARD", "PAPER realized-period retention requires a reference-aware guard");
     if (options.maximumPeriods !== undefined && (!Number.isSafeInteger(options.maximumPeriods) || options.maximumPeriods < 1 || options.maximumPeriods > 1_000)) throw new PaperRealizedPeriodProducerError("INVALID_RETENTION", "PAPER period retention must be between 1 and 1000");
     const pending = repository.listPending().map(decodePlan);
     if (pending.length > 1) throw new PaperRealizedPeriodProducerError("MULTIPLE_OPEN_PERIODS", "multiple open PAPER realized periods are unsafe");
     for (const plan of pending) this.openPeriods.set(plan.periodId, plan);
-    repository.prune(options.maximumPeriods ?? 100);
+    this.lastRetention = repository.prune(options.maximumPeriods ?? 100, options.retentionGuard);
   }
+
+  /**
+   * The most recent retention report. A period kept past the bound because a surviving record cites
+   * it is visible here rather than hidden, and the bound is never relaxed to clear it.
+   */
+  public retention(): PersistedPaperPeriodRetentionResult | undefined { return this.lastRetention; }
 
   public openPeriod(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan {
     try { return this.openPeriodInternal(input); } catch (error) { throw this.reject(error, input.periodId); }
@@ -442,6 +466,58 @@ export class PaperRealizedPeriodProducer {
     } catch (error) { throw this.reject(error, periodId); }
   }
 
+  /** Preserve a proven incomplete window without manufacturing realized returns or costs. */
+  public disposeIncompletePeriodFromCanonicalAccount(input: PaperRealizedPeriodCanonicalCloseInput): PaperIncompletePeriodDispositionResult {
+    const replay = this.repository.listPendingDispositions().find((item) => item.original.periodId === input.periodId);
+    if (replay != null) {
+      if (replay.reason.boundaryAt !== input.periodEndAt) throw new PaperRealizedPeriodProducerError("PERIOD_ID_CONFLICT", "disposition boundary changed", input.periodId);
+      return Object.freeze({ disposition: replay, successor: decodePlan(replay.successor) });
+    }
+    const current = this.openPeriods.get(input.periodId);
+    if (current == null || current.accountBoundary == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "canonical pending period is unavailable", input.periodId);
+    const endState = this.readCanonicalAccountState(input.periodEndAt, input.periodId);
+    if (endState.initialCapital !== current.accountBoundary.initialCapital) throw new PaperRealizedPeriodProducerError("CANONICAL_ACCOUNT_BOUNDARY_CONFLICT", "account identity changed", input.periodId);
+    if (endState.positions.some((position) => position.quantity !== 0) || (endState.workingOrders?.length ?? 0) !== 0) {
+      throw new PaperRealizedPeriodProducerError("INCOMPLETE_PERIOD_WAITING_FOR_FLAT_BOUNDARY", "incomplete period must retain exposure until a canonical flat boundary", input.periodId);
+    }
+    const canonicalFills = this.readCanonicalPaperFills(input.periodId);
+    if (canonicalFills == null) throw new PaperRealizedPeriodProducerError("CANONICAL_FILL_LEDGER_UNAVAILABLE", "full fill truth is required for disposition", input.periodId);
+    // Re-derive the failure from canonical account/ledger evidence; a caller's error code is insufficient.
+    try {
+      reconcileCanonicalPaperOutcomeWindow({ periodStartAt: current.periodStartAt, periodEndAt: input.periodEndAt,
+        startState: boundaryAsAccountState(current.accountBoundary), endState, canonicalFills });
+      throw new PaperRealizedPeriodProducerError("PERIOD_NOT_INCOMPLETE", "canonical evidence does not prove incomplete execution costs", input.periodId);
+    } catch (error) {
+      if (!(error instanceof PaperCanonicalOutcomeReconciliationError) || error.code !== "INCOMPLETE_EXECUTION_COST_EVIDENCE") throw error;
+    }
+    const window = [...canonicalFills].filter((fill) => fill.filledAt > current.periodStartAt && fill.filledAt <= input.periodEndAt)
+      .sort((left, right) => left.filledAt - right.filledAt || left.id.localeCompare(right.id));
+    const incomplete = window.filter((fill) => fill.executionCostAttribution == null && fill.runtimeExecutionCostEvidence != null);
+    if (incomplete.length === 0) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_INCOMPLETE", "incomplete cost receipt is unavailable", input.periodId);
+    for (const fill of incomplete) validatePaperRuntimeExecutionCostEvidence(fill, fill.runtimeExecutionCostEvidence!);
+    const original = this.repository.getPending(input.periodId);
+    if (original == null || canonical(decodePlan(original)) !== canonical(current)) throw new PaperRealizedPeriodProducerError("PENDING_IDENTITY_CONFLICT", "pending evidence changed", input.periodId);
+    const periodIndex = this.repository.nextPeriodIndex();
+    const successor = validatePlan({ ...current, periodId: `closed-learning-rollover:${periodIndex}:${input.periodEndAt}`, periodIndex,
+      periodStartAt: input.periodEndAt, observationIds: [], observations: [], lastObservedAt: undefined,
+      accountBoundary: boundaryFromCanonicalAccount(endState, input.periodEndAt, input.periodId) });
+    // Optional fields must be absent, never encoded as undefined in canonical persistence.
+    const { lastObservedAt: _last, ...cleanSuccessor } = successor;
+    const next = validatePlan(cleanSuccessor);
+    const pending = { periodId: next.periodId, periodIndex: next.periodIndex, periodStartAt: next.periodStartAt, payloadJson: canonical(next), checksum: digest(next) };
+    const disposition = this.repository.markPendingIneligible({ original, successor: pending,
+      reason: { stage: "PERIOD_CLOSE", code: "INCOMPLETE_EXECUTION_COST_EVIDENCE", boundaryAt: input.periodEndAt,
+        sourceRuntimeSha: this.options.sourceRuntimeSha ?? null,
+        blockedEvidenceFingerprintSha256: digest({ window: window.map((fill) => digest(fill)), incomplete: incomplete.map((fill) => fill.runtimeExecutionCostEvidence!.evidenceFingerprintSha256) }) } });
+    // In-memory ownership changes only after both durable records commit.
+    this.openPeriods.delete(input.periodId);
+    this.openPeriods.set(next.periodId, next);
+    this.emit({ type: "PERIOD_REJECTED", periodId: input.periodId, occurredAt: input.periodEndAt,
+      reasonCode: "INCOMPLETE_EXECUTION_COST_EVIDENCE", retirementEvidenceFingerprintSha256: disposition.evidenceFingerprintSha256 });
+    this.emit({ type: "PERIOD_OPEN", periodId: next.periodId, occurredAt: next.periodStartAt });
+    return Object.freeze({ disposition, successor: next });
+  }
+
   private finalizeEnvelope(envelope: PersistedPaperPeriodEnvelope): PersistedPaperPeriodEnvelope {
     const periodId = envelope.record.recordId;
     const validated = validateEnvelope(envelope);
@@ -457,7 +533,7 @@ export class PaperRealizedPeriodProducer {
     const pending = this.repository.getPending(periodId);
     if (pending == null) throw new PaperRealizedPeriodProducerError("PERIOD_NOT_OPEN", "PAPER period is not open", periodId);
     const stored = this.repository.finalizePending(periodId, pending.checksum, validated);
-    this.repository.prune(this.options.maximumPeriods ?? 100);
+    this.lastRetention = this.repository.prune(this.options.maximumPeriods ?? 100, this.options.retentionGuard);
     this.openPeriods.delete(periodId);
     this.emit({ type: "PERIOD_REALIZED_PERSISTED", periodId, occurredAt: validated.record.periodEndAt });
     return stored;
@@ -594,6 +670,8 @@ export class PaperRealizedPeriodProducer {
       return current;
     } catch (error) { throw error instanceof PaperRealizedPeriodProducerError ? error : this.reject(error, periodId); }
   }
+
+  public nextPeriodIndex(): number { return this.repository.nextPeriodIndex(); }
 
   public listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[] {
     try { return this.repository.list(); }

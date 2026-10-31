@@ -1,0 +1,29 @@
+id: WO-UI-20261014-SAFETY-FUTURES-ROWS
+title: "Safety tab: add the Binance futures (PAPER) rows in the existing calm design"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: claude/futures-paper-core
+branch: claude/safety-futures-rows
+parent: WO-FUTURES-20261014-PAPER-CORE
+authority_impact: none
+owner_approval: "2026-10-14 in chat: keep the current design, add only the futures part now; full redesign later by the owner."
+objective: "The owner sees in the existing Safety tab that futures is PAPER-only, not trading yet, and which limits the futures gate enforces."
+change:
+  - "apps/mobile/src/safetyScreenModel.ts: buildFuturesSafetyRows(limits), dependency-free; always 'preparing', never trading."
+  - "apps/mobile/src/futuresSafetyRows.ts: mobile-local adapter reading PAPER_FUTURES_OWNER_LIMITS (presentation files may not import runtime contracts)."
+  - "apps/mobile/src/safetyView.tsx: a second CalmRow section under the existing rows."
+review_follow_up: "Non-author review (2026-10-14): the 20% position-margin limit the gate enforces was not shown; added as a row, read from the same PAPER_FUTURES_OWNER_LIMITS source."
+not_changed: "No new design, tab, palette or navigation; no runtime, trading, risk or authority change."
+stacked_on: "claude/futures-paper-core (#2703), which defines the limits; retarget to main after it merges."
+verification_commands:
+  - "node --test tests/mobile-safety-screen-model.test.js tests/mobile-presentation-boundary.test.js tests/mobile-calm-ui-kit.test.js"
+  - "node scripts/validate-architecture.js"
+  - "node scripts/lint-mobile.js"
+residual: "React Native cannot run here; the look on a phone is HUMAN_ENVIRONMENT_ONLY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true

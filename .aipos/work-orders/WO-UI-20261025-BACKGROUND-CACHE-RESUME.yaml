@@ -1,0 +1,27 @@
+id: WO-UI-20261025-BACKGROUND-CACHE-RESUME
+title: "Flush the latest PAPER display snapshot before mobile background suspension"
+status: IMPLEMENTED_PENDING_VALIDATION
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+implementation_branch: fix/mobile-background-cache-resume
+authority_impact: none
+objective: "Keep the mobile background strategy battery-safe: polling and public WebSocket remain suspended, while the freshest READY PAPER display snapshot is persisted on foreground exit so resume can render it immediately until the existing DeviceKey re-proof and canonical refresh complete."
+scope:
+  - "apps/mobile/App.tsx passes foreground state to the existing cached snapshot hook; no background polling or persistent socket is introduced."
+  - "apps/mobile/src/useCachedSnapshot.ts flushes a fresh READY snapshot immediately when leaving foreground, bypassing only the normal one-minute storage throttle."
+  - "apps/mobile/src/cachedSnapshotModel.ts exposes the bounded force-save predicate used by the lifecycle flush."
+  - "tests/mobile-cached-snapshot.test.js covers throttle bypass and App lifecycle wiring."
+exclusions:
+  - "No server/runtime, PAPER execution, risk, accounting, credential, LIVE, push-notification, or AI-authority change."
+  - "No attempt to keep Android network sockets alive while backgrounded; existing foreground resume revalidation remains authoritative."
+safety:
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: "Only a structurally validated endpoint-bound READY PAPER snapshot is cached; cached values remain presentation-only and never become live authority."
+verification_commands:
+  - node --test tests/mobile-cached-snapshot.test.js
+  - npx tsc -p apps/mobile/tsconfig.json --noEmit
+  - node scripts/lint-mobile.js
+residual: "Physical Galaxy background/resume feel remains HUMAN_ENVIRONMENT_ONLY after the governed app build reaches the device."

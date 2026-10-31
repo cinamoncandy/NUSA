@@ -1,7 +1,9 @@
+import { HEALTH_EXPORT_TIMEOUT_MS, healthExportConfig, startHealthExport } from "./healthExport";
 import { buildMobileDashboardResponse } from "./mobileDashboardApi";
 import { paperLedgerFingerprint } from "./paperLedgerFingerprint";
 import { InMemoryCloudDashboardStateProvider, type CloudDashboardStateProvider } from "./cloudDashboardStateProvider";
 import { readCloudRuntimeConfig, createSharedSecretTokenVerifier } from "./cloudRuntimeConfig";
+import { evolutionLedgerRetentionGuard } from "./closedLearningEvolutionLedgerRepository";
 import { SqliteDatabase, SqliteEvolutionLearningLedger } from "../../../packages/storage/src/index";
 import { DurableCloudDashboardStateProvider } from "./durableCloudDashboardStateProvider";
 import { SqliteCloudDashboardSnapshotRepository, type CloudDashboardSnapshotRepository } from "./cloudDashboardSnapshotRepository";
@@ -9,6 +11,7 @@ import { readResearchExperimentSettings } from "./researchExperimentComposition"
 import { createEventLoopStallMonitor } from "./eventLoopStallMonitor";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountRepository } from "./paperTradingExecutionLoop";
 import { CloudPaperCanonicalRiskGateway } from "./cloudPaperCanonicalRiskGateway";
+import { cloudPaperRiskLimitsForCapital } from "./paperRiskLimitScaling";
 import { attributeTodayLosses, type PaperLossAttribution } from "./paperLossAttribution";
 import { classifyPaperWait } from "./paperWaitReason";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
@@ -23,6 +26,7 @@ import { CloudRuntimeDashboardHydrator } from "./cloudRuntimeDashboardHydrator";
 import { UpbitWebSocketClient, type UpbitOrderBook, type UpbitTicker, type UpbitTrade, type UpbitWebSocketOptions } from "./upbitWebSocket";
 import type { MarketMicrostructureRecorder } from "./marketMicrostructureRecorder";
 import type { ResearchOrderBookCollector } from "./researchOrderBookCollector";
+import type { ResearchFuturesCollector } from "./researchFuturesCollector";
 import { readDataIntegrityResult } from "./dataIntegrityResult";
 import { classifyTickerRejectReason, upbitTickerToIntelligenceObservation } from "./upbitTickerObservation";
 import type { IntelligenceObservation } from "./marketIntelligenceFusion";
@@ -37,10 +41,17 @@ import {
   type PersonalPaperOrderProjection,
   type PersonalPaperPortfolioProjection,
   type PersonalPaperRuntimeHaltReason,
-  type PersonalPaperRuntimeHeartbeat
+  type PersonalPaperRuntimeHeartbeat,
+  type PersonalPaperLossLimit,
+  type PersonalPaperLearningFunnel,
+  type PersonalPaperLearningLoop,
+  type PersonalPaperOrderBookStudy,
+  type PersonalPaperTodayRealized
 } from "../../../packages/contracts/src/personalPaperOperations";
 import type { PersonalPaperOrderCommand, PersonalPaperOrderCommandResult } from "../../../packages/contracts/src/personalPaperOrderCommand";
 import type { DashboardPrincipal } from "./mobileDashboardHttp";
+import { computeLimitReachedAt, computeTodayRealizedPnlKrw } from "./paperTodayRealized";
+import { PaperDecisionTrace } from "./paperDecisionTrace";
 import type { CloudAiRuntime } from "./ai/runtime";
 import { AI_CALIBRATION_OUTCOME_DEFINITION_ID, attributionScope, createCloudAiRuntime } from "./ai/runtime";
 import { projectAiReadOnly } from "./ai/projection";
@@ -51,6 +62,7 @@ import { DesktopSessionService } from "./desktopSessionService";
 import { MobileSessionService } from "./mobileSessionService";
 import { OwnerDeviceCredentialService } from "./ownerCredential/ownerDeviceCredentialService";
 import { PaperLearningEventRecorder, paperLearningCycleId } from "./paperLearningObservability";
+import { PaperFunnelCounters, mergeFunnelSnapshots, recordOrderIntentWithReasonCode } from "./paperFunnelCounters";
 import { createJevMarketMicrostructureShadowObserverFromEnvironment } from "./ai/jevMarketMicrostructureShadow";
 import { buildPaperLearningReadOnlyProjection, classifyPaperLearningRuntimeStatus } from "./paperLearningReadOnlyProjection";
 import { readPaperRuntimeSupervisorProjection } from "./paperRuntimeSupervisorProjection";
@@ -84,12 +96,15 @@ import {
   type NusaEngineeringOperatingSnapshot,
   type NusaEngineeringOperatingSource,
 } from "./engineeringOperatingReadModel";
+import { composeResearchExperiments } from "./researchExperimentComposition";
+import { readOrderBookStudyDisplay } from "./researchStudyResult";
+import { OrderBookCoverageWatch } from "./orderBookCoverage";
 
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
 export interface CloudRuntimeResearchRecoveryLike { recover(): ResearchRecoveryResult; }
-export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; experimentTicks?(): { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null; }
+export interface CloudRuntimeResearchAutomationLike { recover?(): ResearchRecoveryResult; gapFill?(): { readonly lastRunAt?: number; readonly runs: number; readonly deferred: number; readonly counts: Readonly<Record<string, number>>; readonly lastErrorCode?: string } | null; onMarketData(tick: ResearchRuntimeMarketDataTick): void; statusProjection?(): ResearchStatusProjection | null; collectionProgress?(): { readonly market: string; readonly candleCount: number; readonly requiredCandles: number; readonly firstCloseMs?: number; readonly lastCloseMs?: number; readonly observedAt: number } | null; experimentTicks?(): { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> } | null; }
 export type CloudRuntimeMarketDataClientFactory = (markets: readonly string[], onTicker: (ticker: UpbitTicker) => void, onConnectionState: (state: string) => void, onOrderBook?: (orderBook: UpbitOrderBook) => void, onTrade?: (trade: UpbitTrade) => void) => CloudRuntimeMarketDataClientLike;
 export type CloudRuntimeShadowObservabilityProvider = (principal: DashboardPrincipal) => ShadowObservabilitySnapshot;
 export type CloudRuntimeRealReadOnlyObservabilityProvider = (principal: DashboardPrincipal, events: readonly RealReadOnlyEvent[]) => RealReadOnlyObservabilitySnapshot;
@@ -109,10 +124,12 @@ export interface CloudRuntimeHandle extends CloudDashboardServerHandle {
   readonly retirePaperRealizedPeriodForUnstreamedMarket: (periodId: string, streamedMarkets: readonly string[]) => PersistedPaperRealizedPeriodPlan;
   readonly retirePaperRealizedPeriodForMixedBinding: (periodId: string) => PersistedPaperRealizedPeriodPlan;
   readonly inspectPaperRealizedPeriodForMixedBinding: (periodId: string) => { readonly evidenceFingerprintSha256: string } | null;
+  /** Canonical chronology allocator; includes realized, active pending and terminal disposition indexes. */
+  readonly nextPaperRealizedPeriodIndex: () => number;
   readonly listPaperRealizedPeriods: () => readonly PersistedPaperPeriodEnvelope[];
 }
 
-function createSnapshotRepository(pathname: string): CloudDashboardSnapshotRepository {
+function createSnapshotRepository(pathname: string): SqliteCloudDashboardSnapshotRepository {
   if (pathname !== ":memory:") {
     const absolute = path.resolve(pathname);
     const sourceTree = path.resolve(process.cwd()) + path.sep;
@@ -161,6 +178,56 @@ function buildCloudRuntimeReadiness(durableRepository: CloudDashboardSnapshotRep
   } catch { return failed(); }
 }
 
+/** Named form of the startCloudRuntime parameters, so a caller cannot shift an argument into the wrong slot. */
+export interface CloudRuntimeOptions {
+  readonly env?: NodeJS.ProcessEnv;
+  readonly stateProvider?: CloudDashboardStateProvider;
+  readonly dashboardHydrator?: CloudRuntimeDashboardHydratorLike;
+  readonly marketDataClientFactory?: CloudRuntimeMarketDataClientFactory;
+  readonly snapshotRepository?: CloudDashboardSnapshotRepository;
+  readonly paperAccountRepository?: PaperAccountRepository;
+  readonly paperExecutionLoop?: PaperTradingExecutionLoop;
+  readonly researchRuntime?: CloudRuntimeResearchRuntimeLike;
+  readonly researchRecoveryCoordinator?: CloudRuntimeResearchRecoveryLike;
+  readonly researchAutomation?: CloudRuntimeResearchAutomationLike;
+  readonly aiRuntime?: CloudAiRuntime;
+  readonly shadowObservabilityProvider?: CloudRuntimeShadowObservabilityProvider;
+  readonly liveReadinessSourceReaders?: LiveReadinessSourceReaders;
+  readonly realReadOnlyObservabilityProvider?: CloudRuntimeRealReadOnlyObservabilityProvider;
+  readonly engineeringOperatingSource?: NusaEngineeringOperatingSource;
+  readonly closedLearningStatus?: Parameters<typeof startCloudRuntime>[15];
+  readonly researchIntervalTicks?: Parameters<typeof startCloudRuntime>[16];
+  readonly microstructureRecorder?: MarketMicrostructureRecorder;
+  readonly orderBookCollector?: ResearchOrderBookCollector;
+  readonly futuresCollector?: ResearchFuturesCollector;
+}
+
+/** Same runtime as startCloudRuntime; undefined options take the same defaults. */
+export function startCloudRuntimeFromOptions(options: CloudRuntimeOptions): CloudRuntimeHandle {
+  return startCloudRuntime(
+    options.env,
+    options.stateProvider,
+    options.dashboardHydrator,
+    options.marketDataClientFactory,
+    options.snapshotRepository,
+    options.paperAccountRepository,
+    options.paperExecutionLoop,
+    options.researchRuntime,
+    options.researchRecoveryCoordinator,
+    options.researchAutomation,
+    options.aiRuntime,
+    options.shadowObservabilityProvider,
+    options.liveReadinessSourceReaders,
+    options.realReadOnlyObservabilityProvider,
+    options.engineeringOperatingSource,
+    options.closedLearningStatus,
+    options.researchIntervalTicks,
+    options.microstructureRecorder,
+    options.orderBookCollector,
+    options.futuresCollector,
+  );
+}
+
 export function startCloudRuntime(
   env: NodeJS.ProcessEnv = process.env,
   stateProvider: CloudDashboardStateProvider = new InMemoryCloudDashboardStateProvider(),
@@ -184,7 +251,9 @@ export function startCloudRuntime(
   /** Research-only recorder of the public order book and trades this runtime already receives (see marketMicrostructureRecorder.ts). */
   microstructureRecorder?: MarketMicrostructureRecorder,
   /** Research-only all-KRW order-book collector (see researchOrderBookCollector.ts). */
-  orderBookCollector?: ResearchOrderBookCollector
+  orderBookCollector?: ResearchOrderBookCollector,
+  /** Research-only public Binance futures collector (see researchFuturesCollector.ts). */
+  futuresCollector?: ResearchFuturesCollector
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -228,6 +297,8 @@ export function startCloudRuntime(
   // canonical PAPER boundary is active; without it nothing measures BUY outcomes and 0/0 would be a false statement.
   const BUY_WINDOW_MS = 86_400_000;
   const buyWindow = { key: Math.floor(runtimeStartedAt / BUY_WINDOW_MS), signals: 0, blocked: 0, decisions: 0, orders: 0, feedDisconnects: 0, feedStaleGaps: 0, feedMaxGapMs: 0 };
+  // Display only: the same window's decisions and orders per 5 minutes, for the app's decision terrain.
+  const decisionTrace = new PaperDecisionTrace(BUY_WINDOW_MS, runtimeStartedAt);
   let lastTickerArrivalMs: number | null = null;
   const rollBuyWindow = (nowMs: number): void => {
     const key = Math.floor(nowMs / BUY_WINDOW_MS);
@@ -235,13 +306,87 @@ export function startCloudRuntime(
   };
   // Display-only: the numbers and the strategy reason behind the latest canonical decision, so the app can say why nothing was traded.
   let lastDecisionDetail: PersonalPaperDecisionDetail | undefined;
+  // Display only: when today's streak reached the limit, rebuilt from the PAPER account's fills outside the pinned RISK gateway.
+  const limitReachedAtFor = (session: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number }): number | null => {
+    try {
+      const account = effectivePaperLoop?.snapshot();
+      return account == null ? null : computeLimitReachedAt(account.fills, session.evaluatedAt, session.consecutiveLossCount, session.maxConsecutiveLosses);
+    } catch { return null; }
+  };
+  // Display only: the consecutive-loss limit state the canonical risk gateway last evaluated. A failing read must never affect the heartbeat.
+  const lossLimitHeartbeat = (): { lossLimit?: PersonalPaperLossLimit } => {
+    let session: ReturnType<NonNullable<typeof productionPaperRiskGate>["lossSession"]> = null;
+    try { session = productionPaperRiskGate?.lossSession() ?? null; } catch { session = null; }
+    if (session == null) return {};
+    const limitReachedAt = limitReachedAtFor(session);
+    return { lossLimit: Object.freeze({ consecutiveLossCount: session.consecutiveLossCount, maxConsecutiveLosses: session.maxConsecutiveLosses, evaluatedAt: session.evaluatedAt, periodStartedAt: session.periodStartedAt, ...(limitReachedAt == null ? {} : { limitReachedAt }), ...(session.consecutiveLossLimitEnabled === undefined ? {} : { consecutiveLossLimitEnabled: session.consecutiveLossLimitEnabled }) }) };
+  };
+  // Display only: today's realized P&L from the PAPER loop's own fills, outside the RISK gateway. A failing read is ignored.
+  const todayRealizedHeartbeat = (): { todayRealized?: PersonalPaperTodayRealized } => {
+    try {
+      const now = Date.now();
+      const account = effectivePaperLoop?.snapshot();
+      const realizedPnlKrw = account == null ? null : computeTodayRealizedPnlKrw(account.fills, account.positions, now);
+      return realizedPnlKrw == null ? {} : { todayRealized: Object.freeze({ realizedPnlKrw, evaluatedAt: now }) };
+    } catch { return {}; }
+  };
+  // Display only: the Research funnel from the closed-learning loop status (meta-learning ledger). Integers only; a failing read is ignored.
+  const learningFunnelHeartbeat = (): { learningFunnel?: PersonalPaperLearningFunnel } => {
+    try {
+      const status = closedLearningStatus?.() as Record<string, unknown> | null | undefined;
+      const meta = status?.metaLearning as Record<string, unknown> | undefined;
+      const values = [meta?.configurations, meta?.discoveryPasses, meta?.holdoutPasses, status?.cyclesEvaluated];
+      if (!values.every((v) => Number.isSafeInteger(v) && (v as number) >= 0)) return {};
+      const [configurations, discoveryPasses, holdoutPasses, cyclesEvaluated] = values as number[];
+      // The ledger sums the two separately; a holdout count above discovery cannot be drawn as a funnel, so nothing is sent.
+      if (discoveryPasses > configurations || holdoutPasses > discoveryPasses) return {};
+      return { learningFunnel: Object.freeze({ configurations, discoveryPasses, holdoutPasses, cyclesEvaluated, evaluatedAt: Date.now() }) };
+    } catch { return {}; }
+  };
+  // Display only: measured learning-loop numbers for the app. Each value is copied only when it is a safe integer in range and consistent with its
+  // partners; otherwise that field is left out. Never an input to Risk, qualification or Research.
+  const learningLoopHeartbeat = (): { learningLoop?: PersonalPaperLearningLoop } => {
+    try {
+      const status = closedLearningStatus?.() as Record<string, unknown> | null | undefined;
+      const meta = status?.metaLearning as Record<string, unknown> | undefined;
+      const evidence = status?.evidence as Record<string, unknown> | undefined;
+      const nonNeg = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) && v >= 0 ? v : undefined);
+      const signed = (v: unknown): number | undefined => (typeof v === "number" && Number.isSafeInteger(v) && Math.abs(v) <= 10_000_000 ? v : undefined);
+      const pct = (v: unknown): number | undefined => { const n = nonNeg(v); return n != null && n <= 100 ? n : undefined; };
+      const out: Record<string, number> = {};
+      const put = (key: string, value: number | undefined) => { if (value !== undefined) out[key] = value; };
+      put("experiments", nonNeg(meta?.experiments)); put("configurations", nonNeg(meta?.configurations));
+      put("discoveryPasses", nonNeg(meta?.discoveryPasses)); put("holdoutPasses", nonNeg(meta?.holdoutPasses));
+      put("overfitRatePercent", pct(meta?.overfitRatePercent)); put("paperPeriodsConsumed", nonNeg(meta?.paperPeriodsConsumed));
+      put("paperNetBp", signed(meta?.paperNetBp)); put("paperExcessBp", signed(meta?.paperExcessBp));
+      put("shadowSince", nonNeg(evidence?.shadowSince)); put("shadowTrades", nonNeg(evidence?.shadowTrades)); put("shadowWins", nonNeg(evidence?.shadowWins));
+      put("shadowGrossGainBp", nonNeg(evidence?.shadowGrossGainBp)); put("shadowGrossLossBp", nonNeg(evidence?.shadowGrossLossBp)); put("shadowFeeBp", nonNeg(evidence?.shadowFeeBp));
+      for (const key of ["nullSince", "nullSeed", "nullBaseTrades", "nullHoldMarkets", "nullRandTrades", "nullRandWins", "nullRandSkipped"] as const) put(key, nonNeg(evidence?.[key]));
+      for (const key of ["nullBaseNetBp", "nullHoldNetBp", "nullRandNetBp"] as const) put(key, signed(evidence?.[key]));
+      // Consistency: a part cannot exceed its whole. An inconsistent pair is dropped rather than drawn.
+      if (out.discoveryPasses != null && out.configurations != null && out.discoveryPasses > out.configurations) { delete out.discoveryPasses; delete out.holdoutPasses; }
+      if (out.holdoutPasses != null && out.discoveryPasses != null && out.holdoutPasses > out.discoveryPasses) delete out.holdoutPasses;
+      if (out.shadowWins != null && out.shadowTrades != null && out.shadowWins > out.shadowTrades) { delete out.shadowWins; }
+      if (out.nullRandWins != null && out.nullRandTrades != null && out.nullRandWins > out.nullRandTrades) { delete out.nullRandWins; }
+      if (Object.keys(out).length === 0) return {};
+      return { learningLoop: Object.freeze({ ...out, evaluatedAt: Date.now() }) as PersonalPaperLearningLoop };
+    } catch { return {}; }
+  };
+  // Display only: the pre-registered ORDERBOOK study result the host wrote next to the state DB. Absent or malformed => nothing is sent.
+  const orderBookStudyHeartbeat = (): { orderBookStudy?: PersonalPaperOrderBookStudy } => {
+    try {
+      if (env.NUSA_CLOUD_STATE_DB_PATH === undefined) return {};
+      const study = readOrderBookStudyDisplay(config.cloudStateDbPath);
+      return study == null ? {} : { orderBookStudy: study };
+    } catch { return {}; }
+  };
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
     const countsSince = Math.max(runtimeStartedAt, buyWindow.key * BUY_WINDOW_MS);
     // Feed diagnostics need only the public feed; the BUY, decision and order counters need the canonical PAPER boundary.
     const feed = config.upbitPublicDataEnabled ? { feedDisconnectCount: buyWindow.feedDisconnects, feedStaleGapCount: buyWindow.feedStaleGaps, feedMaxGapMs: buyWindow.feedMaxGapMs, feedCountsSince: countsSince } : {};
-    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]) };
+    const paper = productionPaperBoundary == null ? {} : { buySignalCount: buyWindow.signals, buyBlockedCount: buyWindow.blocked, windowDecisionCount: buyWindow.decisions, windowOrderCount: buyWindow.orders, buyCountsSince: countsSince, decisionTrace: decisionTrace.snapshot(Date.now()), ...(lastDecisionDetail === undefined ? {} : { lastDecisionDetail }), tradedMarkets: Object.freeze([...config.upbitMarkets]), ...lossLimitHeartbeat(), ...todayRealizedHeartbeat() };
     // Display only; a failing provider must never affect the heartbeat.
     let researchProgress: ReturnType<NonNullable<CloudRuntimeResearchAutomationLike["collectionProgress"]>> = null;
     try { researchProgress = researchAutomation?.collectionProgress?.() ?? null; } catch { researchProgress = null; }
@@ -250,7 +395,7 @@ export function startCloudRuntime(
     const research = researchProgress != null
       ? { researchCollection: researchProgress }
       : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
-    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research });
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat(), ...orderBookStudyHeartbeat() });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));
@@ -260,6 +405,7 @@ export function startCloudRuntime(
   const jevMarketMicrostructureLastObservedAt = new Map<string, number>();
   const JEV_MARKET_MICROSTRUCTURE_SAMPLE_INTERVAL_MS = 30_000;
 
+  const orderIntentReasonCounters = new PaperFunnelCounters();
   const paperLearningRecorder = new PaperLearningEventRecorder(
     durableRepository instanceof SqliteCloudDashboardSnapshotRepository
       ? { persistencePath: config.cloudStateDbPath }
@@ -278,6 +424,9 @@ export function startCloudRuntime(
       // Thirty nominal hourly days need 720 records; the independent covered-day gate is unchanged.
       // Keep the same bounded budget after cadence changes instead of shrinking hourly history to 100.
       maximumPeriods: 1_000,
+      // Retention may never delete a realized period a surviving ledger record cites (v2 M1/A7).
+      retentionGuard: evolutionLedgerRetentionGuard(new SqliteEvolutionLearningLedger(durableRepository.database())),
+      sourceRuntimeSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim() || undefined,
       onLifecycleEvent: (event) => paperLearningRecorder.record({
         cycleId: `paper-period:${event.periodId}`,
         stage: event.type,
@@ -317,7 +466,7 @@ export function startCloudRuntime(
   const readPaperP0State = () => { if (effectiveP0Repository == null) throw new Error("P0 safety repository unavailable"); return effectiveP0Repository.readState(); };
   const readAiP0State = (): CloudRuntimeAiP0State => { if (effectiveP0Repository == null) return "UNAVAILABLE"; try { return effectiveP0Repository.readState().openP0 ? "OPEN" : "CLOSED"; } catch { return "UNVERIFIABLE"; } };
   const productionPaperRiskGate = config.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository
-    ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
+    ? new CloudPaperCanonicalRiskGateway({ database: durableRepository.database(), initialCapital: config.paperInitialCapitalKrw, limits: cloudPaperRiskLimitsForCapital(config.paperInitialCapitalKrw), accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw), sourceCommitSha: env.NUSA_SOURCE_COMMIT?.trim() || env.GITHUB_SHA?.trim() || "local-paper-build" })
     : undefined;
   effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined ? undefined : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository, readP0State: readPaperP0State }));
   const productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
@@ -457,6 +606,7 @@ export function startCloudRuntime(
         heartbeat.decisionCount += state.decisions.length;
         rollBuyWindow(Date.now());
         buyWindow.decisions += state.decisions.length;
+        decisionTrace.record("decision", state.decisions.length, Date.now());
         // A supplied loop is a read/recovery fixture unless it is composed behind the
         // canonical Cloud PAPER risk boundary. Never let dependency injection create a
         // second mutation path for strategy ticks.
@@ -478,6 +628,7 @@ export function startCloudRuntime(
           heartbeat.paperOrderCount += result.orders.length;
           rollBuyWindow(Date.now());
           buyWindow.orders += result.orders.length;
+          decisionTrace.record("order", result.orders.length, Date.now());
           heartbeat.paperFillCount += result.fills.length;
           // Display-only: a BUY decision, and a BUY the boundary explicitly refused (BLOCKED or REJECTED). WAIT, DUPLICATE and FAILED are not counted as refusals.
           if (canonicalDecision?.action === "BUY") { rollBuyWindow(Date.now()); buyWindow.signals += 1; if (result.status === "BLOCKED" || result.status === "REJECTED") buyWindow.blocked += 1; }
@@ -488,7 +639,14 @@ export function startCloudRuntime(
           }
           const intentStatus = result.status === "FILLED" ? "PASS" : result.status === "WAIT" ? "SKIP" : "FAIL";
           if (result.risk != null) paperLearningRecorder.record({ cycleId, stage: "RISK", occurredAt: now, market: ticker.code, status: result.risk.status === "ALLOW" ? "PASS" : "FAIL", reason: result.risk.reasonCodes.join(",") || result.risk.status });
-          paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status });
+          recordOrderIntentWithReasonCode(
+            paperLearningRecorder,
+            () => paperLearningRecorder.record({ cycleId, stage: "ORDER_INTENT", occurredAt: now, market: ticker.code, status: intentStatus, reason: result.reason ?? result.status }),
+            orderIntentReasonCounters,
+            intentStatus,
+            result.status,
+            result.reason ?? result.status
+          );
           if (result.status === "DUPLICATE") paperLearningRecorder.record({ cycleId, stage: "IDEMPOTENCY", occurredAt: now, market: ticker.code, status: "SKIP", reason: result.reason ?? "PAPER_DUPLICATE" });
           for (const fill of result.fills) paperLearningRecorder.record({ cycleId, stage: "FILL", occurredAt: fill.filledAt, market: ticker.code, status: "PASS", fill, idSuffix: fill.id });
           paperLearningRecorder.record({ cycleId, stage: "PNL", occurredAt: now, market: ticker.code, status: "PASS", account: result.state, reason: `cash:${result.state.cash};equity:${result.state.equity};realizedPnL:${result.state.realizedPnL};unrealizedPnL:${result.state.unrealizedPnL}` });
@@ -577,6 +735,7 @@ export function startCloudRuntime(
   const microstructureFlushTimer = microstructureRecorder == null ? undefined : setInterval(() => microstructureRecorder.flush(), 5_000);
   microstructureFlushTimer?.unref?.();
   orderBookCollector?.start();
+  futuresCollector?.start();
   const heartbeatTimer = setInterval(() => { heartbeat.lastHeartbeatAt = Date.now(); }, 2_000);
   // Display only: how long this process was blocked. A stall over the 30 s PAPER writer lease explains a lost lease.
   const stallMonitor = createEventLoopStallMonitor();
@@ -596,8 +755,14 @@ export function startCloudRuntime(
   const microstructureLiveness = () => { try { return microstructureRecorder == null ? {} : { microstructureRecorder: microstructureRecorder.status() }; } catch { return {}; } };
   // Daily stored-data integrity probe result written by the host Research service (display only; read each /health).
   const dataIntegrityLiveness = () => { try { const value = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : readDataIntegrityResult(config.cloudStateDbPath); return value == null ? {} : { dataIntegrity: value }; } catch { return {}; } };
+  // Display only: order-book hour coverage over the last 192 hours (the study's own definition), so a gap shows while it can still be repaired.
+  const orderBookCoverageWatch = env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : new OrderBookCoverageWatch(config.cloudStateDbPath, (env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").map((m) => m.trim()).find((m) => m !== "") ?? "KRW-BTC");
+  const orderBookCoverageLiveness = () => { try { const value = orderBookCoverageWatch?.snapshot(); return value == null ? {} : { orderBookCoverage: value }; } catch { return {}; } };
+  const futuresCollectorLiveness = () => { try { return futuresCollector == null ? {} : { futuresCollector: futuresCollector.status() }; } catch { return {}; } };
   const orderBookCollectorLiveness = () => { try { return orderBookCollector == null ? {} : { orderBookCollector: orderBookCollector.status() }; } catch { return {}; } };
   const closedLearningLiveness = () => { let status = null; try { status = closedLearningStatus?.() ?? null; } catch { status = null; } return status == null ? {} : { closedLearningLoop: status }; };
+  // Display only: the hourly REST gap fill, the only writer of the research candle series head.
+  const researchGapFillLiveness = () => { let gap = null; try { gap = researchAutomation?.gapFill?.() ?? null; } catch { gap = null; } return gap == null ? {} : { researchGapFill: gap }; };
   const researchExperimentLiveness = () => { let ticks = null; try { ticks = researchAutomation?.experimentTicks?.() ?? null; } catch { ticks = null; } return ticks == null ? {} : { researchExperimentTicks: ticks }; };
   const lossSessionLiveness = () => { const session = productionPaperRiskGate?.lossSession() ?? null; return session == null ? {} : { paperLossSession: session }; };
   const researchLiveness = (): { researchCollectionStatus: "COLLECTING" | "DISABLED" | "INVALID" | "UNAVAILABLE"; researchCandleCount?: number; researchRequiredCandles?: number } => {
@@ -679,12 +844,15 @@ export function startCloudRuntime(
       ...(previousStop === undefined ? {} : { previousStop }),
       ...stallMonitor.snapshot(),
       ...researchLiveness(),
-      paperFunnel: paperLearningRecorder.funnelSnapshot(),
+      paperFunnel: mergeFunnelSnapshots(paperLearningRecorder.funnelSnapshot(), orderIntentReasonCounters.snapshot()),
       ...lossSessionLiveness(),
       ...lossAttributionLiveness(),
       ...researchExperimentLiveness(),
+      ...researchGapFillLiveness(),
       ...microstructureLiveness(),
       ...orderBookCollectorLiveness(),
+      ...orderBookCoverageLiveness(),
+      ...futuresCollectorLiveness(),
       ...dataIntegrityLiveness(),
       ...paperLedgerLiveness(),
       ...researchIntervalLiveness(),
@@ -713,6 +881,20 @@ export function startCloudRuntime(
     investmentAllocationSettings
   });
   process.stdout.write(`[cloud-runtime] listening on ${handle.host}:${handle.port}\n`);
+  // Display only: evaluate the learning-pipeline alarm once a minute even when nobody reads /health.
+  const pipelineAlarmTimer = setInterval(() => { handle.observeLearningPipeline(); }, 60_000);
+  pipelineAlarmTimer.unref?.();
+  // Display only, off unless the server owner sets NUSA_HEALTH_EXPORT_URL and a write-only NUSA_HEALTH_EXPORT_TOKEN:
+  // appends this process's own public /health (nothing more) to an external append-only store. Never read back.
+  const healthExport = healthExportConfig(env);
+  const stopHealthExport = healthExport == null ? undefined : startHealthExport(healthExport, {
+    readLocalHealth: async () => {
+      const localHost = handle.host === "0.0.0.0" || handle.host === "::" ? "127.0.0.1" : handle.host;
+      const response = await fetch(`http://${localHost.includes(":") ? `[${localHost}]` : localHost}:${handle.port}/health`, { signal: AbortSignal.timeout(HEALTH_EXPORT_TIMEOUT_MS) });
+      return response.ok ? response.json() : null;
+    },
+    post: (url, init) => fetch(url, init),
+  });
   const requirePaperRealizedPeriodProducer = (): PaperRealizedPeriodProducer => {
     if (paperRealizedPeriodProducer == null) throw new Error("PAPER_REALIZED_PERIOD_PERSISTENCE_UNAVAILABLE");
     return paperRealizedPeriodProducer;
@@ -732,8 +914,9 @@ export function startCloudRuntime(
     retirePaperRealizedPeriodForUnstreamedMarket: (periodId, streamedMarkets) => requirePaperRealizedPeriodProducer().retireOpenPeriodForUnstreamedMarket(periodId, streamedMarkets),
     retirePaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().retireOpenPeriodForMixedBinding(periodId),
     inspectPaperRealizedPeriodForMixedBinding: (periodId) => requirePaperRealizedPeriodProducer().inspectOpenPeriodForMixedBinding(periodId),
+    nextPaperRealizedPeriodIndex: () => requirePaperRealizedPeriodProducer().nextPeriodIndex(),
     listPaperRealizedPeriods: () => requirePaperRealizedPeriodProducer().listRealizedPeriods(),
-    stop: async () => { try { clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
+    stop: async () => { try { clearInterval(pipelineAlarmTimer); stopHealthExport?.(); clearInterval(heartbeatTimer); stallMonitor.stop(); marketDataClient?.stop(); if (microstructureFlushTimer != null) clearInterval(microstructureFlushTimer); orderBookCollector?.stop(); futuresCollector?.stop(); microstructureRecorder?.flush(); await handle.stop(); } finally { paperLearningRecorder.close(); realReadOnlyEventRecorder.close(); effectivePaperRepository?.close?.(); if (durableRepository != null) effectiveProvider instanceof DurableCloudDashboardStateProvider ? effectiveProvider.close() : durableRepository.close(); } }
   };
 }
 
@@ -754,5 +937,5 @@ export function registerGracefulShutdown(handle: CloudDashboardServerHandle, exi
 
   return controller;
 }
-function main(): void { const config = readCloudRuntimeConfig(process.env); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, createSnapshotRepository(config.cloudStateDbPath), undefined, undefined, undefined, undefined, undefined, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
+function main(): void { const config = readCloudRuntimeConfig(process.env); const snapshot = createSnapshotRepository(config.cloudStateDbPath); const research = composeResearchExperiments({ env: process.env, database: snapshot.database() }); research?.start(); const handle = startCloudRuntime(process.env, undefined, undefined, undefined, snapshot, undefined, undefined, undefined, undefined, research?.orchestrator, createCloudAiRuntime(process.env)); registerGracefulShutdown(handle); }
 if (require.main === module) main();

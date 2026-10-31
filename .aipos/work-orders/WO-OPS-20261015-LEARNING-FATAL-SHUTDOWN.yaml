@@ -1,0 +1,36 @@
+id: WO-OPS-20261015-LEARNING-FATAL-SHUTDOWN
+title: Route daemon scheduler fatal failure through existing bounded shutdown
+status: IN_PROGRESS
+priority: P1
+risk: MEDIUM
+authority_impact: runtime-recovery-no-trading-authority-change
+base_commit: 8c297c976c3a15f0877bc51ebb3f5a2e59515715
+branch: codex/learning-fatal-shutdown-20261015
+parent_issue: 2589
+objective: "Let the existing process supervisor observe a nonzero daemon exit after scheduler fatal cleanup, including remaining active handles."
+evidence:
+  gate_validation: "Build/typecheck/validate:full/security:gate/aipos:index PASS; lint PASS24 existing warnings. pnpm test PASS1225 isolated files; generated isolated-test-failure.txt deletion restored to baseline."
+  independent_review: "Fresh non-author Hypatia PASS, no P0/P1/P2; independently ran15 targeted tests and2 signal/fatal overlap probes. Not Audit/Release approval; exact-head CI/deployment pending."
+  targeted_validation: "Build/typecheck and15 targeted tests PASS. Initial daemon harness compiler binding corrected before actual red: two fatal cases timed out8000ms, signal passed. After minimal fix compiled main+handler tests all pass; record before cleanup and stop-once asserted. Full gates/suite pending."
+  red_reproduction: "Compiled current scheduler handler with completed stop and an unrelated ref'ed interval remained alive until isolated child timeout1500ms. Initial harness lacked transpiled dependency stub, corrected; no production injection."
+  limitation: "Not proof of the initiating cause of the recovered production outage."
+scope:
+  - "Composition exposes optional scheduler-fatal shutdown callback to its process owner; embedded callers retain stop-only behavior."
+  - "Daemon main routes callback through its existing registered shutdown controller and maps scheduler-fatal completion to exit1."
+  - "Reuse existing controller timeout/idempotency and supervisor restart budget; no new lifecycle framework."
+acceptance:
+  - "Daemon cleanup completes then exit1 occurs despite a residual active handle."
+  - "Normal signal shutdown still exits0; failed or hanging cleanup retains existing nonzero/timeout behavior."
+  - "Runtime failure evidence remains recorded before shutdown; no Risk/ledger/scheduler retry weakening."
+verification_commands:
+  - pnpm run build
+  - pnpm run typecheck
+  - pnpm run validate:full
+  - pnpm run security:gate
+  - node --test tests/closed-learning-daemon-fatal-exit.test.js tests/closed-learning-governance-wiring.test.js tests/cloud-runtime-shutdown-controller.test.js dist/apps/cloud/src/cloudRuntimeShutdown.test.js
+safety:
+  mode: PAPER_ONLY
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: "All local gates and fresh review PASS; submit draft then ready through canonical exact-head CI/Audit/Release, followed by approved PAPER deployment. No historical root-cause claim."

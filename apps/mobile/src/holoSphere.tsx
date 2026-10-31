@@ -2,13 +2,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { BlendMode, BlurStyle, Canvas, PaintStyle, Picture, PointMode, Skia, StrokeCap, createPicture, type SkPicture, type SkPoint } from "@shopify/react-native-skia";
 import { fieldFonts } from "./fieldFonts";
-import { calmPalette } from "./designSystem";
+import { calmPalette, labelFont } from "./designSystem";
 import { FLOW_COMETS_PER_EDGE, FLOW_COMET_TAIL_POINTS, FLOW_EDGES, FLOW_NODES, FLOW_PAPER, FLOW_SPARKS, HOLO_COLORS, HOLO_ORDER_MS, buildFlowField, easeOutCubic, flowAmbientComet, flowArrivalRing, flowBreath, flowClockSec, flowClusterPoint, flowCometProgress, flowCometStrand, flowEdgeGlow, flowEdgeOpen, flowLabelPlacement, flowNodeColor, flowNodeGlow, flowOrderRing, flowParticleSwirl, flowParticleTwinkle, flowPulsePosition, flowSpark, flowStrandCurve, flowStrandPoint, flowTailLight, flowTailProgress, holoFillMarker, holoFrameBudgetMs, holoInk, initialHoloState, isHoloQuiet, observeHolo, tickHolo, type HoloTone, type Rgb } from "./holoModel";
 
 export interface HoloSphereProps {
   /** Real runtime decision count; each increase sends a bright pulse down the chain. Null draws it still. */
   readonly decisionCount: number | null;
-  /** Real PAPER order count; each increase ignites the paper cluster with a lime ring and beam, then it settles. */
+  /** Real PAPER order count; each increase ignites the paper cluster with an order-pink ring and beam, then it settles. */
   readonly fillCount: number | null;
   readonly tone: HoloTone;
   /** Still figure: reduce-motion, or a secondary-tab mark. */
@@ -24,7 +24,7 @@ const LABEL_MIN_SIZE = 220;
 /**
  * NUSA "흐름" (Flow) hero, chosen by the owner on 2026-10-07 from reference videos: hairline data streams flowing into glowing
  * particle clusters, one per stage of the chain market -> research -> risk -> paper -> ledger (holoModel.ts).
- * A runtime decision sends a bright pulse down the chain; a PAPER order ignites the paper cluster with a lime ring and beam and
+ * A runtime decision sends a bright pulse down the chain; a PAPER order ignites the paper cluster with an order-pink ring and beam and
  * lights its hand-off to the ledger; hold / halt tint risk onward amber / red and a halt dims the streams out of risk.
  * Each stream is drawn as one batched path and each cluster as one point batch, so a frame is a few dozen draws.
  * The component name is kept for its callers.
@@ -120,7 +120,7 @@ export function HoloSphere({ decisionCount, fillCount, tone, reducedMotion, size
         set(paints.dot, color, grow * (0.7 + lit * 0.3)); canvas.drawPoints(PointMode.Points, near, paints.dot);
         set(paints.dot, color, grow * (0.32 + lit * 0.3)); canvas.drawPoints(PointMode.Points, far, paints.dot);
       });
-      // A PAPER order: three staggered lime rings, a beam rising from the paper cluster, and sparks thrown outward.
+      // A PAPER order: three staggered order-pink rings, a beam rising from the paper cluster, and sparks thrown outward.
       if (orderAge != null) {
         const foot = holoFillMarker(S), paper = FLOW_NODES[FLOW_PAPER]!;
         paints.line.setStrokeWidth(Math.max(1, S / 260));
@@ -187,5 +187,5 @@ const styles = StyleSheet.create({
   stage: { alignItems: "center", justifyContent: "center" },
   label: { position: "absolute", flexDirection: "row", alignItems: "center", gap: 4, paddingVertical: 2, paddingHorizontal: 4, backgroundColor: "rgba(8,10,14,0.78)" },
   labelDot: { width: 5, height: 5, borderRadius: 3 },
-  labelText: { fontSize: 10, color: calmPalette.text },
+  labelText: { fontSize: labelFont(10), color: calmPalette.text },
 });

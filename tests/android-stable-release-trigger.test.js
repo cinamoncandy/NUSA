@@ -64,3 +64,13 @@ test("Android stable watchdog always converges a stale stable target to exact ma
   assert.doesNotMatch(watchdog, /git diff --quiet/);
   assert.doesNotMatch(watchdog, /No Android release-relevant drift/);
 });
+
+test("trigger and watchdog skip an owner-disabled publisher and fail closed on any other non-active state", () => {
+  for (const text of [workflow, watchdog]) {
+    const guard = text.indexOf('PUBLISHER_STATE="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/android-stable-release.yml" --jq \'.state\')"');
+    assert.ok(guard > 0, "the publisher state is read");
+    assert.ok(guard < text.indexOf("actions/workflows/android-stable-release.yml/dispatches"), "before any dispatch");
+    assert.match(text, /if \[ "\$PUBLISHER_STATE" = "disabled_manually" \]; then\r?\n\s+echo "::notice::Android Stable Release is disabled by the owner; not dispatching for \$MAIN_SHA\."\r?\n\s+exit 0/);
+    assert.match(text, /if \[ "\$PUBLISHER_STATE" != "active" \]; then\r?\n\s+echo "::error::Unexpected Android Stable Release workflow state: \$PUBLISHER_STATE"\r?\n\s+exit 1/);
+  }
+});

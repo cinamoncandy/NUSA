@@ -1,7 +1,10 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createHash } = require("node:crypto");
-const { qualifyResearchFactoryRun } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
+const { qualifyResearchFactoryRun, RESEARCH_FACTORY_QUALIFICATION_POLICY } = require("../dist/apps/desktop/src/cloud/researchFactoryQualification.js");
+const { appendResearchQualificationToLearningLedger } = require("../dist/apps/desktop/src/cloud/researchInvestmentLearningLedger.js");
+const { ClosedLearningResearchWorkerClient } = require("../dist/apps/cloud/src/closedLearningResearchWorkerClient.js");
+const path = require("node:path");
 
 function canonicalize(value) {
   if (value === null || typeof value !== "object") return value;
@@ -11,6 +14,82 @@ function canonicalize(value) {
 function canonicalHash(value) {
   return createHash("sha256").update(JSON.stringify(canonicalize(value)), "utf8").digest("hex");
 }
+
+test("qualification identity binds frozen policy, verified run and complete result", () => {
+  const input = run();
+  const result = qualifyResearchFactoryRun(input);
+  const { validationIdentity, ...payload } = result;
+  assert.ok(validationIdentity, "canonical qualification must carry its validation identity");
+  assert.equal(validationIdentity.schemaVersion, 1);
+  assert.equal(validationIdentity.policyId, "research-factory-qualification-v1");
+  assert.match(validationIdentity.policySha256, /^[a-f0-9]{64}$/);
+  assert.equal(validationIdentity.policySha256, canonicalHash(RESEARCH_FACTORY_QUALIFICATION_POLICY));
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.maximumPbo, 0.5);
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.costReturnDegradationRatio, 0.5);
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.costDrawdownExpansionRatio, 0.5);
+  assert.equal(RESEARCH_FACTORY_QUALIFICATION_POLICY.costMinimumClosedTrades, 2);
+  assert.equal(validationIdentity.runFingerprintSha256, input.provenance.runFingerprintSha256);
+  assert.equal(validationIdentity.resultSha256, canonicalHash({
+    policyId: validationIdentity.policyId,
+    policySha256: validationIdentity.policySha256,
+    runFingerprintSha256: validationIdentity.runFingerprintSha256,
+    result: payload,
+  }));
+  assert.deepEqual(qualifyResearchFactoryRun(input), result);
+  assert.ok(Object.isFrozen(validationIdentity));
+  assert.ok(Object.isFrozen(RESEARCH_FACTORY_QUALIFICATION_POLICY));
+  assert.ok(Object.isFrozen(RESEARCH_FACTORY_QUALIFICATION_POLICY.requiredCostScenarios));
+  const changed = run();
+  changed.evidenceReport[0].summary = "another sealed run";
+  sealRunFixture(changed);
+  const changedResult = qualifyResearchFactoryRun(changed);
+  assert.deepEqual(changedResult.candidates, result.candidates);
+  assert.notEqual(changedResult.validationIdentity.resultSha256, validationIdentity.resultSha256);
+});
+
+test("learning ledger rejects replaced qualification identity and presentation", () => {
+  const input = run();
+  const result = qualifyResearchFactoryRun(input);
+  const tampered = [
+    { ...result, validationIdentity: { ...result.validationIdentity, policySha256: "0".repeat(64) } },
+    { ...result, validationIdentity: { ...result.validationIdentity, runFingerprintSha256: "0".repeat(64) } },
+    { ...result, validationIdentity: { ...result.validationIdentity, resultSha256: "0".repeat(64) } },
+    { ...result, validationIdentity: undefined },
+    { ...result, candidates: result.candidates.map((candidate) => ({ ...candidate, summary: "substituted" })) },
+  ];
+  for (const supplied of tampered) {
+    assert.throws(() => appendResearchQualificationToLearningLedger([], input, supplied),
+      (error) => error.code === "QUALIFICATION_RUN_MISMATCH");
+  }
+  assert.equal(appendResearchQualificationToLearningLedger([], input, result).length, result.candidates.length);
+});
+function sealRunFixture(value) {
+  const { runFingerprintSha256: _prior, ...provenance } = value.provenance;
+  value.provenance.runFingerprintSha256 = canonicalHash({
+    provenance, standing: value.standing, evidenceReport: value.evidenceReport,
+    allocation: value.allocation ?? null,
+    allocationUnavailableReason: value.allocationUnavailableReason ?? null,
+  });
+  return value;
+}
+
+test("actual canonical qualification identity survives the Cloud process response contract", () => {
+  const input = run();
+  const qualification = qualifyResearchFactoryRun(input);
+  const original = "e".repeat(64);
+  const worker = new ClosedLearningResearchWorkerClient({
+    snapshotPath: path.resolve("/tmp/canonical-qualification-snapshot.json"),
+    process: () => ({ status: 0, stderr: "", stdout: JSON.stringify({
+      schemaVersion: 1, operation: "REPLAY_PAPER_EVIDENCE",
+      originalRunFingerprintSha256: original,
+      replayRunFingerprintSha256: input.provenance.runFingerprintSha256,
+      qualification,
+      deployment: { schemaVersion: 1, status: "NOT_DEPLOYABLE", reasons: ["NO_ALLOCATION"], authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" },
+      liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY",
+    }) }),
+  });
+  assert.deepEqual(worker.replayInitialResearch(original).qualification, qualification);
+});
 function parameterReferences() {
   return [{
     source: "PRODUCTION_DEFAULT",
@@ -143,7 +222,7 @@ function refreshParameterBinding(value) {
   if (parameter.aggregate != null) parameter.aggregateResultSha256 = canonicalHash(parameter.aggregate);
 }
 
-const run = (overrides = {}) => ({
+const run = (overrides = {}) => sealRunFixture({
   schemaVersion: 1,
   evidenceMode: "RESEARCH_TIER_ONLY",
   provenance: {
@@ -248,6 +327,23 @@ const run = (overrides = {}) => ({
   ],
   oosObservationEvidence: { "candidate-a": [] },
   ...overrides,
+});
+
+test("qualification rejects substituted or stale schema1 run fingerprints", () => {
+  const valid = sealRunFixture(run());
+  assert.equal(qualifyResearchFactoryRun(valid).candidates[0].outcome, "QUALIFIED_FOR_LEAGUE");
+  const patches = [
+    (value) => { value.provenance.runFingerprintSha256 = "0".repeat(64); },
+    (value) => { value.provenance.sourceCommitSha = "1".repeat(40); },
+    (value) => { value.standing.entries[0].leagueScore += 1; },
+    (value) => { value.evidenceReport[0].summary += " altered"; },
+    (value) => { value.provenance.benchmarkIdentity.evidenceSha256 = "2".repeat(64); },
+  ];
+  for (const patch of patches) {
+    const altered = structuredClone(valid);
+    patch(altered);
+    assert.throws(() => qualifyResearchFactoryRun(altered), /run fingerprint mismatch/);
+  }
 });
 
 test("qualifies only when canonical research evidence is complete", () => {
@@ -368,7 +464,7 @@ test("duplicate candidate provenance bindings fail closed", () => {
 
 test("PBO above the frozen 0.5 threshold is a non-compensatory rejection", () => {
   const base = run();
-  const result = qualifyResearchFactoryRun({
+  const result = qualifyResearchFactoryRun(sealRunFixture({
     ...base,
     standing: { ...base.standing, probabilityBacktestOverfitting: 0.6 },
     provenance: {
@@ -378,7 +474,7 @@ test("PBO above the frozen 0.5 threshold is a non-compensatory rejection", () =>
         probabilityBacktestOverfitting: 0.6,
       },
     },
-  });
+  }));
   assert.equal(result.candidates[0].outcome, "REJECTED");
   assert.ok(result.candidates[0].reasons.includes("PBO_EXCEEDS_FROZEN_THRESHOLD"));
 });
@@ -437,10 +533,10 @@ test("positive after-cost OOS and benchmark edge are mandatory", () => {
   const badEntry = entry({
     components: { ...entry().components, outOfSamplePerformance: 0, benchmarkExcess: 0 },
   });
-  const result = qualifyResearchFactoryRun({
+  const result = qualifyResearchFactoryRun(sealRunFixture({
     ...base,
     standing: { ...base.standing, entries: [badEntry] },
-  });
+  }));
   assert.equal(result.candidates[0].outcome, "REJECTED");
   assert.ok(result.candidates[0].reasons.includes("NON_POSITIVE_AFTER_COST_OOS_RETURN"));
   assert.ok(result.candidates[0].reasons.includes("NON_POSITIVE_BUY_AND_HOLD_OUTPERFORMANCE"));
@@ -449,13 +545,13 @@ test("positive after-cost OOS and benchmark edge are mandatory", () => {
 test("cross-market or cross-timeframe PBO evidence cannot satisfy the same qualification vector", () => {
   for (const patch of [{ market: "KRW-ETH" }, { interval: "60m" }]) {
     const base = run();
-    const result = qualifyResearchFactoryRun({
+    const result = qualifyResearchFactoryRun(sealRunFixture({
       ...base,
       provenance: {
         ...base.provenance,
         searchOverfittingIdentity: { ...base.provenance.searchOverfittingIdentity, ...patch },
       },
-    });
+    }));
     assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
     assert.ok(result.candidates[0].reasons.includes("PBO_PROVENANCE_MISMATCH"));
   }
@@ -465,7 +561,7 @@ test("cross-market or cross-timeframe PBO evidence cannot satisfy the same quali
 test("malformed mandatory gate collections fail closed to insufficient", () => {
   const malformedPbo = run();
   malformedPbo.provenance.searchOverfittingIdentity.candidateIds = undefined;
-  let result = qualifyResearchFactoryRun(malformedPbo);
+  let result = qualifyResearchFactoryRun(sealRunFixture(malformedPbo));
   assert.equal(result.candidates[0].outcome, "INSUFFICIENT");
   assert.ok(result.candidates[0].reasons.includes("PBO_PROVENANCE_MISMATCH"));
 
@@ -565,7 +661,7 @@ test("candidate-bound cost survival never smears one candidate result across ano
   };
 
   refreshParameterBinding(multi);
-  const result = qualifyResearchFactoryRun(multi);
+  const result = qualifyResearchFactoryRun(sealRunFixture(multi));
   const byId = new Map(result.candidates.map((candidate) => [candidate.candidateId, candidate]));
   assert.equal(byId.get("candidate-a").outcome, "QUALIFIED_FOR_LEAGUE");
   assert.equal(byId.get("candidate-b").outcome, "REJECTED");

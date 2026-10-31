@@ -5,7 +5,7 @@ import { bindPaperCandidateForExecution } from "../../../packages/contracts/src/
 import { isOwnerBaselinePeriodInput } from "./ownerBaselinePaperPeriod";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
 import type { PaperRealizedPeriodOpenInput, PersistedPaperRealizedPeriodPlan } from "./paperRealizedPeriodProducer";
-import type { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
+import type { PaperChallengerBindingLedger, PaperChallengerGovernanceAuthorization } from "./paperChallengerBindingLedger";
 import { samePaperResearchLineage, validatePaperResearchLineage, type PaperResearchLineage } from "./paperResearchLineage";
 import type {
   ClosedLearningPaperDeploymentReceipt,
@@ -17,20 +17,7 @@ import type {
  * The exact, current, immutable Strategy Governance authorization for one candidate to execute as a
  * PAPER challenger. Returned by the canonical Governance service; this runtime never derives it.
  */
-export interface StrategyGovernanceChallengerAuthorization {
-  readonly strategyId: string;
-  readonly candidateId: string;
-  readonly candidateVersion: string;
-  readonly familyId: string;
-  readonly evidenceFingerprintSha256: string;
-  readonly lifecycle: string;
-  readonly approval: Readonly<{
-    readonly actorType: string;
-    readonly approvalReference: string;
-    readonly approvedAt: number;
-    readonly decisionFingerprint: string;
-  }>;
-}
+export type StrategyGovernanceChallengerAuthorization = PaperChallengerGovernanceAuthorization;
 
 /**
  * Fail-closed port onto canonical Strategy Governance. It must throw — never return a partial or
@@ -110,6 +97,8 @@ export interface QualifiedPaperChallengerArtifactReader {
 export interface CanonicalPaperPeriodPort {
   openPeriodFromCanonicalAccount(input: PaperRealizedPeriodOpenInput): PersistedPaperRealizedPeriodPlan;
   listRealizedPeriods(): readonly PersistedPaperPeriodEnvelope[];
+  /** Canonical allocator includes immutable terminal disposition reservations. */
+  nextPeriodIndex(): number;
   listOpenPeriods?: () => readonly PersistedPaperRealizedPeriodPlan[];
   retireOpenPeriodForReplacement?: (periodId: string, reason: string) => PersistedPaperRealizedPeriodPlan;
 }
@@ -138,10 +127,12 @@ function qualifiedDecision(value: ClosedLearningResearchDecision): asserts value
   if (value.outcome !== "QUALIFIED_FOR_LEAGUE" || !value.candidateId?.trim() || !value.candidateVersion?.trim()) throw new Error("PAPER challenger deployment requires a qualified immutable candidate");
 }
 
-function nextPeriodIndex(periods: readonly PersistedPaperPeriodEnvelope[]): number {
-  const maximum = periods.reduce((value, item) => Math.max(value, item.record.periodIndex), -1);
-  if (!Number.isSafeInteger(maximum) || maximum < -1 || maximum >= Number.MAX_SAFE_INTEGER - 1) throw new Error("PAPER period index is unavailable");
-  return maximum + 1;
+function sameGovernanceAuthorization(left: PaperChallengerGovernanceAuthorization | undefined, right: PaperChallengerGovernanceAuthorization): boolean {
+  return left != null && left.strategyId === right.strategyId && left.candidateId === right.candidateId
+    && left.candidateVersion === right.candidateVersion && left.familyId === right.familyId
+    && left.evidenceFingerprintSha256 === right.evidenceFingerprintSha256 && left.lifecycle === right.lifecycle
+    && left.approval.actorType === right.approval.actorType && left.approval.approvalReference === right.approval.approvalReference
+    && left.approval.approvedAt === right.approval.approvedAt && left.approval.decisionFingerprint === right.approval.decisionFingerprint;
 }
 
 /**
@@ -198,6 +189,21 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
     const openPeriods = this.options.periods.listOpenPeriods?.() ?? [];
     if (openPeriods.length > 1) throw new Error("multiple PAPER periods are unsafe");
     const baseline = openPeriods[0];
+    if (baseline?.periodId === periodId) {
+      // A crash may leave the period open before the coordinator appends its receipt.
+      // Recheck current authorization and exact existing state, without reopening and
+      // discarding accumulated observations or mutating the binding.
+      const active = this.options.bindings.current(market, periodStartAt);
+      const existingBinding = bindPaperCandidateForExecution(baseline.advisory, baseline.candidateProvenance, candidateId, baseline.periodStartAt, artifact.candidateStrategy);
+      if (baseline.market !== market || baseline.periodStartAt !== periodStartAt
+        || existingBinding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
+        || !sameGovernanceAuthorization(active?.governanceAuthorization, authorization)
+        || active?.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256
+        || active.researchLineage == null || !samePaperResearchLineage(active.researchLineage, researchLineage)) {
+        throw new Error("existing PAPER deployment replay state conflict");
+      }
+      return Object.freeze({ deploymentId: periodId, candidateId, candidateVersion, authority: "PAPER_RESEARCH_ONLY", liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" });
+    }
     if (baseline != null) {
       if (!isOwnerBaselinePeriodInput(baseline)) throw new Error("another PAPER realized period is already open");
       if (baseline.periodStartAt > periodStartAt) throw new Error("owner baseline replacement boundary conflicts");
@@ -221,16 +227,17 @@ export class PaperChallengerDeploymentRuntime implements PaperChallengerDeployme
 
     const active = this.options.bindings.current(market, periodStartAt);
     if (active != null) {
+      if (!sameGovernanceAuthorization(active.governanceAuthorization, authorization)) throw new Error("existing PAPER challenger Governance authorization conflicts with the current decision");
       if (active.binding.bindingFingerprintSha256 !== binding.bindingFingerprintSha256 || active.binding.candidateId !== candidateId) throw new Error("another PAPER challenger is already active for this market");
       if (active.researchLineage == null || !samePaperResearchLineage(active.researchLineage, researchLineage)) throw new Error("existing PAPER challenger Research lineage conflict");
     } else {
-      this.options.bindings.activate(market, binding, researchLineage);
+      this.options.bindings.activate(market, binding, researchLineage, authorization);
     }
 
     if (baseline != null) {
       this.options.periods.retireOpenPeriodForReplacement!(baseline.periodId, "SUPERSEDED_BY_QUALIFIED_CHALLENGER:" + candidateId);
     }
-    const periodIndex = nextPeriodIndex(this.options.periods.listRealizedPeriods());
+    const periodIndex = this.options.periods.nextPeriodIndex();
     this.options.periods.openPeriodFromCanonicalAccount({
       periodId,
       periodIndex,

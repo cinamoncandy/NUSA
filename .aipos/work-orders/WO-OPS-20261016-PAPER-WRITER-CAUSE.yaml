@@ -1,0 +1,54 @@
+id: WO-OPS-20261016-PAPER-WRITER-CAUSE
+title: Preserve the first PAPER writer lease failure cause without changing authority
+status: IN_PROGRESS
+owner: nusa-runtime-sre
+branch: codex/paper-writer-lease-cause-20261016
+base_commit: 67630b806996a0774fa41d772e61de6192493a84
+issues:
+- 2589
+- 1605
+- 1816
+authority_impact: bounded-first-cause-observability-only; lease and fail-closed rules unchanged
+owner_authorization: '2026-10-16 NUSA MASTER EXECUTION ORDER: actual server recovery, root-cause diagnosis
+  and durable failure evidence'
+finding: Exact-main restart/replay on 67630b806996a0774fa41d772e61de6192493a84 repeatedly reached listener startup,
+  then closed-learning failed with PAPER_WRITER_LEASE_LOST and restarted. Durable runtime-last-failure.json still
+  contains only the generic code; the lease table was empty on inspection. The initiating cause remains unproven.
+scope:
+- Reuse SqliteCloudPaperAccountRepository and runtime-last-failure.json; preserve a bounded allowlisted
+  first cause.
+- Distinguish expired/missing/changed lease and bounded SQLite failure classes on rejection only.
+- Preserve original outer error codes, sticky fail-closed behavior, SQL predicates, TTL, heartbeat, takeover
+  policy, capital and Risk.
+- No new observer, scheduler, ledger, authority, production fault injection, or retroactive failure reason.
+- Rebind existing PAPER_ADAPTER provenance to validated implementation blob; preserve TARGET_ONLY and
+  all independent criteria UNVERIFIED.
+acceptance:
+- Focused real-SQLite heartbeat/expiry/ownership/privacy tests reproduce diagnostic loss before repair
+  and pass after.
+- Full strict build/typecheck, validate:full, lint/security and exact-head CI PASS.
+- Fresh non-author review, deterministic Audit and governed Release precede deploy.
+- Natural runtime diagnosis/recovery evidence remains required; diagnostics are not root-cause or full
+  learning acceptance.
+validation:
+  latest_main_reconvergence_base: 3659e45e011032b71e37896eed7c3aef2580c153
+  latest_main_merge_commit: 1ae09a01865f4856ae1e1cdb63e8ccc1bd976824
+  focused: 31/31 PASS after latest-main merge; first-cause 7, durable failure receipt 5, exact-source 1,
+    lease liveness 2, auto-recovery 10, startup budget 6
+  full_gates: PASS root typecheck, build, preflight, validate:full, security gate, lint with 0 errors and 26
+    pre-existing warnings, diff check
+  source_qualification: PAPER_ADAPTER exact-source pin rebound to merged implementation blob
+    1113297fa143b4e26318e3c57152bdf2d620ddb6 while preserving diagnostic provenance commit
+    b9cb7bde15bfa581159f263220a1d113b250dadc; TARGET_ONLY and independent criteria remain UNVERIFIED
+  prior_remote_receipts: "Historical exact-head CI/review receipts on ba61f9f/8ef53f are stale after latest-main
+    reconvergence and must not be reused for acceptance."
+  exact_head_ci: PENDING_FOR_POST_MAIN_RECONVERGENCE_HEAD
+  fresh_non_author_validation: PENDING_FOR_POST_MAIN_RECONVERGENCE_HEAD
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: Commit this latest-main evidence sync, push the resulting exact PR head, require fresh exact-head CI and a
+  separate fresh non-author zero-blocking-finding receipt, then use only the canonical deterministic Audit/Release
+  chain. After governed merge/deploy, collect natural runtime causal evidence; the initiating lease-loss cause remains unproven.

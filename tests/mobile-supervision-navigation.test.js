@@ -9,7 +9,7 @@ const navigation = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/m
 test("visible mobile navigation exposes supervision and AI jobs while retaining existing screen routes", () => {
   const contract = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/navigationContract.ts"), "utf8");
   const nav = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/primaryNavigation.tsx"), "utf8");
-  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "More"\]/);
+  assert.match(contract, /PRIMARY_DESTINATIONS = \["Home", "Paper", "Live", "Futures", "More"\]/);
   assert.match(app, /<PrimaryNavigation/);
   assert.match(app, /activeTab === "Paper" \? <PaperShadowMonitorView/);
   assert.match(app, /activeTab === "Live" \? <LiveReadinessMonitorView/);

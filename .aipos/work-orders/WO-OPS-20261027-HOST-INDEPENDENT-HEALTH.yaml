@@ -1,0 +1,65 @@
+id: WO-OPS-20261027-HOST-INDEPENDENT-HEALTH
+title: Read PAPER runtime health without depending on the host's own runner
+status: DESIGN_PROPOSED_NEEDS_SECURITY_REVIEW_AND_OWNER_APPROVAL
+priority: P1
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2770
+authority_impact: none
+objective: >-
+  Make the allowlisted /health summary readable when the 1 vCPU PAPER host is too busy to run a self-hosted
+  GitHub runner job, so a successful release can be read back and a stalled host shows as "no fresh record"
+  instead of "diagnosis cancelled".
+evidence:
+  diagnose_runs_cancelled: [40274396266, 40283156761, 40447408790, 40462373697]
+  diagnose_run_success: 40275442510
+  release_run_success_unread: 40448780153
+  note: .aipos/handoffs/2026-10-27-server-automation-handoff.md
+  finding: >-
+    Oracle Host Diagnose runs on runs-on [self-hosted, Linux, nusa-paper-host], the same host it measures.
+    The last two runs were cancelled after about 10 minutes with no step recorded. No workflow reads /health
+    from outside the host (Autopilot Cloudflare Runtime Proof reads the autopilot Worker; wo-0059 does not read the host).
+    Cause of the cancellations is not established.
+options:
+  - id: A_PUSH_ALLOWLISTED_SUMMARY
+    summary: >-
+      The runtime appends the already-public /health runtime object and learningPipeline (fixed codes and integers
+      only, the same allowlist publicRuntimeLiveness applies) every 1-5 minutes to an append-only external store,
+      using a write-only credential that cannot read, overwrite or delete.
+    risk: New outbound path and a new credential on the host; must not carry anything /health does not already publish.
+  - id: B_READ_ONLY_PUBLIC_HEALTH
+    summary: >-
+      Expose only GET /health through the existing trusted HTTPS bridge work (issue 391), so a GitHub-hosted runner
+      can read it without the self-hosted runner.
+    risk: Still needs the host to answer HTTP; widens inbound exposure of one route.
+  - id: C_RUNNER_STARVATION_SIGNAL_ONLY
+    summary: Keep the current read path; record runner-not-started as an explicit fact in the handoff after each cancelled run.
+    risk: Gives no health reading when the host is busy (current state).
+recommendation: >-
+  A, after security review, because it is the only option that still yields evidence (the age of the last record)
+  when the host cannot answer. B is a fallback if a new outbound credential is refused.
+scope:
+  - Security review of option A or B by a non-author reviewer before any implementation PR.
+  - Implementation PR reuses publicRuntimeLiveness and learningPipelineProjection; no second health model, store or verifier.
+  - The diagnosis reads the external record and reports its age; it never trusts a record older than the bound as current.
+exclusions:
+  - No secret, amount, identifier, market or free text in the exported record beyond what /health publishes.
+  - No write path back into the runtime; the store is never read by execution, risk or research.
+  - No deploy, restart or credential installation from a Claude session; host changes go through the approved server path.
+  - No relaxation of the backup I/O cap, writer lease, risk, threshold or capital gates.
+acceptance:
+  - With the host busy or stopped, a reader can tell the last record time and that it is stale, without the self-hosted runner.
+  - The exported record is byte-for-byte limited to the /health allowlist (tested).
+  - EXACT_MAIN_RUNTIME_ACCEPTED, LEARNING_LOOP_VERIFIED stay false until real evidence says otherwise.
+verification_commands:
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation: 'Design record only; no code, workflow or host change in this publication.'
+precommit_review: 'Not yet requested.'
+publication_blockers:
+  - 'Option choice needs security review and owner approval.'
+next: Owner chooses A or B; then a non-author security review; then one implementation PR.

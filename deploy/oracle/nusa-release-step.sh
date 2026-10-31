@@ -17,17 +17,43 @@ set -euo pipefail
 
 readonly DEPLOY_ROOT=/opt/nusa
 readonly RELEASES="${DEPLOY_ROOT}/releases"
+readonly RUNNER_TEMP_ROOT=/opt/actions-runner-nusa-paper/_work/_temp
 readonly SERVICE=nusa.service
 readonly RESEARCH_SERVICE=nusa-research.service
 readonly RESEARCH_TIMER=nusa-research.timer
 readonly AUTOPILOT_SERVICE=nusa-autopilot.service
 readonly SERVICE_USER=nusa
+readonly ACTIVATION_LOCK_DIR=/run/nusa-paper-activation
+readonly ACTIVATION_LOCK_FILE="${ACTIVATION_LOCK_DIR}/activation.lock"
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
-readonly RELEASE_RETENTION=4
+readonly RELEASE_RETENTION=0
+readonly ROOT_DISK_GUARD_PERCENT=92
+readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912
+readonly POST_ACTIVATION_SOAK_SECONDS=180
+readonly POST_ACTIVATION_CHECK_INTERVAL_SECONDS=10
+readonly POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS=30000
+readonly POST_ACTIVATION_READY_WINDOW_MS=30000
+readonly POST_ACTIVATION_READY_TIMEOUT_MS=2000
+readonly POST_ACTIVATION_READY_RETRY_DELAY_MS=500
 
 die() { printf '%s\n' "nusa-release-step: $*" >&2; exit 1; }
+
+# Serialize every canonical operation that can change the active release or PAPER service.
+# flock is released by the kernel when this process exits, including abnormal termination.
+acquire_paper_activation_lock() {
+  command -v flock >/dev/null 2>&1 || die "flock is required for safe PAPER activation serialization"
+  install -d -o root -g root -m 0700 "$ACTIVATION_LOCK_DIR" || die "cannot create protected PAPER activation lock directory"
+  [[ -d "$ACTIVATION_LOCK_DIR" && ! -L "$ACTIVATION_LOCK_DIR" ]] || die "PAPER activation lock directory is not a real directory"
+  [[ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_DIR")" == "0:0:700" ]] || die "PAPER activation lock directory ownership/mode is unsafe"
+  [[ ! -L "$ACTIVATION_LOCK_FILE" ]] || die "PAPER activation lock must not be a symlink"
+  umask 077
+  exec 9>>"$ACTIVATION_LOCK_FILE" || die "cannot open PAPER activation lock"
+  [[ -f "$ACTIVATION_LOCK_FILE" && ! -L "$ACTIVATION_LOCK_FILE" ]] || die "PAPER activation lock is not a regular file"
+  [[ "$(stat -c '%u:%g:%a' -- "$ACTIVATION_LOCK_FILE")" == "0:0:600" ]] || die "PAPER activation lock ownership/mode is unsafe"
+  flock 9 || die "cannot acquire PAPER activation lock"
+}
 
 # The SHA is the only caller-supplied value that reaches a path, so it is validated here rather
 # than trusted from the workflow. Anything but a full lowercase commit SHA is refused outright.
@@ -116,6 +142,71 @@ script_in() {
   printf '%s' "$path"
 }
 
+# The resolver is part of this root-owned helper so the very first deployment does not depend on
+# a resolver script in the old active release. Constrain both source and destination filesystems:
+# systemd can cap one block device only, so multi-device/unsupported filesystems and split backup
+# storage must fail closed instead of leaving part of the backup I/O unbounded.
+backup_device_is_block() {
+  [[ "$1" =~ ^/dev/[A-Za-z0-9._/-]+$ && -b "$1" ]]
+}
+
+backup_device_is_direct_disk_name() {
+  [[ "$1" =~ ^/dev/[A-Za-z0-9._-]+$ && -b "$1" ]]
+}
+
+backup_path_is_directory() { [[ -d "$1" ]]; }
+
+backup_block_device_for_paths() {
+  local state_db="$1" backup_dir="$2"
+  local state_source state_fstype backup_source backup_fstype
+  local state_type backup_type state_parent backup_parent state_disk backup_disk
+  [[ "$state_db" = /* && "$backup_dir" = /* ]] || { die "backup paths must be absolute"; return 1; }
+  backup_path_is_directory "$backup_dir" || { die "backup directory must exist before topology verification"; return 1; }
+
+  state_source="$(findmnt --noheadings --raw --output SOURCE --target "$state_db")" \
+    || { die "cannot resolve state database filesystem"; return 1; }
+  state_fstype="$(findmnt --noheadings --raw --output FSTYPE --target "$state_db")" \
+    || { die "cannot resolve state database filesystem type"; return 1; }
+  backup_source="$(findmnt --noheadings --raw --output SOURCE --target "$backup_dir")" \
+    || { die "cannot resolve backup directory filesystem"; return 1; }
+  backup_fstype="$(findmnt --noheadings --raw --output FSTYPE --target "$backup_dir")" \
+    || { die "cannot resolve backup directory filesystem type"; return 1; }
+  [[ "$state_fstype" == ext4 || "$state_fstype" == xfs ]] \
+    || { die "state database filesystem type is not supported for single-device I/O limiting"; return 1; }
+  [[ "$backup_fstype" == ext4 || "$backup_fstype" == xfs ]] \
+    || { die "backup directory filesystem type is not supported for single-device I/O limiting"; return 1; }
+  backup_device_is_block "$state_source" \
+    || { die "state database filesystem source is not a verified local block device"; return 1; }
+  backup_device_is_block "$backup_source" \
+    || { die "backup directory filesystem source is not a verified local block device"; return 1; }
+
+  state_type="$(lsblk --noheadings --raw --nodeps --output TYPE "$state_source")" \
+    || { die "cannot resolve state database block topology"; return 1; }
+  backup_type="$(lsblk --noheadings --raw --nodeps --output TYPE "$backup_source")" \
+    || { die "cannot resolve backup directory block topology"; return 1; }
+  state_parent="$(lsblk --noheadings --raw --output PKNAME "$state_source")" \
+    || { die "cannot resolve state database parent disk"; return 1; }
+  backup_parent="$(lsblk --noheadings --raw --output PKNAME "$backup_source")" \
+    || { die "cannot resolve backup directory parent disk"; return 1; }
+
+  if [[ "$state_type" == disk && -z "$state_parent" ]] && backup_device_is_direct_disk_name "$state_source"; then state_disk="$state_source"
+  elif [[ "$state_type" == part && -n "$state_parent" && "$state_parent" != *$'\n'* && "$state_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then state_disk="/dev/$state_parent"
+  else die "state database backing topology is ambiguous"; return 1; fi
+  if [[ "$backup_type" == disk && -z "$backup_parent" ]] && backup_device_is_direct_disk_name "$backup_source"; then backup_disk="$backup_source"
+  elif [[ "$backup_type" == part && -n "$backup_parent" && "$backup_parent" != *$'\n'* && "$backup_parent" =~ ^[A-Za-z0-9._-]+$ ]]; then backup_disk="/dev/$backup_parent"
+  else die "backup directory backing topology is ambiguous"; return 1; fi
+
+  backup_device_is_block "$state_disk" \
+    && [[ "$(lsblk --noheadings --raw --nodeps --output TYPE "$state_disk")" == disk ]] \
+    || { die "state database backing device is not a verified disk"; return 1; }
+  backup_device_is_block "$backup_disk" \
+    && [[ "$(lsblk --noheadings --raw --nodeps --output TYPE "$backup_disk")" == disk ]] \
+    || { die "backup directory backing device is not a verified disk"; return 1; }
+  [[ "$state_disk" == "$backup_disk" ]] \
+    || { die "backup directory and state database are on different backing disks"; return 1; }
+  printf '%s' "$state_disk"
+}
+
 unit_in() {
   local dir="$1"
   local name="$2"
@@ -176,15 +267,19 @@ rollback_schema_compatible() {
 }
 
 rollback_and_restore() {
-  local rollback_release
+  local rollback_release rollback_legacy_ok=true
   rollback_release="$(previous_release)"
   [ -n "$rollback_release" ] || die "rollback release is unavailable"
   assert_segmented_replay_compatible "$rollback_release"
+  # Legacy rollback releases may predate Autopilot. When the rollback release does contain the
+  # canonical Autopilot unit, converge that process too; otherwise a symlink rollback can leave
+  # Autopilot executing the rejected candidate from its already-resolved cwd.
+  [ -f "${rollback_release}/deploy/oracle/nusa-autopilot.service" ] && rollback_legacy_ok=false
   NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
   bind_runtime_source_identity "$(active_release_sha)"
-  install_units_from_release "$(active_release)" true
-  enable_units true
-  restart_units true
+  install_units_from_release "$(active_release)" "$rollback_legacy_ok"
+  enable_units "$rollback_legacy_ok"
+  restart_units "$rollback_legacy_ok"
 }
 
 previous_release() {
@@ -193,6 +288,48 @@ previous_release() {
   path="$(cat "$PREVIOUS_RELEASE_FILE" 2>/dev/null || true)"
   [ -n "$path" ] || return 0
   readlink -f "$path" 2>/dev/null || true
+}
+
+assert_stage_disk_headroom() {
+  local source_tree="$1"
+  local force_copy="${2:-false}"
+  local total_bytes available_bytes source_bytes guard_free_bytes required_bytes source_device release_device
+  total_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $2 }')"
+  available_bytes="$(df -P -B1 "$RELEASES" | awk 'NR == 2 { print $4 }')"
+  source_bytes="$(du -sb -- "$source_tree" | awk '{ print $1 }')"
+  source_device="$(stat -c '%d' -- "$source_tree")"
+  release_device="$(stat -c '%d' -- "$RELEASES")"
+  [[ "$total_bytes" =~ ^[0-9]+$ && "$available_bytes" =~ ^[0-9]+$ && "$source_bytes" =~ ^[0-9]+$ ]] \
+    || die "could not determine stage disk headroom"
+  guard_free_bytes=$(( (total_bytes * (100 - ROOT_DISK_GUARD_PERCENT) + 99) / 100 ))
+  required_bytes=$(( guard_free_bytes + ROOT_DISK_STAGE_MARGIN_BYTES ))
+  if [ "$force_copy" = "true" ] || [ "$source_device" != "$release_device" ]; then
+    required_bytes=$((required_bytes + source_bytes))
+  fi
+  [ "$available_bytes" -ge "$required_bytes" ] \
+    || die "insufficient root disk headroom for stage: available=$available_bytes required=$required_bytes source=$source_bytes"
+}
+
+validate_stage_source_tree() {
+  local source_tree="$1" source_parent source_name runner_temp
+  runner_temp="$(realpath -e -- "$RUNNER_TEMP_ROOT")" || die "trusted runner temp directory is unavailable"
+  [ "$runner_temp" = "$RUNNER_TEMP_ROOT" ] || die "trusted runner temp directory resolved unexpectedly"
+  [ ! -L "$source_tree" ] || die "release source tree must not be a symlink"
+  source_tree="$(realpath -e -- "$source_tree")" || die "release source tree is unavailable"
+  [ -d "$source_tree" ] || die "release source tree is not a directory"
+  source_parent="${source_tree%/*}"
+  source_name="${source_tree##*/}"
+  [ "$source_parent" = "$runner_temp" ] && [[ "$source_name" =~ ^nusa-release-tree-[0-9]+$ ]] \
+    || die "release source tree must be a direct runner-temp extraction"
+  printf '%s\n' "$source_tree"
+}
+
+assert_root_disk_headroom() {
+  local used_percent
+  used_percent="$(df -P / | awk 'NR == 2 { gsub(/%/, "", $5); print $5 }')"
+  [[ "$used_percent" =~ ^[0-9]+$ ]] || die "could not determine root disk usage"
+  [ "$used_percent" -lt "$ROOT_DISK_GUARD_PERCENT" ] \
+    || die "root disk usage ${used_percent}% is at/above ${ROOT_DISK_GUARD_PERCENT}% guard threshold"
 }
 
 prune_releases() {
@@ -236,14 +373,65 @@ recover_abandoned_writer_lease_once() {
   node "$(script_in "$dir" oracle-readiness-check.js)"
 }
 
+prove_post_activation_stability() {
+  local dir="$1"
+  local expected_sha="$2"
+  local deadline attempt=0 current_sha
+  validate_sha "$expected_sha"
+  deadline=$((SECONDS + POST_ACTIVATION_SOAK_SECONDS))
+
+  while :; do
+    attempt=$((attempt + 1))
+    current_sha="$(active_release_sha)"
+    [ "$current_sha" = "$expected_sha" ] || {
+      printf '%s\n' "nusa-release-step: active release identity drifted during soak: expected=$expected_sha actual=$current_sha" >&2
+      return 1
+    }
+    systemctl is-active --quiet "$SERVICE" || return 1
+    systemctl is-active --quiet "$AUTOPILOT_SERVICE" || return 1
+
+    # The initial activation readiness owns the long cold-start budget. During the bounded soak,
+    # keep each request short but allow a 30s retry window: the 1 GB Oracle host has observed
+    # startup event-loop stalls longer than 5s even after /ready first passed. A truly lost listener
+    # still fails closed within this bounded window, well inside the 180s soak. The two non-mutating
+    # mobile-owner route probes keep their separate bounded proof window.
+    NUSA_READY_STARTUP_WAIT_MS="$POST_ACTIVATION_READY_WINDOW_MS" \
+      NUSA_READY_ROUTE_PROOF_WAIT_MS="$POST_ACTIVATION_ROUTE_PROOF_WINDOW_MS" \
+      NUSA_READY_TIMEOUT_MS="$POST_ACTIVATION_READY_TIMEOUT_MS" \
+      NUSA_READY_RETRY_DELAY_MS="$POST_ACTIVATION_READY_RETRY_DELAY_MS" \
+      node "$(script_in "$dir" oracle-readiness-check.js)" || return 1
+    NUSA_AUTOPILOT_READY_TIMEOUT_MS=5000 \
+      node "$(script_in "$dir" autopilot-readiness.js)" || return 1
+
+    printf '%s\n' "nusa-release-step: post-activation stability check $attempt passed for $expected_sha"
+    (( SECONDS >= deadline )) && break
+    sleep "$POST_ACTIVATION_CHECK_INTERVAL_SECONDS"
+  done
+
+  printf '%s\n' "nusa-release-step: ${POST_ACTIVATION_SOAK_SECONDS}s stability soak passed for $expected_sha"
+}
+
 verb="${1:-}"
 shift || true
 
 case "$verb" in
   backup)
     state_db="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_CLOUD_STATE_DB_PATH:-}")"
+    backup_dir="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_BACKUP_DIR:-/var/backups/nusa}")"
     [[ "$state_db" = /* ]] || die "Cloud state path must be absolute before backup"
-    exec runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" node "$(script_in "$(active_release)" sqlite-backup.js)"
+    [[ "$backup_dir" = /* ]] || die "Backup directory must be absolute before backup"
+    if [ ! -e "$backup_dir" ]; then install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0750 -- "$backup_dir"; fi
+    [[ -d "$backup_dir" && ! -L "$backup_dir" ]] || die "Backup directory must be a real directory"
+    # Resolve from the installed root-owned helper, not from the old active release. Both database
+    # and backup destination must map to one verified ext4/xfs disk before any backup work begins.
+    backup_device="$(backup_block_device_for_paths "$state_db" "$backup_dir")" \
+      || die "backup storage topology could not be verified before backup"
+    # The numeric systemd bandwidth value is bytes/second: 1,048,576 is exactly 1 MiB/s.
+    # Limit only this child in its transient cgroup; failure never falls back to an uncapped backup.
+    exec systemd-run --quiet --collect --scope \
+      -p "IOReadBandwidthMax=${backup_device} 1048576" \
+      -p "IOWriteBandwidthMax=${backup_device} 1048576" \
+      nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" NUSA_BACKUP_DIR="$backup_dir" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
   preflight)
@@ -251,6 +439,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    assert_root_disk_headroom
     node "$(script_in "$dir" host-security-validate.js)"
     NUSA_ORACLE_RELEASE_DIR="$dir" exec node "$(script_in "$dir" oracle-validate.js)"
     ;;
@@ -260,6 +449,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     install_units_from_release "$dir"
     enable_units
     ;;
@@ -270,8 +460,8 @@ case "$verb" in
 
   stage)
     validate_sha "${1:-}"
-    source_tree="${2:-}"
-    [ -d "$source_tree" ] || die "source tree is not a directory"
+    source_tree="$(validate_stage_source_tree "${2:-}")"
+    assert_stage_disk_headroom "$source_tree"
     dir="$(release_dir "$1")"
     # A staged release is immutable once `current` points at it. Replacing the active release
     # would mutate what the running service is executing.
@@ -279,20 +469,34 @@ case "$verb" in
       [ "$(readlink -f "$dir")" = "$(active_release)" ] && die "refusing to restage the active release"
       rm -rf -- "$dir"
     fi
-    install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
-    tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
-    chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+    if [ "$(stat -c '%d' -- "$source_tree")" = "$(stat -c '%d' -- "$RELEASES")" ]; then
+      chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$source_tree"
+      if ! mv --no-copy -T -- "$source_tree" "$dir"; then
+        # Same st_dev can still cross a bind-mount boundary. Never let mv silently copy after
+        # the reduced rename-only headroom gate; re-check full-copy headroom before copying.
+        assert_stage_disk_headroom "$source_tree" true
+        install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+        tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+        chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+      fi
+    else
+      install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 -- "$dir"
+      tar -cf - --exclude=.git -C "$source_tree" . | tar -xf - -C "$dir"
+      chown -R "${SERVICE_USER}:${SERVICE_USER}" -- "$dir"
+    fi
     ;;
 
   switch)
     validate_sha "${1:-}"
     dir="$(release_dir "$1")"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     bind_runtime_source_identity "$1"
     ;;
 
   rollback)
+    acquire_paper_activation_lock
     rollback_release="$(previous_release)"
     [ -n "$rollback_release" ] || die "rollback release is unavailable"
     assert_segmented_replay_compatible "$rollback_release"
@@ -301,6 +505,7 @@ case "$verb" in
     ;;
 
   restart)
+    acquire_paper_activation_lock
     systemctl daemon-reload
     enable_units
     restart_units
@@ -311,6 +516,7 @@ case "$verb" in
     dir="$(release_dir "$1")"
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
+    acquire_paper_activation_lock
     NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
     activation_started="$(date --iso-8601=seconds)"
     paper_ready=false
@@ -321,7 +527,15 @@ case "$verb" in
         paper_ready=true
       fi
     fi
-    if [ "$paper_ready" != true ] || ! node "$(script_in "$dir" autopilot-readiness.js)"; then
+    autopilot_ready=false
+    stability_ready=false
+    if [ "$paper_ready" = true ] && node "$(script_in "$dir" autopilot-readiness.js)"; then
+      autopilot_ready=true
+      if prove_post_activation_stability "$dir" "$1"; then
+        stability_ready=true
+      fi
+    fi
+    if [ "$paper_ready" != true ] || [ "$autopilot_ready" != true ] || [ "$stability_ready" != true ]; then
       if ! rollback_schema_compatible "$(previous_release)"; then
         # Rolling back would leave nothing running. Keep the new release and its units active and fail the step loudly.
         printf '%s\n' "nusa-release-step: activation of $1 did not prove readiness, but the previous release cannot open the migrated database; keeping $1 active (no rollback)" >&2

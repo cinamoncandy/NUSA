@@ -138,7 +138,7 @@ test("emitted research freshness is defined for every declared timeframe", () =>
         const closeTime = dataAsOf - (39 - index) * step;
         return { market: "KRW-BTC", interval, openTime: closeTime - step, closeTime, open: 100, high: 101, low: 99, close: 100, volume: 1 };
       });
-      const dataset = createMarketDataset({ market: "KRW-BTC", dataAsOf, candles, sourceRequests: ["test"] });
+      const dataset = createMarketDataset({ market: "KRW-BTC", dataAsOf, candles, sourceRequests: ["test"], rawSourceIdentitySha256s: ["a".repeat(64)] });
       process.stdout.write(JSON.stringify({
         lagIntervals: dataset.freshness.lagIntervals,
         hasLagDays: Object.prototype.hasOwnProperty.call(dataset.freshness, "lagDays"),
@@ -148,7 +148,7 @@ test("emitted research freshness is defined for every declared timeframe", () =>
     `;
     const result = spawnSync(process.execPath, ["-e", script], {
       cwd: path.resolve(__dirname, ".."),
-      env: { ...process.env, NUSA_RESEARCH_TIMEFRAME: interval },
+      env: { ...process.env, NUSA_RESEARCH_TIMEFRAME: interval, NUSA_SOURCE_COMMIT_SHA: "b".repeat(40) },
       encoding: "utf8",
     });
     assert.equal(result.status, 0, `${interval} emission failed: ${result.stderr}`);

@@ -1,6 +1,6 @@
 id: WO-FUTURES-20261014-BINANCE-PUBLIC-PROBE
 title: "B0: read-only probe of Binance USD-M futures public data from the PAPER host"
-status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+status: COMPLETED
 owner: nusa-development
 repository: cinamoncandy/NUSA
 base_branch: main
@@ -25,3 +25,14 @@ safety:
   aiAuthority: ZERO_AUTHORITY
   credentials: NONE
   fail_closed: true
+result:
+  recorded_at: "2026-10-14"
+  run: "https://github.com/cinamoncandy/NUSA/actions/runs/38520735288 (job 115709584419, runner nusa-paper-host, main 99b219a9)"
+  run_time_utc: "2026-10-14T06:11:20Z"
+  endpoints:
+    ping: "http=200 curl_exit=0 bytes=2"
+    premiumIndex: "http=200 curl_exit=0 bytes=232; exchange time 2026-10-14T06:11:22.003Z (fresh, 2 s after run start); nextFundingTime 2026-10-14T08:00:00Z"
+    fundingRate: "http=200 curl_exit=0 bytes=380; 3 rows"
+    klines_4h: "http=200 curl_exit=0 bytes=434; 3 rows x 12 fields"
+  verdict: "REACHABLE_AND_FRESH: the PAPER host can read Binance USD-M futures public market data. B0 passes; live-data PAPER futures research may proceed (still PAPER only, no keys, no orders)."
+  note: "A second identical dispatch (run 38520821310) was queued by the session a minute after the owner's run; it is redundant and read-only."

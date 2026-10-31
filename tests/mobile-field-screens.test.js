@@ -48,7 +48,8 @@ test("PAPER, LIVE and MORE render the field visual language", () => {
   assert.doesNotMatch(read("liveReadinessMonitorView.tsx"), /IntelligenceMotionField|LIVE 준비 상태 관측/);
   assert.doesNotMatch(read("homeView.tsx"), /IntelligenceMotionField|intelligenceHero/);
   assert.match(read("liveReadinessMonitorView.tsx"), /<FieldHeader model=\{buildLiveFieldHeader\(snapshot, unavailableReason, unavailableKind\)\}/);
-  assert.match(read("moreMenuView.tsx"), /fieldPalette\.void/);
+  // AI island look (2026-10-29): the menu sits in the shared AiShell with a transparent scroll view.
+  assert.match(read("moreMenuView.tsx"), /<AiShell chip=\{plainScreenChip\("MORE"\)\}>/);
   const header = read("fieldHeader.tsx");
   assert.match(header, /reducedMotion !== false \|\| !changed/);
   assert.doesNotMatch(header, /Animated\.loop/);

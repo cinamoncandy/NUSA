@@ -1,3 +1,6 @@
+import { learningPipelineProjection, type LearningPipelineProjection } from "./learningPipelineStage";
+import { learningLoopVerdict, type LearningLoopVerdict } from "./learningLoopVerdict";
+import { LearningPipelineAlarmTracker, type LearningPipelineAlarmSnapshot } from "./learningPipelineAlarm";
 import { createHash, randomUUID } from "node:crypto";
 import http, { type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import {
@@ -107,8 +110,11 @@ export interface CloudRuntimeLivenessSnapshot {
   /** Research-only microstructure recorder counters (see marketMicrostructureRecorder.ts). */
   readonly dataIntegrity?: Readonly<Record<string, string | number>>;
   readonly orderBookCollector?: { readonly rounds: number; readonly markets: number; readonly samplesStored: number; readonly failures: number; readonly rejected?: number; readonly lastRoundAt?: number };
+  readonly futuresCollector?: { readonly rounds: number; readonly marksStored: number; readonly fundingStored: number; readonly klinesStored: number; readonly failures: number; readonly rejected: number; readonly lastRoundAt?: number };
   readonly microstructureRecorder?: { readonly orderBookSamples: number; readonly tradeTicks: number; readonly writeFailures: number; readonly rejectedRows?: number; readonly lastRecordedAt?: number };
   readonly researchExperimentTicks?: { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> };
+  /** Display-only outcome of the hourly REST gap fill (the candle series head writer): fixed codes and integers. */
+  readonly researchGapFill?: { readonly lastRunAt?: number; readonly runs: number; readonly deferred: number; readonly counts: Readonly<Record<string, number>>; readonly lastErrorCode?: string };
   /** The same research experiment summaries keyed by bar length ("1m", "15m", "60m", "240m"). */
   readonly researchExperimentTicksByInterval?: Readonly<Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }>>;
   /** Canonical PAPER ledger identity: a 64-hex fingerprint of ledger truth and integer counts/times only. */
@@ -117,7 +123,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
-  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
+  readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly consecutiveLossLimitEnabled?: boolean; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }
 
 export interface CloudReadinessSnapshot {
@@ -166,6 +172,8 @@ export interface CloudDashboardServerOptions {
 export interface CloudDashboardServerHandle {
   readonly port: number;
   readonly host: string;
+  /** Display only: re-evaluates the learning-pipeline alarm from the current liveness (the runtime calls it once a minute). */
+  observeLearningPipeline(): LearningPipelineAlarmSnapshot | undefined;
   stop(): Promise<void>;
 }
 
@@ -353,6 +361,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     ? {
         paperLossSession: {
           ...Object.fromEntries(LOSS_KEYS.map((key) => [key, Number(rawLoss[key])])),
+          ...(typeof rawLoss.consecutiveLossLimitEnabled === "boolean" ? { consecutiveLossLimitEnabled: rawLoss.consecutiveLossLimitEnabled } : {}),
           ...periodEvidence(rawLoss),
         },
       }
@@ -386,6 +395,22 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   };
   const ticksSummary = publicTicks(source.researchExperimentTicks as Record<string, unknown> | null | undefined);
   const experimentTicks = ticksSummary === undefined ? {} : { researchExperimentTicks: ticksSummary };
+  // Research gap fill: three integers, an optional timestamp, at most 12 code-keyed integer counts and one optional code.
+  const rawGap = source.researchGapFill as Record<string, unknown> | null | undefined;
+  let researchGapFill: { researchGapFill?: Record<string, unknown> } = {};
+  if (rawGap != null && typeof rawGap === "object" && !Array.isArray(rawGap) && Number.isSafeInteger(rawGap.runs) && Number(rawGap.runs) >= 0 && Number.isSafeInteger(rawGap.deferred) && Number(rawGap.deferred) >= 0
+    && rawGap.counts != null && typeof rawGap.counts === "object" && !Array.isArray(rawGap.counts)) {
+    const counts: Record<string, number> = {};
+    for (const [key, value] of Object.entries(rawGap.counts as Record<string, unknown>)) {
+      if (Object.keys(counts).length >= 12) break;
+      if (/^[A-Z][A-Z0-9_]{1,47}$/.test(key) && Number.isSafeInteger(value) && Number(value) >= 0) counts[key] = Number(value);
+    }
+    researchGapFill = { researchGapFill: {
+      runs: Number(rawGap.runs), deferred: Number(rawGap.deferred), counts,
+      ...(Number.isSafeInteger(rawGap.lastRunAt) && Number(rawGap.lastRunAt) >= 0 ? { lastRunAt: Number(rawGap.lastRunAt) } : {}),
+      ...(typeof rawGap.lastErrorCode === "string" && /^[A-Z][A-Z0-9_]{1,47}$/.test(rawGap.lastErrorCode) ? { lastErrorCode: rawGap.lastErrorCode } : {}),
+    } };
+  }
   // The same summary per research bar length; only the declared lengths are accepted as keys.
   const rawByInterval = source.researchExperimentTicksByInterval as Record<string, unknown> | null | undefined;
   let experimentTicksByInterval: { researchExperimentTicksByInterval?: Record<string, ReturnType<typeof publicTicks>> } = {};
@@ -401,7 +426,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   const rawLoop = source.closedLearningLoop as Record<string, unknown> | null | undefined;
   let closedLearningLoop: { closedLearningLoop?: Record<string, string | number | Record<string, string | number>> } = {};
   const LOOP_INTS = ["lastTickAt", "ticks", "cyclesEvaluated", "deployments"] as const;
-  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason"] as const;
+  const LOOP_CODES = ["bootstrap", "rollover", "rolloverReason", "lastCycleStatus", "lastCycleOutcome", "lastBlockedReason", "lastErrorClass"] as const;
   if (rawLoop != null && typeof rawLoop === "object" && LOOP_INTS.every((key) => Number.isSafeInteger(rawLoop[key]) && Number(rawLoop[key]) >= 0)
     && typeof rawLoop.bootstrap === "string" && typeof rawLoop.rollover === "string") {
     const loop: Record<string, string | number | Record<string, string | number>> = {};
@@ -448,6 +473,12 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
         shadowSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         shadowWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowGrossGainBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
         shadowGrossLossBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0, shadowFeeBp: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        // Null comparators (buy-and-hold, seeded random entry): counts and SIGNED basis points; no amount or price.
+        nullSince: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullSeed: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        nullBaseTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullBaseNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) <= 10_000_000,
+        nullHoldMarkets: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullHoldNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) <= 10_000_000,
+        nullRandTrades: (v) => Number.isSafeInteger(v) && Number(v) >= 0, nullRandWins: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
+        nullRandNetBp: (v) => Number.isSafeInteger(v) && Math.abs(Number(v)) <= 10_000_000, nullRandSkipped: (v) => Number.isSafeInteger(v) && Number(v) >= 0,
       };
       const evidence: Record<string, string | number> = {};
       for (const [key, accept] of Object.entries(rules)) { const value = rawEvidence[key]; if (accept(value)) evidence[key] = value as string | number; }
@@ -493,6 +524,13 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   if (rawCollector != null && typeof rawCollector === "object" && ["rounds", "markets", "samplesStored", "failures"].every((key) => Number.isSafeInteger(rawCollector[key]) && Number(rawCollector[key]) >= 0)) {
     orderBookCollector = { orderBookCollector: { rounds: Number(rawCollector.rounds), markets: Number(rawCollector.markets), samplesStored: Number(rawCollector.samplesStored), failures: Number(rawCollector.failures), ...(Number.isSafeInteger(rawCollector.rejected) && Number(rawCollector.rejected) >= 0 ? { rejected: Number(rawCollector.rejected) } : {}), ...(Number.isSafeInteger(rawCollector.lastRoundAt) && Number(rawCollector.lastRoundAt) > 0 ? { lastRoundAt: Number(rawCollector.lastRoundAt) } : {}) } };
   }
+  // Public futures collector: non-negative integer counters and one timestamp only.
+  const rawFutures = source.futuresCollector as Record<string, unknown> | null | undefined;
+  let futuresCollector: { futuresCollector?: Record<string, number> } = {};
+  const futuresKeys = ["rounds", "marksStored", "fundingStored", "klinesStored", "failures", "rejected"];
+  if (rawFutures != null && typeof rawFutures === "object" && futuresKeys.every((key) => Number.isSafeInteger(rawFutures[key]) && Number(rawFutures[key]) >= 0)) {
+    futuresCollector = { futuresCollector: { ...Object.fromEntries(futuresKeys.map((key) => [key, Number(rawFutures[key])])), ...(Number.isSafeInteger(rawFutures.lastRoundAt) && Number(rawFutures.lastRoundAt) > 0 ? { lastRoundAt: Number(rawFutures.lastRoundAt) } : {}) } };
+  }
   // Stored-data integrity probe: a fixed status plus non-negative integers only.
   const rawIntegrity = source.dataIntegrity as Record<string, unknown> | null | undefined;
   let dataIntegrity: { dataIntegrity?: Record<string, string | number> } = {};
@@ -518,7 +556,7 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
     : {};
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
-  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
+  return Object.freeze({ ...sourceCommitSha, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...researchGapFill, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...futuresCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);
@@ -701,13 +739,14 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
         // other side introduced, so the merge keeps both rather than choosing between them.
         // `runtime` appears only when a liveness source is wired, and carries the counters that
         // show whether the continuous PAPER loop is actually ticking.
-        const liveness = options.runtimeLiveness?.();
+        // `learningPipeline` and `learningPipelineAlarm` are derived only from the already-public `runtime` object.
+        const pipeline = observePipeline();
         const runtimeHealth = publicRuntimeHealth(options.runtimeHealth?.());
         respond("health", dashboardJsonResponse(200, {
           ok: true,
           observedAt: new Date().toISOString(),
           capabilities: { passwordSignIn: mobileSessionService?.ownerPasswordConfigured() === true },
-          ...(liveness === undefined ? {} : { runtime: publicRuntimeLiveness(liveness) }),
+          ...(pipeline ?? {}),
           ...(runtimeHealth === undefined ? {} : { runtimeHealth })
         }));
         return;
@@ -887,6 +926,15 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
       if (!res.headersSent) respond("server_error", dashboardJsonResponse(503, { error: "DASHBOARD_SERVER_UNAVAILABLE" })); else res.destroy();
     }
   });
+  const pipelineAlarm = new LearningPipelineAlarmTracker();
+  const observePipeline = (): { runtime: CloudRuntimeLivenessSnapshot; learningPipeline: LearningPipelineProjection; learningPipelineAlarm: LearningPipelineAlarmSnapshot; learningLoopVerdict: LearningLoopVerdict } | undefined => {
+    const liveness = options.runtimeLiveness?.();
+    if (liveness === undefined) return undefined;
+    const now = Date.now();
+    const runtime = publicRuntimeLiveness(liveness);
+    const learningPipeline = learningPipelineProjection(runtime as unknown as Readonly<Record<string, unknown>>, now);
+    return { runtime, learningPipeline, learningPipelineAlarm: pipelineAlarm.update(learningPipeline, now), learningLoopVerdict: learningLoopVerdict(runtime as unknown as Readonly<Record<string, unknown>>, learningPipeline) };
+  };
   const sockets = new Set<import("node:net").Socket>();
   server.on("connection", (socket) => { sockets.add(socket); socket.on("close", () => sockets.delete(socket)); });
   server.listen(options.port, host);
@@ -895,6 +943,7 @@ export function startCloudDashboardServer(options: CloudDashboardServerOptions):
   return {
     port: options.port,
     host,
+    observeLearningPipeline: () => { try { return observePipeline()?.learningPipelineAlarm; } catch { return undefined; } },
     stop(): Promise<void> {
       if (stopping) return stopping;
       stopping = new Promise((resolve) => {

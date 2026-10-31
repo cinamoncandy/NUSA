@@ -1,0 +1,70 @@
+id: WO-OPS-20261019-ORACLE-HEALTH-GUARD-SOURCE
+title: "Canonicalize the deployed Oracle PAPER health guard without adding a second watchdog"
+status: VERIFYING_SUCCESSOR_AFTER_AIPOS_RECEIPT
+owner: nusa-server-automation
+repository: cinamoncandy/NUSA
+issue: 1949
+base_branch: main
+previous_base_commit: 442d93f957983e478f6098eaa4303e6c1025b948
+base_commit: 7255ea23934df417ac68c42c44de6673d07f803a
+implementation_branch: ops/health-guard-source-1949
+authority_impact: none
+objective: "Put the already-deployed bounded Oracle health watchdog and its systemd ownership contract under repository review so host recovery behavior cannot drift outside source control."
+finding: "A natural PUBLIC_MARKET_FAILED incident left the PAPER process HTTP-healthy while its market workload was stale after bounded WebSocket reconnect exhaustion. The existing host-only health guard checked HTTP process health and did not detect the stale workload. The deployed repair recovered PAPER with one bounded restart and remained a no-op under healthy workload, but the executable and unit/timer were not tracked in the repository."
+scope:
+  - "Track and harden the deployed /usr/local/sbin/nusa-health-guard behavior as deploy/oracle/nusa-health-guard."
+  - "Close the release-activation/watchdog-restart check-then-act race with one shared root-owned flock at /run/nusa-paper-activation/activation.lock, protected by a root-only directory and root-owned mode-0600 inode."
+  - "Track the existing nusa-health-guard.service and nusa-health-guard.timer ownership contract."
+  - "Add structural regression coverage for workload-aware PUBLIC_MARKET_FAILED recovery, cooldown/deduplication, release suppression, upstream reachability and fail-closed behavior."
+  - "Document explicit reviewed-source installation and healthy no-op acceptance."
+exclusions:
+  - "Acquire the shared lock before reading or validating mutable active/previous release state in every canonical helper verb that can move the active release, install active units, or restart PAPER; do not implicitly install a new privileged helper from ordinary releases."
+  - "Do not add another timer, scheduler, watchdog or control plane."
+  - "Do not edit the database, writer lease, release symlink, runtime environment, Risk, Governance, qualification, OOS, cost or sample thresholds."
+  - "Do not enable LIVE/REAL authority or broker mutation."
+architecture_impact:
+  acknowledged: true
+  analysis: "The change source-controls the single existing watchdog and serializes only release activation versus watchdog recovery using one shared kernel flock. It adds no scheduler, watchdog, control plane, or host installation action. The narrow nusa-release-step activate change is necessary because the prior pgrep check was non-atomic."
+  references:
+    - deploy/oracle/nusa-health-guard
+    - deploy/oracle/nusa-health-guard.service
+    - deploy/oracle/nusa-health-guard.timer
+    - deploy/oracle/nusa-release-step.sh
+    - docs/operations/oracle-health-guard.md
+acceptance:
+  - "POSIX shell syntax passes."
+  - "Recovery is eligible only for workload STALE + PUBLIC_MARKET_FAILED with a valid last market timestamp and reachable Upbit public REST."
+  - "The same outage cannot trigger a repeat restart and a 15-minute cooldown bounds different failures."
+  - "All canonical release mutations and watchdog PAPER recovery serialize on the same stable root-owned flock; its directory is root:root 0700 and inode root:root 0600, rollback target discovery and compatibility validation occur under that lock, and a busy lock makes the watchdog a no-op before marker mutation or PAPER restart."
+  - "Linux flock child-shell contention tests receive marker paths explicitly and prove watchdog/release exclusion without relying on parent positional parameters being inherited."
+  - "The watchdog rechecks workload failure identity, marker dedupe, and cooldown after acquiring the lock; lock ownership releases automatically after process failure/exit."
+  - "Healthy workload execution is a no-op and preserves the PAPER PID."
+  - "Unreachable PAPER endpoint remains fail-closed with no blind restart."
+  - "Installed host executable can be compared byte-for-byte with reviewed source."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+latest_main_sync:
+  protected_main: 7255ea23934df417ac68c42c44de6673d07f803a
+  merge_commit: 8b8f88eb76bbbdc3d5659e1ebc45896727c14b3b
+  pre_receipt_head: 8b8f88eb76bbbdc3d5659e1ebc45896727c14b3b
+  superseded_head: cf1b3c87ebb244afb9a8152b177b1566fbf2ac05
+  superseded_ci: "39429964928 was cancelled after protected main advanced; PR exact-head companion workflows completed PASS, but CI is not accepted."
+  release_runtime_followup: "Oracle release 39423404154 deployed exact protected main 1b4a242941492f61bc4587f96c8ac2694b586352; authenticated PAPER readiness, Autopilot readiness, and 180-second soak PASS. At 2026-10-20T13:26Z local/public PAPER health, workload heartbeat, MCP and Upbit relay PASS; runtime remains exact deployed SHA with 314 historical ledger fills, no new orders/fills, 68 realized periods and 0 durable learning cycles. Research manifest-not-found remains. Disk 90%; nusa-disk-guard succeeded at 13:20 UTC, failed units 0."
+  local_validation: "Implementation focused tests 9/9 PASS on both bcdfa448575aaaa4c06572772102448610f5c995 and current merged-main head 8b8f88eb76bbbdc3d5659e1ebc45896727c14b3b; shell syntax and diff checks PASS. Full validate:full, security:gate, typecheck and build PASS on bcdfa448575aaaa4c06572772102448610f5c995 before the disjoint mobile UI/docs main delta. Final merged-tree CI required."
+  prior_successor_now_historical: ec109f98187f6a7e30ef16c35165d0a78762276f
+  prior_six_workflows: "All six passed on the prior SHA; those results are not release evidence for the new merge head."
+  next: "Push this receipt-only successor and require fresh exact-head CI plus companions, then a fresh non-author Validator. Keep Draft; no host install, Audit, Release, or merge before those gates."
+rollback: "Revert this source-control commit. The existing host watchdog is not changed by the PR itself; any host installation remains an explicit reviewed infrastructure operation."
+verification_commands:
+  - node --test tests/oracle-health-guard.test.js
+  - sh -n deploy/oracle/nusa-health-guard
+  - bash -n deploy/oracle/nusa-release-step.sh
+  - git diff --check
+  - pnpm run validate:full
+  - pnpm run security:gate
+validation: "Prior exact PR head bf742859fd549c04d1fb1353b27999a3240ca9ca was current-base aligned and all six required workflows PASS (CI 39383215746; PAPER 39383215742; capability 39383215782; activation 39383215627; transport 39383215667; read-only broker 39383215624). Fresh Validator on 899dccdd3b198c2370d72c32da2ab994ec001066 found P0=0/P1=1/P2=1 and CHANGES_REQUESTED. The lock now uses a root-controlled 0700 directory and verified root:root 0600 inode; flock child tests explicitly pass paths by environment. Latest local focused suite: 6 PASS/3 util-linux-flock SKIP (Git POSIX sh syntax passed); validate:full, security:gate, typecheck/build, AIPOS YAML and diff checks PASS. New exact-head CI and fresh Validator are required after the repair commit; no host mutation is authorized."
+next: "The formal Validator blockers on 899dccdd were repaired and local work-order validations passed. Commit/push this lock-hardening + flock-test repair with the AIPOS receipt, then fetch current protected main, PR head/base, and all six exact-head workflows. If aligned and green, request formal fresh non-author Validator on that new SHA. Keep Draft; no host installation, Audit, Release, or merge."

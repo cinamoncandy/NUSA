@@ -10,6 +10,7 @@ describe("legacy presentation adapter", () => {
   it("does not invent legacy primary surfaces for PAPER, LIVE, or MORE", () => {
     assert.equal(legacySurfaceForPrimary("Paper"), null);
     assert.equal(legacySurfaceForPrimary("Live"), null);
+    assert.equal(legacySurfaceForPrimary("Futures"), null);
     assert.equal(legacySurfaceForPrimary("More"), null);
   });
 

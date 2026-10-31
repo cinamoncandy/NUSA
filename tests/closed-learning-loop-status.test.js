@@ -42,11 +42,11 @@ test("the production composition feeds every loop tick into the status and hands
   const src = fs.readFileSync(path.join(__dirname, "..", "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
   assert.match(src, /loopStatus\.observeBootstrap\(bootstrap\)/);
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\)/);
-  assert.match(src, /loopStatus\.observeError\(Date\.now\(\)\); persistLastBlocked\(\); throw error;/, "an error tick persists its reason before the scheduler fails closed");
+  assert.match(src, /loopStatus\.observeError\(Date\.now\(\), tickErrorClass\(error\)\); persistLastBlocked\(\); throw error;/, "an error tick persists its reason before the scheduler fails closed");
   assert.match(src, /loopStatus\.observeRollover\(await runClosedLearningRolloverAsync\(\), Date\.now\(\)\);\r?\n\s*persistLastBlocked\(\);/, "a blocked tick persists its reason");
   assert.match(src, /loopStatus\.seedLastBlocked\(readClosedLearningBlocked\(config\.cloudStateDbPath\)\)/, "the persisted reason seeds the status after a restart");
-  assert.match(src, /loopStatus\.observePeriods\(periods\.listOpenPeriods\(\)\[0\], periods\.listRealizedPeriods\(\)\)/, "every tick reads the canonical period identities");
-  assert.match(src, /\(\) => loopStatus\.snapshot\(\),\r?\n\s*\(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*microstructureRecorder,\r?\n\s*orderBookCollector,\r?\n\s*\);/);
+  assert.match(src, /loopStatus\.observePeriods\(periods\.listOpenPeriods\(\)\[0\], periods\.listRealizedPeriods\(\)(?:, pendingPeriods\.dispositions\(\))?\)/, "every tick reads the canonical period identities");
+  assert.match(src, /closedLearningStatus: \(\) => loopStatus\.snapshot\(\),\r?\n\s*researchIntervalTicks: \(\) => researchExperiments\?\.experimentTicksByInterval\(\) \?\? null,\r?\n\s*microstructureRecorder,\r?\n\s*orderBookCollector,\r?\n\s*futuresCollector,\r?\n\s*\}\);/);
 });
 
 test("evidence correlates the open period, the latest realized period and the latest Research cycle", () => {
@@ -250,6 +250,46 @@ test("identity-stage failure survives closing and reopening its SQLite database"
   }
 });
 
+test("failure receipt survives process exit without SQLite close and repeated process replay", () => {
+  const { spawnSync } = require("node:child_process");
+  const directory = fs.mkdtempSync(path.join(require("node:os").tmpdir(), "nusa-failure-process-"));
+  const filename = path.join(directory, "learning.sqlite");
+  const input = { closedPeriodId: "period-crash", evidenceId: "closed-paper-period:period-crash", evidenceFingerprintSha256: HEX("e"), sourceCommitSha: "b".repeat(40), runtimeSourceCommitSha: "b".repeat(40), stage: "IDENTITY", code: "RISK_FINGERPRINT_INVALID" };
+  const program = `
+    const { SqliteDatabase } = require('./dist/packages/storage/src/index.js');
+    const { SqliteEvolutionLearningLedger } = require('./dist/packages/storage/src/evolutionLearningLedger.js');
+    const { ClosedLearningEvolutionLedgerRepository } = require('./dist/apps/cloud/src/closedLearningEvolutionLedgerRepository.js');
+    const db = new SqliteDatabase(process.argv[1]);
+    const repo = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db), () => 7000);
+    repo.appendFailure(JSON.parse(process.argv[2]));
+    process.exit(23); // Deliberately bypass db.close(); never touches the runtime database.
+  `;
+  let db;
+  try {
+    let first;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const child = spawnSync(process.execPath, ["-e", program, filename, JSON.stringify(input)], {
+        cwd: path.join(__dirname, ".."), encoding: "utf8", timeout: 10000,
+      });
+      assert.equal(child.error, undefined, child.error?.message);
+      assert.equal(child.signal, null);
+      assert.equal(child.status, 23, child.stderr);
+      db = new SqliteDatabase(filename);
+      const repo = new ClosedLearningEvolutionLedgerRepository(new SqliteEvolutionLearningLedger(db));
+      const summary = repo.failureSummary();
+      assert.equal(summary.failuresRecorded, 1, "process replay must not duplicate failure history");
+      first ??= summary.receipts[0];
+      assert.deepEqual(summary.receipts, [first]);
+      assert.equal(repo.summary().cyclesRecorded, 0, "failure replay must not fabricate cycles");
+      db.close();
+      db = undefined;
+    }
+  } finally {
+    db?.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("malformed durable cycle failure evidence fails closed", () => {
   const db = new SqliteDatabase(":memory:");
   try {
@@ -316,4 +356,60 @@ test("shadow totals appear in the evidence as integers, are withdrawn when malfo
   assert.match(src, /baselineShadow\?\.observe\(market, bars\)/, "the shadow reads the same completed minute bars the strategy reads");
   assert.match(src, /loopStatus\.observeShadow\(baselineShadow\.summary\(\)\)/);
   assert.match(src, /writeBaselineShadowRecord\(config\.cloudStateDbPath, persistable\)\) baselineShadow\.markUnpersisted\(\)/, "a failed write is retried on a later tick");
+});
+
+test("a failed tick publishes only a bounded error class, never the message", () => {
+  const { ClosedLearningLoopStatusTracker, tickErrorClass } = require("../dist/apps/cloud/src/closedLearningLoopStatus.js");
+  assert.equal(tickErrorClass(Object.assign(new Error("secret path /var/lib/x"), { code: "ERR_SQLITE_ERROR" })), "ERR_SQLITE_ERROR");
+  assert.equal(tickErrorClass(new TypeError("boom")), "TYPEERROR");
+  assert.equal(tickErrorClass("not an error"), "UNKNOWN_ERROR");
+  const t = new ClosedLearningLoopStatusTracker(3_600_000);
+  t.observeError(5, tickErrorClass(new RangeError("x")));
+  const snap = t.snapshot();
+  assert.equal(snap.lastBlockedReason, "TICK_ERROR");
+  assert.equal(snap.lastErrorClass, "RANGEERROR");
+  assert.ok(!JSON.stringify(snap).includes("secret"));
+  t.observeError(6);
+  assert.equal(t.snapshot().lastErrorClass, undefined, "an unclassified error clears the previous class");
+});
+
+test("tickErrorClass never throws, accepts only conventional codes, and a later non-error block clears the class", () => {
+  const { ClosedLearningLoopStatusTracker, tickErrorClass } = require("../dist/apps/cloud/src/closedLearningLoopStatus.js");
+  const hostile = new Error("x"); Object.defineProperty(hostile, "code", { get() { throw new Error("boom"); } });
+  assert.equal(tickErrorClass(hostile), "UNKNOWN_ERROR");
+  const hostileName = new Error("x"); Object.defineProperty(hostileName, "name", { get() { throw 1; } });
+  assert.equal(tickErrorClass(hostileName), "UNKNOWN_ERROR");
+  for (const bad of [null, undefined, Symbol("s"), { code: "TOKEN_abc" }, 42, "ERR_X"]) assert.equal(tickErrorClass(bad), "UNKNOWN_ERROR");
+  assert.equal(tickErrorClass(Object.assign(new Error("m"), { code: "TOKEN_SECRET123" })), "ERROR", "an unconventional code is ignored; the name is used");
+  assert.equal(tickErrorClass(Object.assign(new Error("m"), { code: "ENOSPC" })), "ENOSPC");
+  assert.equal(tickErrorClass(Object.assign(new Error("m"), { code: 28 })), "ERROR");
+  const t = new ClosedLearningLoopStatusTracker(3_600_000);
+  t.observeError(1, tickErrorClass(Object.assign(new Error("m"), { code: "ENOSPC" })));
+  assert.equal(t.snapshot().lastErrorClass, "ENOSPC");
+  t.observeRollover({ status: "BLOCKED", reason: "REASON_X" }, 2);
+  assert.equal(t.snapshot().lastBlockedReason, "REASON_X");
+  assert.equal(t.snapshot().lastErrorClass, undefined, "the class is not paired with a different block reason");
+});
+
+test("null comparator figures appear as counts and signed bp, absent fields stay absent, and a malformed or inconsistent value withdraws them", () => {
+  const t = new ClosedLearningLoopStatusTracker();
+  t.observeRollover({ status: "WAITING_FOR_KST_DAY_ROLLOVER" }, 1);
+  const full = { since: 5, seed: 20261030, baselineTrades: 3, baselineNetBp: -40, holdMarkets: 2, holdNetBp: -15, randomTrades: 3, randomWins: 1, randomNetBp: -55, randomSkipped: 0 };
+  t.observeNullComparators(full);
+  assert.deepEqual({ ...t.snapshot().evidence }, { nullSince: 5, nullSeed: 20261030, nullBaseTrades: 3, nullBaseNetBp: -40, nullHoldMarkets: 2, nullHoldNetBp: -15, nullRandTrades: 3, nullRandWins: 1, nullRandNetBp: -55, nullRandSkipped: 0 });
+  t.observeNullComparators({ since: 5, seed: 20261030, randomTrades: 0, randomWins: 0, randomNetBp: 0, randomSkipped: 2 });
+  const sparse = { ...t.snapshot().evidence };
+  assert.equal(sparse.nullHoldNetBp, undefined, "no measurable hold span: absent, not zero");
+  assert.equal(sparse.nullBaseNetBp, undefined, "baseline not comparable: absent, not zero");
+  for (const bad of [{ ...full, randomWins: 4 }, { ...full, since: 0 }, { ...full, baselineNetBp: undefined }, { ...full, holdMarkets: 0 }, { ...full, randomNetBp: 1.5 }, { ...full, baselineTrades: -1 }, undefined]) {
+    t.observeNullComparators(full);
+    t.observeNullComparators(bad);
+    assert.equal(t.snapshot().evidence, undefined, `withdrawn for ${JSON.stringify(bad)}`);
+  }
+});
+
+test("the runtime publishes the null comparators beside the shadow and persists them on change", () => {
+  const src = require("node:fs").readFileSync(require("node:path").join(__dirname, "..", "apps", "cloud", "src", "closedLearningProductionRuntime.ts"), "utf8");
+  assert.match(src, /loopStatus\.observeNullComparators\(nullComparators\.summary\(\)\)/);
+  assert.match(src, /writeNullComparatorsRecord\(config\.cloudStateDbPath, persistableNulls\)\) nullComparators\.markUnpersisted\(\)/);
 });

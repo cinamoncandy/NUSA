@@ -192,5 +192,19 @@ export function validateIntegrity(input: IntegrityValidationInput): ResearchVali
 }
 
 export function allResearchGatesPassed(reports: readonly ResearchValidationReport[]): boolean {
-  return reports.length === researchRunTypes.size && reports.every((item) => item.status === "PASS") && reports.every((item) => researchRunTypes.has(item.runType));
+  if (!Array.isArray(reports) || reports.length !== researchRunTypes.size) return false;
+  const seenTypes = new Set<ResearchRunType>();
+  const seenRuns = new Set<string>();
+  for (const item of reports) {
+    if (item == null || typeof item !== "object"
+      || item.status !== "PASS" || !researchRunTypes.has(item.runType)
+      || seenTypes.has(item.runType)
+      || typeof item.runId !== "string" || !item.runId.trim() || seenRuns.has(item.runId.trim())
+      || !Array.isArray(item.reasons) || item.reasons.length !== 0
+      || typeof item.checkedAt !== "string" || !iso(item.checkedAt)
+      || typeof item.resultChecksum !== "string" || !sha256Pattern.test(item.resultChecksum)) return false;
+    seenTypes.add(item.runType);
+    seenRuns.add(item.runId.trim());
+  }
+  return [...researchRunTypes].every((runType) => seenTypes.has(runType));
 }

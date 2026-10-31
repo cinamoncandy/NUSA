@@ -92,7 +92,10 @@ test("/health accepts only canonical hourly eligibility tied to the open period"
 });
 
 async function withServer(options, run, port) {
-  const handle = startCloudDashboardServer({ port, ...base, ...options });
+  // Keep test listeners below Linux's ephemeral-port range so unrelated local
+  // outbound connections cannot make deterministic server tests flaky.
+  const stableTestPort = port >= 32_768 ? port - 20_000 : port;
+  const handle = startCloudDashboardServer({ port: stableTestPort, ...base, ...options });
   try { await run(handle); } finally { await handle.stop(); }
 }
 
@@ -211,7 +214,7 @@ test("/health names the class of the runtime's own paper failures but never the 
       const res = await request(handle.port, "/health");
       const body = JSON.parse(res.body);
       assert.equal(body.runtime.lastError, expected, lastError);
-      assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|1234|abc-123|ledger/);
+      assert.doesNotMatch(res.body, /-154\.3|38 fills|abc123|acct-123|(?<![0-9])1234(?![0-9])|abc-123|ledger/);
     }, 41850 + index); // a range no other test file uses (41890-41897 overlapped paper-decision-outcome's 41893-41895)
   }
 });
@@ -313,8 +316,8 @@ test("the previous stop reason is published only as a coded value and never as f
   }, 41889);
 });
 
-test("/health publishes the loss-limit counts as five non-negative integers, and nothing when any is malformed", async () => {
-  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, todayCompletedSells: 5, todayLosingSells: 4 };
+test("/health publishes loss counts and the explicit enforcement policy without private data", async () => {
+  const session = { evaluatedAt: 1_791_270_000_000, consecutiveLossCount: 3, maxConsecutiveLosses: 3, consecutiveLossLimitEnabled: false, todayCompletedSells: 5, todayLosingSells: 4 };
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, paperLossSession: session }) }, async (handle) => {
     const body = JSON.parse((await request(handle.port, "/health")).body);
     assert.deepEqual(body.runtime.paperLossSession, session);
@@ -588,4 +591,14 @@ test("/health publishes the stored-data integrity result as a status plus non-ne
   await withServer({ runtimeLiveness: () => ({ ...LIVENESS, dataIntegrity: { status: "GOOD", candleFuture: 0 } }) }, async (handle) => {
     assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.dataIntegrity, undefined);
   }, 42353);
+});
+
+test("/health publishes the public futures collector counters as non-negative integers only", async () => {
+  const good = { rounds: 3, marksStored: 6, fundingStored: 4, klinesStored: 4, failures: 1, rejected: 0, lastRoundAt: 1_791_900_000_000 };
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, futuresCollector: { ...good, note: "x" } }) }, async (handle) => {
+    assert.deepEqual(JSON.parse((await request(handle.port, "/health")).body).runtime.futuresCollector, good);
+  }, 42390);
+  await withServer({ runtimeLiveness: () => ({ ...LIVENESS, futuresCollector: { ...good, rounds: -1 } }) }, async (handle) => {
+    assert.equal(JSON.parse((await request(handle.port, "/health")).body).runtime.futuresCollector, undefined);
+  }, 42391);
 });

@@ -1,0 +1,29 @@
+id: WO-OPS-20261015-DISK-CONSUMERS
+title: "Read-only host diagnosis: where the 90% full root disk goes"
+status: IN_PROGRESS
+priority: P2
+owner: ops
+repository: cinamoncandy/NUSA
+base_branch: main
+objective: "Host diagnosis 38662550145 showed / at 90% (41G of 45G, 4.6G free). Releases are about 11G, the state directory is unreadable to the diagnostic runner, and the other consumers are unknown. Add a bounded read-only listing so the owner can decide what to clean."
+first_broken_transition: "disk usage by consumer is unobservable from the diagnostic runner"
+scope:
+  - diagnose workflow step listing top directories under /var /opt /home, journal disk usage and swap
+prohibited:
+  - any deletion or host mutation
+  - size walk of /opt/nusa/releases
+  - weakening the workflow read-only structural tests
+acceptance:
+  - step is dispatch-only read-only, lowest I/O priority, hard 40 s limit, output bounded to 15 lines
+  - du excludes the release tree (--exclude=releases), so /opt totals exclude releases; unreadable directories understate their parents; du_exit is printed so a timeout (124) is visible
+  - independent review 2026-10-15 PASS_WITH_NOTES, no P0/P1; the three P2 notes (implicit release walk, weak test, silent truncation) are fixed
+validation:
+  local: "oracle-host-diagnose-workflow and research-runtime-proof tests pass (9). preflight NOT RUN (Node 22 sandbox)."
+remaining: "CI, non-author review, Audit/Release, then one dispatch to read the listing. Cleanup, if any, is an owner decision."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+followup_2026_10_15: "Diagnosis 38673436344 (after the first version merged and deployed 4263bcd45) saw /health time out (6 s, 0 bytes) right after the 40 s du. Cause not proven (the runtime had started 9 minutes earlier). The du listing now runs as the LAST step, after the health probe and annotations. The first listing reached only /var (1.1G) and /opt/actions-runner-nusa-codex-2 (873M) before the 40 s limit (du_exit=124); the main consumers are still unidentified."
+health_only_2026_10_15: "workflow_dispatch input health_only (boolean, default false) skips the disk, service-state and disk-consumer steps so /health trend readings carry no diagnostic I/O; the health probe and annotations always run. Purpose - separate event-loop stall growth (462 stalls, max 28 s, 20 minutes after deploy 4263bcd45) from diagnostic load."

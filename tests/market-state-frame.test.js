@@ -2,6 +2,7 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
 const{createHistoricalDatasetManifest}=require("../dist/apps/desktop/src/cloud/researchDataset.js");
+const provenance=require("./helpers/research-dataset-provenance.js");
 const{MarketStateFrameError,buildMarketStateFrame}=require("../dist/apps/desktop/src/cloud/marketStateFrame.js");
 
 function candles(market,closes,{interval="1d",volumes,quoteVolumes}={}){
@@ -16,7 +17,7 @@ function candles(market,closes,{interval="1d",volumes,quoteVolumes}={}){
 
 function dataset(market,closes,options={}){
   const rows=candles(market,closes,options);
-  return{candles:rows,manifest:createHistoricalDatasetManifest(rows,{source:"fixture",createdAt:"2026-08-25T00:00:00.000Z"})};
+  return{candles:rows,manifest:createHistoricalDatasetManifest(rows,{source:"fixture",createdAt:"2026-08-25T00:00:00.000Z",provenance})};
 }
 
 test("MarketStateFrame deterministically summarizes multi-market state",()=>{

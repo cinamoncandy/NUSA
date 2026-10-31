@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ResearchComparisonEvidence, ResearchEvaluationLedger } from "../../contracts/src/researchRuntime";
+import type { ResearchComparisonEvidence, ResearchEvaluationLedger, ResearchExecutionLifecycle } from "../../contracts/src/researchRuntime";
 import { validateResearchProvenance } from "../../contracts/src/researchHardening";
 
 export interface ResearchEvaluationDatabase {
@@ -18,7 +18,7 @@ function validateRecord(record: ResearchComparisonEvidence): void {
 }
 
 export class SqliteResearchEvaluationLedger implements ResearchEvaluationLedger {
-  public constructor(private readonly db: ResearchEvaluationDatabase) {}
+  public constructor(private readonly db: ResearchEvaluationDatabase) { db.connection.prepare("CREATE TABLE IF NOT EXISTS research_execution_lifecycle (execution_id TEXT NOT NULL, sequence INTEGER NOT NULL, stage TEXT NOT NULL, precommit_fingerprint TEXT NOT NULL, input_fingerprint TEXT NOT NULL, payload_fingerprint TEXT NOT NULL, PRIMARY KEY(execution_id, sequence), UNIQUE(execution_id, stage))").run(); }
 
   public append(record: ResearchComparisonEvidence): void {
     validateRecord(record);
@@ -52,4 +52,19 @@ export class SqliteResearchEvaluationLedger implements ResearchEvaluationLedger 
     const row = this.db.connection.prepare("SELECT hash FROM research_evaluation_ledger ORDER BY sequence DESC LIMIT 1").get() as { hash: string } | undefined;
     return row?.hash ?? genesis;
   }
+
+  public appendLifecycle(record: ResearchExecutionLifecycle): void {
+    this.db.transaction(() => {
+      const prior = this.db.connection.prepare("SELECT sequence FROM research_execution_lifecycle WHERE execution_id = ? ORDER BY sequence DESC LIMIT 1").get(record.executionId) as { sequence: number } | undefined;
+      if (Number(prior?.sequence ?? 0) + 1 !== record.sequence) throw new Error("RESEARCH_LIFECYCLE_SEQUENCE_CONFLICT");
+      const existing = this.db.connection.prepare("SELECT execution_id, sequence, stage, precommit_fingerprint AS precommitFingerprint, input_fingerprint AS inputFingerprint, payload_fingerprint AS payloadFingerprint FROM research_execution_lifecycle WHERE execution_id = ? AND stage = ?").get(record.executionId, record.stage) as ResearchExecutionLifecycle | undefined;
+      if (existing != null) { if (JSON.stringify(existing) !== JSON.stringify(record)) throw new Error("RESEARCH_LIFECYCLE_ID_CONFLICT"); return; }
+      if (record.stage === "EXECUTION_OUTPUT") {
+        const start = this.db.connection.prepare("SELECT precommit_fingerprint, input_fingerprint FROM research_execution_lifecycle WHERE execution_id = ? AND stage = 'EXECUTION_START'").get(record.executionId) as { precommit_fingerprint: string; input_fingerprint: string } | undefined;
+        if (start == null || start.precommit_fingerprint !== record.precommitFingerprint || start.input_fingerprint !== record.inputFingerprint) throw new Error("RESEARCH_LIFECYCLE_BINDING_MISMATCH");
+      }
+      this.db.connection.prepare("INSERT INTO research_execution_lifecycle(execution_id,sequence,stage,precommit_fingerprint,input_fingerprint,payload_fingerprint) VALUES(?,?,?,?,?,?)").run(record.executionId, record.sequence, record.stage, record.precommitFingerprint, record.inputFingerprint, record.payloadFingerprint);
+    });
+  }
+  public lifecycle(executionId: string): readonly ResearchExecutionLifecycle[] { return Object.freeze((this.db.connection.prepare("SELECT execution_id, sequence, stage, precommit_fingerprint AS precommitFingerprint, input_fingerprint AS inputFingerprint, payload_fingerprint AS payloadFingerprint FROM research_execution_lifecycle WHERE execution_id = ? ORDER BY sequence").all(executionId) as ResearchExecutionLifecycle[]).map((row) => Object.freeze({ ...row }))); }
 }

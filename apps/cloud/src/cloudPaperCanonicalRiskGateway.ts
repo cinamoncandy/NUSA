@@ -7,11 +7,11 @@ import { paperTradingDayKey, paperTradingDayStartedAt } from "./paperTradingDay"
 import { evaluatePreTradeRisk, type IndependentRiskLimits, type RiskIdentityState } from "./independentRiskGateway";
 import { RUNTIME_EXCHANGE_CAPABILITIES } from "./runtimeExchangeCapabilities";
 import type { PaperAccountState } from "./paperTradingExecutionLoop";
+import { AccountScopedRiskPersistence, SessionPeakStore, resolveRiskAccountId } from "./cloudPaperRiskAccountScope";
 
-const ACCOUNT_ID = "paper-default";
 const MANUAL_APPROVAL_TTL_MS = 60_000;
 
-/** Same conservative PAPER envelope already used by the desktop canonical composition. */
+/** Owner-approved Cloud spot PAPER policy; only the consecutive-loss veto is disabled. */
 export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxOrderNotional: 2_000_000,
   maxPositionNotional: 2_000_000,
@@ -25,6 +25,7 @@ export const CLOUD_PAPER_RISK_LIMITS: IndependentRiskLimits = Object.freeze({
   maxDailySellNotional: 2_000_000,
   maxDailyLoss: 1_000_000,
   maxConsecutiveLosses: 3,
+  consecutiveLossLimitEnabled: false,
   maxSessionDrawdownRatio: 0.2,
   maxPriceDeviationRatio: 0.05
 });
@@ -56,10 +57,11 @@ export interface CloudPaperRiskGate {
 }
 
 /**
- * Display-only counts behind the consecutive-loss limit, as of the latest risk evaluation: today's (UTC) completed sell
+ * Display-only counts and explicit enforcement policy, as of the latest risk evaluation: today's (KST) completed sell
  * orders, how many of them lost, the current losing streak and the configured limit. Integers only (no money, market or id).
  */
 export interface CloudPaperLossSessionSnapshot {
+  readonly consecutiveLossLimitEnabled?: boolean;
   readonly evaluatedAt: number;
   readonly consecutiveLossCount: number;
   readonly maxConsecutiveLosses: number;
@@ -80,6 +82,10 @@ const dayStartedAt = (dayKey: string): number => paperTradingDayStartedAt(dayKey
 
 function validateLimits(limits: IndependentRiskLimits): void {
   for (const [name, value] of Object.entries(limits)) {
+    if (name === "consecutiveLossLimitEnabled") {
+      if (typeof value !== "boolean") throw new Error("cloud PAPER loss enforcement policy is invalid");
+      continue;
+    }
     if (!Number.isFinite(value) || value < 0) throw new Error(`cloud PAPER risk limit ${name} is invalid`);
   }
   if (limits.maxOrdersPerSecond < 1 || limits.maxOrdersPerMinute < 1 || limits.maxSameSideStreak < 1 || limits.maxConsecutiveLosses < 1) {
@@ -90,8 +96,14 @@ function validateLimits(limits: IndependentRiskLimits): void {
 
 function databaseHealthy(database: SqliteDatabase): boolean {
   try {
-    const quick = database.connection.prepare("PRAGMA quick_check").get() as Record<string, unknown> | undefined;
-    if (quick == null || !Object.values(quick).includes("ok")) return false;
+    // SqliteDatabase already performs the fail-closed full-file quick_check once when the
+    // canonical connection is opened. Repeating that O(database-size) scan on every PAPER
+    // risk evaluation can block the Node event loop longer than the renewable writer lease.
+    // Keep the hot-path probe O(1): prove the already-open connection responds, then prove
+    // every canonical Risk table is still addressable. Individual persistence operations
+    // continue to fail closed on any SQLite error.
+    const probe = database.connection.prepare("SELECT 1 AS ready").get() as Record<string, unknown> | undefined;
+    if (Number(probe?.ready ?? 0) !== 1) return false;
     const required = ["risk_paper_approvals", "risk_daily_loss_state", "risk_idempotency_records", "risk_order_state"];
     for (const table of required) {
       const row = database.connection.prepare("SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name=?").get(table) as Record<string, unknown> | undefined;
@@ -200,6 +212,8 @@ export interface CloudPaperCanonicalRiskGatewayOptions {
   readonly initialCapital: number;
   readonly sourceCommitSha: string;
   readonly limits?: IndependentRiskLimits;
+  /** The real PAPER account id the risk rows belong to; defaults to the id derived from the initial capital. */
+  readonly accountId?: string;
 }
 
 /**
@@ -212,7 +226,11 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
   private readonly canonical: CanonicalRiskSafetyGate;
   private readonly limits: IndependentRiskLimits;
   private readonly fingerprints: Readonly<{ strategy: string; config: string; runtime: string; riskPolicy: string }>;
+  private readonly accountId: string;
+  private readonly peakStore: SessionPeakStore;
   private peakEquity: number;
+  private persistedPeak = Number.NaN;
+  private peakVerified = false;
   private lastLossSession: CloudPaperLossSessionSnapshot | null = null;
 
   public constructor(private readonly options: CloudPaperCanonicalRiskGatewayOptions) {
@@ -220,15 +238,28 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     if (!options.sourceCommitSha.trim()) throw new Error("cloud PAPER source commit is required");
     this.limits = Object.freeze({ ...(options.limits ?? CLOUD_PAPER_RISK_LIMITS) });
     validateLimits(this.limits);
+    this.accountId = resolveRiskAccountId(options.initialCapital, options.accountId);
     this.persistence = new SqliteRiskSafetyPersistence(options.database);
-    this.canonical = new CanonicalRiskSafetyGate(this.persistence);
+    this.canonical = new CanonicalRiskSafetyGate(new AccountScopedRiskPersistence(this.persistence, this.accountId));
+    this.peakStore = new SessionPeakStore(this.persistence, this.accountId, options.initialCapital);
     this.peakEquity = options.initialCapital;
+    this.restorePeak();
     this.fingerprints = Object.freeze({
       strategy: hash("cloud-paper-cio-v1"),
       config: hash({ initialCapital: options.initialCapital }),
       runtime: hash(options.sourceCommitSha.trim()),
       riskPolicy: hash(this.limits)
     });
+  }
+
+  /** Restores the persisted drawdown peak. Unreadable or invalid means unknown: evaluations halt until a valid peak is read. */
+  private restorePeak(): void {
+    try {
+      const stored = this.peakStore.read();
+      if (stored.status === "INVALID") { this.peakVerified = false; return; }
+      if (stored.status === "OK") { this.peakEquity = Math.max(this.peakEquity, stored.peak); this.persistedPeak = stored.peak; }
+      this.peakVerified = true;
+    } catch { this.peakVerified = false; }
   }
 
   /** The loss-limit counts from the latest evaluation, or null before any. Display only; never used for a decision. */
@@ -240,6 +271,8 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const persistent = databaseHealthy(this.options.database);
     const reconciled = stateHealthy(input.state);
     if (!reconciled) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["RECONCILIATION_FAILED"]) });
+    if (!this.peakVerified) this.restorePeak();
+    if (!this.peakVerified) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) });
     const payloadFingerprint = input.payloadFingerprintSha256 ?? hash({
       path: input.path,
       commandId: input.commandId,
@@ -265,10 +298,14 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     const notionals = dailyNotional(input.state, input.now);
     const lossState = realizedLossState(input.state, input.now);
     if (Number.isFinite(lossState.dailyRealizedPnL)) {
-      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
+      this.lastLossSession = Object.freeze({ evaluatedAt: input.now, consecutiveLossCount: lossState.consecutiveLossCount, maxConsecutiveLosses: this.limits.maxConsecutiveLosses, consecutiveLossLimitEnabled: this.limits.consecutiveLossLimitEnabled !== false, todayCompletedSells: lossState.todayCompletedSells, todayLosingSells: lossState.todayLosingSells, periodIdentity: dayOf(input.now), periodStartedAt: dayStartedAt(dayOf(input.now)), lastIncrementAt: lossState.lastIncrementAt });
     }
     const currentEquity = input.state.cash + input.state.positions.reduce((sum, item) => sum + item.quantity * (item.market === input.market ? input.price : item.markPrice), 0);
     this.peakEquity = Math.max(this.peakEquity, currentEquity);
+    if (!(this.peakEquity <= this.persistedPeak)) {
+      try { this.peakStore.write(this.peakEquity, input.now); this.persistedPeak = this.peakEquity; }
+      catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }
+    }
     const identity: RiskIdentityState = Object.freeze({
       strategyFingerprint: this.fingerprints.strategy,
       configFingerprint: this.fingerprints.config,
@@ -312,7 +349,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     if (!approvedBy || !strategyId) return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["APPROVAL_MISSING"]) });
     let approvalId: string | undefined;
     {
-      approvalId = `cloud-paper-${hash({ account: ACCOUNT_ID, commandId: input.commandId, approvedBy, strategyId, market: input.market, side: input.side, policy: this.fingerprints.riskPolicy }).slice(0, 32)}`;
+      approvalId = `cloud-paper-${hash({ account: this.accountId, commandId: input.commandId, approvedBy, strategyId, market: input.market, side: input.side, policy: this.fingerprints.riskPolicy }).slice(0, 32)}`;
       try {
         this.canonical.saveApproval({
           approvalId,
@@ -330,7 +367,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
     }
 
     const canonical = this.canonical.evaluate({
-      accountId: ACCOUNT_ID,
+      accountId: this.accountId,
       requestId: `${input.path}:${input.commandId}`,
       boundary: input.path,
       mode: "PAPER",
@@ -349,7 +386,7 @@ export class CloudPaperCanonicalRiskGateway implements CloudPaperRiskGate {
       persistenceHealthy: persistent,
       maxDailyLoss: this.limits.maxDailyLoss,
       maxOpenOrders: this.limits.maxOpenOrders,
-      idempotency: { accountId: ACCOUNT_ID, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint, createdAtMs: input.now }
+      idempotency: { accountId: this.accountId, commandId: input.commandId, signalId: input.signalId, clientOrderId: input.clientOrderId, payloadFingerprint, createdAtMs: input.now }
     });
     if (approvalId !== undefined) {
       try { this.canonical.revokeApproval(approvalId, "single-use manual approval evaluated"); } catch { return Object.freeze({ status: "HALT", reasonCodes: Object.freeze(["PERSISTENCE_UNHEALTHY"]) }); }

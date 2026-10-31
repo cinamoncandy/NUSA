@@ -8,6 +8,7 @@ import { planResearchSession, researchSessionIdFor } from "./researchSessionPlan
 import { runResearchExperiment, type ExperimentOutcome, type ExperimentRunnerPorts, type ExperimentSpec } from "./researchExperimentRunner";
 import type { WalkForwardWindowConfig } from "./researchWalkForwardWindows";
 import type { ResearchSessionStartInput } from "./researchAutomationRuntime";
+import type { ResearchPrecommit } from "../../../packages/contracts/src/researchPrecommit";
 
 /**
  * Drives the continuous research experiments one `tick` at a time. It owns no timer and no storage: the
@@ -55,6 +56,9 @@ export interface OrchestratorOptions {
   readonly experimentFamilyPrefix: string;
   /** Validation-role evaluation records of this orchestrator's bar length, read from the durable Research ledger (display only). */
   readonly failureEvidence?: () => readonly ResearchComparisonEvidence[];
+  readonly precommitStore?: { create(precommit: ResearchPrecommit): ResearchPrecommit };
+  readonly datasetManifest?: ExperimentRunnerPorts["datasetManifest"];
+  readonly datasetIdForMarket?: (market: string) => string;
 }
 
 export interface ResearchExperimentTickSummary {
@@ -83,6 +87,7 @@ export interface TickReport {
 }
 
 const empty = (status: TickReport["status"]): TickReport => Object.freeze({ status, started: 0, resumed: 0, stopped: 0, experiments: Object.freeze([]) });
+const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 /** Upper bound on challenger variants per bar length (SMA 4 + RSI 3 + Donchian 3 today); each runs at most its daily budget of experiments. */
 export const MAX_VARIANTS = 12;
@@ -96,6 +101,16 @@ export function addOutcomeCount(counts: Record<string, number>, key: string): vo
   if (!/^[A-Z][A-Z0-9_]{1,47}$/.test(key) || isDerivedCountKey(key)) return;
   if (!(key in counts) && Object.keys(counts).filter((existing) => !isDerivedCountKey(existing)).length >= MAX_ORDINARY_COUNT_KEYS) return;
   counts[key] = (counts[key] ?? 0) + 1;
+}
+
+const GAP_FILL_CODE = /^[A-Z][A-Z0-9_]{1,47}$/;
+
+export interface ResearchGapFillSummary {
+  readonly lastRunAt?: number;
+  readonly runs: number;
+  readonly deferred: number;
+  readonly counts: Readonly<Record<string, number>>;
+  readonly lastErrorCode?: string;
 }
 
 export class ResearchExperimentOrchestrator {
@@ -174,8 +189,41 @@ export class ResearchExperimentOrchestrator {
 
   private tickSummary: ResearchExperimentTickSummary | null = null;
 
-  public tick(): TickReport {
-    const report = this.tickInner();
+  private gapFillSummary: ResearchGapFillSummary | null = null;
+
+  /**
+   * Display only: the outcome of the hourly REST gap fill, the only writer of the candle series head. Fixed status and
+   * error codes with integer counts; nothing from the request or the data is kept.
+   */
+  public recordGapFill(results: readonly { readonly status: string; readonly errorCode?: string }[], at: number): void {
+    const previous = this.gapFillSummary;
+    const counts: Record<string, number> = { ...(previous?.counts ?? {}) };
+    let lastErrorCode = previous?.lastErrorCode;
+    for (const result of results) {
+      if (!GAP_FILL_CODE.test(result.status)) continue;
+      counts[result.status] = (counts[result.status] ?? 0) + 1;
+      if (result.errorCode !== undefined && GAP_FILL_CODE.test(result.errorCode)) lastErrorCode = result.errorCode;
+    }
+    this.gapFillSummary = Object.freeze({
+      lastRunAt: at,
+      runs: (previous?.runs ?? 0) + 1,
+      deferred: previous?.deferred ?? 0,
+      counts: Object.freeze(counts),
+      ...(lastErrorCode === undefined ? {} : { lastErrorCode }),
+    });
+  }
+
+  /** Display only: an hourly gap fill was postponed because a backfill, gap fill or research tick was still running. */
+  public noteGapFillDeferred(): void {
+    const previous = this.gapFillSummary;
+    this.gapFillSummary = Object.freeze({ ...(previous ?? { runs: 0, counts: Object.freeze({}) }), deferred: (previous?.deferred ?? 0) + 1 });
+  }
+
+  public gapFill(): ResearchGapFillSummary | null {
+    return this.gapFillSummary;
+  }
+
+  private recordTick(report: TickReport): TickReport {
     const counts: Record<string, number> = { ...(this.tickSummary?.counts ?? {}) };
     const add = (key: string): void => addOutcomeCount(counts, key);
     for (const item of report.experiments) {
@@ -207,11 +255,44 @@ export class ResearchExperimentOrchestrator {
     return report;
   }
 
+  public tick(): TickReport {
+    return this.recordTick(this.tickInner());
+  }
+
+  /**
+   * Production-safe equivalent of tick(). It preserves the same deterministic experiment order and durable stores,
+   * but yields after each bounded variant/market step so HTTP readiness and the PAPER writer lease stay serviceable.
+   */
+  public async tickAsync(yieldControl: () => Promise<void> = yieldToEventLoop): Promise<TickReport> {
+    try { return this.recordTick(await this.tickInnerAsync(yieldControl)); }
+    catch { return this.recordTick(empty("ERROR")); }
+  }
+
   private tickInner(): TickReport {
+    const steps = this.tickSteps();
+    let next = steps.next();
+    while (!next.done) next = steps.next();
+    return next.value;
+  }
+
+  private async tickInnerAsync(yieldControl: () => Promise<void>): Promise<TickReport> {
+    const steps = this.tickSteps();
+    let next = steps.next();
+    while (!next.done) {
+      await yieldControl();
+      next = steps.next();
+    }
+    return next.value;
+  }
+
+  /** One canonical implementation feeds both synchronous/manual and cooperative production execution. */
+  private *tickSteps(): Generator<void, TickReport, void> {
     if (!this.recoveryReady) return empty("RECOVERY_NOT_READY");
     try {
       const nowMs = this.options.now();
       this.options.collect(nowMs);
+      // Collection may touch a bounded amount of durable data. Give HTTP one turn before the experiment grid starts.
+      yield;
       let started = 0; let resumed = 0; let stopped = 0;
       const experiments: Array<TickReport["experiments"][number]> = [];
 
@@ -239,16 +320,17 @@ export class ResearchExperimentOrchestrator {
         }
         let session = this.options.sessions.load(sessionId);
         if (session?.state === "PAUSED") { session = variant.runtime.resume(sessionId); resumed += 1; }
-        if (session == null || session.state !== "RUNNING") continue;
+        if (session == null || session.state !== "RUNNING") { yield; continue; }
 
         for (const market of this.options.markets) {
           const endCloseMs = this.options.candles.latestCloseTime(market, this.options.intervalMs);
-          if (endCloseMs == null) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); continue; }
+          if (endCloseMs == null) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); yield; continue; }
           const validationEnd = endCloseMs - this.options.windows.holdoutMs;
           const last = session.lastEvidenceAt;
-          if (last != null && validationEnd < last + this.options.windows.validationMs) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); continue; }
+          if (last != null && validationEnd < last + this.options.windows.validationMs) { experiments.push({ variantId: variant.variantId, market, outcome: { status: "NOT_DUE" } }); yield; continue; }
           const outcome = runResearchExperiment(this.portsFor(variant), {
             sessionId, market, intervalMs: this.options.intervalMs, endCloseMs, windows: this.options.windows,
+            datasetId: this.options.datasetIdForMarket?.(market),
             champion: variant.champion, challenger: variant.challenger,
             featurePipeline: this.options.featurePipeline, evaluator: this.options.evaluator, models: this.options.models,
             sourceCommitSha: this.options.sourceCommitSha,
@@ -257,9 +339,12 @@ export class ResearchExperimentOrchestrator {
             hypothesisLineage: `${variant.experimentFamilyPrefix ?? this.options.experimentFamilyPrefix}:${variant.variantId}`,
             split: { identity: `wf-${this.options.windows.trainMs / 60_000}-${this.options.windows.validationMs / 60_000}-${this.options.windows.holdoutMs / 60_000}m` },
             walkForwardConfig: { windows: this.options.windows, challenger: variant.challenger.config },
+            candidateCohort: this.options.variants.map((item) => ({ id: item.variantId, strategyId: item.challenger.strategy.strategyId, strategyVersion: item.challenger.strategy.version, parameters: item.challenger.config as Readonly<Record<string, unknown>> })),
+            searchUniverse: { variantIds: this.options.variants.map((item) => item.variantId), selectionRule: "PREDECLARED_VARIANTS", trialCount: this.options.variants.length, intervalMs: this.options.intervalMs },
           });
           experiments.push({ variantId: variant.variantId, market, outcome });
           session = this.options.sessions.load(sessionId) ?? session;
+          yield;
           if (session.state !== "RUNNING") break;
         }
       }
@@ -270,6 +355,6 @@ export class ResearchExperimentOrchestrator {
   }
 
   private portsFor(variant: ResearchVariant): ExperimentRunnerPorts {
-    return { runExperiment: (input) => variant.runtime.runExperiment(input), candles: this.options.candles, holdout: this.options.holdout, now: this.options.now };
+    return { runExperiment: (input) => variant.runtime.runExperiment(input), candles: this.options.candles, holdout: this.options.holdout, now: this.options.now, precommitStore: this.options.precommitStore, datasetManifest: this.options.datasetManifest };
   }
 }

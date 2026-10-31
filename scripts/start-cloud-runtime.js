@@ -32,6 +32,7 @@ const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PAPER_CAPITAL_KRW = "10000";
 const SUPERVISOR_CHILD_ENV = "NUSA_PAPER_RUNTIME_SUPERVISOR_CHILD";
 const PRODUCTION_RUNTIME_ENTRYPOINT = "dist/apps/cloud/src/closedLearningProductionRuntime.js";
+const SQLITE_INTEGRITY_BOOTSTRAP = "dist/packages/storage/src/sqliteIntegrityBootstrap.js";
 
 /** Environment variables that would hand the runtime real-money authority. Never forwarded. */
 const PRIVATE_CREDENTIAL_PATTERN = /(ACCESS|SECRET|PRIVATE|API[_-]?KEY|TOKEN)/i;
@@ -129,6 +130,9 @@ function readOwnerResearch(file = OWNER_RESEARCH_FILE) {
 /** Fills in operational defaults without overriding anything the caller set explicitly. */
 function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccount(), ownerPaperMarkets = readOwnerPaperMarkets(), ownerResearch = readOwnerResearch()) {
   const { env, stripped } = stripPrivateExchangeCredentials(baseEnv);
+  // Do not pass NODE_OPTIONS preloads into the production database-owning child. Its trusted
+  // SQLite integrity bootstrap must execute before any application module can mutate core APIs.
+  delete env.NODE_OPTIONS;
   const defaults = {
     NUSA_MODE: "PAPER",
     NUSA_LIVE_MUTATION: "PROHIBITED",
@@ -233,6 +237,43 @@ function launcherExitCode(code, signal, stderrTail) {
   return code ?? 0;
 }
 
+/**
+ * Automatic, guarded abandoned-lease recovery (#2770).
+ *
+ * `scripts/reset-paper-writer-lease.js` is deliberately explicit rather than automatic, which is
+ * right for a human operator but left the supervised production path with no way forward: the
+ * runtime exits PAPER_WRITER_CLOCK_ANOMALY, the supervisor restarts it, and every attempt meets
+ * the same stale row until the restart budget is spent and PAPER stays down (Oracle host,
+ * 2026-10-17: 295 readiness attempts, all ECONNREFUSED on 41731, then FAILED).
+ *
+ * This runs the *same* canonical recovery, lazily required to keep the existing module cycle
+ * (reset-paper-writer-lease -> start-cloud-runtime) one-directional, with every guard intact:
+ *   - refuses while any runtime answers /health on the dashboard endpoint,
+ *   - refuses a lease that has not expired yet,
+ *   - deletes only the lease row, never account state,
+ *   - and only on an exit that already failed with CLOCK_ANOMALY (ALREADY_ACTIVE is skipped, so a
+ *     genuinely live writer is never disturbed).
+ * acquireLease keeps every predicate it had: it still throws for anything this declines to clear.
+ */
+async function recoverAbandonedWriterLease(stderrTail, options = {}) {
+  if (!/PAPER_WRITER_CLOCK_ANOMALY/.test(stderrTail)) return { status: "SKIPPED" };
+  try {
+    const { resetPaperWriterLease } = require("./reset-paper-writer-lease.js");
+    const write = options.recoveryWrite ?? ((text) => process.stderr.write(`${text}\n`));
+    // Resolve the state DB, endpoint, and account through the same env the child was spawned
+    // with, so the row we clear is the row the child could not take over.
+    const { env, leaseRecovery } = options;
+    return await resetPaperWriterLease({
+      write,
+      ...(env == null ? {} : { env }),
+      ...(leaseRecovery ?? {}),
+    });
+  } catch (error) {
+    process.stderr.write(`writer lease recovery skipped: ${error instanceof Error ? error.message : "unknown error"}\n`);
+    return { status: "ERROR" };
+  }
+}
+
 function start(options = {}) {
   const baseEnv = options.env ?? process.env;
   // A deployment may provide the owner-managed token through its protected environment
@@ -246,8 +287,10 @@ function start(options = {}) {
   const write = options.write ?? ((text) => process.stdout.write(text));
   write(banner(env, stripped));
   const spawnFn = options.spawn ?? spawn;
-  const child = spawnFn(process.execPath, [PRODUCTION_RUNTIME_ENTRYPOINT], {
-    cwd: options.cwd ?? process.cwd(),
+  const cwd = options.cwd ?? process.cwd();
+  const bootstrapPath = path.resolve(cwd, SQLITE_INTEGRITY_BOOTSTRAP);
+  const child = spawnFn(process.execPath, ["--require", bootstrapPath, PRODUCTION_RUNTIME_ENTRYPOINT], {
+    cwd,
     env,
     stdio: ["ignore", "inherit", "pipe"],
     shell: false,
@@ -257,9 +300,16 @@ function start(options = {}) {
     process.stderr.write(chunk);
     stderrTail = `${stderrTail}${chunk}`.slice(-4000);
   });
-  child.on("exit", (code, signal) => {
+  child.on("exit", async (code, signal) => {
     if (code !== 0 && /PAPER_WRITER_CLOCK_ANOMALY|PAPER_WRITER_ALREADY_ACTIVE/.test(stderrTail)) {
       write(leaseRecoveryGuidance(stderrTail));
+      // #2770: name the recovery *and* run it here. The supervisor restarts this launcher on a
+      // bounded backoff, so clearing the row once after the failed attempt lets the next start
+      // reacquire instead of spending the whole restart budget on the identical stale row.
+      const recovered = await recoverAbandonedWriterLease(stderrTail, { ...options, env });
+      if (recovered?.status === "CLEARED") {
+        write("  Recovered automatically: the abandoned lease row is cleared; the next start reacquires it.\n");
+      }
     }
     process.exitCode = launcherExitCode(code, signal, stderrTail);
   });
@@ -313,6 +363,8 @@ module.exports = {
   readOwnerResearch,
   launcherExitCode,
   PRODUCTION_RUNTIME_ENTRYPOINT,
+  SQLITE_INTEGRITY_BOOTSTRAP,
+  recoverAbandonedWriterLease,
   resolveDashboardToken,
   runManaged,
   start,

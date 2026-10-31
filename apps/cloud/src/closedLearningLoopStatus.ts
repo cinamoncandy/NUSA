@@ -1,3 +1,4 @@
+import type { PersistedPaperPendingDisposition } from "../../../packages/storage/src/persistedPaperPeriodStore";
 import type { ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import type { ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
@@ -6,6 +7,7 @@ import type { ClosedLearningCycleRecord } from "./closedLearningLoopCoordinator"
 import type { ClosedLearningCycleFailureReceipt } from "./closedLearningEvolutionLedgerRepository";
 import { tradingDayKey } from "../../../packages/contracts/src/risk-safety-integration";
 import { OWNER_BASELINE_CANDIDATE_ID } from "./ownerBaselinePaperStrategy";
+import type { NullComparatorSummary } from "./paperNullComparators";
 
 /**
  * Display-only status of the production closed-learning loop (bootstrap -> PAPER period -> rollover -> Research
@@ -32,6 +34,8 @@ export type ClosedLearningLoopStatus = {
    */
   readonly lastBlockedReason?: string;
   readonly lastBlockedAt?: number;
+  /** Bounded class of the most recent TICK_ERROR of THIS process (never the message): a fixed code so a failed tick can be root-caused. */
+  readonly lastErrorClass?: string;
   readonly deployments: number;
   /**
    * Correlation identities read from the canonical components (open PAPER period, latest realized period, latest
@@ -58,6 +62,7 @@ export type ClosedLearningMetaLearningStatus = Readonly<{
 export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
   openPeriodId: string; openMarket: string; openCandidateId: string; openPeriodStartAt: number; openObservations: number; openFilledObservations: number;
   realizedPeriods: number;
+  ineligiblePeriods: number; latestIneligiblePeriodId: string; latestIneligibleFingerprint: string; latestIneligibleReason: string; latestIneligibleRuntimeSha: string;
   /** Realized owner-baseline periods: durable self-observations without Research lineage, never counted as learning cycles. */
   baselineObservations: number;
   realizedPeriodId: string; realizedPeriodEndAt: number; realizedOutcomeFingerprint: string; realizedCostEvidenceFingerprint: string;
@@ -77,6 +82,12 @@ export type ClosedLearningEvidenceCorrelation = Readonly<Partial<{
    */
   replayPeriodId: string; replayBars: number; replayTrades: number; replayClosedNetBp: number; replayOpenMarkBp: number; replayPaperNetBp: number;
   shadowSince: number; shadowTrades: number; shadowWins: number; shadowGrossGainBp: number; shadowGrossLossBp: number; shadowFeeBp: number;
+  /**
+   * Null comparators of the baseline shadow (buy-and-hold and fixed-seed random entry, same bars and fee model). Counts and signed basis
+   * points only; a comparison, NOT PAPER evidence and never a promotion input (see paperNullComparators.ts).
+   */
+  nullSince: number; nullSeed: number; nullBaseTrades: number; nullBaseNetBp: number; nullHoldMarkets: number; nullHoldNetBp: number;
+  nullRandTrades: number; nullRandWins: number; nullRandNetBp: number; nullRandSkipped: number;
 }>>;
 
 const CODE = /^[A-Z][A-Z0-9_]{1,63}$/;
@@ -99,16 +110,21 @@ export class ClosedLearningLoopStatusTracker {
   /** The outcome of a cycle evaluated by THIS process (wins over the durable copy). */
   private processCycleOutcome: string | undefined;
   private lastBlocked: { reason: string; at: number } | undefined;
+  private lastErrorClass: string | undefined;
   private durableCycleIdentity: ClosedLearningEvidenceCorrelation = {};
   private durableFailure: ClosedLearningEvidenceCorrelation = {};
   private shadow: ClosedLearningEvidenceCorrelation = {};
+  private nulls: ClosedLearningEvidenceCorrelation = {};
   private replay: ClosedLearningEvidenceCorrelation = {};
   private metaLearning: ClosedLearningMetaLearningStatus | undefined;
 
   /** Reads the identities of the current open period and the latest realized period. */
-  public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[]): void {
+  public observePeriods(open: PersistedPaperRealizedPeriodPlan | undefined, realized: readonly PersistedPaperPeriodEnvelope[], dispositions?: readonly PersistedPaperPendingDisposition[]): void {
     const latest = [...realized].sort((left, right) => right.record.periodIndex - left.record.periodIndex || right.record.periodEndAt - left.record.periodEndAt)[0];
+    const terminal = dispositions == null ? undefined : [...dispositions].sort((a, b) => b.original.periodIndex - a.original.periodIndex)[0];
     this.periods = Object.freeze({
+      ...(dispositions == null ? {} : { ineligiblePeriods: dispositions.length }),
+      ...(terminal == null ? {} : { latestIneligiblePeriodId: terminal.original.periodId, latestIneligibleFingerprint: terminal.evidenceFingerprintSha256, latestIneligibleReason: terminal.reason.code, ...(terminal.reason.sourceRuntimeSha == null ? {} : { latestIneligibleRuntimeSha: terminal.reason.sourceRuntimeSha }) }),
       ...(open == null ? {} : {
         openPeriodId: open.periodId,
         ...(open.market == null ? {} : { openMarket: open.market }),
@@ -175,6 +191,23 @@ export class ClosedLearningLoopStatusTracker {
     this.publish();
   }
 
+  /** Display-only null comparator figures; a malformed value withdraws the null keys. Absent optional fields stay absent (never zero). */
+  public observeNullComparators(summary: NullComparatorSummary | undefined): void {
+    const count = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) >= 0;
+    const signed = (value: unknown): value is number => Number.isSafeInteger(value) && Math.abs(Number(value)) <= 10_000_000;
+    const ok = summary != null && count(summary.since) && summary.since > 0 && count(summary.seed)
+      && count(summary.randomTrades) && count(summary.randomWins) && summary.randomWins <= summary.randomTrades && signed(summary.randomNetBp) && count(summary.randomSkipped)
+      && (summary.baselineTrades === undefined) === (summary.baselineNetBp === undefined) && (summary.baselineTrades === undefined || (count(summary.baselineTrades) && signed(summary.baselineNetBp)))
+      && (summary.holdMarkets === undefined) === (summary.holdNetBp === undefined) && (summary.holdMarkets === undefined || (count(summary.holdMarkets) && summary.holdMarkets > 0 && signed(summary.holdNetBp)));
+    this.nulls = !ok || summary == null ? {} : Object.freeze({
+      nullSince: summary.since, nullSeed: summary.seed,
+      ...(summary.baselineTrades === undefined || summary.baselineNetBp === undefined ? {} : { nullBaseTrades: summary.baselineTrades, nullBaseNetBp: summary.baselineNetBp }),
+      ...(summary.holdMarkets === undefined || summary.holdNetBp === undefined ? {} : { nullHoldMarkets: summary.holdMarkets, nullHoldNetBp: summary.holdNetBp }),
+      nullRandTrades: summary.randomTrades, nullRandWins: summary.randomWins, nullRandNetBp: summary.randomNetBp, nullRandSkipped: summary.randomSkipped,
+    });
+    this.publish();
+  }
+
   /** The durable ledger could not be read: withdraw everything published from it, so /health never presents stale durable evidence as current. */
   public clearDurableCycles(): void {
     this.durable = null;
@@ -205,11 +238,12 @@ export class ClosedLearningLoopStatusTracker {
       ...this.periods,
       ...this.cycle,
       ...this.shadow,
+      ...this.nulls,
       ...this.replay,
     });
     // lastCycleOutcome and evidence are always rebuilt here from their sources (this process first, then the durable copy), never carried
     // over from the previous status, so withdrawing the durable copy really withdraws what was published from it.
-    const { evidence: _previousEvidence, metaLearning: _previousMeta, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
+    const { evidence: _previousEvidence, metaLearning: _previousMeta, lastCycleOutcome: _previousOutcome, lastBlockedReason: _previousReason, lastBlockedAt: _previousAt, lastErrorClass: _previousErrorClass, currentBlockedReason: _previousCurrent, nextEvaluationEligibleAt: _previousEligibility, ...rest } = this.status;
     let eligibleAt: number | undefined;
     const start = this.periods.openPeriodStartAt;
     if (["WAITING_FOR_KST_DAY_ROLLOVER", "WAITING_FOR_EVALUATION_WINDOW"].includes(rest.rollover) && start !== undefined && Number.isSafeInteger(start) && start >= 0 && start <= rest.lastTickAt && start <= 8_640_000_000_000_000) {
@@ -226,6 +260,7 @@ export class ClosedLearningLoopStatusTracker {
       ...(eligibleAt === undefined ? {} : { nextEvaluationEligibleAt: eligibleAt }),
       ...(outcome === undefined ? {} : { lastCycleOutcome: outcome }),
       ...(this.lastBlocked === undefined ? {} : { lastBlockedReason: this.lastBlocked.reason, lastBlockedAt: this.lastBlocked.at }),
+      ...(this.lastErrorClass === undefined ? {} : { lastErrorClass: this.lastErrorClass }),
       ...(Object.keys(evidence).length === 0 ? {} : { evidence }),
       ...(this.metaLearning === undefined ? {} : { metaLearning: this.metaLearning }),
     }) as ClosedLearningLoopStatus;
@@ -241,7 +276,7 @@ export class ClosedLearningLoopStatusTracker {
     const cycleStatus = code(result.cycle?.status);
     const cycleOutcome = code(result.cycle?.record?.decision?.outcome);
     if (cycleOutcome !== undefined) this.processCycleOutcome = cycleOutcome;
-    if (result.status === "BLOCKED") this.lastBlocked = { reason: code(result.reason) ?? "BLOCKED_WITHOUT_CODE", at: now };
+    if (result.status === "BLOCKED") { this.lastBlocked = { reason: code(result.reason) ?? "BLOCKED_WITHOUT_CODE", at: now }; this.lastErrorClass = undefined; }
     const deployed = evaluated && (result.cycle?.status === "EXECUTED" || result.cycle?.status === "RESUMED") && result.cycle.record.paperDeployment != null;
     const reason = code(result.reason);
     this.status = Object.freeze({
@@ -277,6 +312,7 @@ export class ClosedLearningLoopStatusTracker {
   public seedLastBlocked(record: { readonly reason: string; readonly at: number } | undefined): void {
     if (record == null || this.lastBlocked !== undefined || !CODE.test(record.reason) || !Number.isSafeInteger(record.at) || record.at < 0) return;
     this.lastBlocked = { reason: record.reason, at: record.at };
+    this.lastErrorClass = undefined;
     this.publish();
   }
 
@@ -286,8 +322,9 @@ export class ClosedLearningLoopStatusTracker {
   }
 
   /** A tick that threw before a rollover result: recorded as ERROR without changing the counts. */
-  public observeError(now: number): void {
+  public observeError(now: number, errorClass?: string): void {
     this.lastBlocked = { reason: "TICK_ERROR", at: now };
+    this.lastErrorClass = errorClass !== undefined && CODE.test(errorClass) ? errorClass : undefined;
     const previous = this.status;
     this.status = Object.freeze({ ...(previous ?? { cyclesEvaluated: 0, deployments: 0 }), lastTickAt: now, ticks: (previous?.ticks ?? 0) + 1, bootstrap: this.bootstrap, rollover: "ERROR" }) as ClosedLearningLoopStatus;
     this.publish();
@@ -296,4 +333,19 @@ export class ClosedLearningLoopStatusTracker {
   public snapshot(): ClosedLearningLoopStatus | null {
     return this.status;
   }
+}
+
+/**
+ * Bounded, message-free class of a thrown value. It can never throw (a hostile getter or Proxy yields UNKNOWN_ERROR) and a custom
+ * `code` is accepted only in the ERR_/E<UPPER> convention of Node and errno codes, so an arbitrary string is never published.
+ */
+export function tickErrorClass(error: unknown): string {
+  try {
+    if (!(error instanceof Error)) return "UNKNOWN_ERROR";
+    const rawCode = (error as { code?: unknown }).code;
+    const code = typeof rawCode === "string" ? rawCode.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase().slice(0, 64) : "";
+    if (/^(ERR_[A-Z0-9_]{1,56}|E[A-Z0-9]{2,20})$/.test(code)) return code;
+    const name = typeof error.name === "string" ? error.name.replace(/[^A-Za-z0-9]+/g, "_").toUpperCase().slice(0, 64) : "";
+    return CODE.test(name) ? name : "UNKNOWN_ERROR";
+  } catch { return "UNKNOWN_ERROR"; }
 }

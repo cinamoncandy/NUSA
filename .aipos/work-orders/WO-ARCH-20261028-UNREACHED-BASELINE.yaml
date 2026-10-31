@@ -1,0 +1,29 @@
+id: WO-ARCH-20261028-UNREACHED-BASELINE
+title: Cap the set of cloud modules that nothing reaches so it can only shrink
+status: IN_REVIEW
+priority: P2
+owner: nusa-development
+repository: cinamoncandy/NUSA
+issue: 2770
+authority_impact: none
+objective: >-
+  Stop new dead code from entering apps/cloud/src while the per-module census (WO-ARCH-20261027-TARGET-ARCHITECTURE phase 4)
+  removes the old. Three independent assessors (docs/DESIGN_ASSESSMENT_2026-10-28.md) rank unreached code among the top process costs.
+evidence:
+  census: 'scripts/report-cloud-reachability.js on main 2026-10-28: 84 UNREACHED_CHECK modules of 298 (after #2914 deleted 6).'
+scope:
+  - '.aipos/cloud-unreached-baseline.json lists the 84 module names.'
+  - 'tests/cloud-unreached-baseline.test.js fails when a new unreached module appears, when a baseline entry is no longer unreached, and when the list is not sorted/unique or exceeds 84.'
+exclusions:
+  - 'No module is deleted, moved or changed. LIVE-boundary and product-surface modules are not in the list. No gate, limit or authority change.'
+acceptance:
+  - 'The new test passes and fails when a module is added or removed without updating the baseline.'
+verification_commands:
+  - node --test tests/cloud-unreached-baseline.test.js
+  - node scripts/validate-aipos-yaml.js
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+next: 'Review, CI, merge; then attic or delete modules per the census, removing their baseline entries in the same PR.'

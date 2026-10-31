@@ -1,3 +1,4 @@
+import { createLeaseStartupWindow } from "./paperLeaseStartupWindow";
 import { buildMetaLearningStatus } from "./researchMetaLearningRuntime";
 import { createHash } from "node:crypto";
 import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
@@ -5,7 +6,9 @@ import { RESEARCH_LEDGER_SNAPSHOT } from "./researchLedgerSnapshot";
 import { readOrderBookStudyResult } from "./researchStudyResult";
 import { MarketMicrostructureRecorder, microstructureRecorderEnabled } from "./marketMicrostructureRecorder";
 import { SqliteMarketMicrostructureStore } from "../../../packages/storage/src/marketMicrostructureStore";
-import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled } from "./researchOrderBookCollector";
+import { ResearchOrderBookCollector, researchOrderBookCollectorEnabled, researchOrderBookRetention } from "./researchOrderBookCollector";
+import { ResearchFuturesCollector, researchFuturesCollectorEnabled } from "./researchFuturesCollector";
+import { SqliteFuturesPublicStore } from "../../../packages/storage/src/futuresPublicStore";
 import type { PersistedPaperPeriodEnvelope } from "../../../packages/contracts/src/persistedPaperPeriod";
 import { replayPaperPeriodRule } from "./paperPeriodRuleReplay";
 import { composeResearchExperiments } from "./researchExperimentComposition";
@@ -16,13 +19,15 @@ import { buildCanonicalPaperCandidatePerformance, PAPER_COVERED_DAY_SCORING_VERS
 import { evaluatePaperPerformanceGovernanceFeedback, type PaperPerformanceGovernanceFeedbackReceipt } from "./paperPerformanceGovernanceFeedback";
 import { SqliteDatabase, SqliteEvolutionLearningLedger, SqlitePaperMarketObservationRepository } from "../../../packages/storage/src/index";
 import { PaperMinuteBarSource } from "./paperMinuteBars";
-import { ClosedLearningLoopStatusTracker } from "./closedLearningLoopStatus";
+import { ClosedLearningLoopStatusTracker, tickErrorClass } from "./closedLearningLoopStatus";
 import { FileResearchRunReplaySnapshotStore } from "../../desktop/src/cloud/researchRunReplaySnapshotStore";
 import { readCloudRuntimeConfig } from "./cloudRuntimeConfig";
 import { readCanonicalPaperTickerBenchmark } from "./paperMarketBenchmark";
 import { readClosedLearningBlocked, recordClosedLearningBlocked } from "./closedLearningBlockedRecord";
 import { PaperBaselineShadow } from "./paperBaselineShadow";
 import { readBaselineShadowRecord, writeBaselineShadowRecord } from "./paperBaselineShadowRecord";
+import { PaperNullComparators } from "./paperNullComparators";
+import { readNullComparatorsRecord, writeNullComparatorsRecord } from "./paperNullComparatorsRecord";
 import { recordRuntimeFailure } from "./runtimeFailureRecord";
 import { ResearchSnapshotRefresher } from "./researchSnapshotRefresher";
 import { retiredPaperAccountIds, retirePaperAccounts } from "./paperAccountRetirement";
@@ -33,7 +38,7 @@ import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshot
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
-import { registerGracefulShutdown, startCloudRuntime, type CloudRuntimeHandle } from "./runtime";
+import { registerGracefulShutdown, startCloudRuntimeFromOptions, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
 import { ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
@@ -45,7 +50,8 @@ import { ClosedLearningLoopCoordinator, closedLearningCycleId, isCompleteClosedL
 import { PaperChallengerDeploymentRuntime } from "./paperChallengerDeploymentRuntime";
 import { ClosedLearningPendingPeriodReader } from "./closedLearningPendingPeriodReader";
 import { ClosedLearningEvidenceIdentitySource } from "./closedLearningEvidenceIdentitySource";
-import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT } from "./cloudPaperRiskPolicyIdentity";
+import { CLOUD_PAPER_RISK_POLICY_FINGERPRINT, cloudPaperRiskPolicyFingerprint } from "./cloudPaperRiskPolicyIdentity";
+import { cloudPaperRiskLimitsForCapital } from "./paperRiskLimitScaling";
 import { ClosedLearningRolloverScheduler, type ClosedLearningRolloverResult } from "./closedLearningRolloverScheduler";
 import { ClosedLearningInitialPaperBootstrap, type ClosedLearningInitialPaperBootstrapResult } from "./closedLearningInitialPaperBootstrap";
 import { buildPaperPerformanceFromLedger, type PaperPerformanceFromLedgerResult } from "./paperPerformanceFromLedger";
@@ -82,7 +88,7 @@ export interface ClosedLearningProductionComposition {
  * replay-safe cycle ledger, initial PAPER bootstrap, and next-PAPER deployment. No second PAPER
  * writer, Research scoring engine, LIVE route, or production champion mutation is introduced here.
  */
-export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env): ClosedLearningProductionComposition {
+export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = process.env, requestFatalShutdown?: () => void): ClosedLearningProductionComposition {
   const config = readCloudRuntimeConfig(env);
   const closedLearningConfig = readClosedLearningProductionConfig(env, config.cloudStateDbPath);
   const database = new SqliteDatabase(config.cloudStateDbPath);
@@ -110,37 +116,70 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const shadowSourceCommit = env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "";
   const restoredShadow = readBaselineShadowRecord(config.cloudStateDbPath);
   // 0.0005 is the PAPER execution loop's default fee per side, the rate its own fills are charged.
+  // Null comparators (buy-and-hold, fixed-seed random entry) on the same bars and the same fee rate; display/analysis only.
+  let nullComparators: PaperNullComparators | undefined;
   const baselineShadow = ownerBaselineStrategyEnabled(env) && isOwnerBaselineSourceCommitSha(shadowSourceCommit)
-    ? new PaperBaselineShadow({ spec: ownerBaselineStrategySpec(shadowSourceCommit), feeRate: 0.0005, now: Date.now, ...(restoredShadow === undefined ? {} : { restore: restoredShadow }) })
+    ? new PaperBaselineShadow({ spec: ownerBaselineStrategySpec(shadowSourceCommit), feeRate: 0.0005, now: Date.now, onRoundTrip: (trip) => nullComparators?.onBaselineRoundTrip(trip), ...(restoredShadow === undefined ? {} : { restore: restoredShadow }) })
     : undefined;
+  if (baselineShadow != null) {
+    const restoredNulls = readNullComparatorsRecord(config.cloudStateDbPath);
+    nullComparators = new PaperNullComparators({ feeRate: 0.0005, now: Date.now, baselineTotals: () => baselineShadow.summary(), ...(restoredNulls === undefined ? {} : { restore: restoredNulls }) });
+  }
   const dashboardHydrator = new CloudRuntimeDashboardHydrator({
     paperCandidateBindingProvider,
     paperCandidateMinuteCloses: (market, now) => {
       const bars = minuteBars.read(market, now);
+      nullComparators?.observe(market, bars); // before the baseline shadow, so a round trip it completes is matched on bars already seen
       baselineShadow?.observe(market, bars);
       return bars;
     },
   });
 
+  // Evidence validation is read-only and can be expensive. Do it before owning the renewable
+  // PAPER lease; actual session pause/halt recovery still runs after exclusive acquisition.
+  let researchExperiments: ReturnType<typeof composeResearchExperiments>;
+  try {
+  // Cloud AI durability uses the exact canonical SQLite connection that already completed the
+  // full-file startup quick_check. This avoids reopening and rescanning the same production-sized
+  // file while preserving each AI store's table-scoped quick_check and hash-chain replay. Keep this
+  // before research recovery preparation and the renewable PAPER writer lease: its schema
+  // initialization must not invalidate prepared SQLite change-tracking evidence, and its startup
+  // I/O must not starve the lease heartbeat.
+  const cloudAiRuntime = createCloudAiRuntime(env, undefined, { verifiedSharedSqliteDatabase: database });
+
+  let longBarTickEvery = 1;
+  researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
+  researchExperiments?.prepareRecovery();
+
   // Own the canonical PAPER repository/loop at this composition root so the same process can
   // supply restart-safe candidate performance evidence without opening a second writer lease.
+  // Timing only: the writer lease is owned from the repository constructor on, and its heartbeat cannot renew until
+  // the event loop turns, so everything composed synchronously below counts against the lease TTL.
+  const leaseWindow = createLeaseStartupWindow(30_000, (line) => console.log(line));
+  const repositoryStartedAt = performance.now();
   const paperRepository = config.paperInitialCapitalKrw === undefined
     ? undefined
     : new SqliteCloudPaperAccountRepository(database, { accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw) });
+  if (paperRepository != null) {
+    leaseWindow.leaseOwned(performance.now() - repositoryStartedAt);
+    setImmediate(() => leaseWindow.firstLoopTurn());
+  }
   const paperLoop = config.paperInitialCapitalKrw === undefined || paperRepository == null
     ? undefined
     : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: paperRepository });
 
   // Continuous research experiments: disabled unless NUSA_CLOUD_RESEARCH_EXPERIMENTS=1 (see researchExperimentComposition.ts).
   // Meta-learning steering (researchMetaLearning.ts): starts NORMAL and follows the latest meta-learning evaluation.
-  let longBarTickEvery = 1;
-  const researchExperiments = composeResearchExperiments({ env, database, log: (line) => console.log(line), longBarTickEvery: () => longBarTickEvery });
   // Research-only recording of the public order book and trades already streamed (Upbit keeps no history of either).
   const microstructureRecorder = microstructureRecorderEnabled(env) ? new MarketMicrostructureRecorder(new SqliteMarketMicrostructureStore(database)) : undefined;
   // Research-only all-KRW order book, once a minute; markets the WebSocket recorder samples are left to it.
+  const orderBookRetention = researchOrderBookRetention(env);
+  if (orderBookRetention.warning != null) console.warn(orderBookRetention.warning);
   const orderBookCollector = researchOrderBookCollectorEnabled(env)
-    ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>() })
+    ? new ResearchOrderBookCollector(new SqliteMarketMicrostructureStore(database), { skipMarkets: () => microstructureRecorder?.recordedMarkets() ?? new Set<string>(), retentionMs: orderBookRetention.retentionMs })
     : undefined;
+  // Research-only public Binance futures data (BTCUSDT, ETHUSDT); never an order path.
+  const futuresCollector = researchFuturesCollectorEnabled(env) ? new ResearchFuturesCollector(new SqliteFuturesPublicStore(database)) : undefined;
   const loopStatus = new ClosedLearningLoopStatusTracker(closedLearningConfig.evaluationPeriodMs);
   // The last BLOCKED/ERROR reason survives a restart (display only; a reason seen by this process always wins).
   loopStatus.seedLastBlocked(readClosedLearningBlocked(config.cloudStateDbPath));
@@ -151,27 +190,37 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // Advance the marker only after a successful write, so a transient failure is retried on a later tick.
     if (recordClosedLearningBlocked(config.cloudStateDbPath, current)) persistedBlockedAt = current.at;
   };
-  const baseHandle = startCloudRuntime(
+  const baseHandle = startCloudRuntimeFromOptions({
     env,
-    undefined,
     dashboardHydrator,
-    undefined,
-    snapshots,
-    paperRepository,
-    paperLoop,
-    undefined,
-    undefined,
-    researchExperiments?.orchestrator,
-    createCloudAiRuntime(env),
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    () => loopStatus.snapshot(),
-    () => researchExperiments?.experimentTicksByInterval() ?? null,
+    snapshotRepository: snapshots,
+    paperAccountRepository: paperRepository,
+    paperExecutionLoop: paperLoop,
+    researchAutomation: researchExperiments?.orchestrator,
+    aiRuntime: cloudAiRuntime,
+    closedLearningStatus: () => loopStatus.snapshot(),
+    researchIntervalTicks: () => researchExperiments?.experimentTicksByInterval() ?? null,
     microstructureRecorder,
     orderBookCollector,
-  );
+    futuresCollector,
+  });
+  // startCloudRuntime performs the last large synchronous composition step before the event loop
+  // can service the repository's interval heartbeat. Re-verify/renew the existing lease at this
+  // handoff so a valid lease that survived composition gets a fresh full TTL for the remaining
+  // bounded startup work. This never revives an expired lease: verifyWriterLease() uses the same
+  // conditional owner/expiry update and fails closed if composition already exceeded the TTL.
+  try {
+    paperRepository?.verifyWriterLease();
+  } catch (error) {
+    // startCloudRuntime has already opened the listener and started repository-owned timers.
+    // If the bounded lease handoff cannot renew a still-valid lease, tear down that partial
+    // runtime before propagating the original fail-closed error to the supervisor.
+    void baseHandle.stop().catch((stopError) => {
+      const detail = stopError instanceof Error ? stopError.message.trim().slice(0, 300) : "UNKNOWN_STOP_ERROR";
+      console.error(`[closed-learning] runtime cleanup after writer lease handoff failure failed: ${detail || "UNKNOWN_STOP_ERROR"}`);
+    });
+    throw error;
+  }
 
   const readCanonicalPaperAccount = (): PaperAccountState | undefined => paperLoop?.snapshot();
   const requireCanonicalPaperAccount = (): PaperAccountState => {
@@ -186,6 +235,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const periods = Object.freeze({
     listOpenPeriods: () => pendingPeriods.list(),
     listRealizedPeriods: () => baseHandle.listPaperRealizedPeriods(),
+    nextPeriodIndex: () => baseHandle.nextPaperRealizedPeriodIndex(),
     openPeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["openPaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.openPaperRealizedPeriodFromCanonicalAccount(input),
     closePeriodFromCanonicalAccount: (input: Parameters<CloudRuntimeHandle["closePaperRealizedPeriodFromCanonicalAccount"]>[0]) => baseHandle.closePaperRealizedPeriodFromCanonicalAccount(input),
     retireOpenPeriodForReplacement: (periodId: string, reason: string) => baseHandle.retirePaperRealizedPeriodForReplacement(periodId, reason),
@@ -237,12 +287,14 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     paperEvidenceTransformationVersion: PAPER_COVERED_DAY_SCORING_VERSION,
     bindings: challengerBindings,
     replaySnapshots,
-    readRiskConfigHash: () => CLOUD_PAPER_RISK_POLICY_FINGERPRINT,
+    // The same capital-scaled limits the canonical risk gateway enforces (runtime.ts), so evidence names the enforced policy.
+    readRiskConfigHash: () => config.paperInitialCapitalKrw === undefined ? CLOUD_PAPER_RISK_POLICY_FINGERPRINT : cloudPaperRiskPolicyFingerprint(cloudPaperRiskLimitsForCapital(config.paperInitialCapitalKrw)),
     readCanonicalBenchmarkEvidence: (market, periodStartAt, periodEndAt) => readCanonicalPaperTickerBenchmark(minuteObservationReader, market, periodStartAt, periodEndAt),
   });
   const rollover = new ClosedLearningRolloverScheduler({
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
+    nextPeriodIndex: periods.nextPeriodIndex,
     readCanonicalPaperAccount,
     now: () => Date.now(),
     evaluationPeriodMs: closedLearningConfig.evaluationPeriodMs,
@@ -355,7 +407,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     if (!isOwnerBaselineSourceCommitSha(sourceCommitSha)) return;
     const market = config.upbitMarkets[0];
     if (market == null) return;
-    const periodIndex = periods.listRealizedPeriods().reduce((maximum, item) => Math.max(maximum, item.record.periodIndex), -1) + 1;
+    const periodIndex = periods.nextPeriodIndex();
     const input = buildOwnerBaselinePaperPeriodInput({
       market,
       periodIndex,
@@ -430,10 +482,15 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
         const persistable = baselineShadow.takePersistable();
         if (persistable != null && !writeBaselineShadowRecord(config.cloudStateDbPath, persistable)) baselineShadow.markUnpersisted();
       }
+      if (nullComparators != null) {
+        loopStatus.observeNullComparators(nullComparators.summary());
+        const persistableNulls = nullComparators.takePersistable();
+        if (persistableNulls != null && !writeNullComparatorsRecord(config.cloudStateDbPath, persistableNulls)) nullComparators.markUnpersisted();
+      }
       refreshDurableCycles();
-      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods()); } catch { /* display only */ }
+      try { loopStatus.observePeriods(periods.listOpenPeriods()[0], periods.listRealizedPeriods(), pendingPeriods.dispositions()); } catch { /* display only */ }
       try { loopStatus.observeRuleReplay(latestBaselineRuleReplay(periods.listRealizedPeriods())); } catch { loopStatus.observeRuleReplay(undefined); }
-    })().catch((error: unknown) => { loopStatus.observeError(Date.now()); persistLastBlocked(); throw error; });
+    })().catch((error: unknown) => { loopStatus.observeError(Date.now(), tickErrorClass(error)); persistLastBlocked(); throw error; });
     closedLearningTick = task;
     task.then(
       () => { if (closedLearningTick === task) closedLearningTick = undefined; },
@@ -467,7 +524,9 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     console.error(`[closed-learning] scheduler failed closed: ${detail}`);
     recordRuntimeFailure(config.cloudStateDbPath, "CLOSED_LEARNING_SCHEDULER", error);
     process.exitCode = 1;
-    void handle.stop();
+    // The daemon owner uses the existing bounded controller; embedded callers own their process.
+    if (requestFatalShutdown != null) requestFatalShutdown();
+    else void handle.stop();
   };
   const scheduleTick = (): void => { void runClosedLearningTick().catch(failClosedScheduler); };
 
@@ -477,7 +536,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   initialTimer.unref?.();
   rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
   rolloverTimer.unref?.();
-  researchExperiments?.start();
+  try { researchExperiments?.start(); }
+  finally { researchExperiments?.finishPreparedRecovery(); }
 
   return Object.freeze({
     handle,
@@ -492,19 +552,31 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     readPaperPerformanceEvidence,
     evaluatePaperGovernanceFeedback,
   });
+  } catch (error) {
+    // Preparation begins before lease acquisition. Any synchronous startup failure must release
+    // the native SQLite change trackers, including an active competing writer or runtime fault.
+    researchExperiments?.finishPreparedRecovery();
+    throw error;
+  }
 }
 
 function main(): void {
   const stateDbPath = process.env.NUSA_CLOUD_STATE_DB_PATH;
+  let shutdown!: ReturnType<typeof registerGracefulShutdown>;
+  let schedulerFailed = false;
   let composition: ReturnType<typeof startClosedLearningProductionRuntime>;
   try {
-    composition = startClosedLearningProductionRuntime(process.env);
+    // Scheduler ticks are deferred until after this synchronous registration completes.
+    composition = startClosedLearningProductionRuntime(process.env, () => {
+      schedulerFailed = true;
+      shutdown.trigger("CLOSED_LEARNING_SCHEDULER");
+    });
   } catch (error) {
     // Start-up faults happen before the fatal handlers exist; record them so the loop is visible.
     if (stateDbPath !== undefined) recordRuntimeFailure(stateDbPath, "STARTUP", error);
     throw error;
   }
-  registerGracefulShutdown(composition.handle, process.exit, stateDbPath);
+  shutdown = registerGracefulShutdown(composition.handle, (code) => process.exit(schedulerFailed ? 1 : code), stateDbPath);
 }
 
 if (require.main === module) main();

@@ -11,15 +11,107 @@ const stamp = now.toISOString().replaceAll(/[:.]/g, "-");
 const daily = path.join(destination, `daily-cloud-state-${stamp}.db`);
 const weekly = path.join(destination, `weekly-cloud-state-${stamp}.db`);
 const sqlString = (value) => `'${value.replaceAll("'", "''")}'`;
+const DAILY_RETENTION = 7;
+const WEEKLY_RETENTION = 4;
+const BACKUP_STAMP_RE = /^(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})Z$/;
+const SHA256_SIDECAR_RE = /^([a-f0-9]{64})  ([^\n]+)\n$/;
 
-function prune(prefix, keep) {
+function backupStamp(name, prefix) {
+  if (!name.startsWith(prefix) || !name.endsWith(".db")) return null;
+  const stamp = name.slice(prefix.length, -3);
+  const match = BACKUP_STAMP_RE.exec(stamp);
+  if (!match) return null;
+  const [, year, month, day, hour, minute, second, millisecond] = match;
+  const iso = `${year}-${month}-${day}T${hour}:${minute}:${second}.${millisecond}Z`;
+  const parsed = new Date(iso);
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString() !== iso) return null;
+  return stamp;
+}
+
+function hasVerifiedSidecar(name) {
+  const sidecar = path.join(destination, `${name}.sha256`);
+  let manifest;
+  try {
+    manifest = fs.readFileSync(sidecar, "utf8");
+  } catch (error) {
+    if (error && error.code === "ENOENT") return false;
+    throw error;
+  }
+  const match = SHA256_SIDECAR_RE.exec(manifest);
+  return Boolean(match && match[2] === name);
+}
+
+function dailyBucket(name, prefix) {
+  const stamp = backupStamp(name, prefix);
+  return stamp ? stamp.slice(0, 10) : null;
+}
+
+function weeklyBucket(name, prefix) {
+  const day = dailyBucket(name, prefix);
+  if (!day) return null;
+  const date = new Date(`${day}T00:00:00.000Z`);
+  if (!Number.isFinite(date.getTime())) return null;
+  const daysSinceMonday = (date.getUTCDay() + 6) % 7;
+  date.setUTCDate(date.getUTCDate() - daysSinceMonday);
+  return date.toISOString().slice(0, 10);
+}
+
+function prune(prefix, keepBuckets, bucketForName, protectedName = null) {
   const files = fs.readdirSync(destination)
     .filter((name) => name.startsWith(prefix) && name.endsWith(".db"))
     .sort().reverse();
-  for (const name of files.slice(keep)) {
+  const protectedBucket = protectedName ? bucketForName(protectedName, prefix) : null;
+  if (protectedName && (!protectedBucket || !hasVerifiedSidecar(protectedName))) {
+    throw new Error(`protected backup is not a verified canonical snapshot: ${protectedName}`);
+  }
+  // A just-created, verified backup is the recovery point promised by this invocation.
+  // Reserve its bucket before examining older filenames so a same-bucket artifact with a
+  // later-looking timestamp (for example after wall-clock rollback) can never displace it.
+  const keptBuckets = new Set(protectedBucket ? [protectedBucket] : []);
+  for (const name of files) {
+    const bucket = bucketForName(name, prefix);
+    // Only a canonical timestamp plus a verification sidecar may compete for a
+    // retention bucket. Preserve malformed or interrupted snapshots fail-closed:
+    // they cannot displace a known-good recovery point, and this routine will
+    // not delete an artifact whose verification state is uncertain.
+    if (!bucket || !hasVerifiedSidecar(name)) continue;
+    if (protectedBucket && bucket === protectedBucket) {
+      if (name === protectedName) continue;
+      fs.rmSync(path.join(destination, name), { force: true });
+      fs.rmSync(path.join(destination, `${name}.sha256`), { force: true });
+      continue;
+    }
+    if (!keptBuckets.has(bucket) && keptBuckets.size < keepBuckets) {
+      keptBuckets.add(bucket);
+      continue;
+    }
     fs.rmSync(path.join(destination, name), { force: true });
     fs.rmSync(path.join(destination, `${name}.sha256`), { force: true });
   }
+}
+
+function pruneRetention(protectedDaily = null, protectedWeekly = null) {
+  prune("daily-cloud-state-", DAILY_RETENTION, dailyBucket, protectedDaily);
+  prune("weekly-cloud-state-", WEEKLY_RETENTION, weeklyBucket, protectedWeekly);
+}
+
+// Hash in fixed chunks: reading the whole snapshot at once would hold the full database file in memory, which on the
+// small PAPER host can exceed the available memory and slow the runtime it shares the host with. Same digest, same I/O.
+const DIGEST_CHUNK_BYTES = 1024 * 1024;
+function sha256File(file) {
+  const hash = crypto.createHash("sha256");
+  const buffer = Buffer.allocUnsafe(DIGEST_CHUNK_BYTES);
+  const fd = fs.openSync(file, "r");
+  try {
+    for (;;) {
+      const read = fs.readSync(fd, buffer, 0, buffer.length, null);
+      if (read === 0) break;
+      hash.update(buffer.subarray(0, read));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  return hash.digest("hex");
 }
 
 function verifyAndManifest(output) {
@@ -30,17 +122,21 @@ function verifyAndManifest(output) {
   } finally {
     checkDb.close();
   }
-  const digest = crypto.createHash("sha256").update(fs.readFileSync(output)).digest("hex");
+  const digest = sha256File(output);
   fs.writeFileSync(`${output}.sha256`, `${digest}  ${path.basename(output)}\n`, { mode: 0o640 });
   return digest;
 }
 
 if (process.env.NUSA_DRY_RUN === "1") {
-  console.log(JSON.stringify({ status: "DRY_RUN", source, destination, dailyRetention: 7, weeklyRetention: 4 }));
+  console.log(JSON.stringify({ status: "DRY_RUN", source, destination, dailyRetention: DAILY_RETENTION, weeklyRetention: WEEKLY_RETENTION }));
   process.exit(0);
 }
 if (!fs.existsSync(source)) throw new Error(`database does not exist: ${source}`);
 fs.mkdirSync(destination, { recursive: true, mode: 0o750 });
+// Collapse duplicate release-time snapshots into their intended calendar buckets before
+// creating the next snapshot. This preserves one verified recovery point per retained
+// UTC day/week while reclaiming same-period duplicates before VACUUM INTO needs space.
+pruneRetention();
 
 const db = new DatabaseSync(source, { readOnly: true });
 let dailyDigest;
@@ -54,13 +150,19 @@ try {
   }
   db.exec(`VACUUM INTO ${sqlString(daily)}`);
   dailyDigest = verifyAndManifest(daily);
-  if (now.getUTCDay() === 0) {
+  const weeklyCreated = now.getUTCDay() === 0;
+  if (weeklyCreated) {
     fs.copyFileSync(daily, weekly, fs.constants.COPYFILE_EXCL);
     verifyAndManifest(weekly);
   }
-  prune("daily-cloud-state-", 7);
-  prune("weekly-cloud-state-", 4);
+  pruneRetention(path.basename(daily), weeklyCreated ? path.basename(weekly) : null);
+  if (!fs.existsSync(daily) || !fs.existsSync(`${daily}.sha256`)) {
+    throw new Error("current daily backup missing after retention prune");
+  }
+  if (weeklyCreated && (!fs.existsSync(weekly) || !fs.existsSync(`${weekly}.sha256`))) {
+    throw new Error("current weekly backup missing after retention prune");
+  }
 } finally {
   db.close();
 }
-console.log(JSON.stringify({ status: "PASS", output: daily, sha256: dailyDigest, dailyRetention: 7, weeklyRetention: 4 }));
+console.log(JSON.stringify({ status: "PASS", output: daily, sha256: dailyDigest, dailyRetention: DAILY_RETENTION, weeklyRetention: WEEKLY_RETENTION }));

@@ -2,6 +2,8 @@ import path from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import type { QualifiedPaperChallengerArtifact } from "./paperChallengerDeploymentRuntime";
 import { validatePaperResearchLineage } from "./paperResearchLineage";
+import { verifyResearchQualificationIdentity, type ResearchQualificationIdentity } from "../../../packages/contracts/src/researchQualificationIdentity";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const MARKET = /^KRW-[A-Z0-9-]+$/;
@@ -44,6 +46,7 @@ export interface ClosedLearningResearchReplayResult {
   readonly replayRunFingerprintSha256: string;
   readonly qualification: {
     readonly schemaVersion: 1;
+    readonly validationIdentity: ResearchQualificationIdentity;
     readonly candidates: readonly ClosedLearningResearchReplayCandidateResult[];
     readonly coverage: {
       readonly candidateCount: number;
@@ -265,13 +268,17 @@ function validateResult(value: unknown, expectedFingerprint: string): ClosedLear
   });
   const counted = candidates.reduce((acc, candidate) => { acc[candidate.outcome] += 1; return acc; }, { REJECTED: 0, INSUFFICIENT: 0, QUALIFIED_FOR_LEAGUE: 0 });
   if (normalizedCoverage.candidateCount !== candidates.length || normalizedCoverage.rejectedCount !== counted.REJECTED || normalizedCoverage.insufficientCount !== counted.INSUFFICIENT || normalizedCoverage.qualifiedCount !== counted.QUALIFIED_FOR_LEAGUE) throw new Error("Research replay worker coverage reconciliation failed");
+  const qualificationPayload = Object.freeze({ schemaVersion: 1 as const, candidates: Object.freeze(candidates), coverage: normalizedCoverage, liveAuthority: "NONE" as const, productionMutationAllowed: false as const, aiAuthority: "ZERO_AUTHORITY" as const });
+  const { validationIdentity: suppliedIdentity, ...rawPayload } = qualification;
+  if (canonicalResearchJson(rawPayload) !== canonicalResearchJson(qualificationPayload)) throw new Error("research qualification identity payload normalization mismatch");
+  const validationIdentity = verifyResearchQualificationIdentity(suppliedIdentity, replay, qualificationPayload);
   const deployment = validateDeployment(item.deployment, original, replay, candidates);
   return Object.freeze({
     schemaVersion: 1,
     operation: "REPLAY_PAPER_EVIDENCE",
     originalRunFingerprintSha256: original,
     replayRunFingerprintSha256: replay,
-    qualification: Object.freeze({ schemaVersion: 1, candidates: Object.freeze(candidates), coverage: normalizedCoverage, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY" }),
+    qualification: Object.freeze({ ...qualificationPayload, validationIdentity }),
     deployment,
     liveAuthority: "NONE",
     productionMutationAllowed: false,

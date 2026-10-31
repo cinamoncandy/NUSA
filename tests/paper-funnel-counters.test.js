@@ -76,3 +76,79 @@ test("the counters are display-only: the recorder module calls them only to obse
   const rec = require("node:fs").readFileSync("apps/cloud/src/paperLearningObservability.ts", "utf8");
   assert.equal((rec.match(/this\.funnel\./g) ?? []).length, 2, "only observe and snapshot touch it");
 });
+
+test("an order-intent result whose reason is free text still gets a fixed code, and text is never rewritten into a code", () => {
+  const { orderIntentFunnelCode, PaperFunnelCounters } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  assert.equal(orderIntentFunnelCode("FAILED", "paper account persistence failed"), "PAPER_ACCOUNT_PERSISTENCE_FAILED");
+  assert.equal(orderIntentFunnelCode("REJECTED", "decision allocation is zero"), "DECISION_ALLOCATION_ZERO");
+  assert.equal(orderIntentFunnelCode("REJECTED", "insufficient paper position"), "PAPER_POSITION_INSUFFICIENT");
+  assert.equal(orderIntentFunnelCode("BLOCKED", "some new sentence with an id 12345"), "BLOCKED_UNCODED_REASON", "unknown text only shows its status");
+  assert.equal(orderIntentFunnelCode("DUPLICATE", "evt-1792333922255-KRW-XRP"), "DUPLICATE_UNCODED_REASON", "an identifier is never copied");
+  assert.equal(orderIntentFunnelCode("BLOCKED", "PAPER_LIMIT_OPEN"), undefined, "a reason that is already a code list needs no extra code");
+  assert.equal(orderIntentFunnelCode("weird status", "free text"), undefined, "an invalid status yields no code");
+  assert.equal(orderIntentFunnelCode("FAILED", "constructor"), "FAILED_UNCODED_REASON", "prototype names are not codes");
+  const f = new PaperFunnelCounters(() => 1);
+  f.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "paper account persistence failed" });
+  f.observeDetail("ORDER_INTENT", "FAIL", orderIntentFunnelCode("FAILED", "paper account persistence failed"));
+  f.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "some sentence" });
+  f.observeDetail("ORDER_INTENT", "FAIL", "bad code");
+  const counts = f.snapshot().counts;
+  assert.equal(counts["ORDER_INTENT:FAIL"], 2);
+  assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
+  assert.equal(Object.keys(counts).some((key) => /persistence failed|sentence/.test(key)), false, "no free text reaches a key");
+});
+
+test("the runtime counts the reason code beside the recorder, keeps the recorded reason, and merges it into /health", () => {
+  const fs = require("node:fs");
+  const runtime = fs.readFileSync("apps/cloud/src/runtime.ts", "utf8");
+  assert.match(runtime, /stage: "ORDER_INTENT", occurredAt: now, market: ticker\.code, status: intentStatus, reason: result\.reason \?\? result\.status \}\)/);
+  assert.match(runtime, /recordOrderIntentWithReasonCode\(\s*paperLearningRecorder,/);
+  assert.match(runtime, /paperFunnel: mergeFunnelSnapshots\(paperLearningRecorder\.funnelSnapshot\(\), orderIntentReasonCounters\.snapshot\(\)\)/);
+});
+
+test("merging adds only detail counts and keeps the base since", () => {
+  const { PaperFunnelCounters, mergeFunnelSnapshots } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  const a = new PaperFunnelCounters(() => 5);
+  a.observe({ stage: "ORDER_INTENT", status: "FAIL", reason: "free text" });
+  const b = new PaperFunnelCounters(() => 9);
+  b.observeDetail("ORDER_INTENT", "FAIL", "FAILED_UNCODED_REASON");
+  const m = mergeFunnelSnapshots(a.snapshot(), b.snapshot());
+  assert.equal(m.since, 5);
+  assert.equal(m.counts["ORDER_INTENT:FAIL"], 1);
+  assert.equal(m.counts["ORDER_INTENT:FAIL:FAILED_UNCODED_REASON"], 1);
+});
+
+test("recording the same order intent twice counts its reason code once, and the recorded reason is unchanged", () => {
+  const { PaperFunnelCounters, mergeFunnelSnapshots, recordOrderIntentWithReasonCode } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  const recorder = new PaperLearningEventRecorder({ persistencePath: ":memory:" });
+  const counters = new PaperFunnelCounters();
+  const cycleId = paperLearningCycleId("KRW-XRP", 1_791_259_039_230);
+  const input = { cycleId, stage: "ORDER_INTENT", occurredAt: 1_791_259_039_232, market: "KRW-XRP", status: "FAIL", reason: "paper account persistence failed" };
+  let recorded;
+  for (let i = 0; i < 2; i += 1) {
+    recordOrderIntentWithReasonCode(recorder, () => { recorded = recorder.record(input); }, counters, "FAIL", "FAILED", input.reason);
+  }
+  const counts = mergeFunnelSnapshots(recorder.funnelSnapshot(), counters.snapshot()).counts;
+  assert.equal(counts["ORDER_INTENT:FAIL"], 1);
+  assert.equal(counts["ORDER_INTENT:FAIL:PAPER_ACCOUNT_PERSISTENCE_FAILED"], 1);
+  assert.equal(recorded.reason, "paper account persistence failed");
+});
+
+test("long PAPER execution-intent codes keep a short funnel code instead of disappearing", () => {
+  const { funnelReasonCodes, orderIntentFunnelCode } = require("../dist/apps/cloud/src/paperFunnelCounters.js");
+  assert.deepEqual(funnelReasonCodes("PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING"), ["INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING"]);
+  assert.deepEqual(funnelReasonCodes("PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH"), ["INTENT_MINIMUM_ORDER_EXCEEDS_CASH"]);
+  assert.deepEqual(funnelReasonCodes("PAPER_EXECUTION_INTENT_PORTFOLIO_ALLOCATION_REQUIRED"), ["INTENT_PORTFOLIO_ALLOCATION_REQUIRED"]);
+  assert.equal(orderIntentFunnelCode("BLOCKED", "PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING"), undefined, "now a code list, so no uncoded bucket");
+  assert.deepEqual(funnelReasonCodes("PAPER_LIMIT_OPEN"), ["PAPER_LIMIT_OPEN"], "other codes are unchanged");
+  assert.deepEqual(funnelReasonCodes("not a code"), []);
+});
+
+test("the app explains the minimum-order stop in plain words and what unblocks it", () => {
+  const { describePaperOrderReason } = require("../dist/apps/mobile/src/paperOrderReason.js");
+  const ceiling = describePaperOrderReason("BLOCKED:PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_EQUITY_CEILING");
+  assert.equal(ceiling.category, "EXECUTION_BLOCKED");
+  assert.match(ceiling.text, /자산이 너무 작아 매수하지 않았어요/);
+  assert.match(ceiling.text, /₩8,417/);
+  assert.match(describePaperOrderReason("BLOCKED:PAPER_EXECUTION_INTENT_MINIMUM_ORDER_EXCEEDS_CASH").text, /최소 주문금액\(₩5,050\)/);
+});
