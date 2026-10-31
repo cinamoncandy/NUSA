@@ -123,25 +123,19 @@ test("motion steps are smoothed and a slow device samples fewer points instead o
   assert.ok(m.islandSteps(40) >= 40, "never so coarse that the contour breaks into segments");
 });
 
-test("the lowest part of a contour fades in and out instead of popping", () => {
+test("the lowest part of a contour fades by height with one stroke per row, never in pieces", () => {
   const e = m.ISLAND_LAND_EPS;
-  const heights = [0, e * 0.5, e * 1.5, e * 2.5, e * 4, e * 6, e * 4, e * 2.5, e * 1.5, e * 0.5, 0];
-  const bands = m.landFade(heights, e);
-  assert.deepEqual(bands.map((b) => b.k), [0.3, 0.65, 1]);
-  const covered = bands.flatMap((b) => b.runs.map(([s, t]) => [s, t, b.k]));
-  assert.ok(covered.every(([s, t]) => t > s), "every run is at least one segment");
-  const strength = (seg) => { const r = covered.find(([s, t]) => seg >= s && seg < t); return r ? r[2] : 0; };
-  const segs = Array.from({ length: heights.length - 1 }, (_, i) => strength(i));
-  assert.equal(segs[0], 0, "a segment whose lower end is at the sea is not drawn");
-  assert.ok(segs[1] === 0.3 || segs[1] === 0, "it fades in at 30% first");
-  assert.equal(Math.max(...segs), 1, "the top of the island is at full strength");
-  for (let i = 1; i < segs.length; i += 1) assert.ok(Math.abs(segs[i] - segs[i - 1]) <= 0.7, "no jump from nothing to full");
-  const rise = segs.slice(0, 6), fall = segs.slice(5);
-  assert.deepEqual(rise, [...rise].sort((a, b) => a - b), "strength only rises towards the peak");
-  assert.deepEqual(fall, [...fall].sort((a, b) => b - a), "and only falls away from it");
-  const grey = m.landFade([0, 0, 0, 0], -1);
-  assert.deepEqual(grey.map((b) => b.runs.length), [0, 0, 1], "a negative eps draws everything at full strength");
-  assert.deepEqual(m.landFade([], e).map((b) => b.runs.length), [0, 0, 0]);
+  const f = m.lowFadeY(200, 100, e);
+  assert.ok(f.y0 < 200 && f.y1 < f.y0, "transparent a little above the base, opaque higher up (smaller y)");
+  assert.ok(Math.abs((200 - f.y0) - e * 0.5 * 100) < 1e-9 && Math.abs((200 - f.y1) - e * 4.5 * 100) < 1e-9);
+  assert.equal(m.lowFadeY(200, 100, -1), null, "a grey island draws everything at full strength");
+  assert.equal(m.lowFadeY(NaN, 100, e), null);
+  assert.equal(m.lowFadeY(200, 0, e), null);
+  assert.equal(m.lowFadeY(200, 100, NaN), null);
+  const fs = require("node:fs"), path = require("node:path");
+  const core = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/islandCore.tsx"), "utf8").replace(/\r\n/g, "\n");
+  assert.doesNotMatch(core, /landFade|landRuns|row\.edges/, "no splitting of a contour into runs or bands");
+  assert.match(core, /lowFadeY\(base, lift,/);
 });
 
 test("the sea is made of interfering waves that grow towards the viewer, with a gentle shimmer", () => {
@@ -193,4 +187,30 @@ test("the idle tide is faint and live-only, the sea answers a decision briefly, 
   assert.equal(m.seaFlash(NaN), 0);
   for (let p = 0; p < 40; p += 1.3) for (let d = 0; d <= 1; d += 0.25) assert.ok(Math.abs(m.rowShiftPx(p, d, 320)) <= 320 * 0.004 + 1e-9, "at most 0.4% of the width");
   assert.equal(m.rowShiftPx(0, 0, 320), 0 * 1 + Math.sin(0 * 0.45 + 0) * 320 * 0.004 * 0.4, "settled phase is deterministic");
+});
+
+test("sea glints drift and swell smoothly, deterministically and inside the sea", () => {
+  for (let i = 0; i < m.SEA_GLINTS; i += 1) {
+    let previous = m.seaGlint(i, 0);
+    assert.ok(previous.t >= 0 && previous.t < 1 && previous.u >= 0 && previous.u < 1 && previous.a >= 0 && previous.a <= 1);
+    assert.deepEqual(m.seaGlint(i, 3.3), m.seaGlint(i, 3.3), "same input, same glint");
+    for (let phase = 0.05; phase < 40; phase += 0.05) {
+      const g = m.seaGlint(i, phase);
+      assert.ok(g.a >= 0 && g.a <= 1);
+      assert.ok(Math.abs(g.a - previous.a) < 0.12, `glint ${i} brightness jumps at ${phase.toFixed(2)}`);
+      const du = Math.abs(g.u - previous.u);
+      assert.ok(Math.min(du, 1 - du) < 0.01, `glint ${i} teleports at ${phase.toFixed(2)}`);
+      previous = g;
+    }
+  }
+});
+
+test("the shoreline shine stays inside the shore and never blinks", () => {
+  let previous = m.shoreShine(0);
+  for (let phase = 0.05; phase < 80; phase += 0.05) {
+    const s = m.shoreShine(phase);
+    assert.ok(s.x >= 0 && s.x <= 1 && s.a >= 0.25 - 1e-9 && s.a <= 1 + 1e-9);
+    assert.ok(Math.abs(s.a - previous.a) < 0.02 && Math.abs(s.x - previous.x) < 0.02);
+    previous = s;
+  }
 });

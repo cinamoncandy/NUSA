@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, islandSteps, landFade, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, ISLAND_END_FADE, SEA_LINES, rowShiftPx, seaFlash, tideLight, easeToward, seaLineWidth, starTwinkle, seaShimmer, seaWave, smoothDt, swellDepth } from "./islandCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, islandSteps, lowFadeY, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, ISLAND_END_FADE, SEA_GLINTS, SEA_LINES, seaGlint, shoreShine, rowShiftPx, seaFlash, tideLight, easeToward, seaLineWidth, starTwinkle, seaShimmer, seaWave, smoothDt, swellDepth } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
@@ -25,7 +25,7 @@ const STARS: readonly (readonly [number, number, number])[] = Array.from({ lengt
   return [0.06 + 0.88 * r(1), Math.pow(r(2), 1.4), r(3) < 0.15 ? 1 : 0.55] as const;
 });
 
-interface Row { readonly key: number; readonly body: SkPath; readonly line: SkPath | null; readonly edges: readonly { readonly path: SkPath; readonly k: number }[]; readonly color: string; readonly opacity: number; readonly glow: number; readonly halo: number; readonly width: number }
+interface Row { readonly key: number; readonly body: SkPath; readonly line: SkPath | null; readonly fade: { readonly y0: number; readonly y1: number; readonly from: string } | null; readonly color: string; readonly opacity: number; readonly glow: number; readonly halo: number; readonly width: number }
 
 export function IslandCore({ decisionCount, orderCount, fillCount = null, live, compact = false, width, reducedMotion, still = null, testID = "now-core" }: {
   readonly decisionCount: number | null;
@@ -157,20 +157,13 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
       body.moveTo(xs[0], ys[0]);
       for (let i = 1; i < xs.length; i += 1) body.lineTo(xs[i], ys[i]);
       body.lineTo(xs[xs.length - 1], height * ISLAND_SHORE + 2); body.lineTo(xs[0], height * ISLAND_SHORE + 2); body.close();
-      // The lowest part of a contour fades in and out over a few eps instead of being cut at one height (it used to pop).
-      let line: SkPath | null = null;
-      const edges: { path: SkPath; k: number }[] = [];
-      for (const band of landFade(hs, grey && still == null ? -1 : ISLAND_LAND_EPS)) {
-        if (band.runs.length === 0) continue;
-        const path = Skia.Path.Make();
-        for (const [s, e] of band.runs) {
-          path.moveTo(xs[s], ys[s]);
-          for (let i = s + 1; i <= e; i += 1) path.lineTo(xs[i], ys[i]);
-        }
-        if (band.k === 1) line = path; else edges.push({ path, k: band.k });
-      }
+      // One continuous stroke per row; its lowest part fades by height through a vertical gradient (see lowFadeY), so nothing pops or breaks into dashes.
+      const line = Skia.Path.Make();
+      line.moveTo(xs[0], ys[0]);
+      for (let i = 1; i < xs.length; i += 1) line.lineTo(xs[i], ys[i]);
+      const fadeY = lowFadeY(base, lift, grey && still == null ? -1 : ISLAND_LAND_EPS);
       const color = grey ? wavePalette.idle : lock > 0.05 ? rowColor(d, WHITE, lock * 0.8) : order > 0.3 ? rowColor(d, PINK, order) : rowColor(d, LIT, light * 0.9);
-      rows.push({ key: r, body, line, edges, color, opacity: grey ? (still != null ? 0.3 + 0.5 * Math.pow(d, 0.9) : 0.45) : rowOpacity(d, r, light), glow: grey ? 0 : 8 * signalLight + 5 * lock, halo: grey || d <= 0.6 ? 0 : 0.14 * d, width: (r % 5 === 4 ? 1.5 : 0.75) * (0.6 + 0.9 * d) + light });
+      rows.push({ key: r, body, line, fade: fadeY == null ? null : { ...fadeY, from: `${color}00` }, color, opacity: grey ? (still != null ? 0.3 + 0.5 * Math.pow(d, 0.9) : 0.45) : rowOpacity(d, r, light), glow: grey ? 0 : 8 * signalLight + 5 * lock, halo: grey || d <= 0.6 ? 0 : 0.14 * d, width: (r % 5 === 4 ? 1.5 : 0.75) * (0.6 + 0.9 * d) + light });
     }
     // The sea answers a new decision: its lines brighten as the band leaves the front row.
     const flash = pulses.current.reduce((m, p) => Math.max(m, seaFlash(now - p.born)), 0);
@@ -207,11 +200,10 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
       <Group layer>
       {scene.rows.map((row) => <Group key={row.key}>
         <Path path={row.body} color={GROUND} />
-        {row.edges.map((edge, ei) => <Path key={`e${ei}`} path={edge.path} style="stroke" strokeWidth={row.width} strokeCap="round" strokeJoin="round" color={row.color} opacity={row.opacity * edge.k} />)}
         {row.line == null ? null : <>
-          {row.halo > 0 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 3} strokeCap="round" color={row.color} opacity={row.opacity * row.halo} /> : null}
-          {row.glow > 0.5 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 2} strokeCap="round" color={row.color} opacity={row.opacity * 0.4}><BlurMask blur={row.glow} style="normal" /></Path> : null}
-          <Path path={row.line} style="stroke" strokeWidth={row.width} strokeCap="round" strokeJoin="round" color={row.color} opacity={row.opacity} />
+          {row.halo > 0 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 3} strokeCap="round" color={row.color} opacity={row.opacity * row.halo}>{row.fade == null ? null : <LinearGradient start={vec(0, row.fade.y0)} end={vec(0, row.fade.y1)} colors={[row.fade.from, row.color]} />}</Path> : null}
+          {row.glow > 0.5 ? <Path path={row.line} style="stroke" strokeWidth={row.width + 2} strokeCap="round" color={row.color} opacity={row.opacity * 0.4}>{row.fade == null ? null : <LinearGradient start={vec(0, row.fade.y0)} end={vec(0, row.fade.y1)} colors={[row.fade.from, row.color]} />}<BlurMask blur={row.glow} style="normal" /></Path> : null}
+          <Path path={row.line} style="stroke" strokeWidth={row.width} strokeCap="round" strokeJoin="round" color={row.color} opacity={row.opacity}>{row.fade == null ? null : <LinearGradient start={vec(0, row.fade.y0)} end={vec(0, row.fade.y1)} colors={[row.fade.from, row.color]} />}</Path>
         </>}
       </Group>)}
       {/* The two ends of the island fade into the sea instead of stopping at a hard edge. */}
@@ -219,12 +211,30 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
         <LinearGradient start={vec(0, 0)} end={vec(width, 0)} colors={["transparent", "black", "black", "transparent"]} positions={[0, ISLAND_END_FADE, 1 - ISLAND_END_FADE, 1]} />
       </Rect>
       </Group>
+      {scene.grey ? null : <Group clip={{ x: 0, y: shoreY + 2, width, height: height * (ISLAND_SEA_END - ISLAND_SHORE) }}>
+        <Rect x={0} y={shoreY} width={width} height={height * (ISLAND_SEA_END - ISLAND_SHORE) + 4} opacity={0.2}>
+          <RadialGradient c={vec(width / 2, shoreY)} r={width * 0.6} colors={[wavePalette.cyan, "transparent"]} />
+        </Rect>
+      </Group>}
       <Rect x={width * 0.02} y={shoreY + 2} width={width * 0.96} height={1.2}>
         <LinearGradient start={vec(width * 0.02, 0)} end={vec(width * 0.98, 0)} colors={["transparent", scene.grey ? wavePalette.idle : islandPalette.horizon, "transparent"]} />
       </Rect>
       {scene.sea.map((s) => <Path key={`sea${s.key}`} path={s.path} style="stroke" strokeWidth={s.width} opacity={s.opacity}>
         <LinearGradient start={vec(s.x0, 0)} end={vec(s.x1, 0)} colors={["transparent", scene.grey ? wavePalette.idle : wavePalette.cyan, "transparent"]} />
       </Path>)}
+      {scene.grey || still != null ? null : (() => {
+        const sh = shoreShine(scene.phase), c = 0.2 + 0.6 * sh.x;
+        return <Rect x={width * 0.02} y={shoreY + 1.4} width={width * 0.96} height={2.4} opacity={0.55 * sh.a}>
+          <LinearGradient start={vec(width * 0.02, 0)} end={vec(width * 0.98, 0)} colors={["transparent", calmColors.text, "transparent"]} positions={[c - 0.2, c, c + 0.2]} />
+        </Rect>;
+      })()}
+      {scene.grey || still != null ? null : Array.from({ length: SEA_GLINTS }, (_, i) => {
+        const g = seaGlint(i, scene.phase);
+        if (g.a < 0.04) return null;
+        const y = height * (ISLAND_SHORE + 0.02 + (ISLAND_SEA_END - ISLAND_SHORE - 0.02) * Math.pow(g.t, 1.5));
+        const x = width / 2 + (g.u - 0.5) * 2 * width * (0.16 + 0.28 * (1 - g.t)) * 0.9;
+        return <Circle key={`gl${i}`} cx={x} cy={y} r={4.5} opacity={0.7 * g.a}><RadialGradient c={vec(x, y)} r={4.5} colors={[calmColors.text, wavePalette.cyan, "transparent"]} /></Circle>;
+      })}
       {scene.summit == null ? null : <>
         <Rect x={scene.summit.x - 1} y={shoreY + 4} width={2} height={height * (ISLAND_SEA_END - ISLAND_SHORE)} opacity={0.35}>
           <LinearGradient start={vec(0, shoreY)} end={vec(0, height * ISLAND_SEA_END)} colors={[islandPalette.reflection, "transparent"]} />

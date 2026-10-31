@@ -129,28 +129,39 @@ export function seaShimmer(k: number, phase: number): number {
   return 0.82 + 0.18 * Math.sin(phase * 1.1 + k * 1.3);
 }
 
+/** Points of light that drift and glint on the water. */
+export const SEA_GLINTS = 14;
+const frac = (x: number): number => x - Math.floor(x);
+
+/**
+ * One glint on the sea: where it sits (depth t from the shore, across u), and how bright it is right now. Each glint drifts slowly
+ * sideways and swells and fades smoothly (a cubed half-sine, so it is mostly dim and briefly bright, never a hard blink).
+ * Deterministic in (i, phase): nothing random, so every frame follows the last.
+ */
+export function seaGlint(i: number, phase: number): { readonly t: number; readonly u: number; readonly a: number } {
+  const t = frac(i * 0.61803 + 0.13);
+  const u = frac(i * 0.37 + 0.21 + phase * (0.012 + 0.006 * (i % 3)));
+  const swell = Math.max(0, Math.sin(phase * (0.55 + 0.17 * (i % 4)) + i * 2.1));
+  return { t, u, a: swell * swell * swell };
+}
+
+/** A soft highlight that slowly travels along the shoreline: centre (0..1 across) and strength (0.25..1). */
+export function shoreShine(phase: number): { readonly x: number; readonly a: number } {
+  return { x: 0.5 + 0.5 * Math.sin(phase * 0.21), a: 0.625 + 0.375 * Math.sin(phase * 0.13 + 1) };
+}
+
 /** Stroke width of a sea line: thicker next to the shore where the island is reflected, finer towards the viewer. */
 export const seaLineWidth = (t: number): number => 0.7 + 0.5 * (1 - Math.max(0, Math.min(1, t)));
 
-/** How strongly a contour segment is drawn, by the lower of its two end heights: the line fades in over a few eps instead of appearing at once. */
-export const LAND_FADE_LEVELS: readonly number[] = Object.freeze([0.3, 0.65, 1]);
-
 /**
- * Segment runs [start, end] grouped by fade level. A segment whose lower end is at or below `eps` is not drawn; it fades in at 30%,
- * 65% and then 100% as that end rises past 2.2 and 3.6 times `eps`. A negative `eps` draws everything at full strength (a grey island).
- * Replaces the hard cut of landRuns at the lowest part of the island, where lines used to pop in and out.
+ * The lowest part of a contour fades by HEIGHT, smoothly and with one stroke per row: the line is painted with a vertical gradient that
+ * is fully transparent at `eps * 0.5` above the row's base and fully opaque from `eps * 4.5`, so a contour fades into the sea instead of being
+ * cut into pieces (the cut left stray dashes that appeared and vanished as the island breathed). `base` and `lift` are in px; returns the two
+ * y positions of the gradient, or null for a negative eps (a grey island draws everything at full strength).
  */
-export function landFade(heights: readonly number[], eps: number): readonly { readonly k: number; readonly runs: readonly (readonly [number, number])[] }[] {
-  const levelOf = (lowest: number): number => (eps < 0 ? 2 : lowest <= eps ? -1 : lowest < eps * 2.2 ? 0 : lowest < eps * 3.6 ? 1 : 2);
-  const out = LAND_FADE_LEVELS.map((k) => ({ k, runs: [] as [number, number][] }));
-  let start = -1, level = -1;
-  const close = (end: number): void => { if (start >= 0 && level >= 0 && end > start) out[level]!.runs.push([start, end]); start = -1; level = -1; };
-  for (let i = 0; i + 1 < heights.length; i += 1) {
-    const l = levelOf(Math.min(heights[i]!, heights[i + 1]!));
-    if (l !== level) { close(i); if (l >= 0) { start = i; level = l; } }
-  }
-  close(heights.length - 1);
-  return Object.freeze(out.map((band) => Object.freeze({ k: band.k, runs: Object.freeze(band.runs) })));
+export function lowFadeY(base: number, lift: number, eps: number): { readonly y0: number; readonly y1: number } | null {
+  if (!Number.isFinite(base) || !Number.isFinite(lift) || lift <= 0 || !Number.isFinite(eps) || eps < 0) return null;
+  return Object.freeze({ y0: base - eps * 0.5 * lift, y1: base - eps * 4.5 * lift });
 }
 
 /** The band of light plus a softer, wider tail behind it (toward the front), so the light reads as a glide with a wake and not a dot. */
