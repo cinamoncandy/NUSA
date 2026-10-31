@@ -65,6 +65,22 @@ export function rowLight(d: number, pos: number | null): number {
   return Math.exp(-x * x);
 }
 
+/** Move `current` towards `target` at `rate` per second (exponential, never overshoots); used to glide the summit badge. */
+export function easeToward(current: number, target: number, dt: number, rate: number): number {
+  if (!Number.isFinite(current)) return Number.isFinite(target) ? target : 0;
+  if (!Number.isFinite(target)) return current;
+  const f = 1 - Math.exp(-Math.max(0, rate) * Math.max(0, Math.min(0.1, dt)));
+  return current + (target - current) * f;
+}
+
+/** A slow twinkle (0.7..1) for star i: stars glint at their own pace and never blink. */
+export function starTwinkle(i: number, phase: number): number {
+  return 0.85 + 0.15 * Math.sin(phase * 0.8 + i * 1.7);
+}
+
+/** Share of the island's width over which its two ends fade into the sea. */
+export const ISLAND_END_FADE = 0.14;
+
 /** Lines of sea under the island, from the shore (t = 0) towards the viewer (t = 1). */
 export const SEA_LINES = 9;
 
