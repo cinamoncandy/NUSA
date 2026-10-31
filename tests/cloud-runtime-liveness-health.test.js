@@ -92,7 +92,10 @@ test("/health accepts only canonical hourly eligibility tied to the open period"
 });
 
 async function withServer(options, run, port) {
-  const handle = startCloudDashboardServer({ port, ...base, ...options });
+  // Keep test listeners below Linux's ephemeral-port range so unrelated local
+  // outbound connections cannot make deterministic server tests flaky.
+  const stableTestPort = port >= 32_768 ? port - 20_000 : port;
+  const handle = startCloudDashboardServer({ port: stableTestPort, ...base, ...options });
   try { await run(handle); } finally { await handle.stop(); }
 }
 
