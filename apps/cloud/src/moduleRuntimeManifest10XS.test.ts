@@ -30,6 +30,16 @@ describe("10X-S runtime truth manifest", () => {
     assert.doesNotMatch(hydrator, /\bbuildPortfolioPlan\s*\(/);
   });
 
+  it("binds the STRATEGY qualification source to the immutable candidate evaluator used by Cloud PAPER", () => {
+    const strategy = MODULE_RUNTIME_MANIFEST_10XS.find((binding) => binding.stage === "STRATEGY");
+    const hydrator = read("apps/cloud/src/cloudRuntimeDashboardHydrator.ts");
+    assert.equal(strategy?.canonicalEntrypoint, "apps/cloud/src/paperCandidateStrategy.ts");
+    assert.equal(strategy?.runtimeEntrypoint, strategy?.canonicalEntrypoint);
+    assert.equal(strategy?.evidenceRefs.includes("packages/core/src/strategyEngine.ts"), false);
+    assert.match(hydrator, /import \{ evaluatePaperCandidateStrategy \} from "\.\/paperCandidateStrategy"/);
+    assert.match(hydrator, /evaluatePaperCandidateStrategy\(paperCandidateBinding\.candidateStrategy/);
+  });
+
   it("keeps the PAPER mutation path behind canonical risk and execution boundaries", () => {
     const runtime = read("apps/cloud/src/runtime.ts");
     const execution = read("apps/cloud/src/cloudPaperExecutionBoundary.ts");
