@@ -1,0 +1,159 @@
+version: 1
+kind: AIPOS_SCOUT_HARVEST
+issuedAt: "2026-10-17"
+owner: SCOUT
+reviewAuthority: CORE
+status: CANDIDATES_RECORDED
+policy:
+  advisoryOnly: true
+  noDirectPromotion: true
+  noImplementationWithoutCoreDisposition: true
+  preserveCurrentMissionSerialization: true
+  safety:
+    paperOnly: true
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+
+candidates:
+  - id: SCOUT-VAL-TRIAL-REGISTRY-DSR-PBO
+    priorityRecommendation: P0_5
+    title: Trial Registry + Validation Exposure + DSR + PBO
+    valueHypothesis: >-
+      Prevent NUSA from mistaking a repeatedly-searched lucky backtest winner for durable edge by
+      preserving the full trial denominator and applying multiple-testing/overfitting-aware evidence.
+    concepts:
+      - immutable_trial_registry
+      - failed_trial_preservation
+      - validation_exposure_count
+      - evidence_budget
+      - deflated_sharpe_ratio
+      - probability_of_backtest_overfitting
+      - minimum_track_record_length
+      - sealed_holdout_exposure
+    proposedIdentityExtensions:
+      - trialRegistryFingerprint
+      - validationPlanId
+      - sealedSetId
+      - validationExposure
+      - robustnessFingerprint
+    falsificationConditions:
+      - "Adds a duplicate evaluator/store/control plane instead of extending canonical evaluation/evidence owners"
+      - "Relaxes qualification or OOS thresholds"
+      - "Allows failed trials to disappear from the denominator"
+      - "Cannot be recomputed deterministically from preserved evidence"
+    handoffTargets:
+      - DATA_EVIDENCE
+      - DEV
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - id: SCOUT-FUTURES-PROPERTY-INVARIANTS
+    priorityRecommendation: P1
+    title: Futures PAPER property invariants and solvency tests
+    valueHypothesis: >-
+      Make overseas futures PAPER accounting falsifiable by testing conservation, solvency, liquidation,
+      funding, and margin invariants rather than relying only on scenario examples.
+    concepts:
+      - fixed_point_money
+      - mark_index_last_price_separation
+      - isolated_cross_margin_semantics
+      - funding_transfer_invariants
+      - maintenance_initial_margin
+      - liquidation_waterfall
+      - insurance_fund
+      - adl_model
+      - underwater_position_prohibition_after_liquidation
+      - property_based_testing
+    requiredProperties:
+      - "Funding transfers reconcile to zero-sum before explicit fees/rounding"
+      - "Account equity, position PnL, fees, funding, and realized cash reconcile deterministically"
+      - "Liquidation cannot create unexplained positive equity"
+      - "No underwater position survives a completed liquidation path without an explicit unresolved-failure state"
+      - "Reduce-only cannot increase absolute exposure"
+    handoffTargets:
+      - DEV
+      - DATA_EVIDENCE
+      - VALIDATION_RELEASE_RUNTIME
+      - SERVER_AUTOMATION
+      - CORE
+
+  - id: SCOUT-LLM-ANONYMIZED-EVAL
+    priorityRecommendation: P1
+    title: Named-vs-anonymized LLM evaluation for memorization leakage detection
+    valueHypothesis: >-
+      Detect whether AI research performance depends on recognizable ticker/date/history cues by comparing
+      normal inputs with masked/rebased equivalent inputs while preserving the economic information set.
+    concepts:
+      - ticker_masking
+      - date_masking
+      - rebased_prices
+      - relative_volume
+      - named_vs_anonymized_delta
+      - leakage_signal
+    falsificationConditions:
+      - "Anonymization changes the available economic information rather than only identity/memorization cues"
+      - "Result is used as proof of no leakage rather than one leakage diagnostic"
+      - "Raw and anonymized evaluations do not share an explicit PIT-equivalent dataset contract"
+    handoffTargets:
+      - DATA_EVIDENCE
+      - LEARNING
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - id: SCOUT-REGIME-CONTEXT-NONAUTH
+    priorityRecommendation: P2
+    title: Deterministic regime context without trading authority
+    valueHypothesis: >-
+      Supply reproducible trend/volatility/breadth/risk-regime context to evaluators and candidate generators
+      without allowing the regime detector itself to emit authoritative buy/sell actions.
+    concepts:
+      - deterministic_regime_features
+      - reproducible_context
+      - trend_volatility_breadth
+      - non_authoritative_regime_label
+      - strategy_family_context
+    safetyConstraints:
+      - "No order authority"
+      - "No governance authority"
+      - "No risk-limit expansion"
+      - "Regime context must remain inspectable and reproducible"
+    handoffTargets:
+      - DEV
+      - LEARNING
+      - DATA_EVIDENCE
+      - CORE
+
+  - id: SCOUT-DECISION-DURABILITY
+    priorityRecommendation: P2
+    title: Durable checkpoint/resume and decision-history patterns
+    valueHypothesis: >-
+      Improve cross-model and cross-process continuity by making research/evaluation decisions recoverable
+      from repository/runtime evidence instead of hidden model state.
+    concepts:
+      - durable_checkpoint_resume
+      - provider_abstraction
+      - persistent_decision_log
+      - portfolio_aware_run_context
+      - replay_safe_resume
+    overlapNote: >-
+      NUSA already has AIPOS, handoff contracts, restart/replay requirements, and canonical evidence owners;
+      only missing or stronger semantics should be adopted. No duplicate orchestration layer is permitted.
+    handoffTargets:
+      - SERVER_AUTOMATION
+      - DEV
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+coreDisposition:
+  SCOUT-VAL-TRIAL-REGISTRY-DSR-PBO: REVIEW_FIRST_AFTER_P0_LEARNING_CONTINUITY
+  SCOUT-FUTURES-PROPERTY-INVARIANTS: PREPARE_AS_PART_OF_OVERSEAS_FUTURES_PAPER_READINESS
+  SCOUT-LLM-ANONYMIZED-EVAL: REVIEW_FOR_DATA_EVIDENCE_INTEGRATION
+  SCOUT-REGIME-CONTEXT-NONAUTH: DEFER_UNTIL_HIGHER_PRIORITY_EVIDENCE_WORK
+  SCOUT-DECISION-DURABILITY: REUSE_EXISTING_AIPOS_AND_RUNTIME_OWNERS_ONLY
+
+nextScoutInstruction: >-
+  Continue harvesting external AI-trading, quantitative-research, execution, risk, data-integrity, and
+  automation capabilities. For every candidate record source provenance, value hypothesis, overlap with
+  existing NUSA, falsification condition, safety impact, and recommended owner. Submit to CORE; do not
+  directly implement, promote, or widen authority.

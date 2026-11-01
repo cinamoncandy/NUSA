@@ -1,0 +1,99 @@
+version: 1
+kind: SCOUT_JACKPOT_CANDIDATE
+issuedAt: "2026-10-17"
+sourceRole: SCOUT
+status: CORE_REVIEW_REQUIRED
+priorityClass: JACKPOT
+candidateId: JACKPOT-CONFORMAL-SHIFT-ABSTENTION
+name: "Sequential distribution-shift detector + uncertainty-driven ABSTAIN gate"
+summary: >-
+  Add an anytime-valid, fixed-reference distribution-shift detector and conformal uncertainty gate
+  above promotion/trading decisions so NUSA can detect when the live data-generating process no longer
+  resembles the evidence regime that justified a candidate, then fail closed to ABSTAIN rather than
+  continuing to trust stale confidence.
+whyItMatters:
+  - "NUSA can be correct in backtest and still fail when the market distribution changes after deployment."
+  - "A sequential shift detector can turn 'something changed' into explicit evidence instead of intuition."
+  - "Conformal uncertainty can gate action when predictive intervals widen or calibration degrades."
+  - "This directly supports NUSA Ω's Epistemic Governor and ABSTAIN without granting AI authority."
+  - "It protects both Upbit spot and future overseas-derivatives PAPER paths from stale-model continuation."
+coreMechanism:
+  shiftDetection:
+    type: "fixed-reference conditional conformal test martingale / sequential shift test"
+    keyProperty: "anytime-valid type-I error control with fixed null reference to avoid post-shift contamination"
+  uncertaintyGate:
+    type: "temporal/regime-aware conformal prediction or risk-control wrapper"
+    outputs:
+      - predictionIntervalWidth
+      - empiricalCoverage
+      - coverageGap
+      - shiftEvidence
+      - calibrationFreshness
+  decisionContract:
+    allowedOutputs:
+      - EXPLOIT
+      - EXPLORE
+      - ABSTAIN
+    defaultOnUnknownOrInvalidCalibration: ABSTAIN
+    directionalAuthority: NONE
+suggestedIntegration:
+  reuseCanonicalOwners: true
+  noNewControlPlane: true
+  likelyOwners:
+    - DATA_EVIDENCE
+    - GOVERNANCE
+    - RISK
+    - LEARNING
+  placement: >-
+    Evidence/Evaluator outputs -> shift/uncertainty evidence -> existing Governance/Risk decision path;
+    do not create a second strategy engine, risk engine, scheduler, or authority layer.
+minimumEvidenceContract:
+  inputs:
+    - datasetFingerprint
+    - calibrationWindowFingerprint
+    - referenceDistributionFingerprint
+    - venue
+    - productType
+    - featureSchemaFingerprint
+    - predictionTimestamp
+  outputs:
+    - shiftScore
+    - shiftDecision
+    - uncertaintyInterval
+    - targetCoverage
+    - observedCoverage
+    - calibrationAge
+    - epistemicDecisionId
+    - reasonCodes
+falsificationCriteria:
+  - "Reject if it does not reduce loss or false-confidence continuation under controlled regime-shift tests versus current baseline."
+  - "Reject if calibration validity depends on leakage or future data."
+  - "Reject if it causes persistent ABSTAIN under normal in-distribution conditions without measurable safety benefit."
+  - "Reject if implementation requires a duplicate evaluator/risk/governance control plane."
+  - "Reject if measured interval coverage is materially worse than target without fail-closed handling."
+acceptanceTests:
+  - "Synthetic/noise controls preserve nominal false-alarm behavior within tolerance."
+  - "Known injected distribution shifts are detected faster than baseline drift heuristics."
+  - "Post-shift samples do not contaminate the fixed null reference path used for detection."
+  - "Temporal ordering and PIT rules are preserved."
+  - "When uncertainty widens beyond threshold or calibration is stale/invalid, existing authority path receives ABSTAIN rather than a directional trade instruction."
+  - "Restart/replay reproduces the same shift and abstention receipts."
+references:
+  - title: "Testing For Distribution Shifts with Conditional Conformal Test Martingales"
+    venue: "ICML 2026 / PMLR 306"
+    url: "https://proceedings.mlr.press/v306/shaer26a.html"
+    note: "Fixed reference avoids test-time contamination while retaining anytime-valid type-I control."
+  - title: "Taming Tail Risk in Financial Markets: Conformal Risk Control for Nonstationary Portfolio VaR"
+    venue: "SSRN 2026"
+    url: "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6172999"
+    note: "Regime/time-weighted conformal calibration for nonstationary financial risk."
+  - title: "Conditional Quantile Adjusted Conformal Prediction for Time Series"
+    venue: "ICML 2026 / PMLR 306"
+    url: "https://proceedings.mlr.press/v306/yu26by.html"
+    note: "Sequential conformal calibration designed for time-varying time-series distributions."
+coreVerdict: "PROMISING_JACKPOT_CANDIDATE_AFTER_P0_LEARNING_CONVERGENCE"
+implementationNow: false
+paperOnly: true
+liveAuthority: NONE
+productionMutationAllowed: false
+aiAuthority: ZERO_AUTHORITY

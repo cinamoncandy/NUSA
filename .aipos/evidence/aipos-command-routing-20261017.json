@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "workOrder": "WO-CORE-20261017-AIPOS-COMMAND-ROUTING",
+  "baseProtectedMain": "58a8e4fbb32fcc8dee018bd6563982e4e3ba0a8c",
+  "branch": "chore/aipos-command-routing-20261017",
+  "intent": "provider-agnostic role command routing through AIPOS",
+  "files": [
+    ".aipos/command-routing.yaml",
+    ".aipos/commands/2026-10-17-core-directives.yaml",
+    ".aipos/aipos.yaml",
+    ".aipos/work-orders/WO-CORE-20261017-AIPOS-COMMAND-ROUTING.yaml",
+    ".aipos/handoffs/2026-10-17-core-command-routing.md"
+  ],
+  "safety": {
+    "PAPER_ONLY": true,
+    "liveAuthority": "NONE",
+    "productionMutationAllowed": false,
+    "aiAuthority": "ZERO_AUTHORITY"
+  },
+  "claims": {
+    "validated": false,
+    "reviewed": false,
+    "audited": false,
+    "released": false,
+    "merged": false
+  }
+}

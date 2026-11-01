@@ -1,0 +1,225 @@
+version: 1
+kind: AIPOS_CORE_DIRECTIVES
+issuedAt: "2026-10-17"
+issuedBy: CORE
+baseProtectedMain: "58a8e4fbb32fcc8dee018bd6563982e4e3ba0a8c"
+initiative:
+  id: NUSA-GLOBAL-FUTURES-READINESS
+  objective: >-
+    Prepare NUSA for future overseas exchange futures/perpetual capability while preserving
+    current PAPER-only authority and making no LIVE or real-money activation.
+  ultimateUserObjective: >-
+    Expand the set of evidence-based, risk-controlled opportunities that may contribute to the OWNER's
+    pursuit of economic freedom, without weakening survival, safety, evidence integrity, or OWNER authority.
+  currentPhase: PREPARE_AND_PAPER_ONLY
+  prohibitions:
+    - no_live_futures_activation
+    - no_real_money_ordering
+    - no_exchange_credential_authority_expansion
+    - no_withdrawal_or_transfer_authority
+    - no_risk_threshold_relaxation
+    - no_synthetic_profit_evidence
+    - no_duplicate_risk_governance_learning_or_execution_engines
+
+commands:
+  - commandId: CORE-P1-SCOUT-GLOBAL-FUTURES-CAPABILITIES
+    issuedBy: CORE
+    owner: SCOUT
+    priority: P1
+    status: READY
+    objective: >-
+      Map overseas crypto futures/perpetual exchange capabilities, market structure, contract mechanics,
+      fees/funding/liquidation behavior, APIs, public data, execution features, and proven research methods.
+      Extract only legally/publicly accessible, reusable ideas and submit them to CORE for adoption decisions.
+    firstBrokenTransition: "no-canonical-overseas-futures-capability-map-yet"
+    canonicalOwner: SCOUT
+    safetyInvariants:
+      - advisory_only
+      - public_or_authorized_sources_only
+      - respect_licenses_and_access_controls
+      - no_private_code_or_credential_extraction
+      - no_direct_strategy_promotion
+    acceptanceCriteria:
+      - "Exchange capability matrix covers contract specs, leverage, margin modes, funding, liquidation, order types, APIs, and outage/reconciliation behavior"
+      - "Every proposed capability includes source, value hypothesis, risks, falsification condition, and NUSA overlap analysis"
+      - "CORE adopt/reject/duplicate disposition is required before implementation"
+    evidenceRequired:
+      - source_references
+      - exchange_capability_matrix
+      - capability_gap_analysis
+      - adoption_recommendations
+    handoffTo:
+      - CORE
+      - DEV
+      - DATA_EVIDENCE
+
+  - commandId: CORE-P1-DEV-FUTURES-PAPER-FOUNDATION
+    issuedBy: CORE
+    owner: DEV
+    priority: P1
+    status: BLOCKED
+    blockedBy:
+      - CORE-P0-LEARNING-CLOSED-LOOP
+      - CORE-P1-SCOUT-GLOBAL-FUTURES-CAPABILITIES
+      - CORE_APPROVAL_OF_CANONICAL_DESIGN
+    objective: >-
+      After P0 learning convergence and CORE design approval, extend existing canonical contracts for
+      PAPER-only futures/perpetual simulation: long/short positions, contract specs, leverage, isolated/cross
+      margin, mark/index/last price separation, funding, liquidation, reduce-only/post-only, stop/TP, fee and
+      slippage accounting, without cloning Risk, Governance, Learning, Evidence, or execution truth sources.
+    firstBrokenTransition: "blocked-until-learning-and-design-gates-close"
+    canonicalOwner: DEV
+    safetyInvariants:
+      - PAPER_ONLY
+      - reuse_existing_canonical_risk_governance_learning_execution
+      - no_duplicate_engine_store_scheduler_control_plane
+      - fail_closed
+      - no_live_exchange_mutation
+    acceptanceCriteria:
+      - "Canonical instrument/contract model can represent spot and derivatives without conflating semantics"
+      - "PAPER accounting handles long/short, leverage, margin, funding, fees, slippage, liquidation and realized/unrealized PnL deterministically"
+      - "Risk/Governance/Learning remain shared canonical owners rather than derivatives clones"
+      - "Focused regression, failure-path, idempotency, restart/replay, and exact-head CI pass"
+    evidenceRequired:
+      - architecture_impact_analysis
+      - implementation_diff
+      - focused_tests
+      - restart_replay_tests
+      - exact_head_ci
+    handoffTo:
+      - DATA_EVIDENCE
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-LEARNING-FUTURES-EVIDENCE-SEMANTICS
+    issuedBy: CORE
+    owner: LEARNING
+    priority: P1
+    status: BLOCKED
+    blockedBy:
+      - CORE-P0-LEARNING-CLOSED-LOOP
+    objective: >-
+      Once the current spot/PAPER learning loop is proven closed, define how derivatives outcomes enter the
+      same canonical learning chain without contaminating spot evidence: funding, leverage, liquidation,
+      margin mode, direction, contract identity, fee/slippage, and regime must remain explicit identity-bound inputs.
+    firstBrokenTransition: "blocked-by-current-learning-loop-convergence"
+    canonicalOwner: LEARNING
+    safetyInvariants:
+      - no_learning_engine_clone
+      - no_cross_instrument_evidence_conflation
+      - no_threshold_relaxation
+      - zero_qualification_is_acceptable
+    acceptanceCriteria:
+      - "Derivative performance evidence is separable from spot while using the same durable feedback/learning owners"
+      - "Funding and liquidation effects are included in performance evidence rather than hidden as execution noise"
+      - "Learning identity continuity includes instrument/contract/margin/direction semantics where applicable"
+    evidenceRequired:
+      - learning_contract_extension
+      - identity_mapping
+      - replay_and_exactly_once_proof
+    handoffTo:
+      - DATA_EVIDENCE
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-DATA-EVIDENCE-FUTURES-MARKET-INTEGRITY
+    issuedBy: CORE
+    owner: DATA_EVIDENCE
+    priority: P1
+    status: READY
+    objective: >-
+      Define and verify the evidence contract required for futures/perpetual research and PAPER simulation,
+      including contract metadata, funding history, mark/index/last prices, open interest where used, fees,
+      tick/lot/min-notional rules, margin schedules, liquidation parameters, timestamps, and provenance.
+    firstBrokenTransition: "no-canonical-derivatives-evidence-contract-yet"
+    canonicalOwner: DATA_EVIDENCE
+    safetyInvariants:
+      - UNKNOWN_remains_UNKNOWN
+      - no_forward_fill_of_unknown_contract_rules
+      - no_future_leakage
+      - no_synthetic_missing_funding_or_price_data
+      - provenance_required
+    acceptanceCriteria:
+      - "PIT-safe contract metadata and market-data provenance requirements are explicit"
+      - "Mark/index/last prices are not silently substituted for one another"
+      - "Funding, fees, contract changes, delistings, and margin-rule changes are time-versioned"
+      - "Missing critical derivatives evidence fails closed or marks observations INELIGIBLE"
+    evidenceRequired:
+      - derivatives_evidence_schema
+      - provenance_contract
+      - pit_leakage_rules
+      - cost_funding_liquidation_accounting_spec
+    handoffTo:
+      - DEV
+      - LEARNING
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-SERVER-AUTOMATION-FUTURES-READINESS
+    issuedBy: CORE
+    owner: SERVER_AUTOMATION
+    priority: P1
+    status: READY
+    objective: >-
+      Prepare non-mutating infrastructure and operational readiness for future derivatives PAPER workloads:
+      public-market ingestion, exchange clock/contract metadata refresh, funding schedule capture, health/readiness,
+      stale-data detection, bounded recovery, durable receipts, and exchange-outage handling. Do not connect LIVE mutation paths.
+    firstBrokenTransition: "no-derivatives-runtime-readiness-inventory-yet"
+    canonicalOwner: SERVER_AUTOMATION
+    safetyInvariants:
+      - PAPER_ONLY
+      - no_live_credentials_required
+      - no_blind_restart
+      - bounded_retry
+      - idempotent_restart_safe
+      - reuse_existing_scheduler_and_service_owners
+    acceptanceCriteria:
+      - "Runtime inventory identifies reusable services/schedulers/stores and rejects duplicates"
+      - "Stale market data, funding schedule gaps, exchange maintenance, and clock drift fail closed"
+      - "All proposed automation is restart-safe, replay-safe, bounded, and receipt-producing"
+    evidenceRequired:
+      - runtime_gap_inventory
+      - failure_mode_matrix
+      - automation_design
+      - restart_replay_plan
+    handoffTo:
+      - DEV
+      - VALIDATION_RELEASE_RUNTIME
+      - CORE
+
+  - commandId: CORE-P1-VALIDATION-FUTURES-SAFETY-GATES
+    issuedBy: CORE
+    owner: VALIDATION_RELEASE_RUNTIME
+    priority: P1
+    status: READY
+    objective: >-
+      Establish independent validation and runtime acceptance gates for future PAPER derivatives capabilities.
+      Specifically test liquidation, margin depletion, funding application, exchange outage/stale data, mark/index
+      divergence, reduce-only behavior, duplicate side effects, restart/replay, and authority isolation.
+    firstBrokenTransition: "no-independent-futures-paper-validation-matrix-yet"
+    canonicalOwner: VALIDATION_RELEASE_RUNTIME
+    safetyInvariants:
+      - no_self_approval
+      - no_live_activation
+      - no_test_relaxation
+      - no_safety_guard_weakening
+      - author_validator_separation
+    acceptanceCriteria:
+      - "A deterministic futures PAPER validation matrix exists before implementation can be called complete"
+      - "Liquidation/margin/funding failure paths are covered"
+      - "Exact-head and exact-main runtime evidence remain distinct gates"
+      - "No LIVE/real-money authority is introduced by passing PAPER validation"
+    evidenceRequired:
+      - validation_matrix
+      - non_author_review_requirements
+      - runtime_canary_plan
+      - restart_replay_duplicate_check_plan
+    handoffTo:
+      - CORE
+
+coreDisposition:
+  immediatePriorityOrder:
+    - "Keep CORE-P0-LEARNING-CLOSED-LOOP as the first implementation priority"
+    - "Run Scout, Data/Evidence, Server Automation, and Validation futures-readiness work in parallel where non-invasive"
+    - "DEV derivatives implementation remains blocked until learning convergence and CORE design approval"
+  completionAuthority: CORE

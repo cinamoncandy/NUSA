@@ -1,0 +1,72 @@
+version: 1
+kind: AIPOS_SCOUT_HARVEST
+issuedAt: "2026-10-17"
+issuedBy: CORE_SCOUT
+selectionPolicy:
+  standard: "only material capabilities with clear NUSA value, falsifiable benefit, and low duplication risk"
+  rejectNoveltyOnly: true
+  rejectWeakEvidence: true
+  rejectDuplicateControlPlane: true
+
+selected:
+  - candidateId: EXECUTION-REALISM-QUEUE-LATENCY-MARKOUT
+    priority: P1
+    disposition: RECOMMEND_EVALUATION
+    owner: DEV
+    supportOwners:
+      - DATA_EVIDENCE
+      - VALIDATION_RELEASE_RUNTIME
+    rationale: >-
+      NUSA PAPER results can still be materially overstated if fill assumptions are too optimistic.
+      A conservative execution model that explicitly represents queue position, activation latency,
+      partial/incomplete fills, maker/taker fees, adverse-selection markouts, and impact-aware execution
+      would improve the credibility of PAPER evidence without granting trading authority.
+    capabilities:
+      - conservative_queue_position_model
+      - order_activation_latency
+      - cancel_replace_latency
+      - partial_and_incomplete_fill_preservation
+      - maker_taker_fee_attribution
+      - adverse_selection_markout
+      - implementation_shortfall
+      - deterministic_event_replay
+      - optional_L2_or_MBO_identity_preserving_replay
+      - impact_aware_execution_cost
+    evidenceBasis:
+      - source: "https://github.com/az9713/market-microstructure-observatory"
+        notes: "real-tape replay; no-lookahead; conservative queue assumption; explicit latency and fees"
+      - source: "https://github.com/damraka/CleoLOB"
+        notes: "historical L2 reconstruction; identity-preserving MBO replay; queue semantics; incomplete-fill discipline"
+      - source: "https://arxiv.org/abs/1412.4503"
+        notes: "empirical Bitcoin market-impact evidence supporting non-linear impact modeling as a stress/reference model"
+    nusaIntegrationRule: >-
+      Extend the existing PAPER execution/cost evidence path only. Do not create a second execution engine,
+      second fill truth source, or parallel evidence store. Any advanced queue/L2/MBO model must remain
+      pluggable behind the canonical execution-evidence contract.
+    falsification:
+      - "If conservative execution assumptions do not materially change fills/cost/PnL on representative PAPER replays, do not promote complexity."
+      - "If data quality is insufficient to support queue/MBO inference, preserve UNKNOWN rather than fabricate fills."
+      - "If model calibration is venue-specific, do not transfer parameters across Upbit spot and overseas futures without evidence."
+    acceptanceCriteria:
+      - "A/B replay against current fill model shows measurable effect on execution evidence or demonstrates equivalence"
+      - "No lookahead under event-time tests"
+      - "Latency prevents impossible pre-activation fills"
+      - "Queue assumptions are pessimistic or evidence-calibrated, never optimistic by default"
+      - "Partial and unfilled orders remain preserved in evidence"
+      - "Fees, slippage, implementation shortfall, and adverse-selection markout are identity-bound"
+      - "Restart/replay is deterministic and produces no duplicate fills"
+    safety:
+      - PAPER_ONLY
+      - aiAuthority=ZERO_AUTHORITY
+      - liveAuthority=NONE
+      - productionMutationAllowed=false
+      - no_synthetic_fill_success
+      - no_cross_venue_parameter_aliasing
+
+rejectedOrDeferred:
+  - topic: "standalone new market-microstructure engine"
+    reason: "duplicate engine/control-plane risk; extract only execution-evidence techniques"
+  - topic: "strategy alpha claims from microstructure repos"
+    reason: "insufficient reason to trust alpha; execution realism is the valuable part"
+  - topic: "generic LOB simulators without real-tape validation"
+    reason: "lower evidence value than identity-preserving or real-tape approaches"
