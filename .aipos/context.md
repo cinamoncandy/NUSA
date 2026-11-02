@@ -2,7 +2,7 @@
 
 ## Human intent
 
-The human is building NUSA. AIPOS exists so NUSA can be continued by ChatGPT, Claude, Gemini, Codex, Cursor, Windsurf, Kimi, or another capable AI without reconstructing prior conversations.
+The human is building NUSA to support the OWNER's long-term economic freedom through sustainable, risk-controlled growth of the OWNER's assets. AIPOS exists so NUSA can be continued by ChatGPT, Claude, Gemini, Codex, Cursor, Windsurf, Kimi, or another capable AI without reconstructing prior conversations. The economic-freedom objective is directional only: it does not grant LIVE, real-money, transfer, withdrawal, production-mutation, or AI authority.
 
 ## Required first action
 

@@ -115,6 +115,30 @@ Where applicable, a decision should account for:
 
 No investment AI may treat high linguistic confidence as equivalent to high expected economic value or low financial risk.
 
+
+## 3.1 Economic Outcome Validation
+
+NUSA's investment intelligence exists to improve the probability of durable, risk-controlled asset growth. A strategy, model, research result, or portfolio change is not economically successful merely because it predicts well, produces a positive backtest, or shows a high gross return.
+
+Where applicable, economic validation must evaluate:
+
+- net return after fees, spread, slippage, market impact, and other modeled execution costs;
+- out-of-sample and walk-forward persistence;
+- maximum drawdown and drawdown duration;
+- downside and tail-loss behavior;
+- Sharpe, Sortino, or another appropriate risk-adjusted measure, with its assumptions recorded;
+- regime dependence and performance dispersion across materially different periods;
+- turnover, liquidity, and capacity constraints;
+- concentration and correlation with existing strategies or Strategy Families;
+- sensitivity to realistic parameter, latency, cost, and execution perturbations;
+- probability and severity of catastrophic-loss or ruin-like outcomes under stress;
+- PAPER performance persistence before any later human-authorized production consideration.
+
+A high gross return that disappears after realistic costs is not alpha. A strategy whose attractive return depends on one narrow regime, unstable parameter choices, leakage, or unacceptable drawdown must not be represented as economically validated.
+
+The target is not maximum nominal return at any risk. The target is evidence-backed, cost-aware, risk-adjusted, resilient progress toward the OWNER's long-term economic-freedom objective.
+
+
 ## 4. Research-to-Execution Boundary
 
 Knowing an investment concept is not authorization to trade it.
