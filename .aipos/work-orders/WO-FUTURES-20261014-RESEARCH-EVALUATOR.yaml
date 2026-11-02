@@ -1,0 +1,28 @@
+id: WO-FUTURES-20261014-RESEARCH-EVALUATOR
+title: "Offline evaluator for the pre-registered futures regime long/short study (code frozen before data)"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/futures-research-evaluator
+parent: WO-FUTURES-20261014-RESEARCH-PREREG
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted (B4 futures research); 'continue'."
+change:
+  - "apps/cloud/src/futures/regimeLongShortStudy.ts: pure evaluator implementing the pre-registered rule (4h, SMA200 regime, N breakout long/short, N/2 channel or regime exit, next-bar-open fills, funding at its time, liquidation on the bar's adverse extreme), driving the merged simulator and risk gate unchanged; month regime labels from BTCUSDT; metrics and the pre-registered six-check verdict."
+  - "apps/cloud/src/futures/regimeLongShortStudy.test.ts: synthetic up, down and regime-switch markets, next-bar fills and fromMs warm-up, funding cost, doubled costs, month labels, verdict checks."
+implementation_details_not_in_the_preregistration:
+  - "A position still open when the evaluation window ends is closed at the last close with full costs, so every opened trade is a round trip (conservative)."
+  - "Position size is 98% of the 20% margin cap (owner limit) so slippage cannot push it over the gate's limit."
+  - "Return per round trip = net P&L (close or liquidation, minus opening fee, plus funding) / opening isolated margin."
+next: "After the data is downloaded and frozen (#2713): a CLI runs this once on the holdout at base and doubled costs and writes the verdict to a research note."
+verification_commands:
+  - "npx tsc -p tsconfig.json && node -r ./tests/register-dist.cjs --test dist/apps/cloud/src/futures/*.test.js"
+  - "node scripts/validate-architecture.js"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  credentials: NONE
+  fail_closed: true
