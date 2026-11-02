@@ -183,17 +183,20 @@ test("published provenance freshness carries interval lag and never a day-named 
   assert.throws(() => buildPublishedFreshness(undefined), /finite lagIntervals/);
 });
 
-test("the timeframe option cannot reach the frozen confirmatory families", () => {
-  // #1981 requirement 6: the frozen Bollinger/VCB/TSMOM confirmatory contract stays on KRW-BTC + 1d
-  // and must not be retuned through this issue. Those families live in packages/core/src/strategyEngine.ts
-  // and this run script never names them, so NUSA_RESEARCH_TIMEFRAME and NUSA_RESEARCH_PRIMARY_MARKET
-  // structurally cannot reach them. That separation is the guarantee, so assert it rather than assume it.
-  const script = fs.readFileSync(path.resolve(__dirname, "..", "scripts", "research-real-market-run.js"), "utf8");
-  for (const frozen of ["BOLLINGER", "bollinger", "TSMOM", "tsmom", "VCB"]) {
-    assert.equal(script.includes(frozen), false, `the run script must not reference the frozen family ${frozen}`);
+test("frozen Bollinger confirmatory family cannot be retuned by timeframe or market", () => {
+  const { assertConfirmatoryFamilyScope } = require("../scripts/research-real-market-run.js");
+  assert.doesNotThrow(() => assertConfirmatoryFamilyScope("bollinger-breakout", { timeframe: "1d", market: "KRW-BTC" }));
+  for (const timeframe of ["60m", "240m"]) {
+    assert.throws(
+      () => assertConfirmatoryFamilyScope("bollinger-breakout", { timeframe, market: "KRW-BTC" }),
+      /frozen to KRW-BTC \+ 1d/,
+    );
   }
-
-  // What it does declare are the exploratory families the timeframe option is allowed to move.
-  const definitions = ["SMA_PARAMETER_NEIGHBORHOOD", "RSI_PARAMETER_NEIGHBORHOOD", "DONCHIAN_PARAMETER_NEIGHBORHOOD"];
-  for (const family of definitions) assert.equal(script.includes(family), true, `${family} must remain declared here`);
+  for (const market of ["KRW-ETH", "KRW-XRP", "KRW-ADA", "KRW-DOGE"]) {
+    assert.throws(
+      () => assertConfirmatoryFamilyScope("bollinger-breakout", { timeframe: "1d", market }),
+      /frozen to KRW-BTC \+ 1d/,
+    );
+  }
+  assert.doesNotThrow(() => assertConfirmatoryFamilyScope("sma-crossover", { timeframe: "240m", market: "KRW-ETH" }));
 });
