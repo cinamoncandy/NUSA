@@ -1,7 +1,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { evaluatePaperPortfolioAdvisory } = require("../dist/apps/cloud/src/paperPortfolioAdvisory.js");
+const { evaluatePaperPortfolioAdvisory, createPaperFamilyRiskAdvisoryBinding } = require("../dist/apps/cloud/src/paperPortfolioAdvisory.js");
 const { createPaperPortfolioTrustedLongitudinalEvidence } = require("../dist/apps/cloud/src/paperPortfolioRiskEvidence.js");
+const { buildFamilyPortfolioRiskEvidence } = require("../dist/apps/cloud/src/familyPortfolioRiskEvidence.js");
 
 const policy = Object.freeze({
   policyVersion: "capital-v1",
@@ -81,6 +82,34 @@ const trustedEvidence = createPaperPortfolioTrustedLongitudinalEvidence({
 });
 const riskEvidence = Object.freeze({ ...riskFacts, trustedEvidence });
 
+const familyRiskPolicy = Object.freeze({
+  maximumStrategyWeight: 0.45, maximumFamilyWeight: 0.65,
+  maximumAbsoluteFamilyCorrelation: 0.95, maximumFamilyDrawdownOverlap: 0.95,
+  maximumRegimeConcentration: 0.8, maximumFamilyRiskBudgetUsage: 0.7
+});
+
+const familyRiskEvidence = buildFamilyPortfolioRiskEvidence([
+  {
+    strategyId: "strategy-881", familyId: "family-trend", role: "CHAMPION", weight: 0.2,
+    riskContribution: 0.2, turnover: 0.1, feeRate: 0.001, slippageRate: 0.001,
+    grossExpectedEdge: 0.02, regime: "RISK_ON",
+    returns: [0.01, -0.01, 0.02, 0.01],
+    drawdowns: [false, true, false, false]
+  },
+  {
+    strategyId: "strategy-peer", familyId: "family-mean", role: "CHAMPION", weight: 0.2,
+    riskContribution: 0.2, turnover: 0.1, feeRate: 0.001, slippageRate: 0.001,
+    grossExpectedEdge: 0.02, regime: "RISK_OFF",
+    returns: [0.02, 0.01, -0.01, 0.03],
+    drawdowns: [false, false, true, false]
+  }
+], familyRiskPolicy);
+const familyRisk = createPaperFamilyRiskAdvisoryBinding({
+  strategyId: "strategy-881", familyId: "family-trend",
+  observedAt: "2026-08-29T00:30:00.000Z", sourceSha: "b".repeat(40),
+  evidence: familyRiskEvidence
+});
+
 const input = Object.freeze({
   advisoryId: "advisory-881",
   strategyId: "strategy-881",
@@ -90,7 +119,9 @@ const input = Object.freeze({
   minimumEvidencePeriods: 30,
   maximumEvidenceAgeMs: 24 * 60 * 60 * 1000,
   maximumRegimeCoFailureRate: 0.5,
-  riskEvidence
+  familyRiskPolicy,
+  riskEvidence,
+  familyRisk
 });
 
 test("advises only from verified point-in-time PAPER evidence", () => {
@@ -313,4 +344,87 @@ test("portfolio risk evidence must match advisory provenance and be current at d
   }, policy);
   assert.equal(stale.decision, "ABSTAIN");
   assert.ok(stale.reasons.includes("RISK_EVALUATION_STALE"));
+});
+
+
+test("family risk evidence is a mandatory fail-closed advisory gate", () => {
+  const missing = evaluatePaperPortfolioAdvisory({ ...input, familyRisk: undefined }, policy);
+  assert.equal(missing.decision, "ABSTAIN");
+  assert.equal(missing.recommendedWeight, 0);
+  assert.ok(missing.reasons.includes("FAMILY_RISK_EVIDENCE_MISSING"));
+
+  const wrongFamily = evaluatePaperPortfolioAdvisory({
+    ...input, familyRisk: { ...familyRisk, familyId: "family-other" }
+  }, policy);
+  assert.equal(wrongFamily.decision, "ABSTAIN");
+  assert.ok(wrongFamily.reasons.includes("FAMILY_RISK_FAMILY_NOT_COVERED"));
+
+  const wrongStrategy = evaluatePaperPortfolioAdvisory({
+    ...input, familyRisk: { ...familyRisk, strategyId: "strategy-other" }
+  }, policy);
+  assert.equal(wrongStrategy.decision, "ABSTAIN");
+  assert.ok(wrongStrategy.reasons.includes("FAMILY_RISK_STRATEGY_MISMATCH"));
+
+  const stale = evaluatePaperPortfolioAdvisory({
+    ...input, familyRisk: { ...familyRisk, observedAt: "2026-08-27T00:00:00.000Z" }
+  }, policy);
+  assert.equal(stale.decision, "ABSTAIN");
+  assert.ok(stale.reasons.includes("FAMILY_RISK_EVIDENCE_STALE"));
+
+  const invalidSource = evaluatePaperPortfolioAdvisory({
+    ...input, familyRisk: { ...familyRisk, sourceSha: "not-a-sha" }
+  }, policy);
+  assert.equal(invalidSource.decision, "ABSTAIN");
+  assert.ok(invalidSource.reasons.includes("FAMILY_RISK_SOURCE_SHA_INVALID"));
+});
+
+test("verified family risk identity and fingerprint remain traceable in PAPER advisory", () => {
+  const result = evaluatePaperPortfolioAdvisory(input, policy);
+  assert.equal(result.decision, "ADVISE");
+  assert.equal(result.familyId, "family-trend");
+  assert.equal(result.familyRiskFingerprintSha256, familyRiskEvidence.fingerprintSha256);
+  assert.equal(result.liveAuthority, "NONE");
+  assert.equal(result.productionMutationAllowed, false);
+  assert.equal(result.aiAuthority, "ZERO_AUTHORITY");
+});
+
+test("tampered family risk fingerprint fails closed", () => {
+  const tampered = { ...familyRiskEvidence, fingerprintSha256: "0".repeat(64) };
+  const result = evaluatePaperPortfolioAdvisory({
+    ...input, familyRisk: { ...familyRisk, evidence: tampered }
+  }, policy);
+  assert.equal(result.decision, "ABSTAIN");
+  assert.equal(result.recommendedWeight, 0);
+  assert.ok(result.reasons.includes("FAMILY_RISK_FINGERPRINT_MISMATCH"));
+});
+
+
+test("family risk wrapper provenance is fingerprint-bound", () => {
+  const retimestamped = evaluatePaperPortfolioAdvisory({ ...input, familyRisk: { ...familyRisk, observedAt: "2026-08-29T00:59:00.000Z" } }, policy);
+  assert.equal(retimestamped.decision, "ABSTAIN");
+  assert.ok(retimestamped.reasons.includes("FAMILY_RISK_BINDING_FINGERPRINT_MISMATCH"));
+});
+
+test("strategy must belong to the exact claimed family even when both identities are covered", () => {
+  const crossFamily = createPaperFamilyRiskAdvisoryBinding({ strategyId: familyRisk.strategyId, familyId: "family-mean", observedAt: familyRisk.observedAt, sourceSha: familyRisk.sourceSha, evidence: familyRiskEvidence });
+  const result = evaluatePaperPortfolioAdvisory({ ...input, familyRisk: crossFamily }, policy);
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("FAMILY_RISK_STRATEGY_FAMILY_MISMATCH"));
+});
+
+test("family risk evidence must be produced under the expected canonical policy", () => {
+  const result = evaluatePaperPortfolioAdvisory({ ...input, familyRiskPolicy: { ...familyRiskPolicy, maximumFamilyWeight: 0.7 } }, policy);
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("FAMILY_RISK_POLICY_MISMATCH"));
+});
+
+test("family risk must be evaluated at the exact advised target weight", () => {
+  const lowerWeightEvidence = buildFamilyPortfolioRiskEvidence([
+    { strategyId: "strategy-881", familyId: "family-trend", role: "CHAMPION", weight: 0.1, riskContribution: 0.1, turnover: 0.1, feeRate: 0.001, slippageRate: 0.001, grossExpectedEdge: 0.02, regime: "RISK_ON", returns: [0.01, -0.01, 0.02, 0.01], drawdowns: [false, true, false, false] },
+    { strategyId: "strategy-peer", familyId: "family-mean", role: "CHAMPION", weight: 0.1, riskContribution: 0.1, turnover: 0.1, feeRate: 0.001, slippageRate: 0.001, grossExpectedEdge: 0.02, regime: "RISK_OFF", returns: [0.02, 0.01, -0.01, 0.03], drawdowns: [false, false, true, false] }
+  ], familyRiskPolicy);
+  const binding = createPaperFamilyRiskAdvisoryBinding({ strategyId: "strategy-881", familyId: "family-trend", observedAt: familyRisk.observedAt, sourceSha: familyRisk.sourceSha, evidence: lowerWeightEvidence });
+  const result = evaluatePaperPortfolioAdvisory({ ...input, familyRisk: binding }, policy);
+  assert.equal(result.decision, "ABSTAIN");
+  assert.ok(result.reasons.includes("FAMILY_RISK_PROPOSED_WEIGHT_MISMATCH"));
 });
