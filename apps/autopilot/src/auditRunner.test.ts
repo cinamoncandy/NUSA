@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { executeIndependentAudit, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest } from "./auditRunner";
+import { currentDiffEvidenceRefs, executeIndependentAudit, executeIndependentValidator, executeProviderGatedAudit, validateAuditModelVerdict, validateAuditRunnerRequest, type AuditRunnerRequest, type ValidatorRunnerRequest } from "./auditRunner";
 
 const HEAD = "a".repeat(40);
 const BASE = "b".repeat(40);
@@ -84,20 +84,26 @@ function fetchSequence(options: {
   readonly firstRun?: unknown;
   readonly firstHeadPulls?: readonly unknown[];
   readonly diff?: string;
+  readonly changedFileEntries?: readonly unknown[];
   readonly secondPull?: unknown;
   readonly secondRun?: unknown;
   readonly secondHeadPulls?: readonly unknown[];
 } = {}) {
   const firstRun = options.firstRun ?? run();
   const secondRun = options.secondRun ?? firstRun;
+  const firstPull = options.firstPull ?? pull();
+  const secondPull = options.secondPull ?? firstPull;
+  const fileList = (value: unknown) => options.changedFileEntries ?? Array.from({ length: Number((value as { changed_files?: number }).changed_files ?? 1) }, (_, index) => ({ filename: index === 0 ? "a.ts" : `file-${index}.ts`, status: "modified" }));
   const queue = [
-    response(200, options.firstPull ?? pull()),
+    response(200, firstPull),
     response(200, firstRun),
     ...(needsFallback(firstRun) ? [response(200, options.firstHeadPulls ?? headPulls())] : []),
+    response(200, fileList(firstPull)),
     response(200, {}, options.diff ?? "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -0,0 +1 @@\n+const safe = true;\n"),
-    response(200, options.secondPull ?? options.firstPull ?? pull()),
+    response(200, secondPull),
     response(200, secondRun),
     ...(needsFallback(secondRun) ? [response(200, options.secondHeadPulls ?? options.firstHeadPulls ?? headPulls())] : []),
+    response(200, fileList(secondPull)),
   ];
   return async () => {
     const next = queue.shift();
@@ -140,6 +146,164 @@ test("validates the immutable read-only audit request contract", () => {
   assert.equal(validated.aiAuthority, "ZERO_AUTHORITY");
 });
 
+test("diff evidence binds deleted lines to the old path and resets at file boundaries", () => {
+  const refs = currentDiffEvidenceRefs([
+    "diff --git a/previous.ts b/previous.ts",
+    "index 1111111..2222222 100644",
+    "--- a/previous.ts",
+    "+++ b/previous.ts",
+    "@@ -1,2 +1,2 @@",
+    "-removed from previous",
+    "+replacement in previous",
+    "diff --git a/deleted/security.ts b/deleted/security.ts",
+    "deleted file mode 100644",
+    "index 3333333..0000000",
+    "--- a/deleted/security.ts",
+    "+++ /dev/null",
+    "@@ -1,2 +0,0 @@",
+    "-removed safety check",
+    "-removed authority guard",
+    "diff --git a/new/module.ts b/new/module.ts",
+    "new file mode 100644",
+    "index 0000000..4444444",
+    "--- /dev/null",
+    "+++ b/new/module.ts",
+    "@@ -0,0 +1,1 @@",
+    "+new module",
+    "",
+  ].join("\n"));
+
+  assert.ok(refs.has("previous.ts:-1"));
+  assert.ok(refs.has("previous.ts:+1"));
+  assert.ok(refs.has("deleted/security.ts:-1"));
+  assert.ok(refs.has("deleted/security.ts:-2"));
+  assert.ok(refs.has("new/module.ts:+1"));
+  assert.ok(!refs.has("previous.ts:-3"));
+});
+
+test("hunkless rename metadata receives deterministic evidence refs without implying source-line evidence", () => {
+  const diff = [
+    "diff --git a/guards/old-name.ts b/guards/new-name.ts",
+    "similarity index 100%",
+    "rename from guards/old-name.ts",
+    "rename to guards/new-name.ts",
+    "",
+  ].join("\n");
+  const refs = currentDiffEvidenceRefs(diff, [{
+    filename: "guards/new-name.ts",
+    previousFilename: "guards/old-name.ts",
+    status: "renamed",
+  }]);
+  assert.deepEqual([...refs], ["guards/old-name.ts:@metadata", "guards/new-name.ts:@metadata"]);
+  assert.equal([...refs].some((ref) => /:[+-]\d+$/.test(ref)), false);
+});
+
+test("rejects control and line-separator characters in paths before evidence refs reach prompts", () => {
+  for (const encodedPath of [String.raw`unsafe\012path.ts`, String.raw`unsafe\177path.ts`]) {
+    const diff = `diff --git "a/${encodedPath}" "b/${encodedPath}"\nnew file mode 100644\n`;
+    assert.throws(() => currentDiffEvidenceRefs(diff), /VALIDATOR_(?:REPOSITORY_PATH|DIFF_PATH)_INVALID/);
+  }
+  for (const separator of ["\u0085", "\u2028", "\u2029"]) {
+    const diff = `diff --git a/unsafe${separator}path.ts b/unsafe${separator}path.ts\nnew file mode 100644\n`;
+    assert.throws(() => currentDiffEvidenceRefs(diff), /VALIDATOR_(?:REPOSITORY_PATH|DIFF_PATH)_INVALID/);
+  }
+});
+
+test("accepts a blocker grounded in exact hunkless rename metadata", async () => {
+  const renameDiff = [
+    "diff --git a/guards/old-name.ts b/guards/new-name.ts",
+    "similarity index 100%",
+    "rename from guards/old-name.ts",
+    "rename to guards/new-name.ts",
+    "",
+  ].join("\n");
+  const model = ai({ response: JSON.stringify({
+    verdict: "FAIL",
+    findings: [{ code: "P1_RENAMED_GUARD_PATH", severity: "BLOCKER", message: "A safety-critical file path changed without content hunks; inspect path consumers.", evidenceRef: "guards/new-name.ts:@metadata", evidenceScope: "FILE_METADATA" }],
+    blockers: ["The renamed safety-critical path requires adjudication."],
+    safetyInvariantResult: "FAIL",
+    mergeAllowed: false,
+  }) });
+  const result = await executeIndependentAudit(request, auditEnv(model), fetchSequence({
+    firstPull: pull(HEAD, BASE, 1),
+    changedFileEntries: [{ filename: "guards/new-name.ts", previous_filename: "guards/old-name.ts", status: "renamed" }],
+    diff: renameDiff,
+  }) as never);
+  assert.equal(result.verdict, "FAIL");
+  assert.equal(result.mergeAllowed, false);
+});
+
+test("rejects source-content claims backed only by metadata evidence", async () => {
+  const renameDiff = [
+    "diff --git a/guards/old-name.ts b/guards/new-name.ts",
+    "similarity index 100%",
+    "rename from guards/old-name.ts",
+    "rename to guards/new-name.ts",
+    "",
+  ].join("\n");
+  const invalid = { response: JSON.stringify({
+    verdict: "FAIL",
+    findings: [{ code: "P1_SOURCE_CONTENT_REGRESSION", severity: "BLOCKER", message: "The renamed module contains an unsafe source implementation.", evidenceRef: "guards/new-name.ts:@metadata", evidenceScope: "SOURCE_CONTENT" }],
+    blockers: ["Unsafe source implementation."],
+    safetyInvariantResult: "FAIL",
+    mergeAllowed: false,
+  }) };
+  await assert.rejects(
+    executeIndependentAudit(request, auditEnv(aiSequence([invalid, invalid, invalid]) as never), fetchSequence({
+      firstPull: pull(HEAD, BASE, 1),
+      changedFileEntries: [{ filename: "guards/new-name.ts", previous_filename: "guards/old-name.ts", status: "renamed" }],
+      diff: renameDiff,
+    }) as never),
+    /AUDIT_VERDICT_FINDING_EVIDENCE_SCOPE_INVALID/,
+  );
+});
+
+test("parses mixed quoted and unquoted Git rename paths against exact pull-file metadata", () => {
+  const cases = [
+    {
+      diff: String.raw`diff --git "a/\303\251.ts" b/e.ts
+--- "a/\303\251.ts"
++++ b/e.ts
+@@ -1 +1 @@
+-before
++after`,
+      changedFile: { filename: "e.ts", previousFilename: "é.ts", status: "renamed" as const },
+      previousPath: "é.ts",
+      currentPath: "e.ts",
+    },
+    {
+      diff: String.raw`diff --git a/e.ts "b/\303\251.ts"
+--- a/e.ts
++++ "b/\303\251.ts"
+@@ -1 +1 @@
+-before
++after`,
+      changedFile: { filename: "é.ts", previousFilename: "e.ts", status: "renamed" as const },
+      previousPath: "e.ts",
+      currentPath: "é.ts",
+    },
+  ];
+
+  for (const { diff, changedFile, previousPath, currentPath } of cases) {
+    const refs = currentDiffEvidenceRefs(diff, [changedFile]);
+    assert.ok(refs.has(`${previousPath}:-1`));
+    assert.ok(refs.has(`${currentPath}:+1`));
+  }
+});
+
+test("fails closed when a mixed-quote diff header contains an unsafe path", () => {
+  const diff = String.raw`diff --git "a/\303\251.ts" b/../escape.ts
+--- "a/\303\251.ts"
++++ b/../escape.ts
+@@ -1 +1 @@
+-before
++after`;
+  assert.throws(
+    () => currentDiffEvidenceRefs(diff, [{ filename: "../escape.ts", previousFilename: "é.ts", status: "renamed" }]),
+    /VALIDATOR_REPOSITORY_PATH_INVALID|VALIDATOR_DIFF_PATH_LIST_MISMATCH/,
+  );
+});
+
 test("authenticates every GitHub evidence request without exposing the token", async () => {
   const sequence = fetchSequence();
   const requests: RequestInit[] = [];
@@ -157,6 +321,116 @@ test("authenticates every GitHub evidence request without exposing the token", a
     const headers = init.headers as Record<string, string>;
     assert.equal(headers.Authorization, "Bearer github-token");
   }
+});
+
+for (const candidate of [
+  { name: "tracked TypeScript source", extension: ".ts" },
+  { name: "runtime JavaScript before declaration", extension: ".js" },
+] as const) test(`resolves emitted .js import to ${candidate.name} in exact-head validator context`, async () => {
+  const changedPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.test.ts";
+  const dependencyPath = `apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler${candidate.extension}`;
+  const declarationPath = "apps/desktop/src/cloud/nusaEngineeringPortfolioScheduler.d.ts";
+  const diff = `diff --git a/${changedPath} b/${changedPath}\n--- a/${changedPath}\n+++ b/${changedPath}\n@@ -1,0 +1,1 @@\n+const portfolio = buildEngineeringWorkPortfolio([]);\n`;
+  const source = 'import { buildEngineeringWorkPortfolio } from "./nusaEngineeringPortfolioScheduler.js";\nconst before = true;\nconst portfolio = buildEngineeringWorkPortfolio([]);\n';
+  const dependency = "export function buildEngineeringWorkPortfolio() { return 'EXACT_TRACKED_TYPESCRIPT_SOURCE'; }\n";
+  const protocol = `NUSA grill-me protocol\n${"Review safety, evidence, exact-head identity and dependencies. ".repeat(8)}`;
+  const validatorRequest: ValidatorRunnerRequest = Object.freeze({
+    kind: "VALIDATOR_REQUEST", repository: request.repository, prNumber: request.prNumber,
+    headSha: HEAD, baseSha: BASE, workflowRunId: request.workflowRunId,
+    executionId: "validator:1362:33450000001", dedupeKey: `validator:1362:${HEAD}`,
+    mutationAllowed: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY",
+  });
+  const promptParts: string[] = [];
+  const fetchImpl = async (input: string) => {
+    const url = new URL(input);
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}`)) return response(200, pull(HEAD, BASE, 1));
+    if (url.pathname.endsWith(`/actions/runs/${request.workflowRunId}`)) return response(200, run());
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}/files`)) return response(200, [{ filename: changedPath, status: "modified" }]);
+    if (url.pathname.includes("/compare/")) return response(200, {}, diff);
+    if (url.pathname.endsWith("/contents/docs/GRILL_ME_PROTOCOL.md")) return response(200, {}, protocol);
+    if (url.pathname.includes("/git/commits/")) return response(200, { tree: { sha: "c".repeat(40) } });
+    if (url.pathname.includes("/git/trees/")) return response(200, { truncated: false, tree: [
+      { type: "blob", path: changedPath }, { type: "blob", path: dependencyPath }, { type: "blob", path: declarationPath },
+    ] });
+    if (url.pathname.endsWith(`/contents/${changedPath}`)) return response(200, {}, source);
+    if (url.pathname.endsWith(`/contents/${dependencyPath}`)) return response(200, {}, dependency);
+    throw new Error(`unexpected GitHub request: ${url}`);
+  };
+  const model = {
+    async run(_name: string, input: unknown) {
+      promptParts.push((input as { prompt: string }).prompt);
+      return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) };
+    },
+  };
+
+  const result = await executeIndependentValidator(validatorRequest, {
+    NUSA_AUDIT_GITHUB_TOKEN: "github-token", AI: model as never,
+  }, fetchImpl as never, () => 1234);
+
+  assert.equal(result.verdict, "PASS");
+  assert.ok(result.evidenceRefs.includes(`github:dependency/${dependencyPath}@${HEAD}`));
+  assert.ok(!result.evidenceRefs.includes(`github:dependency/${declarationPath}@${HEAD}`));
+  assert.match(promptParts[0] ?? "", new RegExp(`EXACT-HEAD DEPENDENCY ${dependencyPath} @ ${HEAD}`));
+  assert.match(promptParts[0] ?? "", /EXACT_TRACKED_TYPESCRIPT_SOURCE/);
+});
+
+test("includes base dependency context when a named safety import is removed but its module remains imported", async () => {
+  const changedPath = "apps/autopilot/src/importer.ts";
+  const dependencyPath = "apps/autopilot/src/guard.ts";
+  const diff = [
+    `diff --git a/${changedPath} b/${changedPath}`,
+    `--- a/${changedPath}`,
+    `+++ b/${changedPath}`,
+    "@@ -1,2 +1,1 @@",
+    '-import { foo, safetyGuard } from "./guard";',
+    '+import { foo } from "./guard";',
+    "-safetyGuard();",
+    " foo();",
+    "",
+  ].join("\n");
+  const headSource = 'import { foo } from "./guard";\nfoo();\n';
+  const baseSource = 'import { foo, safetyGuard } from "./guard";\nfoo();\nsafetyGuard();\n';
+  const dependencySource = "export function safetyGuard() { return 'BASE_BOUND_SAFETY_GUARD'; }\n";
+  const protocol = `NUSA grill-me protocol\n${"Review safety, evidence, exact-head identity and dependencies. ".repeat(8)}`;
+  const validatorRequest: ValidatorRunnerRequest = Object.freeze({
+    kind: "VALIDATOR_REQUEST", repository: request.repository, prNumber: request.prNumber,
+    headSha: HEAD, baseSha: BASE, workflowRunId: request.workflowRunId,
+    executionId: "validator:1362:33450000001", dedupeKey: `validator:1362:${HEAD}`,
+    mutationAllowed: false, liveAuthority: "NONE", productionMutationAllowed: false, aiAuthority: "ZERO_AUTHORITY",
+  });
+  const promptParts: string[] = [];
+  const fetchImpl = async (input: string) => {
+    const url = new URL(input);
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}`)) return response(200, pull(HEAD, BASE, 1));
+    if (url.pathname.endsWith(`/actions/runs/${request.workflowRunId}`)) return response(200, run());
+    if (url.pathname.endsWith(`/pulls/${request.prNumber}/files`)) return response(200, [{ filename: changedPath, status: "modified" }]);
+    if (url.pathname.includes("/compare/")) return response(200, {}, diff);
+    if (url.pathname.endsWith("/contents/docs/GRILL_ME_PROTOCOL.md")) return response(200, {}, protocol);
+    if (url.pathname.includes("/git/commits/")) return response(200, { tree: { sha: "c".repeat(40) } });
+    if (url.pathname.includes("/git/trees/")) return response(200, { truncated: false, tree: [
+      { type: "blob", path: changedPath }, { type: "blob", path: dependencyPath },
+    ] });
+    if (url.pathname.endsWith(`/contents/${changedPath}`)) {
+      return response(200, {}, url.searchParams.get("ref") === BASE ? baseSource : headSource);
+    }
+    if (url.pathname.endsWith(`/contents/${dependencyPath}`)) return response(200, {}, dependencySource);
+    throw new Error(`unexpected GitHub request: ${url}`);
+  };
+  const model = {
+    async run(_name: string, input: unknown) {
+      promptParts.push((input as { prompt: string }).prompt);
+      return { response: JSON.stringify({ verdict: "PASS", findings: [], blockers: [], safetyInvariantResult: "PASS", mergeAllowed: true }) };
+    },
+  };
+
+  const result = await executeIndependentValidator(validatorRequest, {
+    NUSA_AUDIT_GITHUB_TOKEN: "github-token", AI: model as never,
+  }, fetchImpl as never, () => 1234);
+
+  assert.equal(result.verdict, "PASS");
+  assert.ok(result.evidenceRefs.includes(`github:dependency/${dependencyPath}@${BASE}`));
+  assert.match(promptParts[0] ?? "", new RegExp(`EXACT-BASE DEPENDENCY ${dependencyPath} @ ${BASE}`));
+  assert.match(promptParts[0] ?? "", /BASE_BOUND_SAFETY_GUARD/);
 });
 
 test("rejects any repository or production mutation attempt", () => {
@@ -295,7 +569,7 @@ test("bounded retry supplies validator repair context without changing the revie
   assert.match(prompts[1], /Validator error: AUDIT_VERDICT_FAIL_BLOCKER_FINDING_REQUIRED/);
   assert.match(prompts[1], /same exact diff/);
   assert.match(prompts[1], new RegExp(`Exact head: ${HEAD}`));
-  assert.match(prompts[1], /CURRENT ADDED-LINE EVIDENCE REF/);
+  assert.match(prompts[1], /CURRENT DIFF EVIDENCE REF/);
 });
 
 test("a persistently ungrounded FAIL fails closed instead of becoming a verdict", async () => {
@@ -310,7 +584,7 @@ test("safety regression is preserved as FAIL and cannot become merge allowed", a
   const model = ai({
     response: JSON.stringify({
       verdict: "FAIL",
-      findings: [{ code: "SAFETY_REGRESSION", severity: "BLOCKER", message: "production mutation became possible", evidenceRef: "a.ts:+1" }],
+      findings: [{ code: "SAFETY_REGRESSION", severity: "BLOCKER", message: "production mutation became possible", evidenceRef: "a.ts:+1", evidenceScope: "SOURCE_CONTENT" }],
       blockers: ["productionMutationAllowed invariant regressed"],
       safetyInvariantResult: "FAIL",
       mergeAllowed: false,
@@ -327,7 +601,7 @@ test("retries a blocker that cites removed rather than current diff evidence", a
   const model = aiSequence([
     { response: JSON.stringify({
       verdict: "FAIL",
-      findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
+      findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1", evidenceScope: "SOURCE_CONTENT" }],
       blockers: ["stale evidence"],
       safetyInvariantResult: "FAIL",
     }) },
@@ -341,7 +615,7 @@ test("retries a blocker that cites removed rather than current diff evidence", a
 test("fails closed when every blocker lacks current added-line evidence", async () => {
   const invalidBlocker = { response: JSON.stringify({
     verdict: "FAIL",
-    findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1" }],
+    findings: [{ code: "STALE", severity: "BLOCKER", message: "removed behavior is current", evidenceRef: "a.ts:1", evidenceScope: "SOURCE_CONTENT" }],
     blockers: ["stale evidence"],
     safetyInvariantResult: "FAIL",
     mergeAllowed: false,
@@ -388,7 +662,7 @@ test("returns exact-head explicitly mergeable PASS_WITH_NOTES evidence", async (
   const model = ai({
     response: "```json\n" + JSON.stringify({
       verdict: "PASS_WITH_NOTES",
-      findings: [{ code: "NON_BLOCKING_NOTE", severity: "NOTE", message: "reviewed exact diff", evidenceRef: "a.ts:+1" }],
+      findings: [{ code: "NON_BLOCKING_NOTE", severity: "NOTE", message: "reviewed exact diff", evidenceRef: "a.ts:+1", evidenceScope: "SOURCE_CONTENT" }],
       blockers: [],
       safetyInvariantResult: "PASS",
       mergeAllowed: true,

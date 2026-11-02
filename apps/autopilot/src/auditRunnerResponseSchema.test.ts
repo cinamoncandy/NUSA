@@ -48,9 +48,11 @@ function fetchSequence(diff = "diff --git a/a.ts b/a.ts\n+const safe = true;\n")
   const queue = [
     response(200, pull),
     response(200, run),
+    response(200, [{ filename: "a.ts", status: "modified" }]),
     response(200, {}, diff),
     response(200, pull),
     response(200, run),
+    response(200, [{ filename: "a.ts", status: "modified" }]),
   ];
   return async () => {
     const next = queue.shift();
@@ -99,7 +101,7 @@ test("format repair is not source evidence and a genuine grounded blocker remain
     assert.match(prompt, /Preserve any genuine source-grounded blocker/);
     assert.match(prompt, /do not choose PASS merely to repair JSON/);
     assert.ok(prompt.includes(diff));
-    return { response: { verdict: "FAIL", findings: [{ code: "MISSING_INPUT", severity: "BLOCKER", message: "Undefined input is dereferenced.", evidenceRef: "a.ts:+1" }], blockers: ["Undefined input is dereferenced."], safetyInvariantResult: "PASS", mergeAllowed: false } };
+    return { response: { verdict: "FAIL", findings: [{ code: "MISSING_INPUT", severity: "BLOCKER", message: "Undefined input is dereferenced.", evidenceRef: "a.ts:+1", evidenceScope: "SOURCE_CONTENT" }], blockers: ["Undefined input is dereferenced."], safetyInvariantResult: "PASS", mergeAllowed: false } };
   } };
   const result = await executeIndependentAudit(request, { AI, NUSA_AUDIT_GITHUB_TOKEN: "github-token" }, fetchSequence(diff) as never);
   assert.equal(attempts, 2);
