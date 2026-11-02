@@ -139,6 +139,116 @@ Learning must generate candidates, not silently mutate LIVE behavior.
 
 Learning results must pass the same controlled validation and promotion process as any other capability.
 
+## Measured Parallelism and Outcome Convergence
+
+NUSA should decompose work into the smallest independently verifiable units that preserve architecture, evidence integrity, and safety. Independent work may proceed in parallel, but parallelism itself is never the objective.
+
+The objective is better verified outcome per unit time, cost, and risk.
+
+A parallel execution design should therefore provide:
+
+- one canonical objective and acceptance contract;
+- explicit ownership and conflict boundaries for each work unit;
+- independent state for each unit;
+- shared evidence and verification semantics;
+- deterministic convergence into one canonical result;
+- bounded retry and stale-work recovery;
+- before/after measurements against an appropriate baseline.
+
+Worker count, agent count, branch count, task count, or raw activity are not success metrics.
+
+## Evidence-Derived Progress
+
+NUSA must not use self-reported progress as authoritative state.
+
+Progress should be projected from durable evidence such as:
+
+- implementation present;
+- focused validation passed;
+- exact-head CI passed;
+- independent Audit passed;
+- Release eligibility satisfied;
+- deployment or runtime verification completed;
+- investment evidence reached the required validation stage.
+
+A UI may summarize this state, but it must not invent percentages, completion, speedups, confidence, or success that are not derivable from authoritative evidence.
+
+Claimed progress != verified progress
+
+## Bottleneck-First Optimization
+
+Increasing parallelism is useful only while it improves verified throughput and owner-perceived latency.
+
+NUSA should distinguish at least:
+
+- queue / work-selection bottleneck;
+- worker / implementation bottleneck;
+- CI bottleneck;
+- Audit bottleneck;
+- Release / merge bottleneck;
+- data / provider / external dependency bottleneck;
+- human-only bottleneck;
+- infrastructure bottleneck such as CPU, RAM, disk, or network saturation.
+
+When downstream capacity becomes the constraint, concurrency should contract rather than generate conflict, stale work, retry storms, or useless queue growth.
+
+The optimization loop is:
+
+Measure -> identify largest bottleneck -> improve -> verify before/after -> repeat
+
+## Canonical Event and Projection Model
+
+Operational truth should originate from canonical execution events and durable state, then be projected outward.
+
+Preferred direction:
+
+Canonical Runtime / Control Plane Events -> Durable State -> Observability Projection -> UI
+
+The UI, reporting layer, or visualization layer must not create a second execution state machine merely to make the system appear active.
+
+This principle applies to development automation, research, strategy evaluation, PAPER operation, portfolio/risk, and other multi-stage NUSA capabilities.
+
+## Economic Outcome Convergence
+
+For investment-facing capabilities, NUSA should converge activity into economic evidence rather than activity counts.
+
+The canonical direction is:
+
+Market -> Research -> Strategy -> Risk -> Portfolio -> PAPER Outcome -> Attribution -> Learning -> next iteration
+
+Research volume, strategy count, model-call count, or trading frequency are not economic success metrics by themselves.
+
+Where applicable, success should be evaluated with evidence such as net-of-cost return, out-of-sample persistence, drawdown, downside/tail behavior, regime robustness, liquidity/capacity, portfolio contribution, and PAPER persistence.
+
+A system that does more work without improving verified economic quality has not improved merely because it is busier.
+
+## Reference Superiority Requirement
+
+External systems, demos, and reference products may be used as benchmarks, but they are not the target ceiling for NUSA.
+
+When the OWNER designates a reference system as worth learning from, NUSA should absorb only the useful principles and then aim to exceed the reference on the dimensions that matter to NUSA.
+
+Where evidence can be measured, superiority should be evaluated across:
+
+- verified useful outcome per unit time;
+- owner-perceived latency;
+- cost per verified result;
+- autonomy with bounded failure recovery;
+- evidence integrity and reproducibility;
+- observability and truthful progress;
+- conflict, stale-work, and rework rate;
+- safety and authority separation;
+- economic-outcome quality for investment-facing capabilities;
+- information density, clarity, and physical-device usability for user-facing surfaces.
+
+NUSA must not claim to be better merely because it has more agents, more modules, more animation, more metrics, or more activity. A superiority claim requires comparable evidence against an appropriate baseline.
+
+The operating rule is:
+
+Reference -> extract useful principles -> implement under NUSA contracts -> benchmark -> keep only measurable improvements -> iterate beyond the reference
+
+If a borrowed pattern improves appearance or activity while worsening economic quality, reliability, safety, cost efficiency, or user comprehension, NUSA should reject or revise it.
+
 ## Non-Negotiable Safety Rules
 
 1. No AI may bypass the independent Risk Governor.
