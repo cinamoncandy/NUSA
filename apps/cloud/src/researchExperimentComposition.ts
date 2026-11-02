@@ -17,6 +17,10 @@ import type { ResearchRecoveryResult } from "../../../packages/contracts/src/res
  * only logged, because new registrations require a canonical family binding that this research path never holds.
  */
 const M = 60_000;
+/** Alternate pages every 2.5 minutes so the REST-backed head is revisited every 5 minutes, below the 10-minute stale bound. */
+export const RESEARCH_GAP_FILL_INTERVAL_MS = 2.5 * M;
+/** Periodic repairs make bounded progress; the existing timer revisits older gaps on later passes. */
+export const RESEARCH_GAP_FILL_MAX_PAGES_PER_RUN = 1;
 const DAY_MS = 86_400_000;
 export const RESEARCH_FLAG = "NUSA_CLOUD_RESEARCH_EXPERIMENTS";
 // Upbit KRW market fee is 0.05%; slippage is a fixed conservative 5 bps. Both are explicit by design.
@@ -294,6 +298,9 @@ export function composeResearchExperiments(input: {
     return Object.freeze(results);
   };
   let gapFilling = false;
+  // Alternate newest-page checks with historical continuation: a bounded old-gap scan must not starve newly
+  // missing head candles, and a missing head source row must not erase progress through older gaps.
+  const gapFillProgress = new Map<string, { historyCursorStartMs?: number; prioritizeHeadNext: boolean }>();
   let gapTimer: ReturnType<typeof setInterval> | undefined;
   let gapRetry: ReturnType<typeof setTimeout> | undefined;
   const fillGaps = async (): Promise<readonly GapFillResult[]> => {
@@ -303,7 +310,25 @@ export function composeResearchExperiments(input: {
     try {
       for (const market of settings.markets) {
         if (stopped) break;
-        const result = await fillRecentGaps({ market, windowMs: targetSpanMs, nowMs: now(), store, fetchPage, sleep });
+        const previous = gapFillProgress.get(market) ?? { prioritizeHeadNext: true };
+        const hasHistoryCursor = previous.historyCursorStartMs !== undefined;
+        const headPass = !hasHistoryCursor || previous.prioritizeHeadNext;
+        const result = await fillRecentGaps({ market, windowMs: targetSpanMs, nowMs: now(), store, fetchPage, sleep, maxPages: RESEARCH_GAP_FILL_MAX_PAGES_PER_RUN, startBeforeMs: headPass ? undefined : previous.historyCursorStartMs });
+        let historyCursorStartMs = previous.historyCursorStartMs;
+        let prioritizeHeadNext: boolean;
+        if (result.status === "RATE_LIMITED" || result.status === "ERROR") {
+          // Keep the last verified historical cursor across malformed pages and transient request failures.
+          prioritizeHeadNext = true;
+        } else if (headPass) {
+          // A head check must not overwrite an older scan cursor. Seed the historical scan from the first page only.
+          if (historyCursorStartMs === undefined) historyCursorStartMs = result.nextCursorStartMs;
+          prioritizeHeadNext = false;
+        } else {
+          historyCursorStartMs = result.nextCursorStartMs;
+          prioritizeHeadNext = true;
+        }
+        if (historyCursorStartMs === undefined && result.status !== "RATE_LIMITED" && result.status !== "ERROR") gapFillProgress.delete(market);
+        else gapFillProgress.set(market, { ...(historyCursorStartMs === undefined ? {} : { historyCursorStartMs }), prioritizeHeadNext });
         results.push(result);
         if (result.status === "NO_GAPS" || result.status === "FILLED") {
           const firstClose = store.earliestCloseTime(market, M);
@@ -451,7 +476,7 @@ export function composeResearchExperiments(input: {
       first.unref?.();
       timer = setInterval(scheduleTick, settings.tickMs);
       timer.unref?.();
-      if (settings.backfill) { gapTimer = setInterval(() => scheduleGapFill(), 60 * M); gapTimer.unref?.(); }
+      if (settings.backfill) { gapTimer = setInterval(() => scheduleGapFill(), RESEARCH_GAP_FILL_INTERVAL_MS); gapTimer.unref?.(); }
       log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
     stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (gapRetry != null) clearTimeout(gapRetry); if (backfillTimer != null) clearTimeout(backfillTimer); if (tickRetry != null) clearTimeout(tickRetry); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
