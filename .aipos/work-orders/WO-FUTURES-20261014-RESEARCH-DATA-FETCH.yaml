@@ -1,0 +1,25 @@
+id: WO-FUTURES-20261014-RESEARCH-DATA-FETCH
+title: "Download the pre-registered public futures history on the PAPER host"
+status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+owner: nusa-development
+repository: cinamoncandy/NUSA
+base_branch: main
+branch: claude/futures-research-data
+parent: WO-FUTURES-20261014-RESEARCH-PREREG
+authority_impact: none
+owner_approval: "2026-10-14 in chat: design v1 accepted (B4 futures research); 'continue'."
+change:
+  - "scripts/futures-research-fetch.js: fixed pre-registered symbols and range; GETs only /fapi/v1/klines (4h) and /fapi/v1/fundingRate with no header or key; pages forward, de-duplicates, counts missing bars without filling, fails on malformed pages; writes per-symbol files and a SHA-256 manifest."
+  - ".github/workflows/futures-research-data-fetch.yml: workflow_dispatch from main only, contents read, no secrets, PAPER host runner, pinned checkout (no persisted credentials) and upload-artifact; output is one artifact (30 days)."
+  - "tests pin the paths, pagination, gap counting, failure on bad pages, the manifest hashes, and the workflow's trigger, permissions, single command and pinned actions."
+next: "After merge: dispatch once, download the artifact, commit the raw files and manifest unchanged (freeze), then the one-time holdout evaluation."
+verification_commands:
+  - "node --test tests/futures-research-fetch.test.js tests/futures-research-data-fetch-workflow.test.js"
+  - "node scripts/validate-workflow-authority-map.js && node scripts/validate-workflow-action-pins.js && node scripts/validate-workflow-action-inputs.js"
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  credentials: NONE
+  fail_closed: true
