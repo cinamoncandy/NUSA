@@ -1,0 +1,258 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { describe, it } from "node:test";
+import { canonicalResearchJson } from "../../../packages/contracts/src/researchRuntime";
+import {
+  LearningInputSetError,
+  assertLearningInputSet,
+  buildLearningInputSet,
+  learningCycleId,
+  learningInputSetFingerprint,
+  learningInputSetPeriodReferences,
+  MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES,
+  type LearningInputSetInput,
+  type LearningInputSet,
+} from "./learningInputSet";
+
+// A2. The Learning Decision may not consume an arbitrary query result, so the evidence it may
+// consider is fixed first as a deterministic identity. These tests pin the properties that make
+// that identity trustworthy: canonical regardless of supply order, fail-closed on anything that
+// would let a decision read its own future or overstate its evidence, and identical across a
+// replay. Exactly-once downstream is a property of this identity, not of a counter.
+
+const POLICIES = {
+  learningPolicyVersion: "learn-v1",
+  researchPolicyVersion: "research-v1",
+  riskPolicyVersion: "risk-v1",
+  governancePolicyVersion: "gov-v1",
+};
+
+const input = (overrides: Partial<LearningInputSetInput> = {}): LearningInputSetInput => ({
+  cutoffTimestamp: 1_000,
+  researchEvidence: [
+    { recordId: "trial-b", recordedAt: 200 },
+    { recordId: "trial-a", recordedAt: 100 },
+  ],
+  paperEvidence: [{ recordId: "period-1", recordedAt: 300 }],
+  policies: POLICIES,
+  ...overrides,
+});
+
+const laneDigest = (lane: "research" | "performance", recordIds: readonly string[], observedAt: readonly number[]): string => createHash("sha256")
+  .update(canonicalResearchJson({ lane, recordIds, observedAt }), "utf8")
+  .digest("hex");
+
+describe("A2 learning input set canonicalization", () => {
+  it("fingerprints identically regardless of the order evidence was supplied in", () => {
+    const forward = buildLearningInputSet(input());
+    const shuffled = buildLearningInputSet(input({
+      researchEvidence: [
+        { recordId: "trial-a", recordedAt: 100 },
+        { recordId: "trial-b", recordedAt: 200 },
+      ],
+    }));
+    assert.deepEqual([...forward.researchEvidenceRecordIds], ["trial-a", "trial-b"], "record ids are canonically sorted, not supply ordered");
+    assert.deepEqual([...forward.researchEvidenceObservedAt], [100, 200]);
+    assert.equal(learningInputSetFingerprint(forward), learningInputSetFingerprint(shuffled));
+    assert.equal(learningCycleId(forward), learningCycleId(shuffled));
+  });
+
+  it("uses locale-independent ordering for Unicode, case, and punctuation in durable identities", () => {
+    const records = [
+      { recordId: "éclair", recordedAt: 30 },
+      { recordId: "Z:trial", recordedAt: 20 },
+      { recordId: "a-trial", recordedAt: 10 },
+      { recordId: "e\u0301clair", recordedAt: 40 },
+    ];
+    const forward = buildLearningInputSet(input({ researchEvidence: records }));
+    const reversed = buildLearningInputSet(input({ researchEvidence: [...records].reverse() }));
+
+    assert.deepEqual([...forward.researchEvidenceRecordIds], [...records.map(({ recordId }) => recordId)].sort());
+    assert.deepEqual([...reversed.researchEvidenceRecordIds], [...forward.researchEvidenceRecordIds]);
+    assert.equal(learningInputSetFingerprint(forward), learningInputSetFingerprint(reversed));
+  });
+
+  it("yields one identity for the same evidence and a different one for any change", () => {
+    const baseline = learningInputSetFingerprint(buildLearningInputSet(input()));
+    const variants = [
+      buildLearningInputSet(input({ cutoffTimestamp: 999 })),
+      buildLearningInputSet(input({ policies: { ...POLICIES, learningPolicyVersion: "learn-v2" } })),
+      buildLearningInputSet(input({ policies: { ...POLICIES, researchPolicyVersion: "research-v2" } })),
+      buildLearningInputSet(input({ policies: { ...POLICIES, riskPolicyVersion: "risk-v2" } })),
+      buildLearningInputSet(input({ policies: { ...POLICIES, governancePolicyVersion: "gov-v2" } })),
+      buildLearningInputSet(input({ paperEvidence: [{ recordId: "period-1", recordedAt: 301 }] })),
+      buildLearningInputSet(input({ paperEvidence: [] })),
+    ];
+    for (const variant of variants) assert.notEqual(learningInputSetFingerprint(variant), baseline, "every policy and every piece of evidence is covered by the identity");
+  });
+
+  it("keeps the two lanes separate, each with its own digest", () => {
+    const set = buildLearningInputSet(input());
+    assert.deepEqual([...set.researchEvidenceRecordIds], ["trial-a", "trial-b"]);
+    assert.deepEqual([...set.paperEvidenceRecordIds], ["period-1"]);
+    assert.notEqual(set.researchLaneDigest, set.performanceLaneDigest);
+    assert.match(set.researchLaneDigest, /^[a-f0-9]{64}$/);
+  });
+
+  it("accepts a single populated lane while rejecting an entirely empty set", () => {
+    assertLearningInputSet(buildLearningInputSet(input({ paperEvidence: [] })));
+    assertLearningInputSet(buildLearningInputSet(input({ researchEvidence: [] })));
+  });
+
+  it("rejects evidence sets that cannot fit the existing durable receipt bound", () => {
+    const researchEvidence = Array.from({ length: 300 }, (_, index) => ({
+      recordId: `closed-learning-replay:${"a".repeat(64)}:candidate-${index.toString().padStart(4, "0")}`,
+      recordedAt: index + 1,
+    }));
+    assert.throws(
+      () => buildLearningInputSet(input({ researchEvidence, paperEvidence: [] })),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "INPUT_SET_TOO_LARGE",
+      "oversized input must fail before it is represented as a valid A2 receipt",
+    );
+  });
+
+  it("rejects excessive evidence counts before iterating or canonicalizing the evidence arrays", () => {
+    const tooMany = new Proxy(new Array(MAX_LEARNING_INPUT_SET_EVIDENCE_REFERENCES + 1), {
+      get(target, property, receiver) {
+        if (property === Symbol.iterator) throw new Error("must reject by count before iteration");
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    assert.throws(
+      () => buildLearningInputSet(input({ researchEvidence: tooMany, paperEvidence: [] })),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "TOO_MANY_EVIDENCE_REFERENCES",
+    );
+  });
+
+  it("does not allow the post-decision META partition to enter A2 identity", () => {
+    assert.throws(
+      () => buildLearningInputSet({ ...input(), metaPartitionIdentity: "meta-train" } as never),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "META_PARTITION_NOT_PART_OF_INPUT_SET",
+    );
+    const valid = buildLearningInputSet(input());
+    assert.equal(Object.hasOwn(valid, "metaPartitionIdentity"), false);
+    assert.throws(() => assertLearningInputSet({ ...valid, metaPartitionIdentity: "meta-train" } as never), /META assignment is not part of A2 identity/);
+  });
+
+  it("rejects unknown fields in producer input, policy, evidence and durable receipts", () => {
+    const valid = buildLearningInputSet(input());
+    assert.throws(() => buildLearningInputSet({ ...input(), staleProducerField: "old" } as never), /unsupported field/);
+    assert.throws(() => buildLearningInputSet(input({ policies: { ...POLICIES, stalePolicy: "v1" } as never })), /unsupported field/);
+    assert.throws(() => buildLearningInputSet(input({ researchEvidence: [{ recordId: "trial-a", recordedAt: 10, stale: true }] as never })), /unsupported field/);
+    assert.throws(() => assertLearningInputSet({ ...valid, staleProducerField: "old" } as never), /unsupported field/);
+    assert.throws(() => learningInputSetFingerprint({ ...valid, staleProducerField: "old" } as never), /unsupported field/);
+  });
+
+  it("emits the exact paper-period references the retention guard needs", () => {
+    const set = buildLearningInputSet(input({
+      paperEvidence: [
+        { recordId: "period-2", recordedAt: 400 },
+        { recordId: "period-1", recordedAt: 300 },
+      ],
+    }));
+    assert.deepEqual([...learningInputSetPeriodReferences(set)], ["paper-period:period-1", "paper-period:period-2"]);
+  });
+});
+
+describe("A2 falsification - evidence that must be refused", () => {
+  const refuses = (action: () => unknown, code: string): void => {
+    assert.throws(action, (error: unknown) => error instanceof LearningInputSetError && error.code === code);
+  };
+
+  it("rejects a duplicate evidence id instead of silently de-duplicating", () => {
+    refuses(() => buildLearningInputSet(input({
+      researchEvidence: [
+        { recordId: "trial-a", recordedAt: 100 },
+        { recordId: "trial-a", recordedAt: 150 },
+      ],
+    })), "DUPLICATE_EVIDENCE_ID");
+  });
+
+  it("rejects evidence recorded at or after the cutoff - a decision may not read its own future", () => {
+    refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "period-1", recordedAt: 1_000 }] })), "PIT_VIOLATION");
+    refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "period-1", recordedAt: 1_001 }] })), "PIT_VIOLATION");
+  });
+
+  it("rejects malformed record ids, including ones carrying control characters", () => {
+    const malformed = ["", "   ", "b".repeat(513), "id" + String.fromCharCode(0) + "id", "id" + String.fromCharCode(31) + "id"];
+    for (const recordId of malformed) {
+      refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId, recordedAt: 10 }] })), "MALFORMED_RECORD_ID");
+    }
+  });
+
+  it("bounds PAPER ids to the existing evidence-reference size and grammar", () => {
+    const maxId = "p".repeat(227);
+    assertLearningInputSet(buildLearningInputSet(input({ paperEvidence: [{ recordId: maxId, recordedAt: 10 }], researchEvidence: [] })));
+    refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "p".repeat(228), recordedAt: 10 }], researchEvidence: [] })), "MALFORMED_RECORD_ID");
+    refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "period with spaces", recordedAt: 10 }], researchEvidence: [] })), "MALFORMED_RECORD_ID");
+  });
+
+  it("rechecks the PAPER reference limit for caller-shaped durable input sets", () => {
+    const valid = buildLearningInputSet(input({ paperEvidence: [{ recordId: "p".repeat(227), recordedAt: 10 }], researchEvidence: [] }));
+    const oversizedId = "p".repeat(228);
+    const shaped: LearningInputSet = {
+      ...valid,
+      paperEvidenceRecordIds: [oversizedId],
+      performanceLaneDigest: laneDigest("performance", [oversizedId], [10]),
+    };
+    assert.throws(
+      () => assertLearningInputSet(shaped),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "MALFORMED_RECORD_ID",
+    );
+  });
+
+  it("rejects oversized caller-shaped receipts before they can be treated as valid A2 input", () => {
+    const valid = buildLearningInputSet(input({ researchEvidence: [], paperEvidence: [{ recordId: "period-1", recordedAt: 1 }]}));
+    const recordIds = Array.from({ length: 284 }, (_, index) => `closed-learning-replay:${"a".repeat(64)}:candidate-${index.toString().padStart(4, "0")}`);
+    const observedAt = recordIds.map((_, index) => index + 1);
+    const shaped: LearningInputSet = {
+      ...valid,
+      researchEvidenceRecordIds: recordIds,
+      researchEvidenceObservedAt: observedAt,
+      researchLaneDigest: laneDigest("research", recordIds, observedAt),
+    };
+    assert.throws(
+      () => assertLearningInputSet(shaped),
+      (error: unknown) => error instanceof LearningInputSetError && error.code === "INPUT_SET_TOO_LARGE",
+    );
+  });
+
+  it("rejects one record counted as both research and performance evidence", () => {
+    refuses(() => buildLearningInputSet(input({ paperEvidence: [{ recordId: "trial-a", recordedAt: 300 }] })), "CROSS_LANE_DUPLICATE");
+  });
+
+  it("rejects an empty input set - there is nothing to learn from", () => {
+    refuses(() => buildLearningInputSet(input({ researchEvidence: [], paperEvidence: [] })), "EMPTY_INPUT_SET");
+  });
+
+  it("rejects invalid policy versions and cutoffs", () => {
+    refuses(() => buildLearningInputSet(input({ policies: { learningPolicyVersion: "learn-v1" } as never })), "INVALID_POLICY_VERSION");
+    refuses(() => buildLearningInputSet(input({ policies: null as never })), "INVALID_POLICY_VERSION");
+    refuses(() => buildLearningInputSet(input({ researchEvidence: undefined as never })), "MALFORMED_INPUT");
+    refuses(() => buildLearningInputSet(input({ paperEvidence: null as never })), "MALFORMED_INPUT");
+    refuses(() => buildLearningInputSet(input({ policies: { ...POLICIES, learningPolicyVersion: "" } })), "INVALID_POLICY_VERSION");
+    refuses(() => buildLearningInputSet(input({ policies: { ...POLICIES, riskPolicyVersion: "risk version with spaces" } })), "INVALID_POLICY_VERSION");
+    refuses(() => buildLearningInputSet(input({ cutoffTimestamp: -1 })), "INVALID_CUTOFF");
+    refuses(() => buildLearningInputSet(input({ cutoffTimestamp: 1.5 })), "INVALID_CUTOFF");
+  });
+});
+
+describe("A2 exactly-once identity", () => {
+  it("produces one identity across repeated and shuffled construction", () => {
+    const identities = new Set<string>();
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      identities.add(learningInputSetFingerprint(buildLearningInputSet(input())));
+      identities.add(learningInputSetFingerprint(buildLearningInputSet(input({
+        researchEvidence: [...input().researchEvidence].reverse(),
+      }))));
+    }
+    assert.equal(identities.size, 1, "ten constructions, however supplied, must yield one input identity");
+  });
+
+  it("rejects a frozen input set being mutated after identity was taken", () => {
+    const set = buildLearningInputSet(input());
+    assert.equal(Object.isFrozen(set), true, "a learning input set is immutable once built");
+    assert.throws(() => { (set as unknown as { cutoffTimestamp: number }).cutoffTimestamp = 0; }, TypeError);
+    assert.equal(learningInputSetFingerprint(set), learningInputSetFingerprint(buildLearningInputSet(input())), "the identity survives an attempted mutation");
+  });
+});

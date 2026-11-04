@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { LearningEvidenceAuthority } from "./learningEvidenceAuthority";
 
 export type ClosedLearningOutcome = "REJECTED" | "INSUFFICIENT" | "QUALIFIED_FOR_LEAGUE";
 
@@ -77,6 +78,17 @@ export interface ClosedLearningCycleResult {
 
 const SHA256 = /^[a-f0-9]{64}$/;
 const SAFE_REF = /^[A-Za-z0-9_.:/#@-]{1,240}$/;
+const RESEARCH_EVIDENCE_PREFIX = "research-evaluation:";
+const PAPER_EVIDENCE_PREFIX = "paper-period:";
+
+function parseEvidenceReference(reference: string): { readonly lane: "research" | "paper"; readonly recordId: string } {
+  const prefix = reference.startsWith(RESEARCH_EVIDENCE_PREFIX)
+    ? RESEARCH_EVIDENCE_PREFIX
+    : reference.startsWith(PAPER_EVIDENCE_PREFIX) ? PAPER_EVIDENCE_PREFIX : undefined;
+  const recordId = prefix == null ? "" : reference.slice(prefix.length);
+  if (!recordId || !SAFE_REF.test(recordId)) throw new Error("closed learning evidence reference namespace is invalid");
+  return Object.freeze({ lane: prefix === RESEARCH_EVIDENCE_PREFIX ? "research" : "paper", recordId });
+}
 
 function required(value: string, field: string): string {
   const normalized = value.trim();
@@ -114,7 +126,9 @@ function normalizeIdentity(input: ClosedLearningEvidenceIdentity): ClosedLearnin
   const riskConfigHash = required(input.riskConfigHash, "riskConfigHash").toLowerCase();
   if (!SHA256.test(evidenceFingerprintSha256) || !SHA256.test(riskConfigHash)) throw new Error("closed learning evidence hashes are invalid");
   if (!/^[a-f0-9]{40}$/.test(sourceCommitSha)) throw new Error("sourceCommitSha must be a git SHA-1");
-  const evidenceReferences = [...new Set(input.evidenceReferences.map((value) => required(value, "evidenceReference")))].sort();
+  const evidenceReferences = input.evidenceReferences.map((value) => required(value, "evidenceReference"));
+  if (new Set(evidenceReferences).size !== evidenceReferences.length) throw new Error("closed learning evidence references contain a duplicate");
+  evidenceReferences.sort();
   if (evidenceReferences.length === 0 || evidenceReferences.some((value) => !SAFE_REF.test(value))) throw new Error("closed learning evidence references are invalid");
   return Object.freeze({ evidenceId, evidenceFingerprintSha256, championId, championVersion, sourceCommitSha, costModelVersion, riskConfigHash, evidenceReferences: Object.freeze(evidenceReferences) });
 }
@@ -166,8 +180,53 @@ export class ClosedLearningLoopCoordinator {
     private readonly repository: ClosedLearningCycleRepository,
     private readonly researchFactory: ExistingResearchFactoryAdapter,
     private readonly paperDeployment: PaperChallengerDeploymentAdapter,
+    private readonly evidenceAuthority: LearningEvidenceAuthority,
     private readonly now: () => number = Date.now,
-  ) {}
+  ) {
+    if (evidenceAuthority == null || typeof evidenceAuthority.readResearch !== "function" || typeof evidenceAuthority.readPaper !== "function") throw new Error("closed learning durable evidence authority is required");
+  }
+
+  private assertDurableEvidence(identity: ClosedLearningEvidenceIdentity): void {
+    const references = identity.evidenceReferences.map(parseEvidenceReference);
+    const hasResearch = references.some((reference) => reference.lane === "research");
+    const hasPaper = references.some((reference) => reference.lane === "paper");
+    const researchSnapshot = hasResearch ? this.evidenceAuthority.readResearchSnapshot?.() : undefined;
+    const paperSnapshot = hasPaper ? this.evidenceAuthority.readPaperSnapshot?.() : undefined;
+    const researchIndex = researchSnapshot == null ? undefined : this.indexEvidenceSnapshot(researchSnapshot, "research");
+    const paperIndex = paperSnapshot == null ? undefined : this.indexEvidenceSnapshot(paperSnapshot, "PAPER");
+
+    for (const parsed of references) {
+      const resolved = parsed.lane === "research"
+        ? researchIndex == null ? this.evidenceAuthority.readResearch(parsed.recordId) : researchIndex.get(parsed.recordId)
+        : paperIndex == null ? this.evidenceAuthority.readPaper(parsed.recordId) : paperIndex.get(parsed.recordId);
+      if (resolved != null && (resolved.recordId !== parsed.recordId || !Number.isSafeInteger(resolved.recordedAt) || resolved.recordedAt < 0)) {
+        throw new Error("closed learning evidence authority returned malformed evidence");
+      }
+      if (resolved == null) throw new Error("closed learning evidence is not backed by its canonical durable authority");
+    }
+  }
+
+  private indexEvidenceSnapshot(
+    snapshot: readonly { readonly recordId: string; readonly recordedAt: number }[],
+    lane: string,
+  ): ReadonlyMap<string, { readonly recordId: string; readonly recordedAt: number }> {
+    if (!Array.isArray(snapshot)) throw new Error(`closed learning ${lane} evidence snapshot is malformed`);
+    const index = new Map<string, { readonly recordId: string; readonly recordedAt: number }>();
+    for (const record of snapshot) {
+      if (
+        record == null
+        || typeof record.recordId !== "string"
+        || record.recordId.length === 0
+        || !Number.isSafeInteger(record.recordedAt)
+        || record.recordedAt < 0
+        || index.has(record.recordId)
+      ) {
+        throw new Error(`closed learning ${lane} evidence snapshot is malformed`);
+      }
+      index.set(record.recordId, record);
+    }
+    return index;
+  }
 
   private deployQualified(record: ClosedLearningCycleRecord): ClosedLearningCycleRecord {
     const decision = record.decision;
@@ -222,6 +281,7 @@ export class ClosedLearningLoopCoordinator {
 
   public run(input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult {
     const identity = normalizeIdentity(input);
+    this.assertDurableEvidence(identity);
     const cycleId = closedLearningCycleId(identity);
     const replay = this.existing(identity, cycleId);
     if (replay != null) return replay;
@@ -231,6 +291,7 @@ export class ClosedLearningLoopCoordinator {
   /** Async production path prevents Research/League process execution from starving the HTTP loop. */
   public async runAsync(input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> {
     const identity = normalizeIdentity(input);
+    this.assertDurableEvidence(identity);
     const cycleId = closedLearningCycleId(identity);
     const replay = this.existing(identity, cycleId);
     if (replay != null) return replay;
