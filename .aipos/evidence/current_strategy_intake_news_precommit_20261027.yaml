@@ -1,0 +1,12 @@
+current_strategy_intake_news_precommit_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATED_PENDING_EXACT_HEAD_CI_AND_FRESH_REVIEW
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: 987f24b97d09573c4d6c1a31227426e8dd009e15
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  findings: "Fresh review found repeated crypto-news intake could create multiple durable precommits for one experiment when createdAt changed; inherited PIT/OOS policy identifiers could satisfy plan validation; uppercase source SHA could produce a second news experiment identity."
+  fixes: "Reuse the original durable crypto-news precommit by experiment identity while rejecting changes to authority-bearing content; require PIT/OOS policy values to be own properties; lowercase source SHA before news identity and persistence."
+  validation: "Focused TypeScript compile PASS; changed contract/storage tests 35/35 PASS; preflight PASS; validate:full PASS; git diff --check PASS. Local security:gate audit found dependency metadata for only 41 of 991 locked packages (854 missing); license gate cannot be established locally and was not weakened. New exact-head CI and fresh non-author review are pending."
+  next: "Recheck current protected main, PR #2878, and canonical branch; commit and non-force push only to that existing Draft PR after all local validations. Inspect new exact-head CI and companion workflows, then request one fresh non-author review. Keep Formal Validator, Audit, Release, merge, deployment, and Oracle runtime acceptance separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

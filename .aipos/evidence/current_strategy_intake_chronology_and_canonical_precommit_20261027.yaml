@@ -1,0 +1,12 @@
+current_strategy_intake_chronology_and_canonical_precommit_20261027:
+  work_order: WO-RESEARCH-20261025-STRATEGY-REPLICATION-INTAKE
+  status: LOCAL_FOCUSED_VALIDATION_PENDING_EXACT_HEAD_CI_AND_FRESH_REVIEW
+  branch: feat/research-intelligence-precommit-bridge
+  issue: 2735
+  predecessor_head: b028337047048180e01ab40208ca065cc18fb2a5
+  protected_main: e7f8a426a57a08339eae3778ca50de6512d6acd9
+  findings: "Fresh exact-head review on predecessor b0283370 found recapture could replace first-seen chronology and break source receipt binding, direct caller-constructed crypto-news precommits could be stored without canonical PIT binding, and publicationDate accepted arbitrary non-timestamp text."
+  fixes: "Fresh canonical arXiv capture now authenticates unchanged source bytes while an internal rebind preserves durable first-discovery chronology and the original relation decision; caller-forged news precommits are rejected unless the exact object came from the canonical persisted-memory binder; non-UNKNOWN publicationDate must be a strict timezone-bearing, calendar-valid timestamp."
+  validation: "Focused changed-file TypeScript compilation PASS; focused contracts/storage/research-intelligence tests 35/35 PASS; preflight PASS; validate:full PASS; git diff --check PASS. Full build/typecheck/lint could not run because this checkout lacks local TypeScript/ESLint package links; existing security:gate fails only at the license metadata check (41/991 locked package metadata entries available, 854 absent). No gate was weakened. This uncommitted successor has no exact-head CI or review yet."
+  next: "Refresh protected main, PR #2878 and its branch head; if unchanged and canonical, commit this source/test/evidence/state/work-order/handoff change and non-force push only to the existing Draft PR. Then require exact-successor CI/companions and one fresh non-author review. Keep Formal Validator, Audit, Release, merge, deployment and Oracle runtime acceptance separate."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
