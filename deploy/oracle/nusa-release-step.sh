@@ -411,6 +411,24 @@ prove_post_activation_stability() {
   printf '%s\n' "nusa-release-step: ${POST_ACTIVATION_SOAK_SECONDS}s stability soak passed for $expected_sha"
 }
 
+backup_io_controller_available() {
+  # systemd-run accepts IO*BandwidthMax even when the io controller is absent and then enforces nothing.
+  local controllers
+  controllers="$(cat /sys/fs/cgroup/cgroup.controllers 2>/dev/null)" || return 1
+  [[ " $controllers " == *" io "* ]]
+}
+
+# Runs inside the transient scope before the backup command. The root controller list cannot prove the
+# scope's own cgroup received the cap (an ancestor may disable io), so read the applied io.max back.
+BACKUP_SCOPE_CAP_CHECK='cg="/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)"; grep -Eq "^$1 .*rbps=1048576 .*wbps=1048576( |$)" "$cg/io.max" 2>/dev/null || { echo "nusa-release-step: backup scope io.max cap was not applied; refusing uncapped backup" >&2; exit 1; }; shift; exec "$@"'
+
+backup_device_major_minor() {
+  local mm
+  mm="$(lsblk -ndo MAJ:MIN -- "$1" 2>/dev/null | tr -d '[:space:]')" || return 1
+  [[ "$mm" =~ ^[0-9]+:[0-9]+$ ]] || return 1
+  printf '%s' "$mm"
+}
+
 verb="${1:-}"
 shift || true
 
@@ -426,12 +444,22 @@ case "$verb" in
     # and backup destination must map to one verified ext4/xfs disk before any backup work begins.
     backup_device="$(backup_block_device_for_paths "$state_db" "$backup_dir")" \
       || die "backup storage topology could not be verified before backup"
+    backup_io_controller_available || die "cgroup v2 io controller unavailable; refusing an unenforced backup cap"
+    backup_major_minor="$(backup_device_major_minor "$backup_device")" \
+      || die "backup device major:minor could not be resolved"
+    backup_service_gid="$(/usr/bin/id -g "$SERVICE_USER" 2>/dev/null)" \
+      || die "backup service group could not be resolved"
+    [[ "$backup_service_gid" =~ ^[0-9]+$ ]] || die "backup service group id is invalid"
+    [[ -x /usr/bin/setpriv ]] || die "setpriv is required for a non-PAM backup privilege drop"
     # The numeric systemd bandwidth value is bytes/second: 1,048,576 is exactly 1 MiB/s.
     # Limit only this child in its transient cgroup; failure never falls back to an uncapped backup.
     exec systemd-run --quiet --collect --scope \
       -p "IOReadBandwidthMax=${backup_device} 1048576" \
       -p "IOWriteBandwidthMax=${backup_device} 1048576" \
-      nice -n 19 runuser -u "$SERVICE_USER" -- env NUSA_DB="$state_db" NUSA_BACKUP_DIR="$backup_dir" node "$(script_in "$(active_release)" sqlite-backup.js)"
+      bash -c "$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "$backup_major_minor" \
+      nice -n 19 /usr/bin/setpriv --reuid="$SERVICE_USER" --regid="$backup_service_gid" --init-groups -- \
+      bash -c "$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "$backup_major_minor" \
+      env NUSA_DB="$state_db" NUSA_BACKUP_DIR="$backup_dir" node "$(script_in "$(active_release)" sqlite-backup.js)"
     ;;
 
   preflight)

@@ -88,7 +88,10 @@ test("the privileged backup resolves both paths inside the reviewed root-owned h
   assert.match(backup, /IOWriteBandwidthMax=\$\{backup_device\} 1048576/);
   assert.ok(backup.indexOf("backup_block_device_for_paths") < backup.indexOf("systemd-run"), "topology validation must finish before the backup process starts");
   assert.match(backup, /systemd-run --quiet --collect --scope/);
-  assert.match(backup, /nice -n 19 runuser -u "\$SERVICE_USER"/);
+  assert.match(backup, /nice -n 19 \/usr\/bin\/setpriv --reuid="\$SERVICE_USER" --regid="\$backup_service_gid" --init-groups --/);
+  assert.match(backup, /\/usr\/bin\/setpriv --reuid="\$SERVICE_USER"[\s\S]*?bash -c "\$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "\$backup_major_minor"[\s\S]*?env NUSA_DB=/,
+    "the backup process must re-check its io.max after the non-PAM privilege drop");
+  assert.doesNotMatch(backup, /runuser/, "the backup path must not use PAM to create a different cgroup scope");
   assert.match(backup, /env NUSA_DB="\$state_db" NUSA_BACKUP_DIR="\$backup_dir"/);
 });
 
@@ -105,13 +108,49 @@ test("the calculated long backup budget is isolated from the short activation jo
   const budgetedBackupMinutes = Math.ceil(requiredBackupMinutes / roundUpToMinutes) * roundUpToMinutes;
   const backupStep = backupJob.slice(backupJob.indexOf("Back up persistent state before release mutation"));
   const backupStepTimeout = Number(backupStep.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+  const backupJobTimeout = Number(backupJob.match(/timeout-minutes:\s*(\d+)/)?.[1]);
   const releaseTimeout = Number(releaseJob.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+  const preBackupStepLimits = [
+    ["Recheck exact protected main before backup", 5],
+    ["Free disk by pruning superseded releases (bounded)", 20],
+    ["Download exact-source helper proof", 25],
+    ["Require reviewed root-owned helper exact match before backup", 10],
+  ];
+  const measuredPreBackupOverheadMinutes = 42 + 33 / 60;
+  const boundedPreBackupAllowanceMinutes = 60;
+  const minimumJobTransitionMarginMinutes = 20;
+  const firstStep = backupJob.indexOf("    steps:");
+  const backupStepStart = backupJob.indexOf("      - name: Back up persistent state before release mutation");
+  assert.ok(firstStep !== -1 && backupStepStart > firstStep, "backup job must declare preparation steps before backup");
+  const preparation = backupJob.slice(firstStep, backupStepStart);
+  const preparationStepNames = [...preparation.matchAll(/^      - name: (.+)$/gm)].map(([, name]) => name);
+  assert.deepEqual(preparationStepNames, preBackupStepLimits.map(([name]) => name),
+    "every pre-backup step must be included in the explicitly bounded preparation budget");
+  const actualPreBackupStepLimits = preBackupStepLimits.map(([name]) => {
+    const marker = `      - name: ${name}`;
+    const start = preparation.indexOf(marker);
+    assert.notEqual(start, -1, `expected pre-backup step ${name}`);
+    const nextStep = preparation.indexOf("\n      - name:", start + marker.length);
+    const step = preparation.slice(start, nextStep === -1 ? preparation.length : nextStep);
+    const timeout = Number(step.match(/timeout-minutes:\s*(\d+)/)?.[1]);
+    assert.ok(Number.isInteger(timeout), `${name} must have its own enforced timeout`);
+    return timeout;
+  });
+  const actualPreBackupAllowanceMinutes = actualPreBackupStepLimits.reduce((sum, value) => sum + value, 0);
 
   assert.equal(Math.round(rawBackupMinutes * 10) / 10, 119.6);
   assert.equal(Math.round(requiredBackupMinutes * 10) / 10, 155.5);
   assert.equal(budgetedBackupMinutes, 180);
   assert.equal(backupStepTimeout, budgetedBackupMinutes, "backup-only timeout must be derived from the recorded production envelope");
   assert.ok(backupStepTimeout - requiredBackupMinutes >= 20, "calculated backup envelope needs at least twenty minutes of explicit margin");
+  assert.ok(backupJobTimeout >= backupStepTimeout + boundedPreBackupAllowanceMinutes + minimumJobTransitionMarginMinutes,
+    "outer job must reserve at least twenty minutes beyond the full bounded preparation and backup steps");
+  assert.deepEqual(actualPreBackupStepLimits, preBackupStepLimits.map(([, timeout]) => timeout),
+    "each pre-backup stage must retain its reviewed individual time budget");
+  assert.ok(actualPreBackupAllowanceMinutes <= boundedPreBackupAllowanceMinutes,
+    "the sum of enforced pre-backup step limits must fit the outer job's stated allowance");
+  assert.ok(actualPreBackupAllowanceMinutes > measuredPreBackupOverheadMinutes,
+    "the enforced pre-backup allowance must exceed run 40198892768's measured 42m33s preparation interval");
   assert.equal(releaseTimeout, 40, "stage/preflight/activation keeps its independent short host-job budget");
   assert.match(readiness, /NUSA_READY_STARTUP_WAIT_MS \|\| 300_000/);
   assert.match(readiness, /startupWaitMs > 300_000/);

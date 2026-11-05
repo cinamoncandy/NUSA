@@ -173,3 +173,59 @@ test("direct disk device names are validated and ambiguous parent chains fail cl
   assert.notEqual(ambiguous.status, 0);
   assert.match(ambiguous.stderr, /topology is ambiguous/);
 });
+
+test("backup refuses to run when the cgroup v2 io controller is not available", () => {
+  const predicate = helper.match(/^backup_io_controller_available\(\) \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(predicate, "root-owned helper must define the io controller preflight");
+  const backupStart = helper.indexOf("  backup)");
+  const backupCase = helper.slice(backupStart, helper.indexOf("\n\n  preflight)", backupStart));
+  assert.ok(
+    backupCase.indexOf("backup_io_controller_available ||") !== -1
+      && backupCase.indexOf("backup_io_controller_available ||") < backupCase.indexOf("exec systemd-run"),
+    "controller check must precede the capped backup exec",
+  );
+  const run = (controllers) => spawnSync("bash", ["-s"], {
+    input: `${predicate.replace("/sys/fs/cgroup/cgroup.controllers", "/dev/fd/3")}\nbackup_io_controller_available 3<<<'${controllers}'`,
+    encoding: "utf8",
+  });
+  assert.equal(run("cpuset cpu io memory pids").status, 0);
+  assert.notEqual(run("cpuset cpu memory pids").status, 0);
+  assert.notEqual(run("cpuset cpu ionice memory").status, 0);
+});
+
+test("backup verifies the applied io.max inside the transient scope before running node", () => {
+  const check = helper.match(/^BACKUP_SCOPE_CAP_CHECK='([^\n]*)'$/m)?.[1];
+  assert.ok(check, "root-owned helper must define the in-scope cap check");
+  const backupStart = helper.indexOf("  backup)");
+  const backupCase = helper.slice(backupStart, helper.indexOf("\n\n  preflight)", backupStart));
+  assert.match(backupCase, /backup_device_major_minor "\$backup_device"/);
+  const capChecks = [...backupCase.matchAll(/bash -c "\$BACKUP_SCOPE_CAP_CHECK" backup-cap-check "\$backup_major_minor"/g)];
+  assert.equal(capChecks.length, 2, "verify the cap both before and after dropping privileges");
+  assert.match(backupCase, /backup_service_gid="\$\(\/usr\/bin\/id -g "\$SERVICE_USER" 2>\/dev\/null\)"/);
+  assert.match(backupCase, /\[\[ -x \/usr\/bin\/setpriv \]\][\s\S]*?exec systemd-run/);
+  assert.match(backupCase, /nice -n 19 \/usr\/bin\/setpriv --reuid="\$SERVICE_USER" --regid="\$backup_service_gid" --init-groups --/);
+  assert.doesNotMatch(backupCase, /runuser/,
+    "the backup privilege transition must not open a PAM session that can move the process out of the capped cgroup");
+  assert.ok(
+    capChecks[0].index < backupCase.indexOf("nice -n 19 /usr/bin/setpriv")
+      && capChecks[1].index > backupCase.indexOf("nice -n 19 /usr/bin/setpriv")
+      && capChecks[1].index < backupCase.indexOf("env NUSA_DB="),
+    "the final backup command must run only after the non-PAM privilege drop and a second cap read-back",
+  );
+  const fs2 = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const dir = fs2.mkdtempSync(path.join(os.tmpdir(), "nusa-cg-"));
+  const scoped = check.replace('"/sys/fs/cgroup$(sed -n "s/^0:://p" /proc/self/cgroup)"', JSON.stringify(dir));
+  const run = (ioMax) => {
+    const file = path.join(dir, "io.max");
+    fs2.rmSync(file, { force: true });
+    if (ioMax !== null) fs2.writeFileSync(file, ioMax);
+    return spawnSync("bash", ["-c", scoped, "backup-cap-check", "8:0", "true"], { encoding: "utf8" });
+  };
+  assert.equal(run("8:0 rbps=1048576 wbps=1048576 riops=max wiops=max\n").status, 0);
+  assert.notEqual(run("8:0 rbps=max wbps=max riops=max wiops=max\n").status, 0);
+  assert.notEqual(run("8:16 rbps=1048576 wbps=1048576 riops=max wiops=max\n").status, 0);
+  assert.notEqual(run("8:0 rbps=10485760 wbps=1048576 riops=max wiops=max\n").status, 0);
+  assert.notEqual(run(null).status, 0);
+});
