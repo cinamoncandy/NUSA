@@ -204,6 +204,7 @@ export interface CloudRuntimeOptions {
   readonly microstructureRecorder?: MarketMicrostructureRecorder;
   readonly orderBookCollector?: ResearchOrderBookCollector;
   readonly futuresCollector?: ResearchFuturesCollector;
+  readonly researchRollingHoldout?: Parameters<typeof startCloudRuntime>[20];
 }
 
 /** Same runtime as startCloudRuntime; undefined options take the same defaults. */
@@ -229,6 +230,7 @@ export function startCloudRuntimeFromOptions(options: CloudRuntimeOptions): Clou
     options.microstructureRecorder,
     options.orderBookCollector,
     options.futuresCollector,
+    options.researchRollingHoldout,
   );
 }
 
@@ -257,7 +259,9 @@ export function startCloudRuntime(
   /** Research-only all-KRW order-book collector (see researchOrderBookCollector.ts). */
   orderBookCollector?: ResearchOrderBookCollector,
   /** Research-only public Binance futures collector (see researchFuturesCollector.ts). */
-  futuresCollector?: ResearchFuturesCollector
+  futuresCollector?: ResearchFuturesCollector,
+  /** Display-only SHADOW rolling-holdout summaries keyed by bar length; empty or null unless the mode is SHADOW. */
+  researchRollingHoldout?: () => Readonly<Record<string, object>> | null
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -766,6 +770,7 @@ export function startCloudRuntime(
     }
     return lossAttributionCache == null ? {} : { paperLossAttribution: lossAttributionCache };
   };
+  const researchRollingLiveness = () => { try { const raw = researchRollingHoldout?.() ?? null; return raw == null || Object.keys(raw).length === 0 ? {} : { researchRollingHoldout: raw }; } catch { return {}; } };
   const researchIntervalLiveness = () => { let byInterval: Record<string, { readonly lastTickAt: number; readonly lastStatus: string; readonly ticks: number; readonly sessionsStarted: number; readonly counts: Readonly<Record<string, number>> }> | null = null; try { const raw = researchIntervalTicks?.() ?? null; if (raw != null) { byInterval = {}; for (const [key, value] of Object.entries(raw)) if (value != null) byInterval[key] = value; } } catch { byInterval = null; } return byInterval == null || Object.keys(byInterval).length === 0 ? {} : { researchExperimentTicksByInterval: byInterval }; };
   const paperLedgerLiveness = () => { try { const state = effectivePaperLoop?.snapshot(); return state == null ? {} : { paperLedger: paperLedgerFingerprint(state) }; } catch { return {}; } };
   const microstructureLiveness = () => { try { return microstructureRecorder == null ? {} : { microstructureRecorder: microstructureRecorder.status() }; } catch { return {}; } };
@@ -872,6 +877,7 @@ export function startCloudRuntime(
       ...dataIntegrityLiveness(),
       ...paperLedgerLiveness(),
       ...researchIntervalLiveness(),
+      ...researchRollingLiveness(),
       ...closedLearningLiveness()
     })),
     runtimeHealth: () => projectPaperRuntimeHealth(
