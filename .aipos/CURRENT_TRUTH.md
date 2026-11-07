@@ -13,15 +13,15 @@ Everything below is what the repository's records *claim*. Re-verify on GitHub b
 
 ## Work orders
 
-533 total: 504 in `.aipos/work-orders/`, 29 closed and merged in `.aipos/work-orders/archive/`.
-Of the 504 active files, 96 carry a closed status that has not been archived (merge not proven, or the path is still referenced) and 408 are open or unclassified.
+535 total: 506 in `.aipos/work-orders/`, 29 closed and merged in `.aipos/work-orders/archive/`.
+Of the 506 active files, 96 carry a closed status that has not been archived (merge not proven, or the path is still referenced) and 410 are open or unclassified.
 
 Most common statuses among the open files (new orders use only `READY_FOR_REVIEW`, `IN_PROGRESS`, `BLOCKED`, `COMPLETED`, `SUPERSEDED`, `ABANDONED`):
 
 | Status | Files |
 |---|---|
 | READY_FOR_REVIEW | 230 |
-| IN_PROGRESS | 36 |
+| IN_PROGRESS | 38 |
 | LOCAL_VALIDATED_PENDING_CI | 20 |
 | VERIFYING | 14 |
 | LOCAL_VALIDATED_PENDING_EXACT_HEAD_CI | 13 |
@@ -29,7 +29,7 @@ Most common statuses among the open files (new orders use only `READY_FOR_REVIEW
 | COMPLETED_NO_SURVIVOR | 6 |
 | LOCAL_VALIDATED_PENDING_REVIEW_CI | 6 |
 
-### In progress or blocked (43)
+### In progress or blocked (45)
 
 | Work order | Status | Title |
 |---|---|---|
@@ -72,9 +72,9 @@ Most common statuses among the open files (new orders use only `READY_FOR_REVIEW
 | `WO-RESEARCH-20261016-QUALIFICATION-IDENTITY` | IN_PROGRESS | Bind canonical qualification results to run and frozen policy identity |
 | `WO-RESEARCH-20261016-RUN-FINGERPRINT` | IN_PROGRESS | Verify existing Research run fingerprint at qualification boundary |
 | `WO-RESEARCH-20261021-ORDERBOOK-RETENTION` | IN_PROGRESS | Order-book retention is 14 days: the pre-registered studies lose their training data befo… |
-| `WO-UI-20261006-CALM-REDESIGN` | IN_PROGRESS | Whole-app calm redesign: 지금 · 학습 · 안전 · 기록 |
+| `WO-RESEARCH-20261101-CANDLE-FRESHNESS` | IN_PROGRESS | Keep the REST-backed Research candle head within the existing freshness window |
 
-…and 3 more. Full list: `node scripts/aipos-work-order-index.js`.
+…and 5 more. Full list: `node scripts/aipos-work-order-index.js`.
 
 ## Refresh
 
