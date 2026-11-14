@@ -356,7 +356,7 @@
     },
     "independent-review.yml:review": {
       "write": [],
-      "secrets": false,
+      "secrets": true,
       "environment": null
     },
     "independent-review.yml:post": {
