@@ -7,9 +7,11 @@ name: Independent Review (automatic)
 # Safety rules (each one is pinned by tests/independent-review.test.js):
 #   - dispatch only (no pull_request / pull_request_target trigger), so the workflow definition is always the one on main;
 #   - the review job has no Actions write token, no secret, no network tool of its own, runs the reviewer with `-s read-only` in an EMPTY directory;
-#   - the repository is public and the runner also holds the owner's ChatGPT login, so the reviewer's output is never posted as written: the sanitizer
-#     (scripts/independent-review-sanitize.js) keeps it only when it matches a strict line grammar and carries no credential-like content, and the raw output
-#     and the Codex log are deleted on the runner and never uploaded;
+#   - the repository is public and the runner also holds the owner's ChatGPT login, so NO model-written sentence is ever published (review of PR 3126:
+#     a filter over free text cannot prove nothing is smuggled out). The reviewer may only emit a fixed record (verdict, head sha, coverage, up to 12
+#     "FINDING: severity CATEGORY path" lines with a fixed category list and a path from the PR's changed-file list). scripts/independent-review-sanitize.js
+#     reduces it on the runner and AGAIN in the post job, and the public text is rendered by that code from fixed sentences. The raw output and the Codex log are
+#     deleted on the runner and never uploaded;
 #   - the post job posts ONE comment per (PR, head sha) and never creates a review event (no approve, no request changes), never merges, never un-drafts;
 #   - the reviewer's verdict is data for a human, not an Audit or Release approval.
 on:
@@ -66,17 +68,22 @@ jobs:
           # Title only (capped), never the PR body. Everything here is untrusted data for the reviewer.
           title="$(printf '%s' "$json" | jq -r '.title' | tr -d '\r\n' | cut -c1-200)"
           { echo "PR number: $PR_NUMBER"; echo "Head sha: $sha"; echo "Base: main"; echo "Title (untrusted): $title"; } > review-input/meta.txt
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" --jq '.[].filename' > review-input/changed-files.txt
+          nfiles="$(grep -c . review-input/changed-files.txt || true)"
+          if [ "$nfiles" -lt 1 ] || [ "$nfiles" -gt 300 ]; then echo "changed file count $nfiles is outside 1..300; no review is made"; exit 1; fi
           gh api -H "Accept: application/vnd.github.v3.diff" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > review-input/pr.diff
           bytes="$(wc -c < review-input/pr.diff)"
           if [ "$bytes" -gt 150000 ]; then echo "diff is $bytes bytes; over the 150000 byte limit, no partial review is made"; exit 1; fi
           # The prompt: trusted text from main, then the untrusted data.
-          { cat scripts/independent-review-prompt.md; echo; echo "=== UNTRUSTED PR DATA ==="; echo "Expected head sha for the HEAD line: $sha"; cat review-input/meta.txt; echo "--- diff ---"; cat review-input/pr.diff; } > review-input/prompt.txt
+          { cat scripts/independent-review-prompt.md; echo; echo "=== UNTRUSTED PR DATA ==="; echo "Expected head sha for the HEAD line: $sha"; cat review-input/meta.txt; echo "--- changed files (the only paths you may name) ---"; cat review-input/changed-files.txt; echo "--- diff ---"; cat review-input/pr.diff; } > review-input/prompt.txt
           echo "head_sha=$sha" >> "$GITHUB_OUTPUT"
           echo "ok=true" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: independent-review-input-${{ github.run_id }}
-          path: review-input/prompt.txt
+          path: |
+            review-input/prompt.txt
+            review-input/changed-files.txt
           if-no-files-found: error
           retention-days: 1
 
@@ -126,7 +133,7 @@ jobs:
           mark="nusa-review-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           # No Actions token reaches Codex. Empty working directory: the reviewer needs no file. Only its last message is kept (-o).
           env -u GUARD_GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN NUSA_CODEX_RUN_MARK="$mark" \
-            setsid nice -n 19 ionice -c3 codex exec -s read-only -C "$work" -o "$raw" - < "${RUNNER_TEMP}/review-in/prompt.txt" > "$log" 2>&1 &
+            setsid nice -n 19 ionice -c3 timeout 1500 codex exec -s read-only -C "$work" -o "$raw" - < "${RUNNER_TEMP}/review-in/prompt.txt" > "$log" 2>&1 &
           pid=$!
           deferred=false
           while kill -0 "$pid" 2>/dev/null; do
@@ -147,11 +154,11 @@ jobs:
           rm -f "$log"
           mkdir -p "${RUNNER_TEMP}/review-out"
           if [ "$rc" -ne 0 ] || [ ! -s "$raw" ]; then
-            printf 'REVIEW_OUTPUT_REJECTED reason=NO_OUTPUT\n' > "${RUNNER_TEMP}/review-out/review.txt"
+            printf 'REVIEW_OUTPUT_REJECTED reason=NO_OUTPUT\n' > "${RUNNER_TEMP}/review-out/reduced.txt"
             rm -f "$raw"
             echo "outcome=CODEX_FAILED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          node "$sanitizer" "$EXPECTED_HEAD" "$raw" "${RUNNER_TEMP}/review-out/review.txt"
+          node "$sanitizer" check "$EXPECTED_HEAD" "${RUNNER_TEMP}/review-in/changed-files.txt" "$raw" "${RUNNER_TEMP}/review-out/reduced.txt"
           src=$?
           rm -f "$raw"
           if [ "$src" -eq 0 ]; then echo "outcome=REVIEWED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=true" >> "$GITHUB_OUTPUT"
@@ -161,7 +168,7 @@ jobs:
         if: always()
         with:
           name: independent-review-output-${{ github.run_id }}
-          path: ${{ runner.temp }}/review-out/review.txt
+          path: ${{ runner.temp }}/review-out/reduced.txt
           if-no-files-found: ignore
           retention-days: 1
 
@@ -175,6 +182,15 @@ jobs:
       contents: read
       pull-requests: write
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        continue-on-error: true
+        with:
+          name: independent-review-input-${{ github.run_id }}
+          path: review-in
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         continue-on-error: true
         with:
@@ -207,10 +223,12 @@ jobs:
             echo "Static review of this head's diff only. It is not an Audit or Release approval, it does not approve, merge or un-draft anything, and it ran no tests or CI."
             if [ "$current" != "$HEAD_SHA" ]; then echo; echo "STALE: the PR head is now \`$current\`; this review does not cover it."; fi
             echo
-            if [ "$OUTCOME" = "REVIEWED" ] && [ -s review-out/review.txt ]; then
-              echo '```text'; cat review-out/review.txt; echo '```'
+            # Validated AGAIN here with the trusted script from main; the public text is rendered by that script from fixed sentences.
+            if [ "$OUTCOME" = "REVIEWED" ] && [ -s review-out/reduced.txt ] && [ -s review-in/changed-files.txt ] \
+               && node scripts/independent-review-sanitize.js render "$HEAD_SHA" review-in/changed-files.txt review-out/reduced.txt rendered.md; then
+              cat rendered.md
             else
-              echo "No review text was produced: $OUTCOME."
+              echo "No review result was produced: $OUTCOME."
               echo
               echo "Run: $RUN_URL"
             fi
