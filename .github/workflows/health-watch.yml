@@ -1,7 +1,7 @@
 name: Health Watch
 
 # Design gap found 2026-11-13/14: the PAPER service stopped and a PAPER order path ran without permit evidence, and in both cases a
-# person noticed before the system did. This read-only watch makes one GET of the public health route every 30 minutes and opens or
+# person noticed before the system did. This read-only watch makes one GET of the public health route on a best-effort schedule (cron 7,37; in this repository GitHub has been seen to start scheduled runs hours apart, see docs/HEALTH_WATCH_V2_DESIGN_2026-11-14.md section 7, so this is NOT a 30-minute guarantee) and opens or
 # updates one issue when the host does not match deploy/health-watch.json (expectedState). It changes nothing on the host, in the
 # repository or in Cloudflare, and it never restarts anything. It only sees liveness; richer signals need a separate read path.
 on:

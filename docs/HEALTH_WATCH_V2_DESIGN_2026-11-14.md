@@ -80,9 +80,9 @@ only occasionally. Evidence read on 2026-11-14 (GitHub Actions API, `event=sched
   01:25, 08:41, 17:20 (11-13), 22:48, 03:29, 10:50 (11-14): gaps of about 5 to 9 hours.
 - `Deployment Convergence Watchdog` has cron `*/5 * * * *` and its recent scheduled runs are also hours apart (01:48 and 08:12 on 11-14).
 
-So the cadence of any `schedule` workflow here is best-effort and hours long, not minutes. A watch that depends on it can miss an outage for many hours, so it is a
+These are observations from the Actions API on that day for these workflows only; they are not a general rule for every scheduled workflow, and the cause is **unknown** (GitHub throttling of schedules is a possibility, not a finding). What matters here: the cadence of this watch cannot be relied on to be minutes. A watch that depends on it can miss an outage for many hours, so it is a
 **weak** safety net, not the "the system notices" guarantee that was intended. It still adds value (it runs eventually, it opens an issue, and it can be dispatched
-by hand), but the PR text of #3116 and the work order said "every 30 minutes" and that must not be relied on.
+by hand), but the PR text of #3116 and the work order said "every 30 minutes" and that must not be relied on. The comment in `health-watch.yml` that said "every 30 minutes" is corrected in this PR.
 
 Options (each needs the owner's decision; none is started here):
 
