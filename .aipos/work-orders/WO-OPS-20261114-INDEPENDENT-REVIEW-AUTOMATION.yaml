@@ -1,0 +1,22 @@
+id: WO-OPS-20261114-INDEPENDENT-REVIEW-AUTOMATION
+title: Independent review automation - design (Codex on the existing runner, read-only, comment-only, owner questions)
+status: READY_FOR_REVIEW
+created: 2026-11-14
+implementation_branch: claude/independent-review-automation-design
+owner_decision: "2026-11-14: the owner said 'automate the independent review'. Using the dedicated ChatGPT account and runner, the `pull-requests: write` permission and the draft-rule change (R4) still need the owner's answers."
+objective: "Remove the owner as copy-paste messenger for the non-author review without weakening independence or giving the reviewer any approval, merge or write authority."
+evidence:
+  design: docs/INDEPENDENT_REVIEW_AUTOMATION_DESIGN_2026-11-14.md
+  existing_pattern: ".github/workflows/autopilot-codex-coding.yml (self-hosted nusa-codex-autopilot runner, host guard, hosted publish job, pull_request_target with trusted base)"
+scope:
+  - Documentation and this work order only.
+exclusions:
+  - No workflow, secret, permission, label, runner or CLAUDE.md change. The automatic review is never an Audit or Release approval and never approves, merges or un-drafts.
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+unverified: "Runner availability, the account's usage limits and whether Codex can run with -s read-only on that runner were not checked (the agent token cannot read runners)."
+acceptance:
+  - A non-author review confirms the threat table and that no rule gives the reviewer write, approval or merge authority.
