@@ -1,76 +1,63 @@
 # Independent review automation: design (2026-11-14)
 
-Status: DESIGN PROPOSAL. Owner decision 2026-11-14: "독립 검토 자동화해" (automate the independent review). This note adds no workflow, secret,
-permission, label or runner change. Building the workflow is a later PR that needs the owner's answers in section 7 and a non-author review. Safety
-stays: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`. An automatic review is never an Audit or
-Release approval and never merges, approves or un-drafts anything.
+Status: DESIGN. Owner decisions 2026-11-14: automate the independent review; use the API key variant after two reviews rejected the Codex-runner variant; an automatic verdict may later
+count as the non-author review (R4). The workflow itself is PR 3126. An automatic review is never an Audit or Release approval and never merges, approves or un-drafts anything.
+Safety stays: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`.
 
 ## 1. Today
 
-The non-author review is done by Codex on a ChatGPT account; the owner copies the PR text into it and pastes the answer back (2 to 5 round trips per PR).
-The review is static (it reads the diff and the repository on GitHub), it does not run tests, and it names its head SHA.
+The non-author review is done by Codex on a ChatGPT account; the owner copies the PR text into it and pastes the answer back (2 to 5 round trips per PR). The review is static, runs no tests, and names its head SHA.
 
-## 2. What the repository already has (read 2026-11-14)
+## 2. Why the first design was dropped (reviews of PR 3126, both REJECT)
 
-- A self-hosted runner labelled `nusa-codex-autopilot`, logged in to a dedicated ChatGPT account, runs `codex exec -s workspace-write` in
-  `autopilot-codex-coding.yml` (`codex login status` first).
-- That runner shares the 1 GB PAPER host, so the workflow uses `scripts/autopilot-codex-host-guard.sh`: Codex starts only with enough free memory and no PAPER release
-  running, runs under `nice` and `ionice`, loses the Actions token, has heavy tools blocked, and is stopped when the host needs the memory. The guard runs from an
-  immutable copy outside the tree Codex can write.
-- A hosted `publish` job does the writing (branch, PR); Codex itself never commits, pushes or opens a PR.
-- That workflow triggers on `pull_request_target` and checks out only the trusted base ref.
+The first design ran a tool-using Codex process (`codex exec -s read-only`) on the self-hosted runner `nusa-codex-autopilot`, which also holds the owner's ChatGPT login, and posted a filtered review as a public comment. The repository is PUBLIC. The reviews found, and this note agrees:
 
-The review automation reuses this pattern. It needs no API key and no new third party.
+- `-s read-only` and an empty working directory do not hide the runner's files from the process, and nothing proved the process has no outward network. A prompt-injected reviewer could try to print what it can read.
+- A regex filter over free text cannot prove nothing is smuggled out. A fixed record (verdict, categories, changed-file paths) narrows the channel but is still a selection channel (about 16 bytes per run with 300 changed files).
+- So the risk is the combination "a tool-using agent + credentials on its runner + a public output". The fix is to remove the first two, not to filter the third.
 
-## 3. Threats and the rule that answers each
+## 3. The design now
+
+The reviewer is ONE model API completion call from a GitHub-hosted job (`scripts/independent-review-call.js`): no tools, no files, nothing stored (`store: false`), and the API key only in that process's
+environment and its `Authorization` header, never in the prompt. The job has nothing for the model to read except the public diff. The workflow is `workflow_dispatch` only, so a PR cannot start it and the
+workflow definition is always the one on `main`.
 
 | Threat | Rule |
 | --- | --- |
-| The PR under review contains text that tries to steer the reviewer (prompt injection) | The reviewer runs with `-s read-only`, no Actions token, no network tools it can use to write, and its output is only text. The prompt, protocol and runner settings come from the trusted base ref, never from the PR |
-| A PR edits the review workflow to weaken it, or to run code on the PAPER host | Trigger is `pull_request_target` or `workflow_dispatch`, so the workflow definition is the one on `main`. The PR head is checked out only as data into a separate directory and no script from it is executed. A PR that changes the review workflow or its prompt is reviewed by the previous version plus the owner |
-| The review job writes to the repository or approves | The review job has `contents: read` only. A separate hosted job with `pull-requests: write` posts ONE comment per (PR, head SHA). No `APPROVE` or `REQUEST_CHANGES` review event is ever created |
-| The comment leaks something | The comment is the reviewer's text with a fixed header and the head SHA; it is length-capped; the review job gets no secret and no environment value; a test greps the workflow for any secret use in the review job |
-| The PAPER host is starved | Same host guard, one review at a time (`concurrency`), deferred (not failed) when memory is low or a release runs; PAPER always wins |
-| The owner's ChatGPT usage is spent | Review runs only on an explicit trigger (section 4), one run per head SHA, and stops with a clear comment on a usage limit; no automatic retry loop |
-| An old review is mistaken for the current head | The comment states the head SHA; a later head makes the earlier comment stale, and the automation never says ACCEPT for a SHA that is no longer the PR head |
-| The author agent steers the reviewer | The author cannot change the prompt or the runner for its own PR (previous rule); the verdict text is data to a human, not a command to any agent; nothing acts on it automatically |
+| A PR contains text that steers the reviewer (prompt injection) | The prompt and protocol come from `main`; the PR is data below a marker; the reviewer has no tool, no file and no credential, so the worst case is a misleading text, which a human reads as advice and the comment says is not an approval |
+| The API key leaks | It is used in exactly one step, as that step's environment; never echoed, never in the prompt, an artifact, a log or a comment; every failure code in the call script is checked to be free of the key; tests pin all of this |
+| The model's text breaks the comment markup or pings people | The text is checked (line grammar, expected head sha, verdict consistent with findings, no backtick or angle bracket, no control or bidirectional character, length caps) in the review job and AGAIN in the post job with the trusted script from `main`, and is posted inside a five-backtick fence it cannot close |
+| The post job approves, merges or un-drafts | It only calls the issue comment API: one comment per (PR, head sha); no review event, no merge, no draft change, no issue creation; tests pin this |
+| A stale review is read as current | The comment names the head sha and carries a STALE note if the head moved; nothing acts on the verdict automatically |
+| A PR edits the review workflow to weaken it | Dispatch only, definition from `main`; a PR that changes the review workflow or its prompt is reviewed by the previous version plus the owner |
+| Cost | Manual dispatch only; diff over 150 kB refused (no partial review); 4000 output tokens |
 
 ## 4. Trigger
 
-- `workflow_dispatch` with a PR number (always available).
-- A label `needs-independent-review`, added by the agent when a PR is ready for review (labels need `issues: write`-class access that the agent token has).
-  A push does NOT retrigger; the agent re-adds the label after a new head. This limits the usage cost.
-- Draft PRs are reviewable (the review is what lets a draft become ready).
+`workflow_dispatch` with a PR number. A label trigger (R3) comes only after the owner judged at least 3 automatic reviews equal to the manual ones.
 
-## 5. What the comment says
+## 5. What the owner provides
 
-Fixed header "Independent review (automatic, Codex), head <sha>, not an Audit or Release approval", then the verdict (ACCEPT, ACCEPT WITH P2, REJECT) with P0/P1/P2, the
-scope ("static review of this head; no tests or CI were run by the reviewer"), and the fixed footer required for Claude-authored posts is NOT used here because Codex is the
-author of the text (the posting job adds only its own marker). Whether the verdict counts for un-drafting is the owner's decision (section 7).
+A repository secret `NUSA_REVIEW_API_KEY` (an OpenAI API key; calls are billed) and a repository variable `NUSA_REVIEW_MODEL`. Until both exist the review job reports `NOT_CONFIGURED`.
+The first run is a manual dispatch on a docs-only PR, watched by the owner.
 
 ## 6. Phases
 
 | Phase | Change | Needs |
 | --- | --- | --- |
-| R1 | This design, reviewed | non-author review (by hand, the old way) |
-| R2 | The workflow with `workflow_dispatch` only, review job on the Codex runner, hosted post job, tests for the rules in section 3 | owner approval for `pull-requests: write`, the use of the dedicated ChatGPT account and the runner; non-author review; authority map entry |
-| R3 | The label trigger | owner approval after R2 has produced reviews that the owner judged equal to the manual ones on at least 3 PRs |
-| R4 | Optional: treat the automatic review as the non-author review in the draft rule of `CLAUDE.md` | owner decision; governed instruction change; independent review |
+| R1 | This design | none |
+| R2 | The workflow (PR 3126) | non-author review (workflow with a secret: needed), owner creates the secret and variable, first watched run |
+| R3 | Optional label trigger | owner decision after at least 3 reviews were judged equal to the manual ones |
+| R4 | Optional: treat the automatic review as the non-author review in the draft rule of `CLAUDE.md` | owner decision (already answered "인정한다" in principle); governed instruction change; independent review |
 
-## 7. Questions for the owner (the agent proceeds with R1 only)
+## 7. Owner answers
 
-1. May the automatic review use the dedicated ChatGPT account on the `nusa-codex-autopilot` runner (it shares the PAPER host; the host guard defers it)?
-2. May the posting job have `pull-requests: write` (comment only, never approve)?
-3. Should a verdict from the automatic review count as the non-author review that lets a draft become ready (R4), or stay advisory beside the manual one?
-
-## 7a. Owner answers so far
-
-- Question 3 (2026-11-14, owner: "인정한다"): the owner accepts that a verdict from the automatic review may count as the non-author review that lets a draft become ready. This is the intent behind R4. It does
-  not switch anything on: R4 still requires R2 and R3 to have produced reviews the owner judged equal to the manual ones, and a governed, independently reviewed change to the draft rule in `CLAUDE.md`. Until then the
-  manual review stays the one that counts.
-- Questions 1 and 2 (use of the dedicated ChatGPT account and runner; the comment-only `pull-requests: write` permission) are NOT answered. R2 does not start without them.
+- 2026-11-14 "인정한다": an automatic verdict may count as the non-author review (R4 intent; not switched on).
+- 2026-11-14 "1 2도 허용": use of the dedicated ChatGPT account and runner and the comment-only `pull-requests: write`. The runner part is superseded by the API key variant below; the comment-only permission stays.
+- 2026-11-14 "API 키 방식": use the API key variant.
+- 2026-11-14 "독립 리뷰가 꼭 필요하지 않다면 생략해": independent review is skipped for changes that cannot affect safety (documentation, records and tests only, with CI green) and kept for code, workflows, secrets, permissions and governed instruction files. This is the agent's reading of the owner's sentence; the owner may narrow or widen it.
 
 ## 8. Not claimed
 
-The reviewer is a model: it can miss defects. It has no CI or runtime result. The runner's availability and the account's usage limits were not checked (the agent token cannot
-read runners). Nothing here reduces a safety check.
+The reviewer is a model: it can miss defects or be steered into a misleading text. It has no CI or runtime result. The API endpoint, request body and response shape were written from knowledge of the Responses API and have not been called.
+Nothing here reduces a safety check.

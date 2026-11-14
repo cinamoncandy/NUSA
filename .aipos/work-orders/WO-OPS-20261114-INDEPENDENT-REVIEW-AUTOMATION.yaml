@@ -1,5 +1,5 @@
 id: WO-OPS-20261114-INDEPENDENT-REVIEW-AUTOMATION
-title: Independent review automation - design (Codex on the existing runner, read-only, comment-only, owner questions)
+title: Independent review automation - design (one model API call from a hosted job; the Codex-runner variant was rejected)
 status: READY_FOR_REVIEW
 created: 2026-11-14
 implementation_branch: claude/independent-review-automation-design
@@ -21,3 +21,5 @@ owner_answers: "2026-11-14: question 3 answered yes ('인정한다'): an automat
 unverified: "Runner availability, the account's usage limits and whether Codex can run with -s read-only on that runner were not checked (the agent token cannot read runners)."
 acceptance:
   - A non-author review confirms the threat table and that no rule gives the reviewer write, approval or merge authority.
+variant_change: "2026-11-14: reviews of PR 3126 (REJECT twice) showed that a tool-using Codex process on the credentialed self-hosted runner cannot be made safe for a public repository. The design now uses one model API call from a hosted job (owner: API key variant). The first sentences of this work order that mention the existing runner describe the dropped variant."
+review_waiver: "2026-11-14: the owner said independent review may be skipped when not strictly necessary. This documentation-only PR is merged without a separate Codex review after CI; the code and workflow (PR 3126) keep theirs."
