@@ -56,8 +56,13 @@ The release workflow runs `prune`, `backup`, `stage`, `preflight`, `activate` in
 - The `switch` verb takes the activation lock, runs `atomic-deploy.js` (moves the release symlink and records the previous release; no `systemctl` call; its JSON only reports `restartRequired: true`) and
   writes the source identity into the runtime env file. It does not install units, enable them, restart anything or run readiness. `stage` only stages a tree.
 - So `switch` alone leaves the service stopped, and the normal `activate` auto-rollback is not involved. These are read facts, not a tested procedure.
+- Three different things must not be confused (`deploy/oracle/nusa-release-step.sh`):
+  - the `rollback` verb (lines 498-505) only moves the symlink back to the previous release and rebinds the source identity; it does not restart anything;
+  - `rollback_and_restore()` (lines 269-282), called automatically by a failed `activate`, restores the link AND installs, enables and restarts the units;
+  - the `restart` verb (lines 507-512) runs `daemon-reload`, enables and restarts the units, so after a manual `rollback` it would start the previous build.
 - Gaps that still make O1 unverified: units from the new build are not installed by `switch` (the separate `install-units` verb would be needed if the build changes them); readiness and the soak that `activate` provides
-  would have to be run separately by hand after the first start; and the `rollback` verb restarts the previous build, so in an O1 sequence nobody may run `rollback` for a failed start: the only allowed reaction is stopping the service.
+  would have to be run separately by hand after the first start; and the way back to the previous build must be closed in an O1 sequence: nobody may run `rollback`, `restart` or the release workflow's `activate` path
+  for a failed start, because each can bring the previous build (without the switch) back to a running service. The only allowed reaction to a failed start is stopping the service.
 
 O1 may be recommended, but it is NOT yet a verified safe procedure. It counts as closing 0.5 only when all of these are shown, in a rehearsal or test and reviewed: the previous build is never started; the new build SHA and the `OFF` value are verified before the first start without starting anything; a failed start leaves the service stopped; and the readiness and soak checks that `activate` would have run are run separately and recorded.
 
