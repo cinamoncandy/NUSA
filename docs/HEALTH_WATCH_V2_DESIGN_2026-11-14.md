@@ -69,3 +69,29 @@ W3 is complete only when all of these hold: the W2 code passed an independent re
 
 LIVE trading, any real-money authority, relaxing risk, threshold, capital or gate settings, using the broad dashboard token anywhere
 outside the host, and any host change from an agent session.
+
+## 7. Schedule reliability: the "every 30 minutes" claim is wrong (found 2026-11-14)
+
+The v1 watch (`health-watch.yml`, cron `7,37 * * * *`) was described as running every 30 minutes. In practice GitHub starts scheduled runs of this repository
+only occasionally. Evidence read on 2026-11-14 (GitHub Actions API, `event=schedule`):
+
+- The v1 watch had NO scheduled run in the 2 h 15 min after it was merged (about 5 missed slots); its only run was a manual `workflow_dispatch`.
+- `Autopilot Cloudflare Runtime Proof` has cron `37 * * * *` (hourly) but its scheduled runs started at 22:13, 06:59 (11-11), 15:33, 03:17, 11:44, 20:20 (11-12),
+  01:25, 08:41, 17:20 (11-13), 22:48, 03:29, 10:50 (11-14): gaps of about 5 to 9 hours.
+- `Deployment Convergence Watchdog` has cron `*/5 * * * *` and its recent scheduled runs are also hours apart (01:48 and 08:12 on 11-14).
+
+So the cadence of any `schedule` workflow here is best-effort and hours long, not minutes. A watch that depends on it can miss an outage for many hours, so it is a
+**weak** safety net, not the "the system notices" guarantee that was intended. It still adds value (it runs eventually, it opens an issue, and it can be dispatched
+by hand), but the PR text of #3116 and the work order said "every 30 minutes" and that must not be relied on.
+
+Options (each needs the owner's decision; none is started here):
+
+| Option | Effect | Cost / risk |
+| --- | --- | --- |
+| S1 | Also run the watch on `workflow_run` completion of frequently running workflows (CI, Autopilot) | more probes while work is active; none when idle, which is when a silent outage is most likely |
+| S2 | Dead-man's switch from the host: the host sends a signal on a timer and the watch (or an external service) alarms when the signal stops | strongest; needs a host change by the operator and possibly an outside service; an outside service is a new third party |
+| S3 | Owner-side reminder: the agent session checks the public route at the start of every session and reports | no change, but only while a session is running |
+| S4 | Accept the weak net and say so in every status report | no change |
+
+Recommendation: record the limitation now (this note), keep v1 as a best-effort net, use S3 in practice, and decide on S2 when the service is restarted (W1), because a
+dead-man's switch needs the host to be running anyway.
