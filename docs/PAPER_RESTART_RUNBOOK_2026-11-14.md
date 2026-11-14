@@ -51,7 +51,17 @@ The release workflow runs `prune`, `backup`, `stage`, `preflight`, `activate` in
 | O3 | Before the release the operator masks the unit (`systemctl mask nusa.service`) so no code path can start it, runs the release, then unmasks after reading the active build | a failed activation also cannot start the old build | `activate` expects the service to start and would report failure; the symlink state after the rollback must be inspected and corrected; untested |
 | O4 | Change the start script or `paper-account.json` handling in a separate release | cannot help the previous build, which is immutable | listed only so nobody tries it |
 
-Recommendation: O1, because it removes the old build from the picture entirely, but it changes the release procedure and needs its own review.
+### What was read about O1 (2026-11-14, `deploy/oracle/nusa-release-step.sh`, `scripts/atomic-deploy.js`)
+
+- The `switch` verb takes the activation lock, runs `atomic-deploy.js` (moves the release symlink and records the previous release; no `systemctl` call; its JSON only reports `restartRequired: true`) and
+  writes the source identity into the runtime env file. It does not install units, enable them, restart anything or run readiness. `stage` only stages a tree.
+- So `switch` alone leaves the service stopped, and the normal `activate` auto-rollback is not involved. These are read facts, not a tested procedure.
+- Gaps that still make O1 unverified: units from the new build are not installed by `switch` (the separate `install-units` verb would be needed if the build changes them); readiness and the soak that `activate` provides
+  would have to be run separately by hand after the first start; and the `rollback` verb restarts the previous build, so in an O1 sequence nobody may run `rollback` for a failed start: the only allowed reaction is stopping the service.
+
+O1 may be recommended, but it is NOT yet a verified safe procedure. It counts as closing 0.5 only when all of these are shown, in a rehearsal or test and reviewed: the previous build is never started; the new build SHA and the `OFF` value are verified before the first start without starting anything; a failed start leaves the service stopped; and the readiness and soak checks that `activate` would have run are run separately and recorded.
+
+Recommendation: O1, because it removes the old build from the picture entirely, but it changes the release procedure, is unverified, and needs its own review.
 
 ## Stage A: collection ON, order path OFF (resumes research data, no orders)
 
