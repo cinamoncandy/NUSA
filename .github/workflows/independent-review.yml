@@ -1,0 +1,189 @@
+name: Independent Review (automatic)
+
+# Phase R2 of docs/INDEPENDENT_REVIEW_AUTOMATION_DESIGN_2026-11-14.md. Owner decision 2026-11-14: automate the independent review, and (after the review of PR 3126
+# found that a tool-using Codex on the credentialed self-hosted runner cannot be made safe in a PUBLIC repository) use ONE model API completion call from a
+# GitHub-hosted job instead. A collaborator starts it by hand with a PR number. It reviews the exact head sha as TEXT.
+#
+# Safety rules (each one is pinned by tests/independent-review.test.js):
+#   - dispatch only (no pull_request / pull_request_target trigger), so the workflow definition is always the one on main;
+#   - no self-hosted runner, no Codex, no tool: the reviewer is a single API call (scripts/independent-review-call.js) that sees the public diff and nothing else;
+#   - the API key (secret NUSA_REVIEW_API_KEY) is used in exactly one step, passes only into that process's environment and the Authorization header, and is never in
+#     the prompt, a log, an artifact or a comment; no PR code runs anywhere and the PR head is never checked out;
+#   - the model's text is checked (line grammar, expected head sha, verdict consistent with findings, no backtick or angle bracket, length caps) on the review job AND
+#     again in the post job with the trusted script from main, and is posted inside a fenced block;
+#   - the post job posts ONE comment per (PR, head sha) and never creates a review event (no approve, no request changes), never merges, never un-drafts;
+#   - the verdict is data for a human, not an Audit or Release approval.
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to review (head repository must be this repository, base main)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: independent-review
+  cancel-in-progress: false
+
+jobs:
+  select:
+    name: Collect the exact head and its diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      head_sha: ${{ steps.pr.outputs.head_sha }}
+      ok: ${{ steps.pr.outputs.ok }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Read the pull request as data
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "pr_number must be digits only"; exit 1;; esac
+          if [ "${#PR_NUMBER}" -gt 7 ]; then echo "pr_number too long"; exit 1; fi
+          json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          state="$(printf '%s' "$json" | jq -r '.state')"
+          base="$(printf '%s' "$json" | jq -r '.base.ref')"
+          headrepo="$(printf '%s' "$json" | jq -r '.head.repo.full_name // ""')"
+          sha="$(printf '%s' "$json" | jq -r '.head.sha')"
+          [ "$state" = "open" ] || { echo "PR is not open"; exit 1; }
+          [ "$base" = "main" ] || { echo "base must be main"; exit 1; }
+          [ "$headrepo" = "$GITHUB_REPOSITORY" ] || { echo "head repository must be this repository"; exit 1; }
+          printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$' || { echo "bad head sha"; exit 1; }
+          mkdir -p review-input
+          # Title only (capped), never the PR body. Everything below the marker is untrusted data for the reviewer.
+          title="$(printf '%s' "$json" | jq -r '.title' | tr -d '\r\n' | cut -c1-200)"
+          { echo "PR number: $PR_NUMBER"; echo "Head sha: $sha"; echo "Base: main"; echo "Title (untrusted): $title"; } > review-input/meta.txt
+          gh api -H "Accept: application/vnd.github.v3.diff" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > review-input/pr.diff
+          bytes="$(wc -c < review-input/pr.diff)"
+          if [ "$bytes" -gt 150000 ]; then echo "diff is $bytes bytes; over the 150000 byte limit, no partial review is made"; exit 1; fi
+          { cat scripts/independent-review-prompt.md; echo; echo "=== UNTRUSTED PR DATA ==="; echo "Expected head sha for the HEAD line: $sha"; cat review-input/meta.txt; echo "--- diff ---"; cat review-input/pr.diff; } > review-input/prompt.txt
+          echo "head_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: independent-review-input-${{ github.run_id }}
+          path: review-input/prompt.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  review:
+    name: One API call, no tools
+    needs: select
+    if: needs.select.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      outcome: ${{ steps.run.outputs.outcome }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: independent-review-input-${{ github.run_id }}
+          path: review-in
+      - name: Call the reviewer and check its text
+        id: run
+        shell: bash
+        env:
+          NUSA_REVIEW_API_KEY: ${{ secrets.NUSA_REVIEW_API_KEY }}
+          NUSA_REVIEW_MODEL: ${{ vars.NUSA_REVIEW_MODEL }}
+          EXPECTED_HEAD: ${{ needs.select.outputs.head_sha }}
+        run: |
+          set +e -uo pipefail
+          printf '%s' "$EXPECTED_HEAD" | grep -Eq '^[0-9a-f]{40}$' || { echo "bad expected head"; exit 1; }
+          mkdir -p review-out
+          reason="$(node scripts/independent-review-call.js review-in/prompt.txt review-raw.txt)"
+          crc=$?
+          if [ "$crc" -ne 0 ]; then
+            printf 'REVIEW_OUTPUT_REJECTED reason=%s\n' "$(printf '%s' "$reason" | tr -c 'A-Za-z0-9_' '_' | cut -c1-40)" > review-out/checked.txt
+            rm -f review-raw.txt
+            case "$reason" in NO_API_KEY|NO_MODEL) echo "outcome=NOT_CONFIGURED" >> "$GITHUB_OUTPUT";; *) echo "outcome=CALL_FAILED" >> "$GITHUB_OUTPUT";; esac
+            exit 0
+          fi
+          node scripts/independent-review-sanitize.js check "$EXPECTED_HEAD" review-raw.txt review-out/checked.txt
+          src=$?
+          rm -f review-raw.txt
+          if [ "$src" -eq 0 ]; then echo "outcome=REVIEWED" >> "$GITHUB_OUTPUT"; else echo "outcome=OUTPUT_REJECTED" >> "$GITHUB_OUTPUT"; fi
+          exit 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: independent-review-output-${{ github.run_id }}
+          path: review-out/checked.txt
+          if-no-files-found: ignore
+          retention-days: 1
+
+  post:
+    name: Post one comment (never a review event)
+    needs: [select, review]
+    if: always() && needs.select.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        continue-on-error: true
+        with:
+          name: independent-review-output-${{ github.run_id }}
+          path: review-out
+      - name: Post the checked result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          HEAD_SHA: ${{ needs.select.outputs.head_sha }}
+          OUTCOME: ${{ needs.review.outputs.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "bad pr number"; exit 1;; esac
+          printf '%s' "$HEAD_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "bad head sha"; exit 1; }
+          case "$OUTCOME" in
+            REVIEWED|NOT_CONFIGURED|CALL_FAILED|OUTPUT_REJECTED) ;;
+            *) OUTCOME=NOT_RUN;;
+          esac
+          current="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          marker="<!-- nusa-independent-review sha=$HEAD_SHA -->"
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --jq ".[] | select(.body | contains(\"$marker\")) | .id" | awk 'NR == 1')"
+          if [ -n "$existing" ]; then echo "a review comment for this head already exists"; exit 0; fi
+          {
+            echo "$marker"
+            echo "**Independent review (automatic, a different model from the author), head \`$HEAD_SHA\`**"
+            echo
+            echo "Static review of this head's diff only. It is not an Audit or Release approval, it does not approve, merge or un-draft anything, and it ran no tests or CI."
+            if [ "$current" != "$HEAD_SHA" ]; then echo; echo "STALE: the PR head is now \`$current\`; this review does not cover it."; fi
+            echo
+            # Checked AGAIN here with the trusted script from main; the text is posted inside a fenced block it cannot close.
+            if [ "$OUTCOME" = "REVIEWED" ] && [ -s review-out/checked.txt ] \
+               && node scripts/independent-review-sanitize.js render "$HEAD_SHA" review-out/checked.txt rendered.md; then
+              cat rendered.md
+            else
+              echo "No review result was produced: $OUTCOME."
+              echo
+              echo "Run: $RUN_URL"
+            fi
+          } > comment.md
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@comment.md >/dev/null

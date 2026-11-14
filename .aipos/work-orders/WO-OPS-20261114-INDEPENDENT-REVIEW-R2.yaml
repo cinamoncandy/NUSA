@@ -1,0 +1,31 @@
+id: WO-OPS-20261114-INDEPENDENT-REVIEW-R2
+title: Independent review automation R2 - dispatch-only workflow, ONE model API call (no tools, no credentials on a runner), checked text in a fenced single comment
+status: READY_FOR_REVIEW
+created: 2026-11-14
+implementation_branch: claude/independent-review-r2
+owner_decision: "2026-11-14: automate the independent review; the owner first approved the dedicated ChatGPT account and runner and comment-only pull-requests write ('1 2도 허용'). After review round 2 (REJECT) the owner chose the API key variant ('API 키 방식'): a hosted job makes one model API call. The owner must create the repository secret NUSA_REVIEW_API_KEY and the repository variable NUSA_REVIEW_MODEL; until then the review job reports NOT_CONFIGURED. An automatic verdict may later count as the non-author review (R4, not enabled here)."
+objective: "Let a collaborator start an automatic non-author review of an exact PR head and get one sanitized comment, without any approval, merge or write authority and without exposing what the reviewer can read on the runner."
+evidence:
+  design: docs/INDEPENDENT_REVIEW_AUTOMATION_DESIGN_2026-11-14.md
+  workflow: .github/workflows/independent-review.yml
+  sanitizer: scripts/independent-review-sanitize.js
+  prompt: scripts/independent-review-prompt.md
+  tests: [tests/independent-review.test.js, tests/workflow-authority-map.test.js]
+key_risk: "History: review round 1 (REJECT at 61b1fa819) and round 2 (REJECT at ba3253c66, P0 1, P1 1, P2 2) found that a tool-using Codex process on the credentialed self-hosted runner cannot be made safe in a PUBLIC repository: read-only sandbox and an empty directory do not hide files, nothing proved the process has no outward network, and even a fixed record is a selection channel (about 16 bytes per run with 300 files). Answer: the self-hosted runner, Codex, the host guard and the fixed-record scheme were removed. The reviewer is ONE model API completion call from a GitHub-hosted job (scripts/independent-review-call.js): no tools, no files, store false, and the API key only in that process's environment and Authorization header, never in the prompt. There is nothing on that job for the model to read except the public diff. Remaining risks: the API key is a secret in a hosted job (used in exactly one step, never printed; dispatch-only so a PR cannot start it); the model's text is still checked (line grammar, expected head sha, verdict consistent with findings, no backtick or angle bracket, length caps) on the review job AND again in the post job, and posted inside a fence it cannot close; a model can be wrong or be steered by text in the diff into a misleading review (the comment says it is not an approval and a human decides); cost is per call, capped by the 150 kB diff limit, 4000 output tokens and manual dispatch."
+change:
+  - ".github/workflows/independent-review.yml: workflow_dispatch only; every job on ubuntu-latest. select (read) reads the open PR as data (base main, head repository = this repository, title only, diff over 150 kB refused). review (contents read) runs scripts/independent-review-call.js once and then the checker; the raw text is deleted and never uploaded. post (pull-requests write) checks again with the trusted script from main and posts ONE comment per PR and head sha, never a review event."
+  - "scripts/independent-review-prompt.md, scripts/independent-review-call.js (one POST to https://api.openai.com/v1/responses; body keys only model, input, max_output_tokens, store), scripts/independent-review-sanitize.js, tests, the authority map (select: no write; review: secrets true, no write; post: pull-requests) and its test."
+not_changed:
+  - "No schedule or label trigger (R3), no change to CLAUDE.md or the draft rule (R4), no approval, merge, un-draft or required-check change. Audit and Release are untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "tests/independent-review.test.js 19 pass: workflow rules (dispatch only, minimal permissions, hosted runners only, the key used in exactly one step and never echoed, no review event or merge), the checker (grammar, head, verdict consistency, forbidden characters, limits, fence), and the API call with a fake fetch (fixed endpoint and body keys, key only in the Authorization header, no tools or stream, every failure code free of the key). Nine mutations (allow a backtick, skip the head check, render without re-checking, add tools to the body, key in the body, key in an error, self-hosted runner, a secret in the post job, a pull_request trigger) each fail at least one test; authority-map, action pin and input validators pass."
+review_round_1: "REJECT at 61b1fa819 (P0 credential-exposure boundary, P1 filter cannot stop in-grammar leaks, P1 no independent validation at post, P2 read-only is not isolation, P2 resource limits). Reworked as described in key_risk; the post job now validates again, a timeout of 1500 s was added; CPU, disk and process limits beyond the host guard memory floor are still not verified."
+unverified: "End to end, nothing has run and the API call has never been made: the endpoint, the request body and the response shape (output[].content[].text of type output_text) are written from knowledge of the Responses API, not from a live call; the model name is a repository variable the owner must set; whether the owner's key and billing allow the call, and the quality of the review, are unknown. The first run is a manual dispatch on a docs-only PR, watched by the owner. The older text of PR 3125 (design) still describes the Codex-runner variant and must be updated to this variant before it is accepted."
+next: "Owner: create the secret NUSA_REVIEW_API_KEY and the variable NUSA_REVIEW_MODEL. Non-author review of this workflow. Update the design doc (PR 3125). Then a manual dispatch on a docs-only PR."
+acceptance:
+  - A non-author review confirms that no credential is readable by the model, that the key cannot reach a log, artifact or comment, that the post job cannot approve or merge, and that the checker cannot be bypassed by the model's text.

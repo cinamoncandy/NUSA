@@ -162,3 +162,14 @@ test("the scheduled health watch declares only its issue-writing authority", () 
   assert.equal(job.secrets, false);
   assert.equal(job.environment, null);
 });
+
+test("the automatic independent review declares a comment-writing post job and a review job whose only secret is the API key", () => {
+  const workflow = collect()["independent-review.yml"].jobs;
+  assert.deepEqual(workflow.select.write, []);
+  assert.deepEqual(workflow.review.write, []);
+  assert.deepEqual(workflow.post.write, ["pull-requests"]);
+  assert.equal(workflow.select.secrets, false);
+  assert.equal(workflow.review.secrets, true);
+  assert.equal(workflow.post.secrets, false);
+  for (const job of Object.values(workflow)) assert.equal(job.environment, null);
+});
