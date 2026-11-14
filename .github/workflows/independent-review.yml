@@ -1,0 +1,218 @@
+name: Independent Review (automatic)
+
+# Phase R2 of docs/INDEPENDENT_REVIEW_AUTOMATION_DESIGN_2026-11-14.md (owner approved the use of the dedicated Codex runner and a comment-only
+# `pull-requests: write` on 2026-11-14). A collaborator starts it by hand with a PR number. It reviews the exact head sha as TEXT: the diff is passed
+# to the reviewer inside the prompt, no repository checkout of the PR exists on the runner, and no script of the PR runs anywhere.
+#
+# Safety rules (each one is pinned by tests/independent-review.test.js):
+#   - dispatch only (no pull_request / pull_request_target trigger), so the workflow definition is always the one on main;
+#   - the review job has no Actions write token, no secret, no network tool of its own, runs the reviewer with `-s read-only` in an EMPTY directory;
+#   - the repository is public and the runner also holds the owner's ChatGPT login, so the reviewer's output is never posted as written: the sanitizer
+#     (scripts/independent-review-sanitize.js) keeps it only when it matches a strict line grammar and carries no credential-like content, and the raw output
+#     and the Codex log are deleted on the runner and never uploaded;
+#   - the post job posts ONE comment per (PR, head sha) and never creates a review event (no approve, no request changes), never merges, never un-drafts;
+#   - the reviewer's verdict is data for a human, not an Audit or Release approval.
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "Pull request number to review (head repository must be this repository, base main)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: independent-review
+  cancel-in-progress: false
+
+jobs:
+  select:
+    name: Collect the exact head and its diff
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      head_sha: ${{ steps.pr.outputs.head_sha }}
+      ok: ${{ steps.pr.outputs.ok }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Read the pull request as data
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "pr_number must be digits only"; exit 1;; esac
+          if [ "${#PR_NUMBER}" -gt 7 ]; then echo "pr_number too long"; exit 1; fi
+          json="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          state="$(printf '%s' "$json" | jq -r '.state')"
+          base="$(printf '%s' "$json" | jq -r '.base.ref')"
+          headrepo="$(printf '%s' "$json" | jq -r '.head.repo.full_name // ""')"
+          sha="$(printf '%s' "$json" | jq -r '.head.sha')"
+          [ "$state" = "open" ] || { echo "PR is not open"; exit 1; }
+          [ "$base" = "main" ] || { echo "base must be main"; exit 1; }
+          [ "$headrepo" = "$GITHUB_REPOSITORY" ] || { echo "head repository must be this repository"; exit 1; }
+          printf '%s' "$sha" | grep -Eq '^[0-9a-f]{40}$' || { echo "bad head sha"; exit 1; }
+          mkdir -p review-input
+          # Title only (capped), never the PR body. Everything here is untrusted data for the reviewer.
+          title="$(printf '%s' "$json" | jq -r '.title' | tr -d '\r\n' | cut -c1-200)"
+          { echo "PR number: $PR_NUMBER"; echo "Head sha: $sha"; echo "Base: main"; echo "Title (untrusted): $title"; } > review-input/meta.txt
+          gh api -H "Accept: application/vnd.github.v3.diff" "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" > review-input/pr.diff
+          bytes="$(wc -c < review-input/pr.diff)"
+          if [ "$bytes" -gt 150000 ]; then echo "diff is $bytes bytes; over the 150000 byte limit, no partial review is made"; exit 1; fi
+          # The prompt: trusted text from main, then the untrusted data.
+          { cat scripts/independent-review-prompt.md; echo; echo "=== UNTRUSTED PR DATA ==="; echo "Expected head sha for the HEAD line: $sha"; cat review-input/meta.txt; echo "--- diff ---"; cat review-input/pr.diff; } > review-input/prompt.txt
+          echo "head_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: independent-review-input-${{ github.run_id }}
+          path: review-input/prompt.txt
+          if-no-files-found: error
+          retention-days: 1
+
+  review:
+    name: Run the reviewer (read-only, no token)
+    needs: select
+    if: needs.select.outputs.ok == 'true'
+    runs-on: [self-hosted, Linux, nusa-codex-autopilot]
+    timeout-minutes: 40
+    # Read-only: the host guard reads whether an Oracle PAPER release is running.
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      verdict_ok: ${{ steps.run.outputs.verdict_ok }}
+      outcome: ${{ steps.run.outputs.outcome }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: independent-review-input-${{ github.run_id }}
+          path: ${{ runner.temp }}/review-in
+      - name: Run Codex read-only and sanitize its output
+        id: run
+        shell: bash
+        env:
+          GUARD_GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ needs.select.outputs.head_sha }}
+        run: |
+          set +e -uo pipefail
+          printf '%s' "$EXPECTED_HEAD" | grep -Eq '^[0-9a-f]{40}$' || { echo "bad expected head"; exit 1; }
+          codex login status || { echo "outcome=NO_CODEX_LOGIN" >> "$GITHUB_OUTPUT"; echo "verdict_ok=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          # Copies of the trusted helpers outside the tree, read-only, so nothing in the workspace can change them during the run.
+          guard="${RUNNER_TEMP}/review-host-guard.sh"; sanitizer="${RUNNER_TEMP}/review-sanitize.js"
+          cp scripts/autopilot-codex-host-guard.sh "$guard" && chmod 0555 "$guard" || exit 1
+          cp scripts/independent-review-sanitize.js "$sanitizer" && chmod 0444 "$sanitizer" || exit 1
+          # PAPER always wins: defer (not fail) when memory is low or a PAPER release is running.
+          if ! GH_TOKEN="$GUARD_GH_TOKEN" bash "$guard" start; then
+            echo "outcome=HOST_DEFERRED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          work="${RUNNER_TEMP}/review-work"; rm -rf "$work"; mkdir -p "$work"
+          raw="${RUNNER_TEMP}/review-raw.txt"; log="${RUNNER_TEMP}/review-codex.log"; rm -f "$raw" "$log"
+          mark="nusa-review-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          # No Actions token reaches Codex. Empty working directory: the reviewer needs no file. Only its last message is kept (-o).
+          env -u GUARD_GH_TOKEN -u GH_TOKEN -u GITHUB_TOKEN NUSA_CODEX_RUN_MARK="$mark" \
+            setsid nice -n 19 ionice -c3 codex exec -s read-only -C "$work" -o "$raw" - < "${RUNNER_TEMP}/review-in/prompt.txt" > "$log" 2>&1 &
+          pid=$!
+          deferred=false
+          while kill -0 "$pid" 2>/dev/null; do
+            if ! GH_TOKEN="$GUARD_GH_TOKEN" bash "$guard" watch; then deferred=true; break; fi
+            sleep 10
+          done
+          bash "$guard" reap "$mark"
+          wait "$pid"; rc=$?
+          if [ "$deferred" = true ]; then
+            rm -f "$raw" "$log"
+            echo "outcome=HOST_DEFERRED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          # The log is checked for the usage limit only; it is never printed or uploaded (it may contain whatever the reviewer read).
+          if [ "$rc" -ne 0 ] && grep -qiE "^ERROR: .*hit your usage limit" "$log"; then
+            rm -f "$raw" "$log"
+            echo "outcome=USAGE_LIMITED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          rm -f "$log"
+          mkdir -p "${RUNNER_TEMP}/review-out"
+          if [ "$rc" -ne 0 ] || [ ! -s "$raw" ]; then
+            printf 'REVIEW_OUTPUT_REJECTED reason=NO_OUTPUT\n' > "${RUNNER_TEMP}/review-out/review.txt"
+            rm -f "$raw"
+            echo "outcome=CODEX_FAILED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          node "$sanitizer" "$EXPECTED_HEAD" "$raw" "${RUNNER_TEMP}/review-out/review.txt"
+          src=$?
+          rm -f "$raw"
+          if [ "$src" -eq 0 ]; then echo "outcome=REVIEWED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=true" >> "$GITHUB_OUTPUT"
+          else echo "outcome=OUTPUT_REJECTED" >> "$GITHUB_OUTPUT"; echo "verdict_ok=false" >> "$GITHUB_OUTPUT"; fi
+          exit 0
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: independent-review-output-${{ github.run_id }}
+          path: ${{ runner.temp }}/review-out/review.txt
+          if-no-files-found: ignore
+          retention-days: 1
+
+  post:
+    name: Post one comment (never a review event)
+    needs: [select, review]
+    if: always() && needs.select.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        continue-on-error: true
+        with:
+          name: independent-review-output-${{ github.run_id }}
+          path: review-out
+      - name: Post the sanitized result
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          HEAD_SHA: ${{ needs.select.outputs.head_sha }}
+          OUTCOME: ${{ needs.review.outputs.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          case "$PR_NUMBER" in ''|*[!0-9]*) echo "bad pr number"; exit 1;; esac
+          printf '%s' "$HEAD_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "bad head sha"; exit 1; }
+          case "$OUTCOME" in
+            REVIEWED) ;;
+            HOST_DEFERRED|USAGE_LIMITED|CODEX_FAILED|OUTPUT_REJECTED|NO_CODEX_LOGIN) ;;
+            *) OUTCOME=NOT_RUN;;
+          esac
+          current="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          marker="<!-- nusa-independent-review sha=$HEAD_SHA -->"
+          existing="$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" --jq ".[] | select(.body | contains(\"$marker\")) | .id" | awk 'NR == 1')"
+          if [ -n "$existing" ]; then echo "a review comment for this head already exists"; exit 0; fi
+          {
+            echo "$marker"
+            echo "**Independent review (automatic, Codex), head \`$HEAD_SHA\`**"
+            echo
+            echo "Static review of this head's diff only. It is not an Audit or Release approval, it does not approve, merge or un-draft anything, and it ran no tests or CI."
+            if [ "$current" != "$HEAD_SHA" ]; then echo; echo "STALE: the PR head is now \`$current\`; this review does not cover it."; fi
+            echo
+            if [ "$OUTCOME" = "REVIEWED" ] && [ -s review-out/review.txt ]; then
+              echo '```text'; cat review-out/review.txt; echo '```'
+            else
+              echo "No review text was produced: $OUTCOME."
+              echo
+              echo "Run: $RUN_URL"
+            fi
+          } > comment.md
+          gh api "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments" -F body=@comment.md >/dev/null

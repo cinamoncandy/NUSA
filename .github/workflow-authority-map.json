@@ -348,6 +348,23 @@
       ],
       "secrets": false,
       "environment": null
+    },
+    "independent-review.yml:select": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "independent-review.yml:review": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "independent-review.yml:post": {
+      "write": [
+        "pull-requests"
+      ],
+      "secrets": false,
+      "environment": null
     }
   },
   "acknowledgedDebt": {}

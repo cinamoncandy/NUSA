@@ -1,0 +1,29 @@
+id: WO-OPS-20261114-INDEPENDENT-REVIEW-R2
+title: Independent review automation R2 - dispatch-only workflow, read-only Codex on the existing runner, sanitized one-comment output
+status: READY_FOR_REVIEW
+created: 2026-11-14
+implementation_branch: claude/independent-review-r2
+owner_decision: "2026-11-14: the owner approved the use of the dedicated ChatGPT account and the nusa-codex-autopilot runner and the comment-only `pull-requests: write` permission ('1 2도 허용'), and accepted that an automatic verdict may count as the non-author review later (R4, not enabled here)."
+objective: "Let a collaborator start an automatic non-author review of an exact PR head and get one sanitized comment, without any approval, merge or write authority and without exposing what the reviewer can read on the runner."
+evidence:
+  design: docs/INDEPENDENT_REVIEW_AUTOMATION_DESIGN_2026-11-14.md
+  workflow: .github/workflows/independent-review.yml
+  sanitizer: scripts/independent-review-sanitize.js
+  prompt: scripts/independent-review-prompt.md
+  tests: [tests/independent-review.test.js, tests/workflow-authority-map.test.js]
+key_risk: "The repository is PUBLIC and the runner holds the owner's ChatGPT login. A prompt-injected reviewer could try to print something readable on the runner. Defence: empty working directory, -s read-only, no Actions token, only the last message kept, raw output and Codex log deleted and never uploaded, and a sanitizer that keeps the output only if it matches a strict line grammar, carries the expected head sha and contains no credential-like, host-path or long opaque content; otherwise a fixed message with no content is posted. This is a heuristic filter, not a proof: a reviewer could still phrase readable text inside the grammar."
+change:
+  - ".github/workflows/independent-review.yml: workflow_dispatch only; select (ubuntu, read), review (self-hosted Codex runner, read-only), post (ubuntu, pull-requests write, ONE comment per PR and head sha, never a review event)."
+  - "scripts/independent-review-prompt.md, scripts/independent-review-sanitize.js, tests, the authority map (select and review: no write; post: pull-requests) and its test."
+not_changed:
+  - "No schedule or label trigger (R3), no change to CLAUDE.md or the draft rule (R4), no approval, merge, un-draft or required-check change. Audit and Release are untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "tests/independent-review.test.js 16 pass; six mutations (drop the JWT pattern, allow any charset, skip the head check, workspace-write, a review event, a pull_request trigger) each fail at least one test; authority-map validator, action pin and input validators pass."
+unverified: "End to end, nothing has run: the codex -o (output last message) flag, `-s read-only` on that runner, runner availability and the account usage limit were not checked, and the workflow has never been dispatched. The first run is a manual dispatch on a docs-only PR, watched by the owner."
+acceptance:
+  - A non-author review confirms the threat table, that the post job cannot approve or merge, and that the sanitizer cannot be bypassed by output the reviewer controls.
