@@ -200,3 +200,29 @@ test("candidate rollback mitigation on THIS build: with the PAPER capital unset 
   if (run.error) { assert.fail(`the runtime must start without capital as read-only: ${run.error.message}`); }
   assert.ok(!run.stages.includes("FILL"), `no FILL may exist without capital, got ${run.stages.join(",")}`);
 });
+
+// Runbook precondition 0.7: the release readiness probe (`/ready`, used by scripts/oracle-readiness-check.js) must pass with the order path OFF.
+// Scope: a fresh durable state in the sandbox. It does not prove the host, the soak, or scripts/autopilot-readiness.js.
+test("the release readiness route answers ok with all four checks true when the order path is OFF, as it does when ON", async () => {
+  for (const [label, extra, port] of [["on", {}, 41_991], ["off", { NUSA_PAPER_ORDER_PATH: "OFF" }, 41_992]]) {
+    const token = ["order-path", label, "ready", "fixture", "padding-to-reach-the-minimum-length"].join("-");
+    const { directory, filename } = tempDbPath();
+    let handle;
+    try {
+      handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false", ...extra }), undefined, undefined, capturingFactory().factory);
+      let response;
+      const deadline = Date.now() + 5_000;
+      while (Date.now() < deadline) {
+        try { response = await fetch(`http://127.0.0.1:${port}/ready`, { headers: { authorization: `Bearer ${token}` } }); break; }
+        catch { await new Promise((resolve) => setTimeout(resolve, 50)); }
+      }
+      assert.ok(response, `the readiness route must answer (${label})`);
+      const body = await response.json();
+      assert.equal(response.status, 200, `/ready status (${label})`);
+      assert.deepEqual(body, { ok: true, checks: { database: true, migrations: true, dashboardPersistence: true, runtimeRecovery: true } }, `/ready body (${label})`);
+    } finally {
+      if (handle) await handle.stop();
+      fs.rmSync(directory, { recursive: true, force: true });
+    }
+  }
+});
