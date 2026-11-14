@@ -17,6 +17,7 @@ safety:
   liveAuthority: NONE
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
+owner_answers: "2026-11-14: question 3 answered yes ('인정한다'): an automatic verdict may count as the non-author review (R4 intent; still needs R2/R3 evidence and a governed, independently reviewed CLAUDE.md change). Questions 1 and 2 (dedicated ChatGPT account and runner; pull-requests write for comments only) are not answered, so R2 does not start."
 unverified: "Runner availability, the account's usage limits and whether Codex can run with -s read-only on that runner were not checked (the agent token cannot read runners)."
 acceptance:
   - A non-author review confirms the threat table and that no rule gives the reviewer write, approval or merge authority.

@@ -63,6 +63,13 @@ author of the text (the posting job adds only its own marker). Whether the verdi
 2. May the posting job have `pull-requests: write` (comment only, never approve)?
 3. Should a verdict from the automatic review count as the non-author review that lets a draft become ready (R4), or stay advisory beside the manual one?
 
+## 7a. Owner answers so far
+
+- Question 3 (2026-11-14, owner: "인정한다"): the owner accepts that a verdict from the automatic review may count as the non-author review that lets a draft become ready. This is the intent behind R4. It does
+  not switch anything on: R4 still requires R2 and R3 to have produced reviews the owner judged equal to the manual ones, and a governed, independently reviewed change to the draft rule in `CLAUDE.md`. Until then the
+  manual review stays the one that counts.
+- Questions 1 and 2 (use of the dedicated ChatGPT account and runner; the comment-only `pull-requests: write` permission) are NOT answered. R2 does not start without them.
+
 ## 8. Not claimed
 
 The reviewer is a model: it can miss defects. It has no CI or runtime result. The runner's availability and the account's usage limits were not checked (the agent token cannot
