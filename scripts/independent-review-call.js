@@ -36,7 +36,9 @@ async function callReview({ apiKey, model, prompt, fetchImpl = globalThis.fetch 
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   let response;
   try {
-    // No `tools`, no `tool_choice`, no `previous_response_id`, no `stream`; `store: false` keeps the diff out of stored responses.
+    // No `tools`, no `tool_choice`, no `previous_response_id`, no `stream`. `store: false` ASKS the provider not to store the response; it does not guarantee that
+    // no processing, log or retention path exists on the provider's side. The prompt carries only the public diff of a public repository, and the provider's data
+    // policy applies to it.
     response = await fetchImpl(ENDPOINT, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${apiKey}` },
