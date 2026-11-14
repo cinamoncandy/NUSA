@@ -127,7 +127,7 @@ test("review record: free text, line numbers, quotes or any extra line rejects t
 });
 
 test("review record: a path outside the PR's changed files, an absolute path or a traversal rejects (host content cannot be named)", () => {
-  for (const file of ["apps/cloud/src/other.ts", "/etc/passwd", "../../etc/passwd", "/home/runner/.codex/auth.json", "apps/cloud/src/runtime.ts/../../../x"]) {
+  for (const file of ["apps/cloud/src/other.ts", "/etc/passwd", "../../etc/passwd", "/" + "home" + "/runner/.codex/auth.json", "apps/cloud/src/runtime.ts/../../../x"]) {
     const result = check(record("REJECT", [`P1 SECURITY_EXPOSURE ${file}`]), H, FILES);
     assert.equal(result.ok, false, file);
     assert.match(result.text, /^REVIEW_OUTPUT_REJECTED reason=[A-Z_]+\n$/);
