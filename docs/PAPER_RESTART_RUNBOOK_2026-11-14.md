@@ -64,7 +64,34 @@ The release workflow runs `prune`, `backup`, `stage`, `preflight`, `activate` in
   would have to be run separately by hand after the first start; and the way back to the previous build must be closed in an O1 sequence: nobody may run `rollback`, `restart` or the release workflow's `activate` path
   for a failed start, because each can bring the previous build (without the switch) back to a running service. The only allowed reaction to a failed start is stopping the service.
 
-O1 may be recommended, but it is NOT yet a verified safe procedure. It counts as closing 0.5 only when all of these are shown, in a rehearsal or test and reviewed: the previous build is never started; the new build SHA and the `OFF` value are verified before the first start without starting anything; a failed start leaves the service stopped; and the readiness and soak checks that `activate` would have run are run separately and recorded.
+### Pinned by tests (2026-11-14, `tests/oracle-release-o1-mechanics.test.js`, 7 tests, sandbox)
+
+- `stage`, `switch` and the `rollback` verb, `bind_runtime_source_identity` and `scripts/atomic-deploy.js` contain no `systemctl`, no unit install, enable or restart, and `atomic-deploy.js` starts no process. Adding a restart to any of them fails a test (three mutations were checked).
+- `scripts/atomic-deploy.js` run against a temporary deployment root with a stub `systemctl` that records any call: `switch` moves only the `current` link to the staged build and records the previous release; the stub is never called; a build that is not staged, or a bad SHA, fails and leaves the link where it was; the `rollback` action only moves the link back.
+- `bind_runtime_source_identity` writes the new SHA into the env file and keeps `NUSA_PAPER_ORDER_PATH=OFF` and other lines; no `systemctl` call.
+- The only verbs that start the service are `restart`, `activate` and the automatic `rollback_and_restore` inside a failed activation; a failed activation can keep the NEW build running when the previous build cannot open the migrated database.
+- These are sandbox tests of the mechanics. They are not a rehearsal on the host.
+
+### Two more facts that matter for O1 (read in `deploy/oracle/nusa.service`, `deploy/oracle/nusa-health-guard`)
+
+- `nusa.service` has `Restart=on-failure` with `RestartSec=5s` and starts `/opt/nusa/current/scripts/start-cloud-runtime.js`; the health guard restarts `nusa.service` (lines 28 and 98). Every such restart runs whatever the `current` link points to. After `switch` that is the NEW build, so the previous build is not started by systemd or the guard; it can only come back if somebody moves the link back (the `rollback` verb or the failed-activation path).
+- The new build is started with `NUSA_PAPER_ORDER_PATH=OFF` from the env file. The runtime treats anything other than exactly `ON` as OFF, and that is pinned by `tests/cloud-runtime-order-path-switch*.test.js`.
+
+### The O1 sequence as a checklist (NOT rehearsed; each step needs the owner's approval at that time; the operator reports every output)
+
+1. Preconditions 0.1-0.4 hold; the owner approves the O1 sequence for a named SHA.
+2. Operator: confirm the service is stopped (`systemctl is-active nusa.service` is `inactive`), and write `NUSA_PAPER_ORDER_PATH=OFF` into `/etc/nusa/cloud-runtime.env` (0.6).
+3. Operator: `nusa-release-step` `backup`, `stage <sha> <tree>` and `preflight <sha>` (the same first steps the release workflow runs). No service is touched.
+4. Operator: compare the unit files of the staged build with the installed ones (`diff <staged>/deploy/oracle/nusa.service /etc/systemd/system/nusa.service`, same for `nusa-autopilot.service`, `nusa-research.service`, `nusa-research.timer`). If they differ, the owner and the agent decide first whether `install-units` is needed; `switch` does not install units.
+5. Operator: `switch <sha>`. Read back WITHOUT starting anything: `readlink -f /opt/nusa/current` equals the staged SHA directory, `grep '^NUSA_SOURCE_COMMIT' /etc/nusa/cloud-runtime.env` shows the SHA, `grep '^NUSA_PAPER_ORDER_PATH=' /etc/nusa/cloud-runtime.env` shows `OFF`, and `systemctl is-active nusa.service` is still `inactive`.
+6. The agent reads these outputs and states whether every line matches. Only then the owner approves the first start.
+7. Operator: `systemctl start nusa.service` (not `activate`, not `restart` verb, not the release workflow). If the start fails or any check below fails: `systemctl stop nusa.service`, confirm `inactive`, report. NEVER run `rollback`, the `restart` verb or the release workflow for this.
+8. Checks the `activate` verb would have run, run by hand and recorded: `node /opt/nusa/current/scripts/oracle-readiness-check.js`, `node /opt/nusa/current/scripts/autopilot-readiness.js` (the latter needs `nusa-autopilot.service`, which `activate` would also have restarted: the operator and the agent decide whether it is started in this step), then the stability soak of about 180 s is repeated by hand (the same two checks every 10 s) or the agent reads `/health` and the diagnose output at two points an hour apart.
+9. Stage A evidence (structure, behaviour, observation) as in the Stage A section.
+
+What this does NOT replace: the activation lock (`switch` takes it, the manual start does not), the automatic readiness-gated rollback (deliberately not wanted here), and any host rehearsal.
+
+O1 may be recommended. With the tests above, conditions 1 and 3 (the previous build is never started by these verbs or by systemd; a failed start leaves the service stopped because nothing moves the link back) have a mechanical basis; conditions 2 and 4 (verify the new SHA and OFF before the first start; run the readiness and soak checks by hand) are the checklist above. It is still NOT a verified safe procedure: nothing was rehearsed on the host. It counts as closing 0.5 only when all of these are shown, in a rehearsal or test and reviewed: the previous build is never started; the new build SHA and the `OFF` value are verified before the first start without starting anything; a failed start leaves the service stopped; and the readiness and soak checks that `activate` would have run are run separately and recorded.
 
 Recommendation: O1, because it removes the old build from the picture entirely, but it changes the release procedure, is unverified, and needs its own review.
 
