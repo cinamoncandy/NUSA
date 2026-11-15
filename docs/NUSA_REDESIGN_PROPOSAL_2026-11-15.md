@@ -9,7 +9,7 @@ v3 revises v2 after the second review (UNSOUND: v2 deployed the new build throug
 v2 revised v1 (merged in #3135) after the independent design review (verdict UNSOUND). Accepted in substance: the default
 was fail-open, the deployed build was never proven to support the mode, the phone path trusted a mutable workflow and the
 owner's grant had no expiry, rollback and data compatibility were undefined, and the numbers were not reproducible.
-Owner decisions D1 to D4 (approved) and D5 (apps/execution not used) stand; the order of phases changed (section 4).
+Owner decisions D1 to D4 (approved) and D5 (apps/execution not used) stand; the order of phases changed (section 5).
 
 ## 0. Summary for the owner (Korean, easy language)
 
@@ -83,7 +83,7 @@ v3 order (review 2 verdict UNSOUND: v2 deployed through the old release before t
 | R4 | Single control plane (section 7): host mode record and controller, `nusa-run-mode` helper, removal of every other agent path to the service, mode-aware alerting tested to the owner phone; PR #3136 refactored into this | access audit passes (section 7); alert drill reaches the phone; helper tested with stub `systemctl` and the systemd-parser soundness test | remove workflow and helper |
 | R5 | Phone workflow enabled (protected ref, runner group, Environment); owner presses stop and start once | settings evidence (section 7) and sudo log show only the helper | disable the repo variable |
 | R6 | Cloudflare removal S1 to S5 (docs/PROPOSAL_SIMPLIFICATION_2026-11-14.md) | per phase | per phase |
-| R7 | Single config module and composition root; split `apps/cloud/src`; delete retired WIP; archive work orders; then freeze and delete desktop and `apps/execution` only after the shared code they still provide is moved (section 8) | CI time and workflow count drop; Research and cloud build and run unchanged | revert |
+| R7 | Single config module and composition root; split `apps/cloud/src`; delete retired WIP; archive work orders; then freeze and delete desktop and `apps/execution` only after the shared code they still provide is moved (section 9) | CI time and workflow count drop; Research and cloud build and run unchanged | revert |
 
 The phone start button never precedes R1 to R4.
 
