@@ -106,12 +106,19 @@ import { OrderBookCoverageWatch } from "./orderBookCoverage";
 import { TradeTickCoverageWatch } from "./tradeTickCoverage";
 
 /**
- * The single rule for the operator switch NUSA_PAPER_ORDER_PATH. FAIL CLOSED: the PAPER order path exists only when the
- * value is exactly "ON". Unset, empty, a typo or any other value means no order path (no writer lease, no execution
- * loop, no order boundary). Every entry point that touches the PAPER writer lease must use this function, so two entry
- * points can never disagree about whether the lease exists.
+ * The single rule for the operator switches. FAIL CLOSED: the PAPER order path exists only when NUSA_PAPER_ORDER_PATH is
+ * exactly "ON" AND the host mode, if the host controller wrote one, allows it: NUSA_RUN_MODE (from /etc/nusa/run-mode.env,
+ * written only by nusa-control) may only REMOVE the order path. When NUSA_RUN_MODE is set to anything but exactly
+ * "PAPER_ORDERS" (COLLECT_ONLY, STOPPED, a typo, empty) there is no order path, whatever NUSA_PAPER_ORDER_PATH says. When
+ * it is unset the legacy switch alone decides (until the controller is installed; its drop-in sets
+ * NUSA_REQUIRE_RUN_MODE=1, after which an unset NUSA_RUN_MODE also means no order path). Every entry point that touches the
+ * PAPER writer lease must use this function, so two entry points can never disagree about whether the lease exists.
  */
 export function isPaperOrderPathEnabled(env: NodeJS.ProcessEnv): boolean {
+  if (env.NUSA_RUN_MODE !== undefined && env.NUSA_RUN_MODE !== "PAPER_ORDERS") return false;
+  // After the controller is installed its unit drop-in sets NUSA_REQUIRE_RUN_MODE=1: from then on a missing host mode (an
+  // absent or emptied mode file) can never fall back to the legacy switch, it simply means no order path.
+  if (env.NUSA_REQUIRE_RUN_MODE === "1" && env.NUSA_RUN_MODE === undefined) return false;
   return env.NUSA_PAPER_ORDER_PATH === "ON";
 }
 /** The mode this process actually runs in, derived from the same rule; published in /health as runtime.runMode. */
@@ -906,6 +913,8 @@ export function startCloudRuntime(
       sourceCommitSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim(),
       // The mode this process really runs in (same function that decides whether the writer lease and order path exist).
       runMode: effectiveMode,
+      // True only when the execution loop and the order boundary really exist (not merely selected): the readiness signal.
+      orderPathReady: effectivePaperLoop != null && productionPaperBoundary != null,
       startedAt: heartbeat.startedAt,
       lastHeartbeatAt: heartbeat.lastHeartbeatAt,
       lastMarketEventAt: heartbeat.lastMarketEventAt,

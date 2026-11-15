@@ -2,6 +2,9 @@
 Description=NUSA Cloud Paper Runtime
 After=network-online.target
 Wants=network-online.target
+# At most 3 starts in 20 minutes, then the unit stays failed (no endless restart loop; the host gate and the owner alert take over).
+StartLimitIntervalSec=20min
+StartLimitBurst=3
 
 [Service]
 Type=simple
