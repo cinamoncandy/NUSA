@@ -53,6 +53,7 @@ function world(opts = {}) {
   if (opts.tamperDuringPreflight) fs.writeFileSync(path.join(bin, "systemctl"), `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\n[ "$1" = is-active ] && echo "// evil" >> ${JSON.stringify(path.join(src, "nusa-control.js"))}\n${showStub}\nexit 0\n`, { mode: 0o755 });
   if (opts.grepError) fs.writeFileSync(path.join(bin, "grep"), `#!/usr/bin/env bash\ncase "$*" in *"Environment=.*NUSA_PAPER_ORDER_PATH"*) exit 2;; esac\nexec /usr/bin/grep "$@"\n`, { mode: 0o755 });
   if (opts.sedFail) fs.writeFileSync(path.join(bin, "sed"), `#!/usr/bin/env bash\ncase "$*" in *ignore_errors*) echo "${R}/etc/nusa/cloud-runtime.env no"; exit 3;; esac\nexec /usr/bin/sed "$@"\n`, { mode: 0o755 });
+  if (opts.grepCountError) fs.writeFileSync(path.join(bin, "grep"), `#!/usr/bin/env bash\ncase "$1 $2" in ${opts.grepCountError === "exact" ? '"-cx NUSA_PAPER_ORDER_PATH=OFF"' : '"-c NUSA_PAPER_ORDER_PATH"'}) echo 2; exit 2;; esac\nexec /usr/bin/grep "$@"\n`, { mode: 0o755 });
   const health = opts.health ?? JSON.stringify({ runtime: { sourceCommitSha: SHA, runMode: "COLLECT_ONLY" } });
   fs.writeFileSync(path.join(bin, "curl"), `#!/usr/bin/env bash\ncat <<'JSON'\n${health}\nJSON\n`, { mode: 0o755 });
   if (opts.symlinkInTree) fs.symlinkSync("/etc/passwd", path.join(src, "evil"));
@@ -88,10 +89,16 @@ test("every precondition is enforced: a failing one fails the preflight, and --a
     ["a symlink is in the release tree", { symlinkInTree: true }, /FAIL  source tree has no symlinks/],
     ["orders are not explicitly OFF", { env: "NUSA_CLOUD_PORT=1\n" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set twice in the env file", { env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_PAPER_ORDER_PATH=ON\n" }, /FAIL  orders are OFF from every environment source/],
+    ["ON first, OFF later", { env: "NUSA_PAPER_ORDER_PATH=ON\nNUSA_PAPER_ORDER_PATH=OFF\n" }, /FAIL  orders are OFF from every environment source/],
+    ["an indented ON line after OFF", { env: "NUSA_PAPER_ORDER_PATH=OFF\n  NUSA_PAPER_ORDER_PATH=ON\n" }, /FAIL  orders are OFF from every environment source/],
+    ["an export ON line after OFF", { env: "NUSA_PAPER_ORDER_PATH=OFF\nexport NUSA_PAPER_ORDER_PATH=ON\n" }, /FAIL  orders are OFF from every environment source/],
+    ["a quoted ON line after OFF", { env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_PAPER_ORDER_PATH=\"ON\"\n" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set in a unit drop-in", { dropinOrders: true }, /FAIL  orders are OFF from every environment source/],
     ["the unit file cannot be searched (missing unit file: grep error is not OFF)", { noUnitFile: true }, /FAIL  orders are OFF from every environment source/],
     ["a drop-in is unreadable (a directory where a file is expected)", { dropinDir: true }, /FAIL  orders are OFF from every environment source/],
     ["grep itself fails (exit 2) while searching the unit files", { grepError: true }, /FAIL  orders are OFF from every environment source/],
+    ["grep -c (mentions) fails with exit 2 after printing 2", { grepCountError: "mentions", env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_PAPER_ORDER_PATH=OFF\n" }, /FAIL  orders are OFF from every environment source/],
+    ["grep -cx (exact) fails with exit 2 after printing 2", { grepCountError: "exact", env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_PAPER_ORDER_PATH=OFF\n" }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer (fail closed)", { showFail: true }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer the Environment query only", { showFailOn: "-p Environment --value" }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer the EnvironmentFiles query only", { showFailOn: "-p EnvironmentFiles" }, /FAIL  orders are OFF from every environment source/],
@@ -127,6 +134,12 @@ test("both systemd output shapes for EnvironmentFiles are accepted (one line, or
     const r = w.run(w.hash); assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.equal(w.run(w.hash, "--apply").status, 0); assert.equal(w.run("--rollback").status, 0);
   }
+});
+
+test("the real host's env file repeats the OFF line twice: that passes (every mention is exactly OFF), apply and rollback work", posixOnly, () => {
+  const w = world({ env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_CLOUD_PORT=1\nNUSA_PAPER_ORDER_PATH=OFF\n" });
+  const r = w.run(w.hash); assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(w.run(w.hash, "--apply").status, 0); assert.equal(w.run("--rollback").status, 0);
 });
 
 test("the test root is refused unless the test flag is set (a stray variable cannot redirect a root install)", posixOnly, () => {
