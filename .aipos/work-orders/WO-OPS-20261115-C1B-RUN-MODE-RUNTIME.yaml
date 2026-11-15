@@ -1,0 +1,24 @@
+id: WO-OPS-20261115-C1B-RUN-MODE-RUNTIME
+title: "C1b: the runtime honours the host mode (NUSA_RUN_MODE can only close the order path), reports orderPathReady, and the unit stops restarting after 3 starts in 20 minutes"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/c1b-run-mode-runtime
+owner_decision: "2026-11-15: the owner approved design v5; C1b is the runtime half of the controller (docs/NUSA_CORE_DESIGN_V5_2026-11-15.md section 2)."
+objective: "Let the host controller's mode file bind the runtime without adding any authority, publish whether the order path really exists, and bound the restart loop."
+change:
+  - "apps/cloud/src/runtime.ts: isPaperOrderPathEnabled is false when NUSA_RUN_MODE is set to anything but exactly PAPER_ORDERS (COLLECT_ONLY, STOPPED, empty, a typo); otherwise the R1 rule applies (NUSA_PAPER_ORDER_PATH exactly ON). The host mode alone never enables orders. Unset NUSA_RUN_MODE keeps the R1 behaviour until the controller is installed. Both entry points already share this one function."
+  - "apps/cloud/src + server.ts: /health runtime.orderPathReady (boolean) is true only when the execution loop and the order boundary exist; false in COLLECT_ONLY."
+  - "deploy/oracle/nusa.service: StartLimitIntervalSec=20min, StartLimitBurst=3 (the unit stays failed after 3 starts in 20 minutes); no StartLimitAction."
+  - "tests: the run-mode rule (6 closing values, control cases), the real production entry in 5 more cases (order path ON with NUSA_RUN_MODE COLLECT_ONLY, STOPPED, garbled, empty close the order path and report orderPathReady false; PAPER_ORDERS control), and a unit pin for the start limit."
+not_changed:
+  - "Nothing is deployed or installed. NUSA_RUN_MODE is delivered by the controller's drop-in only in C3. No limit, threshold, capital or authority change; the change can only remove the order path."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "npx tsc; tests/production-entry-boot-modes, closed-learning-daemon-order-path-off, cloud-runtime-order-path-switch(+e2e), nusa-unit-start-limit and all tests/oracle-*.test.js pass locally."
+unverified: "First Codex review (APPROVE WITH CONDITIONS): after the controller install its drop-in sets NUSA_REQUIRE_RUN_MODE=1 and the runtime then treats a missing NUSA_RUN_MODE as no order path (tested at the rule and at the real production entry); orderPathReady is documented as object existence only, not an operational approval. The mandatory EnvironmentFile (a missing mode file fails the unit start) is in the controller drop-in of the C1 pull request. Not verified on the host: the real systemd restart-limit behaviour and that the host applies the changed unit (C3). Not deployed. The phase-aware readiness counter of v4 section 8 (listening, recovering, collecting, ready) is NOT part of this change and remains open; RestartPreventExitStatus is not used because the runtime has no dedicated exit code yet. No non-author review yet."
+acceptance:
+  - "CI green; non-author review before the PR leaves draft."
