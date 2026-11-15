@@ -22,20 +22,17 @@ test("Mobile Native supports explicit Android release intent and label changes",
   assert.equal(workflow.split(releaseIntent).length - 1, 1);
 });
 
-test("ordinary pull requests keep foundation and Android debug unconditional while iOS is disabled", () => {
+test("ordinary pull requests keep foundation and Android debug unconditional (iOS was removed on 2026-11-15)", () => {
   for (const name of ["foundation-smoke", "android-debug"]) {
     assert.doesNotMatch(jobBlock(name), /^    if:/m, `${name} must not be gated by release intent`);
   }
   assert.match(jobBlock("android-debug"), /assembleDebug/);
-  assert.match(jobBlock("ios-debug"), /^    if: \$\{\{ false \}\}/m);
-  assert.match(jobBlock("ios-debug"), /iOS skipped: NUSA mobile delivery is Android-only/);
+  assert.doesNotMatch(workflow, /ios-debug|macos-/i);
 });
 
-test("Android release candidate remains gated while iOS release candidate stays disabled", () => {
+test("Android release candidate remains gated and no iOS release candidate exists", () => {
   const android = jobBlock("android-release-candidate");
-  const ios = jobBlock("ios-release-candidate");
   assert.ok(android.includes(releaseIntent));
   assert.match(android, /assembleRelease/);
-  assert.match(ios, /^    if: \$\{\{ false \}\}/m);
-  assert.match(ios, /iOS release candidate skipped: NUSA mobile delivery is Android-only/);
+  assert.doesNotMatch(workflow, /ios-release-candidate/i);
 });

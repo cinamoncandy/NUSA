@@ -1,0 +1,25 @@
+id: WO-OPS-20261115-REMOVE-IOS
+title: "Remove the iOS project, the TestFlight workflow and the skipped iOS jobs (owner: iOS is not used)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/remove-ios
+owner_decision: "2026-11-15: the owner said iOS will not be done either and asked for everything related to it to be deleted ('ios도 안할거니까 관련있는거 지워'). The mobile app stays and is Android-only."
+objective: "Remove dead iOS delivery code so the repository, CI and security surface only carry what is used."
+change:
+  - "Deleted: apps/mobile/ios (10 files: the Xcode project, scheme, AppDelegate, Info.plist, PrivacyInfo, Podfile, assets), .github/workflows/ios-testflight.yml (it used `upload-testflight`), tests/ios-testflight-workflow.test.js, docs/mobile-testflight.md."
+  - "mobile-native.yml: removed the two jobs that were already disabled (`ios-debug`, `ios-release-candidate`, both `if: false` on macos-15). Android jobs untouched."
+  - "Authority map: removed ios-testflight.yml:upload-testflight, mobile-native.yml:ios-debug, mobile-native.yml:ios-release-candidate."
+  - "Tests: tests/mobile-native-structure.test.js and tests/mobile-native-workflow-policy.test.js now assert that the iOS jobs, the TestFlight workflow and apps/mobile/ios do not exist (the Android assertions are unchanged)."
+  - "apps/mobile/package.json: removed the `ios` script (react-native run-ios, which needs the deleted project)."
+not_changed:
+  - "The Android project and its workflows (android-*), the mobile app source, the PAPER release path, every safety gate. The dependency @react-native-community/cli-platform-ios in apps/mobile/package.json is left: removing it changes the lockfile and needs a pnpm run in CI-compatible conditions; it is a harmless leftover dependency and a possible follow-up."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "AIPOS, portability, workflow authority map (42 workflows), action pin and input, and platform-independent validators pass; the mobile-native structure and workflow-policy tests, the other mobile and android tests, all workflow tests, aipos-current-truth and the shard test pass locally."
+unverified: "CI at the PR head; that no Android build step reads a file under apps/mobile/ios (a repository search found none, and the Android jobs are unchanged)."
+acceptance:
+  - A non-author review confirms that only iOS-specific files and the already-disabled iOS jobs were removed and the Android workflows, tests and safety gates are unchanged.

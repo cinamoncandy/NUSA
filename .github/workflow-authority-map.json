@@ -251,11 +251,6 @@
       "secrets": false,
       "environment": null
     },
-    "ios-testflight.yml:upload-testflight": {
-      "write": [],
-      "secrets": true,
-      "environment": "testflight"
-    },
     "mobile-native.yml:android-debug": {
       "write": [],
       "secrets": false,
@@ -267,16 +262,6 @@
       "environment": null
     },
     "mobile-native.yml:foundation-smoke": {
-      "write": [],
-      "secrets": false,
-      "environment": null
-    },
-    "mobile-native.yml:ios-debug": {
-      "write": [],
-      "secrets": false,
-      "environment": null
-    },
-    "mobile-native.yml:ios-release-candidate": {
       "write": [],
       "secrets": false,
       "environment": null
