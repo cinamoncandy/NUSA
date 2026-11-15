@@ -130,7 +130,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly closedLearningLoop?: Readonly<Record<string, string | number | undefined | readonly string[] | Readonly<Record<string, string | number | undefined>>>>;
   /** Full lowercase 40-hex build commit of the running process; omitted when absent or malformed. */
   readonly sourceCommitSha?: string;
-  /** Effective mode of the running process: COLLECT_ONLY (no order path) or PAPER_ORDERS. Omitted when absent or unknown. */
+  /** The mode SELECTED at start-up: COLLECT_ONLY (no order path) or PAPER_ORDERS. It is not a readiness signal: PAPER_ORDERS with no capital or repository still has no execution loop. Omitted when absent or unknown. */
   readonly runMode?: "COLLECT_ONLY" | "PAPER_ORDERS";
   readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly consecutiveLossLimitEnabled?: boolean; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }

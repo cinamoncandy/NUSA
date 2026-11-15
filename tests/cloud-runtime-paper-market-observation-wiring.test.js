@@ -116,6 +116,8 @@ test("a stale ticker in one market cannot erase fresh accepted evidence from ano
     assert.equal(afterStale.dashboard.killSwitchActive, false, "fresh BTC evidence must remain executable");
     assert.ok(afterStale.dashboard.decisions.some((decision) => decision.symbol === "KRW-BTC"));
     assert.equal(afterStale.dashboard.decisions.some((decision) => decision.symbol === "NO_MARKET_DATA"), false);
+    // Scope: this runtime has no PAPER capital and does not set the order path, so no PAPER loop exists here (before and after R1).
+    // The zero below is a market-observation fact, NOT evidence that stale or unbound input is blocked from ordering.
     assert.equal(afterStale.orders.length, 0, "unbound generic CIO decisions remain advisory");
 
     onTicker({ type: "ticker", code: "KRW-BTC", trade_price: 100_000_100, trade_timestamp: Date.now() - 500, signed_change_rate: 0.01, acc_trade_volume: 2, acc_trade_price_24h: 1_000_000_000 });
@@ -166,6 +168,7 @@ test("a stale-only market still fails closed without widening the 30s freshness 
     assert.equal(snapshot.dashboard.killSwitchActive, true);
     assert.equal(snapshot.dashboard.decisions.length, 1);
     assert.equal(snapshot.dashboard.decisions[0].symbol, "NO_MARKET_DATA");
+    // Scope: no PAPER capital and no order path in this runtime; not evidence of order blocking (see the order-path switch tests).
     assert.equal(snapshot.orders.length, 0);
   } finally {
     if (handle) await handle.stop();
