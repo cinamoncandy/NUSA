@@ -6,6 +6,7 @@ implementation_branch: claude/c3-access-audit
 owner_decision: "2026-11-15: the owner approved proceeding from the code phases to the host check (C3) as soon as C1 and C1b are merged; the audit is the first, read-only step and precedes any install."
 objective: "Give the owner and the reviewers one reproducible, read-only picture of accounts, sudo, SSH metadata, timers, cron, runners, polkit, unit drop-ins and file ownership on the PAPER host, so the controller install (C3b) rests on evidence instead of assumptions."
 change:
+  - "(rewritten after the first Codex review, REJECT for possible secret exposure) The audit is now ONE script with allowlist filters instead of redaction: safe_tokens prints only verbs, wildcards, safe absolute paths, options and unit names (everything else becomes <arg>); sudo rules and the sudo journal go through it; unit text goes through unit_allowlist (allowlisted directives only, Environment values never printed, only variable names, ExecStart without arguments); every check prints one of OBSERVED, OBSERVED-EMPTY, DENIED, NOT_CHECKED, ERROR, TRUNCATED; coverage added for enabled unit files, user units, runner installations by .runner files, ACLs, link targets and namei path permissions, the control units. Residual: a secret that is a bare lowercase word of at most 24 characters would pass safe_tokens; sudoers rules and commands do not carry secrets in that form, and this is stated here instead of hidden."
   - ".github/workflows/oracle-access-audit.yml: workflow_dispatch only, contents read, no checkout, no secrets, runs on the host runner; five steps print metadata only (owner, mode, name, count, hash) and the sudo journal's command verbs; `sudo -n -l` is the only sudo use; everything the runner account cannot read is printed as DENIED and is explicitly NOT evidence of safety."
   - "tests/oracle-access-audit-workflow.test.js: pins manual-only and read-only, no systemctl mutation, no write command, sudo only as `sudo -n -l`, no read of env or key file contents, and the coverage of every start path named in the design."
 not_changed:
@@ -16,7 +17,7 @@ safety:
   productionMutationAllowed: false
   aiAuthority: ZERO_AUTHORITY
 validation:
-  - "node --test tests/oracle-access-audit-workflow.test.js: 4 pass; validate-workflow-action-pins, -inputs and -authority-map pass; the YAML parses."
+  - "node --test tests/oracle-access-audit-workflow.test.js: 9 pass, including synthetic secrets (AWS-style key, JWT, base64, hex, mixed words, passwords) through every filter and every status; the audit script also ran end to end in a sandbox without systemd (all outcomes labelled, no secret printed); mutation checks on the token allowlist and the unit environment filter fail 4 and 1 tests;  validate-workflow-action-pins, -inputs and -authority-map pass; the YAML parses."
 unverified: "Not run on the host. As the runner account it cannot read root-only files (sudoers.d contents, other users' crontabs, the real sshd -T), so a root-owned check remains part of C3b. No non-author review yet."
 acceptance:
   - "Non-author review before the PR leaves draft; the first dispatch after the merge is read back by the owner with the findings table."

@@ -1,14 +1,19 @@
 name: Oracle Access Audit
 
 # READ-ONLY audit of WHO and WHAT can start, stop or change the PAPER runtime on the host (design v5 C3, step 1). Dispatch by
-# hand only. It lists accounts, the runner account's own sudo rules, key and permission METADATA (owner, mode, name; never file
-# contents), timers, cron entries (names only), polkit rule files (names only), unit definitions, drop-ins and the effective
-# unit environment SOURCES (paths, not values). It never writes, restarts, enables, disables, reads any env, key or token
-# file, takes no secrets, checks out no repository code and calls no external service. PAPER only, LIVE NONE.
+# hand only. It lists accounts, the runner account's own sudo rules (executable paths and verb-like words only), key and
+# permission METADATA (owner, mode, name, count; never file contents), timers, cron entries (names only), polkit rule files
+# (names only), unit directives from an ALLOWLIST (Environment values are never printed, only variable names), and the sudo
+# journal reduced to user, executable and a short lowercase verb. It never writes, restarts, enables, disables, reads any env,
+# key or token file, takes no secrets, checks out no repository code and calls no external service. PAPER only, LIVE NONE.
 #
-# Limits, stated plainly: this runs as the runner account, so it cannot read root-only files (/etc/sudoers.d contents, other
-# users' crontabs, the real sshd configuration). Whatever it cannot read is printed as DENIED and must be checked by the owner
-# or by a root-owned audit step in C3; an unreadable item is NOT evidence that it is safe.
+# Secrets: nothing is "redacted after the fact". Every line that could carry a value goes through an allowlist filter that
+# prints only tokens of a known harmless shape and replaces everything else with <arg>. tests/oracle-access-audit-workflow.test.js
+# runs these very filters on synthetic secrets.
+#
+# Honesty: every check prints one status: OBSERVED, OBSERVED-EMPTY, DENIED (the runner account may not read it), NOT_CHECKED
+# (tool missing or needs root) or ERROR, plus TRUNCATED when output was cut. Anything but OBSERVED is NOT evidence of safety;
+# the real sshd -T, other accounts' sudo rules and crontabs need the root-owned check of C3b.
 
 on:
   workflow_dispatch:
@@ -24,69 +29,97 @@ jobs:
   audit:
     name: Read-only access audit
     runs-on: [self-hosted, Linux, nusa-paper-host]
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Accounts, groups and this runner's own sudo rules
+      - name: Audit
         shell: bash
         run: |
-          set +e
+          set +u
+          # --- filters begin
+          # A token is printed only when it has a harmless shape: a lowercase verb (restart, stop, status), a wildcard, an
+          # absolute path of safe characters, or an option. Anything else (hex, base64, JWT, mixed case or digits, a long word)
+          # becomes <arg>. No regex list of "secret formats" is relied on.
+          safe_tokens() {
+            awk '{ out=""; for (i=1; i<=NF; i++) { t=$i;
+              if (t ~ /^\*$/ || t ~ /^-{1,2}[a-z][a-z-]{0,24}$/ || t ~ /^[a-z][a-z-]{0,23}$/ || t ~ /^\/[A-Za-z0-9_.\/-]{1,80}$/ || t ~ /^[a-z][a-z.-]{0,30}\.(service|timer|socket|path)$/) out = out " " t; else out = out " <arg>"; }
+              sub(/^ /, "", out); print out }'
+          }
+          # sudo rule lines: "(runas) TAGS: cmd args" -> keep the structure, filter every command token.
+          sudo_rules() { sed -E 's/^[[:space:]]+//' | awk '/^\(/ { split($0, a, ": "); pre=a[1]; rest=substr($0, length(pre)+3); n=split(rest, cmds, ", "); for (j=1;j<=n;j++) { print pre ": " cmds[j] } next } { print }' | while IFS= read -r line; do case "$line" in "("*) head="${line%%: *}"; body="${line#*: }"; printf '%s: %s\n' "$head" "$(printf '%s' "$body" | safe_tokens)";; *) printf '%s\n' "$line" | safe_tokens;; esac; done; }
+          # sudo journal COMMAND lines -> "<user> <executable> <filtered args>"
+          sudo_journal() { grep -E 'COMMAND=' | sed -E 's/.*USER=([^ ;]+).*COMMAND=(.*)/\1 \2/' | while read -r user cmd; do u=$(printf '%s' "$user" | tr -cd 'a-z0-9_-'); printf '%s %s\n' "${u:-<user>}" "$(printf '%s' "$cmd" | safe_tokens)"; done; }
+          # unit text -> allowlisted directives only; Environment/PassEnvironment print variable NAMES, never values.
+          unit_allowlist() {
+            awk '
+              /^\[/ { print; next }
+              /^(Description|Type|User|Group|WorkingDirectory|Restart|RestartSec|RestartPreventExitStatus|StartLimitIntervalSec|StartLimitBurst|StartLimitAction|Requires|Wants|BindsTo|PartOf|After|Before|Conflicts|WantedBy|RequiredBy|EnvironmentFile|UnsetEnvironment|ReadWritePaths|NoNewPrivileges|ProtectSystem|ProtectHome|PrivateTmp|UMask|OnBootSec|OnActiveSec|OnUnitActiveSec|OnCalendar|Unit|RemainAfterExit|DefaultDependencies|SuccessExitStatus)=/ { print; next }
+              /^(Environment|PassEnvironment)=/ { sub(/^[A-Za-z]+=/, ""); n = split($0, parts, /[ \t]+/); names = ""; for (i=1; i<=n; i++) { p = parts[i]; gsub(/^"|"$/, "", p); sub(/=.*/, "", p); if (p ~ /^[A-Za-z_][A-Za-z0-9_]{0,63}$/) names = names " " p; } print "Environment(names only):" names; next }
+              /^(ExecStart|ExecStartPre|ExecStartPost|ExecStop|ExecReload)=/ { split($0, kv, "="); rest = substr($0, length(kv[1]) + 2); sub(/^[-@+!:]+/, "", rest); split(rest, w, " "); print kv[1] "=" w[1] " <args hidden>"; next }
+              { next }'
+          }
+          # status wrapper: OBSERVED / OBSERVED-EMPTY / DENIED / NOT_CHECKED / ERROR, plus TRUNCATED
+          check() {
+            local label="$1" limit="$2"; shift 2
+            local out rc lines
+            if ! command -v "$1" >/dev/null 2>&1; then echo "[NOT_CHECKED] $label (command $1 is not installed)"; return; fi
+            out="$("$@" 2>&1)"; rc=$?
+            if [ $rc -ne 0 ] && printf '%s' "$out" | grep -qiE 'permission denied|not permitted|a password is required|may not run sudo|authentication'; then echo "[DENIED] $label"; return; fi
+            if [ $rc -ne 0 ] && [ -z "$out" ]; then echo "[ERROR] $label (exit $rc)"; return; fi
+            if [ $rc -ne 0 ]; then echo "[ERROR] $label (exit $rc): $(printf '%s' "$out" | head -n 2 | safe_tokens)"; return; fi
+            if [ -z "$out" ]; then echo "[OBSERVED-EMPTY] $label"; return; fi
+            lines=$(printf '%s\n' "$out" | wc -l)
+            echo "[OBSERVED] $label"; printf '%s\n' "$out" | head -n "$limit"
+            [ "$lines" -gt "$limit" ] && echo "[TRUNCATED] $label ($lines lines, first $limit shown)"
+          }
+          # --- filters end
+
+          echo "== time"; date -u +%FT%TZ
+          echo "######## accounts, groups, this runner's sudo rules"
           echo "== runner account"; id
-          echo "== login-capable accounts (name, uid, shell)"
-          awk -F: '$7 !~ /(nologin|false|sync|halt|shutdown)$/ { print $1, $3, $7 }' /etc/passwd
-          echo "== members of privileged groups"
-          getent group sudo wheel admin adm systemd-journal 2>&1
-          echo "== accounts in /home (names only)"; ls -1 /home 2>&1
-          echo "== this account's sudo rules (sudo -n -l: lists rules, runs nothing)"
-          sudo -n -l 2>&1 | sed -E 's/[0-9a-fA-F]{32,}/[hex]/g' | head -60
-          echo "== sudoers files (names, owner, mode only)"
-          ls -l /etc/sudoers.d 2>&1 | head -40
-      - name: SSH and key metadata (never contents)
-        shell: bash
-        run: |
-          set +e
-          echo "== sshd drop-ins and main config (owner, mode, size only)"
-          ls -l /etc/ssh/sshd_config /etc/ssh/sshd_config.d 2>&1 | head -20
-          echo "== per-account .ssh directory and authorized_keys (owner, mode only; number of keys, no key text)"
+          check "login-capable accounts (name uid shell)" 40 awk -F: '$7 !~ /(nologin|false|sync|halt|shutdown)$/ { print $1, $3, $7 }' /etc/passwd
+          check "groups with admin power" 20 getent group sudo wheel admin adm systemd-journal
+          check "home directories" 20 ls -1 /home
+          out="$(sudo -n -l 2>&1)"; rc=$?
+          if [ $rc -ne 0 ]; then echo "[DENIED-OR-NONE] sudo -n -l (exit $rc: the runner account has no passwordless sudo rules, or may not run sudo)"; else echo "[OBSERVED] sudo -n -l (rules; every command token filtered)"; printf '%s\n' "$out" | sudo_rules | head -n 60; fi
+          check "sudoers.d file names, owner, mode" 40 ls -l /etc/sudoers.d
+          echo "######## ssh metadata (never contents)"
+          check "sshd config files (owner, mode, size)" 20 ls -l /etc/ssh/sshd_config /etc/ssh/sshd_config.d
           for home in /root /home/*; do
             [ -d "$home" ] || continue
             echo "-- $home"
             stat -c '%U:%G %a %n' "$home/.ssh" "$home/.ssh/authorized_keys" 2>&1 | head -4
-            if [ -r "$home/.ssh/authorized_keys" ]; then printf 'keys: %s\n' "$(grep -cE '^(ssh|ecdsa|sk-)' "$home/.ssh/authorized_keys" 2>/dev/null)"; else echo "keys: DENIED (not readable by the runner account)"; fi
+            if [ -r "$home/.ssh/authorized_keys" ]; then printf '[OBSERVED] key count: %s\n' "$(grep -cE '^(ssh|ecdsa|sk-)' "$home/.ssh/authorized_keys" 2>/dev/null)"
+            elif [ -e "$home/.ssh/authorized_keys" ]; then echo "[DENIED] authorized_keys of $home (exists, not readable by the runner account)"
+            elif [ -d "$home/.ssh" ]; then echo "[OBSERVED] no authorized_keys file in $home/.ssh"
+            else echo "[OBSERVED-EMPTY] no .ssh directory in $home or it is not visible to the runner account"; fi
           done
-          echo "== root login and password auth (only if readable; otherwise DENIED)"
-          grep -hEi '^\s*(PermitRootLogin|PasswordAuthentication|AllowUsers|AllowGroups)\b' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>&1 | head -12
-      - name: Scheduled and automatic starters (names only)
-        shell: bash
-        run: |
-          set +e
-          echo "== system timers"; systemctl list-timers --all --no-pager 2>&1 | head -40
-          echo "== cron (names only)"; ls -l /etc/cron.d /etc/cron.daily /etc/cron.hourly /var/spool/cron/crontabs 2>&1 | head -40
-          echo "== at queue"; atq 2>&1 | head -5
-          echo "== user lingering"; ls -1 /var/lib/systemd/linger 2>&1 | head -10
-          echo "== transient units"; systemctl list-units --all --no-pager 'run-*' 2>&1 | head -10
-          echo "== runner services (every account that can start workflows on this host)"
-          systemctl list-units --all --no-pager 'actions.runner*' 2>&1 | head -10
-          ls -d /opt/actions-runner* 2>&1
-          echo "== polkit rule files (names only)"; ls -l /etc/polkit-1/rules.d /usr/share/polkit-1/rules.d 2>&1 | head -30
-      - name: Runtime units, drop-ins and the sources of their environment
-        shell: bash
-        run: |
-          set +e
-          redact() { sed -E 's/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig; s/[0-9a-fA-F]{32,}/[hex]/g'; }
-          for unit in nusa.service nusa-research.service nusa-research.timer nusa-autopilot.service nusa-health-guard.service nusa-health-guard.timer; do
-            echo "== $unit (definition and drop-ins; env FILE PATHS only)"
-            systemctl cat "$unit" --no-pager 2>&1 | grep -vE '^\s*#' | grep -vE '^Environment=.*(TOKEN|SECRET|PASSWORD|KEY)' | redact | head -50
-            systemctl show "$unit" -p FragmentPath -p DropInPaths -p EnvironmentFiles -p UnsetEnvironment -p Restart -p StartLimitBurst -p StartLimitIntervalUSec -p User -p UnitFileState -p ActiveState 2>&1 | redact
+          if [ -r /etc/ssh/sshd_config ]; then echo "[OBSERVED] sshd directives (names and values of the four access directives only)"; grep -hEi '^[[:space:]]*(PermitRootLogin|PasswordAuthentication|AllowUsers|AllowGroups)[[:space:]]' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | awk '{ print $1, $2 }' | head -12; else echo "[DENIED] sshd_config"; fi
+          echo "[NOT_CHECKED] effective sshd -T and Match blocks (needs root; C3b)"
+          echo "######## scheduled and automatic starters"
+          check "system timers" 40 systemctl list-timers --all --no-pager
+          check "enabled unit files that mention nusa, runner, autopilot or research" 40 bash -c "systemctl list-unit-files --state=enabled --no-pager 2>&1 | grep -Ei 'nusa|runner|autopilot|research|paper' "
+          check "cron entries (names, owner, mode)" 40 ls -l /etc/cron.d /etc/cron.daily /etc/cron.hourly /etc/crontab /var/spool/cron/crontabs
+          check "at queue" 5 atq
+          check "user lingering" 10 ls -1 /var/lib/systemd/linger
+          check "user units (names)" 20 bash -c "ls -1 /etc/systemd/user /home/*/.config/systemd/user 2>&1"
+          check "transient units" 10 systemctl list-units --all --no-pager 'run-*'
+          check "runner services" 10 systemctl list-units --all --no-pager 'actions.runner*'
+          check "runner installations (any directory with a .runner file, depth 3)" 10 bash -c "find /opt /home /srv -maxdepth 3 -name .runner 2>/dev/null"
+          check "polkit rule files (names)" 30 ls -l /etc/polkit-1/rules.d /usr/share/polkit-1/rules.d
+          echo "######## runtime units: directives from an allowlist, environment variable NAMES only"
+          for unit in nusa.service nusa-research.service nusa-research.timer nusa-autopilot.service nusa-health-guard.service nusa-health-guard.timer nusa-control-reconcile.service nusa-control-verify.service nusa-control-verify.timer; do
+            echo "== $unit"
+            systemctl cat "$unit" --no-pager 2>&1 | grep -vE '^\s*#' | unit_allowlist | head -n 40
+            systemctl show "$unit" -p FragmentPath -p DropInPaths -p EnvironmentFiles -p UnsetEnvironment -p Restart -p StartLimitBurst -p StartLimitIntervalUSec -p User -p UnitFileState -p ActiveState 2>&1 | head -n 12
           done
-      - name: Ownership and permissions of the control surface (metadata only)
-        shell: bash
-        run: |
-          set +e
-          echo "== directories and files"
-          stat -c '%U:%G %a %F %n' /opt /opt/nusa /opt/nusa/releases /opt/nusa/current /opt/nusa/bin /opt/nusa/proven /opt/nusa-control /var/lib/nusa /var/lib/nusa-control /etc/nusa /etc/nusa/run-mode.env /etc/systemd/system /run/nusa-paper-activation 2>&1
-          echo "== names in /etc/nusa (no contents)"; ls -l /etc/nusa 2>&1 | head -20
-          echo "== release helper (hash only)"; sha256sum /opt/nusa/bin/nusa-release-step 2>&1
-          echo "== who can write the unit files and drop-in directories"
-          find /etc/systemd/system -maxdepth 2 \( -name 'nusa*' \) -printf '%u:%g %m %p\n' 2>&1 | head -40
-          echo "== sudo journal: units and verbs run through sudo in the last 3 days (commands only, bounded)"
-          journalctl _COMM=sudo --since '-3 days' --no-pager -o cat 2>&1 | grep -E 'COMMAND=' | sed -E 's/.*USER=([^ ;]+).*COMMAND=(.*)/\1 \2/' | sed -E 's/[0-9a-fA-F]{32,}/[hex]/g' | sort | uniq -c | sort -rn | head -30
+          echo "######## control surface ownership, ACLs and link targets (metadata only)"
+          check "owner, mode and type" 40 stat -c '%U:%G %a %F %n' /opt /opt/nusa /opt/nusa/releases /opt/nusa/current /opt/nusa/bin /opt/nusa/proven /opt/nusa-control /var/lib/nusa /var/lib/nusa-control /etc/nusa /etc/nusa/run-mode.env /etc/systemd/system /run/nusa-paper-activation
+          check "ACLs on the control surface" 40 getfacl -p -c /opt/nusa /opt/nusa/bin /etc/nusa /etc/systemd/system
+          check "resolved link targets" 10 readlink -f /opt/nusa/current /opt/nusa/bin /etc/nusa
+          check "path permissions from root to the release helper (namei)" 20 namei -l /opt/nusa/bin/nusa-release-step
+          check "names in /etc/nusa (no contents)" 20 ls -l /etc/nusa
+          check "release helper hash" 2 sha256sum /opt/nusa/bin/nusa-release-step
+          check "writable-by-others nusa unit files and drop-ins" 40 find /etc/systemd/system -maxdepth 3 -name 'nusa*' -printf '%u:%g %m %p\n'
+          echo "######## who ran what through sudo in the last 3 days (user, executable, filtered words)"
+          jout="$(journalctl _COMM=sudo --since '-3 days' --no-pager -o cat 2>&1)"; jrc=$?
+          if [ $jrc -ne 0 ] || printf '%s' "$jout" | grep -qiE 'not seeing messages|permission|no journal files'; then echo "[DENIED] sudo journal (the runner account may not read it)"; else echo "[OBSERVED] sudo journal (reduced)"; printf '%s\n' "$jout" | sudo_journal | sort | uniq -c | sort -rn | head -n 30; fi
