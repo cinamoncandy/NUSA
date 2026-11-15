@@ -1,0 +1,159 @@
+# PAPER service restart runbook (2026-11-14)
+
+Status: PROCEDURE, not an approval. Nothing in this file starts, releases or changes anything. Every step that touches the
+host or runs a release needs the owner's approval at that time. Safety stays: PAPER_ONLY, `liveAuthority=NONE`,
+`productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, Release=HOLD.
+
+Background: the `nusa` service was stopped on 2026-11-13 (inactive, `NRestarts=0`) and the owner confirmed it stays
+stopped (verified 17:18 KST 2026-11-14). A PAPER order path was running without permit evidence (#3108, still blocked).
+Stopping the whole service also stopped research collection (an 18 h gap). The `NUSA_PAPER_ORDER_PATH` switch (merged in #3115)
+lets collection run while the order path is off, so the restart is split into two stages. Review round 1 (REJECT) found that a release starts the service itself and that its rollback target does not know the switch; both are handled below.
+
+## Roles
+
+| Who | Does |
+| --- | --- |
+| Agent session | PRs, reviews, evidence reading (read-only host diagnose), updating this checklist. Never merges, approves, releases or edits the host. |
+| Owner | approves each stage, dispatches the release workflow, approves host changes. |
+| Operator (authorized, on the host) | sets the env value, runs `systemctl`, reports the outputs. |
+
+## The host (corrected 2026-11-15)
+
+The PAPER host is **Datascale**, not Oracle (owner statement 2026-11-15). Paths, scripts and workflows still carry the old name (`deploy/oracle/`, `oracle-paper-release.yml`, `oracle-host-diagnose.yml`) and are kept; only
+this description changes. A read-only host diagnosis on 2026-11-15 (run 43656493322, runner `nusa-paper-host-datascale`) read: 4 CPUs, about 7.9 GB memory (about 7.1 GB available), root disk 77 GB with 33% used (52 GB free), load 0.
+That is not the "1 vCPU, 954 MB, 90% used" host measured in October, so statements in older documents that rest on it (memory floors for the Codex runner, startup stalls, the release backup time, the disk headroom)
+must be re-measured before they are relied on; this runbook keeps its conditions and re-reads the host in precondition 0.3. The deployed build was `324768cd` (PR 3107), `nusa.service` inactive, `nusa-autopilot.service` active; that build does not contain
+the `NUSA_PAPER_ORDER_PATH` switch. The owner can reach the host by SSH. The name `nusa-api.duckdns.org` (the phone origin) resolved to `165.140.21.228` on 2026-11-15 and the owner confirmed that this is the Datascale address, so the phone path no longer depends on the old Oracle instance. Still open before the Oracle account or instance is ended: data and backups that exist only there, and any runner still registered from there (the agent cannot read the runner list).
+
+## What a release does to a stopped service (read in `deploy/oracle/nusa-release-step.sh`, 2026-11-14)
+
+The release `activate` verb enables and **restarts** `nusa.service` and `nusa-autopilot.service` and starts the research timer, then
+requires both units to be active, passes the readiness check and holds a stability soak of about 180 s. If any check fails
+the release rolls back, and the rollback also restarts the services. Consequences:
+
+1. A release dispatched while the service is stopped **is the first start**. There is no separate "release, then start".
+2. The first start runs with whatever is in `/etc/nusa/cloud-runtime.env` at that moment. Unset means the order path is ON.
+3. A failed activation rolls back to the previous build, which does not know `NUSA_PAPER_ORDER_PATH` (the switch is new). That
+   build would start with the order path ON and the missing-permit defect. **This hazard is not resolved yet** (see 0.5).
+
+## Stage 0: preconditions (all must be true; record the evidence for each; the first release is blocked until 0.5 is decided)
+
+| # | Condition | Evidence |
+| --- | --- | --- |
+| 0.1 | `main` contains the switch (#3115) and the SHA to release is the current protected `main` SHA with exact-source CI success | PR, CI run |
+| 0.2 | `deploy/health-watch.json` `expectedState` is `RUNNING` in a reviewed PR that merged BEFORE the release (else `UNEXPECTED_UP`) | merged PR |
+| 0.3 | A fresh backup exists and the disk has free space (the host was 90% used in October and 33% on 2026-11-15; re-measure at the time). The release backup takes about 30 min and must not be cancelled | diagnose output |
+| 0.4 | The owner states the start date so research studies can be re-pre-registered with the real span | owner message |
+| 0.5 | The rollback hazard is closed by PROOF, never by accepting the risk. The release rollback (`rollback_and_restore`) restarts the previous build, which does not know the switch. **Finding (2026-11-14): the earlier candidate, "leave `NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW` unset", does NOT work.** `scripts/start-cloud-runtime.js` sets that variable to a default (`DEFAULT_PAPER_CAPITAL_KRW` 10000) when it is blank and then overwrites it with `initialCapitalKrw` from the versioned `deploy/oracle/paper-account.json` (100000), so the order loop is created in every build that uses this start script, whatever the env file says. No env-file-only setting keeps the previous build from creating an order path. Closing 0.5 needs a different mechanism that has been verified (see "Options for 0.5" below). The owner cannot waive this condition, and the first release does not start until it passes | code reference (done: `scripts/start-cloud-runtime.js`), then a verified mechanism, test or rehearsal output |
+| 0.6 | `NUSA_PAPER_ORDER_PATH=OFF` is already written in `/etc/nusa/cloud-runtime.env` (`0600`) BEFORE the release is dispatched. Verified by the operator reading the file, not by starting the service | operator output |
+| 0.7 | The readiness and soak checks pass with the order path off. Read and tested so far: the release readiness probe `/ready` checks only `database`, `migrations`, `dashboardPersistence` and `runtimeRecovery`, none of which names the order path, and `tests/cloud-runtime-order-path-switch-e2e.test.js` shows `/ready` answers 200 with all four true when the switch is ON and when it is OFF (fresh durable state in the sandbox). NOT yet shown: the same on the host with its real state, the full soak (about 180 s of repeated readiness plus `scripts/autopilot-readiness.js`), and the interaction with the activation lock. This condition stays open until the host evidence exists | the test (done in the sandbox), host readiness output after the first start |
+
+## Options for 0.5 (none is chosen or implemented; each needs the owner and a non-author review)
+
+The release workflow runs `prune`, `backup`, `stage`, `preflight`, `activate` in that order, and `activate` restarts the services. The hazard exists only for the FIRST release that adds the switch: once a build with the switch is active, the next release's rollback target already knows it.
+
+| Option | Idea | Why it might work | Open problem |
+| --- | --- | --- | --- |
+| O1 | A reviewed one-off sequence that uses `stage` and `switch` (symlink only, no restart; both verbs exist in `nusa-release-step.sh`) with the service left stopped, then the operator writes `OFF` and starts the new build by hand | the old build never runs again | not the normal release path; a governed change to the release procedure, and `activate`'s readiness and soak would not run for the first start |
+| O2 | The operator stops the service the moment the release log shows a failure | none needed beyond attention | a race: an order path can run until the stop; not a guarantee |
+| O3 | Before the release the operator masks the unit (`systemctl mask nusa.service`) so no code path can start it, runs the release, then unmasks after reading the active build | a failed activation also cannot start the old build | `activate` expects the service to start and would report failure; the symlink state after the rollback must be inspected and corrected; untested |
+| O4 | Change the start script or `paper-account.json` handling in a separate release | cannot help the previous build, which is immutable | listed only so nobody tries it |
+
+### What was read about O1 (2026-11-14, `deploy/oracle/nusa-release-step.sh`, `scripts/atomic-deploy.js`)
+
+- The `switch` verb takes the activation lock, runs `atomic-deploy.js` (moves the release symlink and records the previous release; no `systemctl` call; its JSON only reports `restartRequired: true`) and
+  writes the source identity into the runtime env file. It does not install units, enable them, restart anything or run readiness. `stage` only stages a tree.
+- So `switch` alone leaves the service stopped, and the normal `activate` auto-rollback is not involved. These are read facts, not a tested procedure.
+- Three different things must not be confused (`deploy/oracle/nusa-release-step.sh`):
+  - the `rollback` verb (lines 498-505) only moves the symlink back to the previous release and rebinds the source identity; it does not restart anything;
+  - `rollback_and_restore()` (lines 269-282), called automatically by a failed `activate`, restores the link AND installs, enables and restarts the units;
+  - the `restart` verb (lines 507-512) runs `daemon-reload`, enables and restarts the units, so after a manual `rollback` it would start the previous build.
+- Gaps that still make O1 unverified: units from the new build are not installed by `switch` (the separate `install-units` verb would be needed if the build changes them); readiness and the soak that `activate` provides
+  would have to be run separately by hand after the first start; and the way back to the previous build must be closed in an O1 sequence: nobody may run `rollback`, `restart` or the release workflow's `activate` path
+  for a failed start, because each can bring the previous build (without the switch) back to a running service. The only allowed reaction to a failed start is stopping the service.
+
+### Pinned by tests (2026-11-14, `tests/oracle-release-o1-mechanics.test.js`, 7 tests, sandbox)
+
+- `stage`, `switch` and the `rollback` verb, `bind_runtime_source_identity` and `scripts/atomic-deploy.js` contain no `systemctl`, no unit install, enable or restart, and `atomic-deploy.js` starts no process. Adding a restart to any of them fails a test (three mutations were checked).
+- `scripts/atomic-deploy.js` run against a temporary deployment root with a stub `systemctl` that records any call: `switch` moves only the `current` link to the staged build and records the previous release; the stub is never called; a build that is not staged, or a bad SHA, fails and leaves the link where it was; the `rollback` action only moves the link back.
+- `bind_runtime_source_identity` writes the new SHA into the env file and keeps `NUSA_PAPER_ORDER_PATH=OFF` and other lines; no `systemctl` call.
+- The only verbs that start the service are `restart`, `activate` and the automatic `rollback_and_restore` inside a failed activation; a failed activation can keep the NEW build running when the previous build cannot open the migrated database.
+- These are sandbox tests of the mechanics. They are not a rehearsal on the host.
+
+### Two more facts that matter for O1 (read in `deploy/oracle/nusa.service`, `deploy/oracle/nusa-health-guard`)
+
+- `nusa.service` has `Restart=on-failure` with `RestartSec=5s` and starts `/opt/nusa/current/scripts/start-cloud-runtime.js`; the health guard restarts `nusa.service` (lines 28 and 98). Every such restart runs whatever the `current` link points to. After `switch` that is the NEW build, so the previous build is not started by systemd or the guard; it can only come back if somebody moves the link back (the `rollback` verb or the failed-activation path).
+- The new build is started with `NUSA_PAPER_ORDER_PATH=OFF` from the env file. The runtime treats anything other than exactly `ON` as OFF, and that is pinned by `tests/cloud-runtime-order-path-switch*.test.js`.
+
+### The O1 sequence as a checklist (NOT rehearsed; each step needs the owner's approval at that time; the operator reports every output)
+
+1. Preconditions 0.1-0.4 hold; the owner approves the O1 sequence for a named SHA.
+2. Operator: confirm the service is stopped (`systemctl is-active nusa.service` is `inactive`), and write `NUSA_PAPER_ORDER_PATH=OFF` into `/etc/nusa/cloud-runtime.env` (0.6).
+3. Operator: `nusa-release-step` `backup`, `stage <sha> <tree>` and `preflight <sha>` (the same first steps the release workflow runs). No service is touched.
+4. Operator: compare the unit files of the staged build with the installed ones (`diff <staged>/deploy/oracle/nusa.service /etc/systemd/system/nusa.service`, same for `nusa-autopilot.service`, `nusa-research.service`, `nusa-research.timer`). If they differ, the owner and the agent decide first whether `install-units` is needed; `switch` does not install units.
+5. Operator: `switch <sha>`. Read back WITHOUT starting anything: `readlink -f /opt/nusa/current` equals the staged SHA directory, `grep '^NUSA_SOURCE_COMMIT' /etc/nusa/cloud-runtime.env` shows the SHA, `grep '^NUSA_PAPER_ORDER_PATH=' /etc/nusa/cloud-runtime.env` shows `OFF`, and `systemctl is-active nusa.service` is still `inactive`.
+6. The agent reads these outputs and states whether every line matches. Only then the owner approves the first start.
+7. Operator: `systemctl start nusa.service` (not `activate`, not `restart` verb, not the release workflow). If the start fails or any check below fails: `systemctl stop nusa.service`, confirm `inactive`, report. NEVER run `rollback`, the `restart` verb or the release workflow for this.
+8. Checks the `activate` verb would have run, run by hand and recorded: `node /opt/nusa/current/scripts/oracle-readiness-check.js`, `node /opt/nusa/current/scripts/autopilot-readiness.js` (the latter needs `nusa-autopilot.service`, which `activate` would also have restarted: the operator and the agent decide whether it is started in this step), then the stability soak of about 180 s is repeated by hand (the same two checks every 10 s) or the agent reads `/health` and the diagnose output at two points an hour apart.
+9. Stage A evidence (structure, behaviour, observation) as in the Stage A section.
+
+What this does NOT replace: the activation lock (`switch` takes it, the manual start does not), the automatic readiness-gated rollback (deliberately not wanted here), and any host rehearsal.
+
+O1 may be recommended. With the tests above, conditions 1 and 3 (the previous build is never started by these verbs or by systemd; a failed start leaves the service stopped because nothing moves the link back) have a mechanical basis; conditions 2 and 4 (verify the new SHA and OFF before the first start; run the readiness and soak checks by hand) are the checklist above. It is still NOT a verified safe procedure: nothing was rehearsed on the host. It counts as closing 0.5 only when all of these are shown, in a rehearsal or test and reviewed: the previous build is never started; the new build SHA and the `OFF` value are verified before the first start without starting anything; a failed start leaves the service stopped; and the readiness and soak checks that `activate` would have run are run separately and recorded.
+
+Recommendation: O1, because it removes the old build from the picture entirely, but it changes the release procedure, is unverified, and needs its own review.
+
+## Stage A: collection ON, order path OFF (resumes research data, no orders)
+
+1. Owner approves dispatching `oracle-paper-release.yml` for the exact SHA, knowing it starts the service (see above).
+2. After the release reports success, the agent reads the state (read-only `oracle-host-diagnose.yml` with `health_only`).
+3. Three different kinds of evidence are needed; none replaces another:
+   - **Structure:** the running build has the switch and the env value is `OFF` (diagnose output of the build SHA; no order boundary exists, from the code and `tests/cloud-runtime-order-path-switch.test.js`).
+   - **Behaviour:** an attempt that would produce an order does not. The decision-driven test now exists (PR #3120: `tests/cloud-runtime-order-path-switch-e2e.test.js`, ON control produces a FILL, OFF produces none). Stage A stays BLOCKED until that test has passed in exact-head CI AND is contained in the release SHA that Stage A deploys. Its scope is the tick-driven path of the CURRENT build; it does not cover every order entry point and it is not proof for the previous (rollback target) build, which is condition 0.5.
+   - **Observation:** `paperOrderCount` and fill counts do not rise, and `lastMarketEventAt` and the research row counts do rise, read at two points at least one hour apart. Field names were not read from a running host; if a field is missing the check does not pass and the stage stays blocked.
+4. If any check fails: stop the service first, confirm it is inactive, then follow the rollback.
+
+### A failed release is not a stopped service
+
+Read in `activate` (`deploy/oracle/nusa-release-step.sh`): when readiness or the soak fails, the script either restores the previous
+build and restarts it, or, if the previous build cannot open the migrated database (`rollback_schema_compatible` fails), **keeps the
+new build running** ("keeping $1 active (no rollback)") and exits with an error. So after any failed or ambiguous release the
+agent must not assume the service is down:
+
+1. Operator stops the service FIRST, without waiting for any report: `sudo systemctl stop nusa.service`, then confirms `ActiveState=inactive`
+   and reports the output. Waiting for a status report while an order path may be alive is not allowed.
+2. After the stop, the operator reports `readlink -f /opt/nusa/current` (the active SHA is still readable when the service is stopped) and the
+   agent reads that the service is inactive. A running service is restarted only under a new owner approval and a complete Stage A evidence set.
+3. Only then are the cause and the next release discussed. A failure message in the workflow log is never taken as proof that no order path is running.
+
+## Stage B: order path ON (only after the permit fix; separate approval, separate release)
+
+Preconditions in addition to Stage 0 (re-checked at that time, not carried over):
+
+| # | Condition | Evidence |
+| --- | --- | --- |
+| B.1 | The #3108 permit fix is merged through the normal path (draft PR, independent review, exact-head CI, Audit) and released (same release rules) | PR, review, release run |
+| B.2 | The Release HOLD and WIP evidence source is known. The Coordinator read path was never proven; after the Cloudflare removal (#3118) the source is the replacement chosen in S1. Until then #3108 stays `BLOCKED_WIP_UNKNOWN` and Stage B does not start | work order status |
+| B.3 | The owner approves turning orders on, in writing, at that time | owner message |
+
+1. The value is set to exactly `ON`. Deleting the line is NOT allowed (an unset value also enables orders, so a forgotten edit would not be an explicit decision).
+2. The service is restarted only after B.1-B.3 are re-verified.
+3. Verify, read-only: orders carry permit evidence; a rejection is recorded when the permit is missing (the rejection evidence the owner asked for); `ORDER_INTENT` is not failing for an unexplained reason; no order exists without permit evidence.
+4. If an order appears without permit evidence: **stop the service first** and confirm it is inactive; only then set OFF and open a P0 issue. Changing the env file does not turn the order path off in a process that is already running. No restart without a new owner approval.
+
+## Rollback (any stage)
+
+1. Operator: `sudo systemctl stop nusa.service`; confirm `ActiveState=inactive` (the agent reads it).
+2. Operator: set `NUSA_PAPER_ORDER_PATH=OFF` (and keep capital unset if 0.5 chose that).
+3. Agent: set `expectedState` back to `STOPPED` in a PR (until it merges the watch may open an issue; it is read-only and restarts nothing).
+4. Record the stop time. Research studies treat the stop as a gap (see `docs/research-ledger`).
+5. A new start needs a new owner approval.
+
+## After the start
+
+- Re-pre-register the trade-flow study with the real span (`docs/RESEARCH_PREREG_2026-11-14_TRADEFLOW_60M_V2.md` is the template). Release the tooling change (#3110) before the new holdout, never during a holdout.
+- Daily: confirm the service stays in the expected state; an unexpected start or stop is abnormal.
+
+## Not covered here
+
+LIVE trading or any real-money authority, changing risk, threshold, capital or writer-lease settings, deploying Cloudflare, and any host change by an agent session.

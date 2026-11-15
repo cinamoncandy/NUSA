@@ -281,11 +281,6 @@
       "secrets": false,
       "environment": null
     },
-    "oracle-codex-dev.yml:oracle-codex": {
-      "write": [],
-      "secrets": false,
-      "environment": null
-    },
     "paper-real-elapsed-soak.yml:paper-real-elapsed-soak": {
       "write": [],
       "secrets": false,
@@ -308,6 +303,13 @@
     },
     "restricted-live-transport-credential-readiness.yml:readiness": {
       "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "health-watch.yml:watch": {
+      "write": [
+        "issues"
+      ],
       "secrets": false,
       "environment": null
     },
@@ -338,6 +340,23 @@
     "autopilot-cloudflare-credential-preflight.yml:blocker": {
       "write": [
         "issues"
+      ],
+      "secrets": false,
+      "environment": null
+    },
+    "independent-review.yml:select": {
+      "write": [],
+      "secrets": false,
+      "environment": null
+    },
+    "independent-review.yml:review": {
+      "write": [],
+      "secrets": true,
+      "environment": null
+    },
+    "independent-review.yml:post": {
+      "write": [
+        "pull-requests"
       ],
       "secrets": false,
       "environment": null
