@@ -92,7 +92,7 @@ function validateState(s) {
   if (s.intent !== null) {
     const i = s.intent;
     if (!(i && ["stop", "collect"].includes(i.verb) && Number.isSafeInteger(i.version) && Number.isSafeInteger(i.at))) fail("intent");
-    if (i.verb === "collect" && !(i.owner && Number.isSafeInteger(i.owner.pid) && typeof i.owner.ident === "string" && i.owner.ident.length > 0 && typeof i.owner.bootId === "string" && i.owner.bootId.length > 0)) fail("collect intent needs an owner (pid, ident, bootId)");
+    if (i.verb === "collect" && !(i.owner && Number.isSafeInteger(i.owner.pid) && typeof i.owner.ident === "string" && i.owner.ident.length > 0 && typeof i.owner.bootId === "string" && i.owner.bootId.length > 0 && Number.isSafeInteger(i.owner.atMono))) fail("collect intent needs an owner (pid, ident, bootId, atMono)");
   }
   return s;
 }
@@ -217,7 +217,8 @@ function makeController(deps) {
       if (intent.owner.bootId !== deps.bootId()) return false;
       if (deps.processIdentity(intent.owner.pid) !== intent.owner.ident) return false;
     } catch { return false; }
-    const age = now() - intent.at;
+    // Same boot, so the monotonic clock is comparable across processes; the wall clock plays no part.
+    const age = monotonic() - intent.owner.atMono;
     return age >= 0 && age <= cfg.startCeilingMs + 60_000;
   };
   // Gate denial: stop what is running, disable what would start by itself, and leave inactive units alone (a stop on a unit
@@ -247,12 +248,15 @@ function makeController(deps) {
     return { ok: true, state: r.ok ? r.state : null, stateProblem: r.ok ? null : r.reason, current: currentSha(), units, runtime };
   };
 
-  // stop never depends on the state file: the units are stopped first, then the state is recorded if it can be.
+  // stop never depends on the state file: it records a "stop" intent first when it can (so a concurrent gate sees a command in
+  // progress), always stops the units, and records STOPPED afterwards if it can.
   const stop = async () => {
+    let r = store.read();
+    if (r.ok) { try { store.write(r.state.version, { ...r.state, version: r.state.version + 1, intent: { verb: "stop", version: r.state.version + 1, at: now() } }); } catch { /* the stop goes on without the marker */ } }
     const problems = stopAll(sys);
     let stateRecorded = false;
     let stateProblem = null;
-    const r = store.read();
+    r = store.read();
     if (r.ok) {
       try { store.write(r.state.version, { ...r.state, version: r.state.version + 1, desired: "STOPPED", intent: null }); stateRecorded = true; } catch (e) { stateProblem = e.code || "STATE_WRITE_FAILED"; }
     } else stateProblem = r.reason;
@@ -273,7 +277,7 @@ function makeController(deps) {
     let intentState;
     try {
       const me = deps.selfIdentity();
-      intentState = store.write(s.version, { ...s, version: s.version + 1, intent: { verb: "collect", version: s.version + 1, at: now(), owner: { pid: me.pid, ident: me.ident, bootId: deps.bootId() } } });
+      intentState = store.write(s.version, { ...s, version: s.version + 1, intent: { verb: "collect", version: s.version + 1, at: now(), owner: { pid: me.pid, ident: me.ident, bootId: deps.bootId(), atMono: monotonic() } } });
     } catch (e) { return { ok: false, code: e.code || "STATE_WRITE_FAILED", detail: "no unit was touched; if the record holds a pending intent, verify or the boot reconcile resolves it to STOPPED" }; }
     try {
       modeWrite();
@@ -334,10 +338,13 @@ function makeController(deps) {
       const resolveStopped = (out) => { if (!readonly && out.stopped && (s.desired !== "STOPPED" || s.intent !== null)) { try { store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", intent: null }); } catch { out.stateRecorded = false; } } return out; };
       if (s.active !== currentSha()) return resolveStopped(deny("GATE_DENIED:MISMATCH"));
       const inFlight = collectInFlight(s.intent);
-      const settledCollect = s.desired === "COLLECT_ONLY" && s.intent === null;
+      // With the lock held by another command (readonly) a settled record is NOT enough: that command may be a stop that has
+      // not recorded yet. Only a verifiably live collect, whose own lock this is, may start the runtime.
+      const settledCollect = !readonly && s.desired === "COLLECT_ONLY" && s.intent === null;
       if (!inFlight && !settledCollect) {
         const stale = s.intent !== null;
-        return resolveStopped(deny(stale ? "GATE_DENIED:STALE_OR_UNKNOWN_INTENT" : "GATE_DENIED:STOPPED"));
+        const busy = readonly && s.desired === "COLLECT_ONLY" && s.intent === null;
+        return resolveStopped(deny(busy ? "GATE_DENIED:CONTROLLER_COMMAND_RUNNING" : stale ? "GATE_DENIED:STALE_OR_UNKNOWN_INTENT" : "GATE_DENIED:STOPPED"));
       }
       if (!readonly) modeWrite();
       return { ok: true, code: "START_PERMITTED_COLLECT_ONLY", quarantined };
@@ -351,7 +358,8 @@ function makeController(deps) {
   // Post-start and periodic check: the recorded desired state must match reality (units, listener identity, build, mode).
   const verify = async ({ readonly = false } = {}) => {
     // Another controller command holds the lock: it is responsible for its own result; a periodic check never interferes.
-    if (readonly) return { ok: true, code: "CONTROLLER_COMMAND_RUNNING" };
+    // The result says plainly that NOTHING was verified; the next timer run verifies again once the command has finished.
+    if (readonly) return { ok: true, verified: false, skipped: true, code: "VERIFY_SKIPPED_CONTROLLER_COMMAND_RUNNING" };
     try {
       const r = store.read();
       if (!r.ok) return stoppedResult(`VERIFY_STOPPED:${r.reason}`);
@@ -360,7 +368,7 @@ function makeController(deps) {
         const bad = UNITS.filter((u) => { const st = unitState(sys, u); return st.active !== "inactive" || (BOOT_UNITS.includes(u) && st.enabled !== "disabled"); });
         return bad.length === 0 ? { ok: true, code: "STOPPED_VERIFIED" } : stoppedResult("VERIFY_STOPPED:UNIT_RUNNING_OR_ENABLED_WHILE_STOPPED", { units: bad });
       }
-      if (s.intent !== null && collectInFlight(s.intent) && s.active === currentSha()) return { ok: true, code: "COLLECT_IN_PROGRESS" };
+      if (s.intent !== null && collectInFlight(s.intent) && s.active === currentSha()) return { ok: true, code: "COLLECT_IN_PROGRESS", verified: false };
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
       const v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");

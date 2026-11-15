@@ -29,6 +29,7 @@ function world(opts = {}) {
   const systemctl = (args) => {
     calls.push(args.join(" "));
     const [verb, ...rest] = args;
+    if (verb === "stop" && opts.onStop) opts.onStop(w);
     const unit = rest.filter((a) => a !== "--quiet")[0];
     if (failVerbs[verb] && failVerbs[verb].includes(unit)) return 1;
     const u = units[unit];
@@ -73,7 +74,7 @@ function world(opts = {}) {
 const mutations = (w) => w.calls.filter((c) => !/^is-(active|enabled) /.test(c));
 const allStopped = (w) => UNITS.every((u) => !w.units[u].active) && ["nusa.service", "nusa-research.timer"].every((u) => !w.units[u].enabled);
 const seed = async (w) => { assert.equal((await w.ctl.init(SHA)).code, "INITIALISED_STOPPED"); w.calls.length = 0; };
-const collectIntent = (w, extra = {}) => ({ verb: "collect", version: 3, at: 1_000_000, owner: { pid: 4001, ident: "t1", bootId: "boot-A" }, ...extra });
+const collectIntent = (w, extra = {}) => ({ verb: "collect", version: 3, at: 1_000_000, owner: { pid: 4001, ident: "t1", bootId: "boot-A", atMono: 0, ...(extra.owner || {}) }, ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "owner")) });
 const rawWrite = (w, patch) => { const s = w.state().state; w.store.write(s.version, { ...s, version: s.version + 1, ...patch }); };
 
 test("init stops every owned unit first, then records the running build as adopted and STOPPED", posixOnly, async () => {
@@ -234,7 +235,7 @@ test("start gate: it succeeds ONLY for a settled COLLECT_ONLY record or a collec
     assert.equal(r.ok, false, label); assert.equal(r.code, "GATE_DENIED:STALE_OR_UNKNOWN_INTENT", label); assert.ok(allStopped(stale), label);
     assert.equal(stale.state().state.intent, null, `${label}: the stale intent is resolved to STOPPED`);
   }
-  const tooOld = world(); await seed(tooOld); rawWrite(tooOld, { intent: collectIntent(tooOld, { at: -10_000_000 }) });
+  const tooOld = world(); await seed(tooOld); rawWrite(tooOld, { intent: collectIntent(tooOld, { owner: { atMono: -10_000_000 } }) });
   assert.equal((await tooOld.ctl.reconcile()).code, "GATE_DENIED:STALE_OR_UNKNOWN_INTENT", "an intent older than the start ceiling is stale");
   const forged = world(); await seed(forged); rawWrite(forged, { desired: "STOPPED", intent: collectIntent(forged) }); forged.ownerAlive = false;
   assert.equal((await forged.ctl.reconcile()).ok, false, "STOPPED plus a stale collect intent never starts");
@@ -266,7 +267,7 @@ test("verify: a consistent running runtime passes; a dead runtime, a foreign lis
 test("the state schema refuses PAPER_ORDERS, a grant, an attempt, unknown fields and bad SHAs in this version", () => {
   const base = { schemaVersion: 1, version: 1, desired: "STOPPED", active: SHA, adopted: true, proven: [], attempt: null, grant: null, intent: null };
   assert.doesNotThrow(() => validateState(base));
-  for (const bad of [{ desired: "PAPER_ORDERS" }, { grant: { sha: SHA } }, { attempt: { sha: SHA } }, { extra: 1 }, { active: "x" }, { version: 0 }, { proven: [{ sha: "x", evidence: "e" }] }, { intent: { verb: "init", version: 1, at: 1 } }, { intent: { verb: "collect", version: 1, at: 1 } }]) {
+  for (const bad of [{ desired: "PAPER_ORDERS" }, { grant: { sha: SHA } }, { attempt: { sha: SHA } }, { extra: 1 }, { active: "x" }, { version: 0 }, { proven: [{ sha: "x", evidence: "e" }] }, { intent: { verb: "init", version: 1, at: 1 } }, { intent: { verb: "collect", version: 1, at: 1 } }, { intent: { verb: "collect", version: 1, at: 1, owner: { pid: 1, ident: "x", bootId: "b" } } }]) {
     assert.throws(() => validateState({ ...base, ...bad }), /./, JSON.stringify(bad));
   }
 });
@@ -464,7 +465,8 @@ test("gate readonly mode (controller lock held by another command) never writes 
   assert.equal(denied.ok, false); assert.equal(denied.readonly, true);
   assert.equal(fs.readFileSync(path.join(w.stateDir, "state.json"), "utf8"), before, "state untouched");
   assert.deepEqual(mutations(w), [], "no systemctl mutation");
-  assert.equal((await w.ctl.verify({ readonly: true })).code, "CONTROLLER_COMMAND_RUNNING");
+  const skipped = await w.ctl.verify({ readonly: true });
+  assert.equal(skipped.code, "VERIFY_SKIPPED_CONTROLLER_COMMAND_RUNNING"); assert.equal(skipped.verified, false, "a skipped verify never claims it verified anything");
 });
 
 test("verify during a live collect is a no-op (COLLECT_IN_PROGRESS); with a stale collect intent it stops", posixOnly, async () => {
@@ -491,4 +493,27 @@ test("systemd model: the gate has no RemainAfterExit (it is evaluated for every 
   assert.doesNotMatch(fs.readFileSync(path.join(dir, "nusa-control-reconcile.service"), "utf8"), /RemainAfterExit=\s*yes/i);
   const sh = fs.readFileSync(path.join(dir, "nusa-control.sh"), "utf8");
   assert.match(sh, /reconcile\|verify\)\s+if ! flock -n 9; then exec .*--readonly; fi/, "no deadlock when collect (which holds the lock) restarts the runtime and the gate runs inside it");
+});
+
+test("readonly gate (lock held by another command): a settled COLLECT_ONLY record does NOT permit a start, so a stop that has not recorded yet cannot be raced", posixOnly, async () => {
+  const w = world({ healthAnswers: ["COLLECT_ONLY"] }); await seed(w); await w.ctl.collect();
+  w.calls.length = 0;
+  const ro = await w.ctl.reconcile({ readonly: true });
+  assert.equal(ro.ok, false); assert.equal(ro.code, "GATE_DENIED:CONTROLLER_COMMAND_RUNNING");
+  assert.deepEqual(mutations(w), [], "readonly never stops or writes");
+  assert.equal((await w.ctl.reconcile()).code, "START_PERMITTED_COLLECT_ONLY", "with the lock a settled record permits the start");
+});
+
+test("stop records a stop intent BEFORE it stops: a gate that runs during the stop sees a command in progress and denies", posixOnly, async () => {
+  let during = null; let armed = false;
+  const w = world({ healthAnswers: ["COLLECT_ONLY"], onStop: (world) => { if (armed && during === null) during = { intent: world.store.read().state.intent }; } });
+  await seed(w); await w.ctl.collect(); armed = true;
+  const r = await w.ctl.stop();
+  assert.equal(r.code, "STOPPED"); assert.equal(w.state().state.intent, null); assert.equal(w.state().state.desired, "STOPPED");
+  assert.equal(during.intent && during.intent.verb, "stop", "the intent was on disk when the first unit was stopped");
+});
+
+test("collect-in-flight age uses the monotonic clock: moving the wall clock cannot expire or extend it", posixOnly, async () => {
+  const live = world({ wallBackwards: true }); await seed(live); rawWrite(live, { intent: collectIntent(live, { at: 1 }) });
+  assert.equal((await live.ctl.reconcile()).code, "START_PERMITTED_COLLECT_ONLY", "a wall clock far from the intent time changes nothing");
 });
