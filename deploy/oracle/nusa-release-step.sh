@@ -28,6 +28,7 @@ readonly ACTIVATION_LOCK_FILE="${ACTIVATION_LOCK_DIR}/activation.lock"
 readonly SYSTEMD_UNIT_DIR=/etc/systemd/system
 readonly RUNTIME_ENV=/etc/nusa/cloud-runtime.env
 readonly PREVIOUS_RELEASE_FILE="${DEPLOY_ROOT}/.previous-release"
+readonly PROVEN_DIR="${DEPLOY_ROOT}/proven"
 readonly RELEASE_RETENTION=0
 readonly ROOT_DISK_GUARD_PERCENT=92
 readonly ROOT_DISK_STAGE_MARGIN_BYTES=536870912
@@ -266,39 +267,72 @@ rollback_schema_compatible() {
   return 0
 }
 
-# A release is "proven" once activate accepted it (readiness plus soak). The marker lives in the release directory,
-# owned by root, so a release cannot mark itself; a rollback target without it is never restored automatically.
+# A release is "proven" once activate accepted it (readiness, soak and the final active checks). The proof is a root-owned
+# file in a root-owned directory OUTSIDE the release tree (the releases are owned by the service user), named by the full
+# commit SHA and containing it. A release therefore cannot create, replace or delete its own proof.
+assert_proven_dir() {
+  local parent_mode
+  [ -d "$DEPLOY_ROOT" ] && [ ! -L "$DEPLOY_ROOT" ] && [ "$(stat -c '%u' -- "$DEPLOY_ROOT")" = "0" ] || return 1
+  parent_mode="$(stat -c '%a' -- "$DEPLOY_ROOT")"
+  [ $(( 8#$parent_mode & 8#022 )) -eq 0 ] || return 1
+  [ -d "$PROVEN_DIR" ] && [ ! -L "$PROVEN_DIR" ] && [ "$(stat -c '%u:%a' -- "$PROVEN_DIR")" = "0:755" ]
+}
 release_proven() {
-  local dir="${1:-}"
-  [ -n "$dir" ] && [ -d "$dir" ] && [ -f "$dir/.nusa-proven" ] && [ ! -L "$dir/.nusa-proven" ] \
-    && [ "$(stat -c '%u' -- "$dir/.nusa-proven")" = "0" ]
+  local dir="${1:-}" sha file
+  [ -n "$dir" ] && [ -d "$dir" ] || return 1
+  sha="${dir##*/}"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || return 1
+  assert_proven_dir || return 1
+  file="${PROVEN_DIR}/${sha}"
+  [ -f "$file" ] && [ ! -L "$file" ] && [ "$(stat -c '%u' -- "$file")" = "0" ] && [ "$(cat -- "$file")" = "$sha" ]
 }
 mark_release_proven() {
-  local dir="${1:-}"
+  local dir="${1:-}" sha tmp
   [ -d "$dir" ] || die "cannot mark a missing release proven"
-  : > "$dir/.nusa-proven" && chown root:root "$dir/.nusa-proven" && chmod 0644 "$dir/.nusa-proven"
+  sha="${dir##*/}"
+  [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || die "cannot mark a release proven without a full commit SHA"
+  [ -d "$PROVEN_DIR" ] || install -d -o root -g root -m 0755 -- "$PROVEN_DIR" || die "cannot create the proven-release directory"
+  assert_proven_dir || die "the proven-release directory is not a root-owned real directory"
+  tmp="$(mktemp -- "${PROVEN_DIR}/.tmp.XXXXXX")" || die "cannot create a proof file"
+  printf '%s\n' "$sha" > "$tmp" && chown root:root "$tmp" && chmod 0644 "$tmp" && mv -fT -- "$tmp" "${PROVEN_DIR}/${sha}" \
+    || { rm -f -- "$tmp"; die "cannot record the proof for $sha"; }
 }
-# Failed activation with nothing safe to restore: stop PAPER, keep the data and the failed build for diagnosis, fail loudly.
+# Failed activation with nothing safe to restore: the host ends STOPPED. STOPPED means every runtime unit is stopped and will
+# not start again at boot or by a timer: nusa.service, the autopilot, the research timer and the research service. Stops are
+# not hidden; afterwards each unit is checked, and an unconfirmed stop is reported loudly. Data and the failed build stay.
 safe_stop_after_failed_activation() {
-  printf '%s\n' "nusa-release-step: activation of $1 failed ($2); stopping $SERVICE and leaving the host STOPPED (no automatic rollback)" >&2
-  systemctl stop "$SERVICE" || true
+  local unit unconfirmed=""
+  printf '%s\n' "nusa-release-step: activation of $1 failed ($2); stopping every runtime unit and leaving the host STOPPED (no automatic rollback)" >&2
+  for unit in "$RESEARCH_TIMER" "$SERVICE" "$AUTOPILOT_SERVICE" "$RESEARCH_SERVICE"; do
+    systemctl disable "$unit" >&2 || printf '%s\n' "nusa-release-step: could not disable $unit" >&2
+    systemctl stop "$unit" >&2 || printf '%s\n' "nusa-release-step: could not stop $unit" >&2
+  done
+  for unit in "$RESEARCH_TIMER" "$SERVICE" "$AUTOPILOT_SERVICE" "$RESEARCH_SERVICE"; do
+    if systemctl is-active --quiet "$unit"; then unconfirmed="$unconfirmed $unit"; fi
+  done
+  if [ -n "$unconfirmed" ]; then
+    printf '%s\n' "nusa-release-step: STOP NOT CONFIRMED, still active:${unconfirmed}" >&2
+  else
+    printf '%s\n' "nusa-release-step: STOPPED confirmed: no runtime unit is active" >&2
+  fi
   exit 1
 }
 
 rollback_and_restore() {
   local rollback_release rollback_legacy_ok=true
+  # Every step returns explicitly: this function runs inside a condition, where `set -e` does not stop it.
   rollback_release="$(previous_release)"
-  [ -n "$rollback_release" ] || die "rollback release is unavailable"
-  assert_segmented_replay_compatible "$rollback_release"
+  [ -n "$rollback_release" ] || return 1
+  assert_segmented_replay_compatible "$rollback_release" || return 1
   # Legacy rollback releases may predate Autopilot. When the rollback release does contain the
   # canonical Autopilot unit, converge that process too; otherwise a symlink rollback can leave
   # Autopilot executing the rejected candidate from its already-resolved cwd.
   [ -f "${rollback_release}/deploy/oracle/nusa-autopilot.service" ] && rollback_legacy_ok=false
-  NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)"
-  bind_runtime_source_identity "$(active_release_sha)"
-  install_units_from_release "$(active_release)" "$rollback_legacy_ok"
-  enable_units "$rollback_legacy_ok"
-  restart_units "$rollback_legacy_ok"
+  NUSA_DEPLOY_ACTION=rollback node "$(script_in "$(active_release)" atomic-deploy.js)" || return 1
+  bind_runtime_source_identity "$(active_release_sha)" || return 1
+  install_units_from_release "$(active_release)" "$rollback_legacy_ok" || return 1
+  enable_units "$rollback_legacy_ok" || return 1
+  restart_units "$rollback_legacy_ok" || return 1
 }
 
 previous_release() {
@@ -536,7 +570,8 @@ case "$verb" in
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
     acquire_paper_activation_lock
-    NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"
+    # atomic-deploy only swaps the release symlink: if it fails, no unit was restarted and the running processes are unchanged.
+    NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)" || die "atomic deploy failed before any unit was restarted; running processes are unchanged"
     activation_started="$(date --iso-8601=seconds)"
     paper_ready=false
     if bind_runtime_source_identity "$1" && install_units_from_release "$dir" && enable_units && restart_units; then
@@ -561,16 +596,17 @@ case "$verb" in
       previous="$(previous_release)"
       if [ -n "$previous" ] && release_proven "$previous" && rollback_schema_compatible "$previous"; then
         printf '%s\n' "nusa-release-step: activation failed for $1; restoring the proven previous release" >&2
-        rollback_and_restore
-        if node "$(script_in "$(active_release)" oracle-readiness-check.js)" && node "$(script_in "$(active_release)" autopilot-readiness.js)"; then
+        if rollback_and_restore \
+          && node "$(script_in "$(active_release)" oracle-readiness-check.js)" \
+          && node "$(script_in "$(active_release)" autopilot-readiness.js)"; then
           exit 1
         fi
-        safe_stop_after_failed_activation "$1" "the proven previous release did not become ready either"
+        safe_stop_after_failed_activation "$1" "the proven previous release could not be restored or did not become ready"
       fi
       safe_stop_after_failed_activation "$1" "no proven, data-compatible previous release to restore"
     fi
-    systemctl is-active --quiet "$SERVICE" || die "PAPER service is not active after activation"
-    systemctl is-active --quiet "$AUTOPILOT_SERVICE" || die "Autopilot service is not active after activation"
+    systemctl is-active --quiet "$SERVICE" || safe_stop_after_failed_activation "$1" "PAPER service is not active after activation"
+    systemctl is-active --quiet "$AUTOPILOT_SERVICE" || safe_stop_after_failed_activation "$1" "Autopilot service is not active after activation"
     mark_release_proven "$dir"
     printf '%s\n' "nusa-release-step: activation accepted for $1"
     ;;
