@@ -1,0 +1,24 @@
+id: WO-OPS-20261115-C1-NUSA-CONTROL
+title: "C1: nusa-control controller (one host state file, table-driven stop/collect/reconcile/init), not installed"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/c1-nusa-control
+owner_decision: "2026-11-15: the owner approved design v5 (docs/NUSA_CORE_DESIGN_V5_2026-11-15.md); C1 is the first code phase."
+objective: "Move the host control decisions out of bash into one small, dependency-free, fully tested program with one state file."
+change:
+  - "deploy/control/nusa-control.js: verbs status, stop, collect, init, reconcile; release and grant-orders refuse (NOT_AVAILABLE). State file /var/lib/nusa-control/state.json: strict schema, compare-and-swap version, temp + fsync + rename + directory fsync, temp files quarantined at boot. Intent is written before every action and cleared after; the boot reconcile ends STOPPED on a missing or invalid file, a pending intent or a moved release pointer. collect requires the recorded active build to be the running one and proven or adopted at install, writes NUSA_RUN_MODE=COLLECT_ONLY, and accepts only when /health reports COLLECT_ONLY within the ceiling; any failure ends with every owned unit stopped and disabled. PAPER_ORDERS cannot be represented (schema refuses it, the mode writer refuses it)."
+  - "deploy/control/nusa-control.sh: thin sudo entry point holding one exclusive flock for every verb."
+  - "tests/nusa-control.test.js: every row of the C1 state table plus a seeded property test (150 random runs of 12 steps with injected systemd faults, pointer moves, corrupted state and random health answers)."
+not_changed:
+  - "Nothing is installed or run on the host; no unit, sudoers, workflow, limit or authority change. The runtime does not read NUSA_RUN_MODE yet (C1b), and the release path is still the R2a helper until C4."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control.test.js: 13 pass. Mutation checks: removing the stop in the collect failure path fails 3 tests; disabling the reconcile mismatch check fails 1."
+  - "validate-repository-portability and validate-platform-independent-tests pass."
+unverified: "Not run on the host, systemd exit codes are modelled (is-active 0/3/4, is-enabled 0/1/4), not observed. No non-author review yet. The boot ordering unit (reconcile before nusa.service) and the sudo rule are C3."
+acceptance:
+  - "CI green; non-author review before the PR leaves draft."
