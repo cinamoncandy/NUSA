@@ -171,3 +171,14 @@ Preconditions in addition to Stage 0 (re-checked at that time, not carried over)
 ## Not covered here
 
 LIVE trading or any real-money authority, changing risk, threshold, capital or writer-lease settings, deploying Cloudflare, and any host change by an agent session.
+
+## Stage A readings (2026-11-15, KST; collection ON, order path OFF, build 97109e88)
+
+Source: read-only `oracle-host-diagnose.yml` (health_only), no host command by the owner. Service started 15:29:32 KST.
+
+| Reading | paperOrderCount | paperFillCount | decisionCount | eventCount | orderBookSamples | tradeTicks | State |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 15:36 KST | 0 | 0 | 0 | 234 | 5,478,069 | 2,000,400 | active |
+| 16:41 KST (run 43691012433) | 0 | 0 | 0 | 3,102 | 5,478,815 | 2,006,138 | active, NRestarts=0 |
+
+Result: no order, fill or decision in about 71 minutes; the market stream and microstructure recorder keep advancing (lastMarketEventAt and lastRecordedAt within seconds of the read). Follow-ups, not blockers: three event-loop stalls (max 26.4 s), futures collector `HTTP_451` (426 failures), candle series stale with a 299-minute gap. `previousStop` still shows the earlier failed start (`PREVIOUS_STARTUP:PAPER_WRITER_LEASE_NOT_STARTED`).
