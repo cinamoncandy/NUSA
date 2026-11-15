@@ -1,6 +1,6 @@
 # NUSA Core design v5 (2026-11-15)
 
-Status: PROPOSAL. Supersedes the target shape and phase plan of docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md (v4) where they
+Status: PROPOSAL, revised after the first independent review (SOUND WITH CONDITIONS: missing transitions for reboot, interrupted writes, concurrency, clock and controller death; rehearsal hold rule and bounds; watch before the first controller release and no double control). Supersedes the target shape and phase plan of docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md (v4) where they
 differ; v4 sections 7 to 9 (control plane, readiness, shared code) stay valid unless replaced here. Nothing here changes a
 host, a limit or an authority. Fixed: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`,
 `aiAuthority=ZERO_AUTHORITY`, Release=HOLD.
@@ -52,6 +52,14 @@ GitHub (request + audit only)            Host (decides and acts)
 | PAPER_ORDERS | grant expires or is used up | checked by the runtime before every order and by the controller | COLLECT_ONLY | STOPPED |
 | any | mode on `/health` differs from `desired` | watch or controller check | STOPPED + alert | STOPPED + alert |
 
+| any | host boot, power loss, controller killed mid-step | the controller runs at boot BEFORE nusa.service (ordering in the unit) and reconciles: state file valid, version matches, `active` equals the `current` link, unit state equals `desired` | as recorded | mismatch or invalid file: STOPPED + alert; orders never resume after a reboot without a fresh grant check |
+| any | state write interrupted | write temp, fsync file, rename, fsync directory; on start a leftover temp file is quarantined and the last complete file is used | unchanged | no complete file: STOPPED |
+| any | two verbs at once | one exclusive lock for every changing verb, plus a version number in the file that each write must increase by one (compare-and-swap) | the first verb runs; the second fails without effect | second verb refused |
+| PAPER_ORDERS | clock jumps back, loses sync, or cannot be read | the runtime checks the grant itself before every order (not only the controller) using the host's synchronized flag and a monotonic deadline taken at grant time | COLLECT_ONLY immediately | COLLECT_ONLY |
+| PAPER_ORDERS | state file deleted or corrupted while running | the runtime re-reads the grant before every order; missing or invalid means refuse | COLLECT_ONLY + alert | COLLECT_ONLY |
+
+A state-file write and a systemd action are never one atomic step. Therefore every verb writes its intent first (with the next version) and its result second, and the boot reconciliation above finishes or undoes any intent that has no result.
+
 Every row is a unit test of the controller with a fake systemctl and a fake clock; a property test generates random event sequences and asserts that no sequence reaches PAPER_ORDERS without a valid grant and that every failure ends in "unchanged" or STOPPED.
 
 ## 4. Release = rehearse on a copy, then switch
@@ -59,7 +67,8 @@ Every row is a unit test of the controller with a fake systemctl and a fake cloc
 1. CI builds the exact main commit (as today) and the controller verifies the artifact hash.
 2. Online snapshot of the production database with the SQLite backup API into a scratch directory (disk headroom checked first). This is not the nightly backup; it is discarded afterwards.
 3. Start the candidate in COLLECT_ONLY on a loopback port against the copy, migrations included. Wait for `phase=ready` with the progress rule of v4 section 8 (stall 120 s, ceiling 20 min).
-4. Stop it, then start the previous build against the migrated copy and require it to read the ledger, recover and perform its required writes. Pass: the previous build becomes a valid restore target for this release. Fail: the release is still allowed, but the failure path is STOPPED instead of restore.
+4. Stop it, then start the previous build against the migrated copy and require it to read the ledger, recover and perform its required writes. Pass: the previous build becomes a valid restore target for this release. Fail: the release is REFUSED by default (HOLD). A release without a restorable previous build needs a separate, explicit owner approval naming that risk; its failure path is STOPPED.
+   Bounds: the snapshot, the two boots and the migration share one total ceiling (default 45 min); exceeding it ends with nothing changed in production. Before the snapshot the controller requires free disk of at least three times the database plus its WAL; during the snapshot it measures the production write latency and aborts (nothing changed) if writes are blocked longer than 5 s. These numbers are measured in C2 on the host copy and recorded before they are relied on.
 5. Only now switch the symlink and start in production; soak; mark proven.
 
 Effect: the 2026-11-15 failure class (a build that cannot start in time, or a restore to a build that cannot open the data) is found on the copy, before production changes. The 50 min backup leaves the release (nightly job with a restore rehearsal; the release only checks its age).
@@ -72,7 +81,7 @@ Effect: the 2026-11-15 failure class (a build that cannot start in time, or a re
 ## 6. Phone and alerts
 
 - Phone: one workflow, dispatch only from protected main, Environment with the owner as required reviewer; buttons `stop` and `collect`. `grant-orders` is absent until #3108 is merged and independently verified.
-- Alerts: a scheduled read-only watch workflow (every 15 min) fails on: unit not in the desired state, mode mismatch, stale market events, any order while not granted, start ceiling reached. A failed run notifies the owner through the GitHub mobile app. No new service, no Cloudflare.
+- Alerts: GitHub notifications are the first channel, not the only safety. The watch itself is watched (dead-man check in C5), the delivery to the phone is drilled before C4, and the runtime fails closed by itself (no grant, no orders) whether or not an alert arrives. A scheduled read-only watch workflow (every 15 min) fails on: unit not in the desired state, mode mismatch, stale market events, any order while not granted, start ceiling reached. A failed run notifies the owner through the GitHub mobile app. No new service, no Cloudflare.
 
 ## 7. What gets deleted
 
@@ -92,9 +101,9 @@ Effect: the 2026-11-15 failure class (a build that cannot start in time, or a re
 | now | R2a (#3142): finish as the interim safety of the existing helper; no further investment in bash | none |
 | C1 | Controller code, state file, state table tests, property test; runtime `phase` and `orderPathReady`; unit start limits | none |
 | C2 | Rehearse-on-copy in the controller, tested in CI on a synthetic database; nightly backup job | none |
-| C3 | Access audit (read-only, through the diagnose workflow), then one install of the controller and the sudo rule | one terminal session, approval |
+| C3 | Minimal watch workflow first (unit state, mode match, stale events, orders while not granted) with a deliberate alert drill; then the access audit (read-only); then one hand-over in this order: revoke the old helper's sudo rule, install the controller and its sudo rule, verify that only the controller can act. Old helper and controller never both hold control | one terminal session, approval, confirm the drill alert reached the phone |
 | C4 | First release through the controller (COLLECT_ONLY) | release approval |
-| C5 | Watch workflow and phone workflow | press stop and collect once |
+| C5 | Phone workflow and a second, independent alert path (a dead-man check: if the watch has not reported for 45 min, a separate scheduled job fails) | press stop and collect once |
 | C6 | Deletions (section 7) and Cloudflare S1 to S5 | per phase |
 | C7 | Strategy review: does any researched strategy have an edge (decides whether Stage B is worth preparing) | read the review |
 
