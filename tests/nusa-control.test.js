@@ -7,7 +7,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { makeController, validateState, stateStore, writeModeFile, UNITS } = require("../deploy/control/nusa-control.js");
+const { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, UNITS } = require("../deploy/control/nusa-control.js");
 
 const SHA = "c".repeat(40);
 const OTHER = "d".repeat(40);
@@ -44,28 +44,30 @@ function world(opts = {}) {
     }
   };
   // An answer is "MODE@BUILD"; missing build means the recorded SHA. null means no answer.
-  const health = async () => {
+  const body = () => {
     const a = answers.length > 0 ? answers.shift() : null;
     if (a === null || a === undefined) return null;
     const [runMode, build] = a.split("@");
     return { runtime: { runMode, sourceCommitSha: build === undefined ? SHA : build } };
   };
-  const w = { base, stateDir, etc, currentLink, units, calls, modeFile: path.join(etc, "run-mode.env"), listener };
+  const w = { base, stateDir, etc, currentLink, units, calls, modeFile: path.join(etc, "run-mode.env"), listener, ageMs: opts.ageMs ?? 10 * 60 * 1000 };
   const fsx = { ...fs, ...fsOverrides };
   w.ctl = makeController({
-    fs: fsx, systemctl, health,
-    listenerPids: () => (w.listener === "none" ? [] : [4242]),
+    fs: fsx, systemctl,
+    identifiedHealth: async () => ({ body: body(), ownerPids: w.listener === "none" ? [] : [4242] }),
     cgroupOf: () => (w.listener === "nusa" ? "0::/system.slice/nusa.service" : "0::/user.slice/user-1000.slice/session-1.scope"),
+    unitActiveAgeMs: () => w.ageMs,
     now: () => (opts.wallBackwards ? (wall -= 10_000) : wall),
     monotonic: () => mono,
     sleep: async (ms) => { mono += ms; wall += ms; },
-    config: { stateDir, modeFile: w.modeFile, currentLink, startCeilingMs: 60_000, pollMs: 5_000, expectedUid: UID },
+    config: { stateDir, modeFile: w.modeFile, currentLink, startCeilingMs: 60_000, pollMs: 5_000, expectedUid: UID, checkAncestors: false },
   });
   w.store = stateStore(fs, stateDir, UID);
   w.setLink = (sha) => { fs.rmSync(currentLink); fs.symlinkSync(path.join(base, "releases", sha), currentLink); };
   w.state = () => w.store.read();
   return w;
 }
+const mutations = (w) => w.calls.filter((c) => !/^is-(active|enabled) /.test(c));
 const allStopped = (w) => UNITS.every((u) => !w.units[u].active) && ["nusa.service", "nusa-research.timer"].every((u) => !w.units[u].enabled);
 const seed = async (w) => { assert.equal((await w.ctl.init(SHA)).code, "INITIALISED_STOPPED"); w.calls.length = 0; };
 const rawWrite = (w, patch) => { const s = w.state().state; w.store.write(s.version, { ...s, version: s.version + 1, ...patch }); };
@@ -130,10 +132,10 @@ test("collect writes the mode file, starts the units and accepts only a verified
 
 test("collect ends STOPPED on a foreign listener, a different build, PAPER_ORDERS, a missing listener until the ceiling, or no answer", posixOnly, async () => {
   for (const [label, opts] of [
-    ["foreign listener", { healthAnswers: ["COLLECT_ONLY"], listener: "foreign" }],
+    ["foreign sender", { healthAnswers: ["COLLECT_ONLY"], listener: "foreign" }],
     ["other build", { healthAnswers: [`COLLECT_ONLY@${OTHER}`] }],
     ["orders", { healthAnswers: ["PAPER_ORDERS"] }],
-    ["no listener", { healthAnswers: Array(20).fill("COLLECT_ONLY"), listener: "none" }],
+    ["sender unknown", { healthAnswers: Array(20).fill("COLLECT_ONLY"), listener: "none" }],
     ["no answer", { healthAnswers: [] }],
   ]) {
     const w = world(opts); await seed(w);
@@ -166,9 +168,10 @@ test("collect where a unit cannot be enabled or started ends STOPPED; a failed i
 test("collect is refused (nothing touched) with an invalid state, a different running build, or an unproven non-adopted build", posixOnly, async () => {
   const invalid = world();
   fs.writeFileSync(path.join(invalid.stateDir, "state.json"), JSON.stringify({ schemaVersion: 1 }), { mode: 0o600 });
-  assert.match((await invalid.ctl.collect()).code, /^STATE_INVALID/); assert.equal(invalid.calls.length, 0);
+  for (const u of UNITS) { invalid.units[u].active = false; invalid.units[u].enabled = false; }
+  assert.match((await invalid.ctl.collect()).code, /^STATE_INVALID/); assert.deepEqual(mutations(invalid), []);
   const moved = world(); await seed(moved); moved.setLink(OTHER);
-  assert.equal((await moved.ctl.collect()).code, "ACTIVE_MISMATCH"); assert.equal(moved.calls.length, 0);
+  assert.equal((await moved.ctl.collect()).code, "ACTIVE_MISMATCH"); assert.deepEqual(mutations(moved), []);
   const unproven = world(); await seed(unproven); rawWrite(unproven, { adopted: false });
   assert.equal((await unproven.ctl.collect()).code, "ACTIVE_NOT_PROVEN"); assert.equal(fs.existsSync(unproven.modeFile), false);
 });
@@ -230,11 +233,13 @@ test("verify: a consistent running runtime passes; a dead runtime, a foreign lis
   const dead = world({ healthAnswers: ["COLLECT_ONLY"] }); await seed(dead); await dead.ctl.collect(); dead.units["nusa.service"].active = false;
   assert.match((await dead.ctl.verify()).code, /RUNTIME_NOT_ACTIVE/); assert.ok(allStopped(dead));
   const foreign = world({ healthAnswers: ["COLLECT_ONLY", "COLLECT_ONLY"] }); await seed(foreign); await foreign.ctl.collect(); foreign.listener = "foreign";
-  assert.match((await foreign.ctl.verify()).code, /FOREIGN_LISTENER/); assert.ok(allStopped(foreign));
+  assert.match((await foreign.ctl.verify()).code, /FOREIGN_SENDER/); assert.ok(allStopped(foreign));
   const other = world({ healthAnswers: ["COLLECT_ONLY", `COLLECT_ONLY@${OTHER}`] }); await seed(other); await other.ctl.collect();
   assert.match((await other.ctl.verify()).code, /BUILD_MISMATCH/); assert.ok(allStopped(other));
   const stray = world(); await seed(stray); stray.units["nusa.service"].active = true;
-  assert.match((await stray.ctl.verify()).code, /UNIT_RUNNING_WHILE_STOPPED/); assert.ok(allStopped(stray));
+  assert.match((await stray.ctl.verify()).code, /UNIT_RUNNING_OR_ENABLED_WHILE_STOPPED/); assert.ok(allStopped(stray));
+  const enabledOnly = world(); await seed(enabledOnly); enabledOnly.units["nusa.service"].enabled = true;
+  assert.match((await enabledOnly.ctl.verify()).code, /UNIT_RUNNING_OR_ENABLED_WHILE_STOPPED/, "inactive but enabled is not STOPPED (it would start at boot)");
 });
 
 test("the state schema refuses PAPER_ORDERS, a grant, an attempt, unknown fields and bad SHAs in this version", () => {
@@ -280,4 +285,80 @@ test("property: no sequence of verbs and faults reaches orders, loses the state,
       if ((action === "collect" && r.ok) || r.code === "COLLECT_ONLY_VERIFIED") { assert.equal(path.basename(fs.readlinkSync(w.currentLink)), st.state.active); assert.equal(w.listener, "nusa"); }
     }
   }
+});
+
+test("verify tolerates a missing answer only while the unit is younger than the start ceiling; a wrong answer stops at once", posixOnly, async () => {
+  const young = world({ healthAnswers: ["COLLECT_ONLY", null] }); await seed(young); await young.ctl.collect(); young.ageMs = 30_000;
+  assert.equal((await young.ctl.verify()).code, "STARTING_WITHIN_CEILING");
+  const old = world({ healthAnswers: ["COLLECT_ONLY", null] }); await seed(old); await old.ctl.collect(); old.ageMs = 120_000;
+  assert.match((await old.ctl.verify()).code, /VERIFY_STOPPED/); assert.ok(allStopped(old));
+  const youngWrong = world({ healthAnswers: ["COLLECT_ONLY", `COLLECT_ONLY@${OTHER}`] }); await seed(youngWrong); await youngWrong.ctl.collect(); youngWrong.ageMs = 1_000;
+  assert.match((await youngWrong.ctl.verify()).code, /BUILD_MISMATCH/); assert.ok(allStopped(youngWrong));
+});
+
+test("a refused collect leaves a stopped host unchanged but stops owned units that run under a record it cannot vouch for", posixOnly, async () => {
+  const stopped = world(); await seed(stopped); stopped.setLink(OTHER);
+  const r1 = await stopped.ctl.collect();
+  assert.equal(r1.code, "ACTIVE_MISMATCH"); assert.equal(r1.stopped, undefined, "nothing to stop, nothing changed");
+  const running = world(); await seed(running); running.setLink(OTHER); running.units["nusa.service"].active = true;
+  const r2 = await running.ctl.collect();
+  assert.equal(r2.code, "ACTIVE_MISMATCH"); assert.equal(r2.stopped, true); assert.ok(allStopped(running));
+});
+
+test("ancestor check: a state or mode directory under a world-writable ancestor is refused when ancestors are checked", posixOnly, () => {
+  const w = world();
+  assert.doesNotThrow(() => assertSafeDir(fs, w.stateDir, UID, { exactMode: 0o700 }));
+  fs.chmodSync(w.base, 0o777);
+  assert.throws(() => assertSafeDir(fs, w.stateDir, UID, { exactMode: 0o700, ancestors: true }), /ancestor .* not a root-owned, non-writable/);
+  fs.chmodSync(w.base, 0o700);
+});
+
+test("partial writes: a failing rename leaves the old record intact and removes the temp file; a failing directory fsync is an error", posixOnly, () => {
+  const s = { schemaVersion: 1, version: 1, desired: "STOPPED", active: SHA, adopted: true, proven: [], attempt: null, grant: null, intent: null };
+  const a = world(); fs.writeFileSync(path.join(a.stateDir, "state.json"), JSON.stringify(s), { mode: 0o600 });
+  const failing = stateStore({ ...fs, renameSync: () => { throw Object.assign(new Error("EIO"), { code: "EIO" }); } }, a.stateDir, UID);
+  assert.throws(() => failing.write(1, { ...s, version: 2, desired: "COLLECT_ONLY" }), /EIO/);
+  assert.equal(a.store.read().state.version, 1);
+  assert.deepEqual(fs.readdirSync(a.stateDir).filter((n) => n.endsWith(".tmp")), []);
+  const b = world(); fs.writeFileSync(path.join(b.stateDir, "state.json"), JSON.stringify(s), { mode: 0o600 });
+  let fsyncs = 0;
+  const dirFsyncFails = stateStore({ ...fs, fsyncSync: (fd) => { fsyncs += 1; if (fsyncs === 2) throw Object.assign(new Error("EIO"), { code: "EIO" }); return fs.fsyncSync(fd); } }, b.stateDir, UID);
+  assert.throws(() => dirFsyncFails.write(1, { ...s, version: 2 }), /EIO/, "durability not proven: reported as an error");
+});
+
+test("host identity: the server side of the controller's own connection is found in /proc and belongs to the serving process", { skip: process.platform !== "linux" ? "needs /proc" : false }, async (t) => {
+  const http = require("node:http");
+  const server = http.createServer((req, res) => { res.writeHead(200, { "content-type": "application/json", "content-length": "21" }); res.end('{"runtime":{"x":true}}'.slice(0, 21)); });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const r = await hostIdentifiedHealth(server.address().port);
+    assert.ok(r.ownerPids.includes(process.pid), `the server socket is held by this process: ${JSON.stringify(r.ownerPids)}`);
+  } finally { server.close(); }
+  const v6 = http.createServer((req, res) => res.end("{}"));
+  const v6ok = await new Promise((r) => { v6.once("error", () => r(false)); v6.listen(0, "::", () => r(true)); });
+  if (!v6ok) { t.diagnostic("IPv6 is not available here; the tcp6 parser is covered by the next test"); return; }
+  try {
+    const r6 = await hostIdentifiedHealth(v6.address().port);
+    assert.ok(r6.ownerPids.includes(process.pid), "a dual-stack (::) listener is found through /proc/net/tcp6");
+  } finally { v6.close(); }
+});
+
+test("serverSideInodes matches only ESTABLISHED server-side rows for the exact port pair, in tcp and tcp6", () => {
+  const tcp = ["  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
+    "   0: 0100007F:A0C3 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 111",
+    "   1: 0100007F:A0C3 0100007F:D431 01 00000000:00000000 00:00000000 00000000  1000        0 222",
+    "   2: 0100007F:D431 0100007F:A0C3 01 00000000:00000000 00:00000000 00000000  1000        0 333"].join("\n");
+  const tcp6 = ["  sl  local_address rem_address st",
+    "   0: 0000000000000000FFFF00000100007F:A0C3 0000000000000000FFFF00000100007F:D431 01 00000000:00000000 00:00000000 00000000  1000        0 444"].join("\n");
+  const read = (f) => (f.endsWith("tcp6") ? tcp6 : tcp);
+  assert.deepEqual(serverSideInodes(read, 0xa0c3, 0xd431), ["222", "444"]);
+});
+
+test("the sudo entry point checks the lock directory and file before flock, and the boot gate orders before the runtime", () => {
+  const sh = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.sh"), "utf8");
+  for (const check of ["LOCK_DIR_NOT_A_REAL_DIRECTORY", "LOCK_DIR_UNSAFE", "LOCK_FILE_IS_A_SYMLINK", "LOCK_FILE_NOT_REGULAR", "LOCK_FILE_UNSAFE"]) assert.ok(sh.indexOf(check) > 0 && sh.indexOf(check) < sh.indexOf("flock -w"), check);
+  const gate = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control-reconcile.service"), "utf8");
+  assert.match(gate, /Before=nusa\.service nusa-research\.timer nusa-research\.service/);
+  assert.match(gate, /RequiredBy=nusa\.service nusa-research\.timer/, "a failing gate keeps the runtime from starting");
+  assert.match(fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control-verify.timer"), "utf8"), /OnUnitActiveSec=5min/);
 });

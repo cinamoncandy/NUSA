@@ -21,9 +21,9 @@ const DEFAULTS = Object.freeze({
   stateDir: "/var/lib/nusa-control",
   modeFile: "/etc/nusa/run-mode.env",
   currentLink: "/opt/nusa/current",
-  healthUrl: "http://127.0.0.1:41731/health",
   healthPort: 41731,
   expectedUid: 0,
+  checkAncestors: true,
   startCeilingMs: 20 * 60 * 1000,
   pollMs: 5000,
 });
@@ -35,7 +35,17 @@ class ControlError extends Error {
 // ---- safe file primitives ---------------------------------------------------------------------------------------
 // A directory the controller writes into must be a real directory (not a symlink), owned by the expected user and not
 // writable by group or others. Files are opened with O_NOFOLLOW and created with O_EXCL under a random name.
-function assertSafeDir(fsx, dir, uid, { exactMode } = {}) {
+function assertSafeDir(fsx, dir, uid, { exactMode, ancestors = false } = {}) {
+  // With ancestors, every parent up to / must also be a real directory owned by root (or uid) and not writable by group or
+  // others, so nobody but root can swap a path component between the check and the use (no TOCTOU without root).
+  if (ancestors) {
+    for (let d = path.dirname(dir); ; d = path.dirname(d)) {
+      let a;
+      try { a = fsx.lstatSync(d); } catch { throw new ControlError("UNSAFE_PATH", `${d} is missing`); }
+      if (a.isSymbolicLink() || !a.isDirectory() || (a.uid !== 0 && a.uid !== uid) || (a.mode & 0o022) !== 0) throw new ControlError("UNSAFE_PATH", `ancestor ${d} is not a root-owned, non-writable real directory`);
+      if (d === path.dirname(d)) break;
+    }
+  }
   let st;
   try { st = fsx.lstatSync(dir); } catch { throw new ControlError("UNSAFE_PATH", `${dir} is missing`); }
   if (st.isSymbolicLink() || !st.isDirectory()) throw new ControlError("UNSAFE_PATH", `${dir} is not a real directory`);
@@ -83,10 +93,10 @@ function validateState(s) {
   return s;
 }
 
-function stateStore(fsx, stateDir, uid) {
+function stateStore(fsx, stateDir, uid, ancestors = false) {
   const file = path.join(stateDir, "state.json");
   const read = () => {
-    try { assertSafeDir(fsx, stateDir, uid, { exactMode: 0o700 }); } catch (e) { return { ok: false, reason: `STATE_DIR_UNSAFE:${e.message}` }; }
+    try { assertSafeDir(fsx, stateDir, uid, { exactMode: 0o700, ancestors }); } catch (e) { return { ok: false, reason: `STATE_DIR_UNSAFE:${e.message}` }; }
     let text;
     try { text = readNoFollow(fsx, file); } catch (e) {
       if (e.code === "ENOENT") return { ok: false, reason: "STATE_MISSING" };
@@ -107,7 +117,7 @@ function stateStore(fsx, stateDir, uid) {
   };
   const create = (first) => {
     validateState(first);
-    assertSafeDir(fsx, stateDir, uid, { exactMode: 0o700 });
+    assertSafeDir(fsx, stateDir, uid, { exactMode: 0o700, ancestors });
     const fd = fsx.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
     try { fsx.writeSync(fd, `${JSON.stringify(first, null, 2)}\n`); fsx.fsyncSync(fd); } finally { fsx.closeSync(fd); }
     const dfd = fsx.openSync(stateDir, fs.constants.O_RDONLY);
@@ -122,10 +132,10 @@ function stateStore(fsx, stateDir, uid) {
   return { file, read, write, create, quarantineTemps };
 }
 
-function writeModeFile(fsx, modeFile, mode, uid) {
+function writeModeFile(fsx, modeFile, mode, uid, ancestors = false) {
   if (mode !== "COLLECT_ONLY") throw new ControlError("MODE_REFUSED", `mode ${mode} cannot be written`);
   const dir = path.dirname(modeFile);
-  assertSafeDir(fsx, dir, uid);
+  assertSafeDir(fsx, dir, uid, { ancestors });
   try { const st = fsx.lstatSync(modeFile); if (st.isSymbolicLink() || !st.isFile()) throw new ControlError("UNSAFE_PATH", `${modeFile} is not a regular file`); } catch (e) { if (e.code !== "ENOENT") throw e; }
   atomicWrite(fsx, dir, modeFile, `NUSA_RUN_MODE=${mode}\n`, 0o644);
 }
@@ -157,20 +167,21 @@ function stopAll(sys) {
   return problems;
 }
 
-// The /health answer counts only if EVERY process listening on the health port belongs to nusa.service (its cgroup),
-// and it reports the recorded build and mode. A stale or foreign process on the port can therefore never pass.
+// The /health answer counts only if it is bound to its sender: the controller opens the TCP connection itself, finds the
+// SERVER side of that very connection in the kernel socket tables (IPv4 and IPv6), resolves the process holding it and
+// requires that process to be in the nusa.service cgroup, all while the connection is open and before the answer is read.
+// A stale or foreign process on the port, or a listener swapped between checks, can therefore never pass.
 async function verifyRuntime(deps, cfg, expectedSha, expectedMode) {
-  let h;
-  try { h = await deps.health(); } catch { h = null; }
-  if (!h || !h.runtime) return { ok: false, reason: "HEALTH_UNAVAILABLE" };
-  let pids;
-  try { pids = deps.listenerPids(cfg.healthPort); } catch { pids = null; }
-  if (!Array.isArray(pids) || pids.length === 0) return { ok: false, reason: "LISTENER_UNKNOWN" };
-  for (const pid of pids) {
+  let r;
+  try { r = await deps.identifiedHealth(cfg.healthPort); } catch { r = null; }
+  if (!r || !Array.isArray(r.ownerPids) || r.ownerPids.length === 0) return { ok: false, reason: "SENDER_UNKNOWN" };
+  for (const pid of r.ownerPids) {
     let cg;
     try { cg = deps.cgroupOf(pid); } catch { cg = null; }
-    if (typeof cg !== "string" || !cg.split("\n").some((line) => line.endsWith(`/${RUNTIME_UNIT}`))) return { ok: false, reason: "FOREIGN_LISTENER", pid };
+    if (typeof cg !== "string" || !cg.split("\n").some((line) => line.endsWith(`/${RUNTIME_UNIT}`))) return { ok: false, reason: "FOREIGN_SENDER", pid };
   }
+  const h = r.body;
+  if (!h || !h.runtime) return { ok: false, reason: "HEALTH_UNAVAILABLE" };
   if (h.runtime.sourceCommitSha !== expectedSha) return { ok: false, reason: "BUILD_MISMATCH", seen: h.runtime.sourceCommitSha };
   if (h.runtime.runMode !== expectedMode) return { ok: false, reason: "MODE_MISMATCH", seen: h.runtime.runMode };
   return { ok: true };
@@ -184,8 +195,10 @@ function makeController(deps) {
   const now = deps.now || (() => Date.now());
   const monotonic = deps.monotonic || (() => Number(process.hrtime.bigint() / 1_000_000n));
   const sleep = deps.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
-  const store = stateStore(fsx, cfg.stateDir, cfg.expectedUid);
+  const store = stateStore(fsx, cfg.stateDir, cfg.expectedUid, cfg.checkAncestors);
+  const modeWrite = () => writeModeFile(fsx, cfg.modeFile, "COLLECT_ONLY", cfg.expectedUid, cfg.checkAncestors);
   const currentSha = () => { try { const t = fsx.readlinkSync(cfg.currentLink); const sha = path.basename(t); return SHA.test(sha) ? sha : null; } catch { return null; } };
+  const anyOwnedUnitRunning = () => UNITS.some((u) => { try { return unitState(sys, u).active !== "inactive"; } catch { return true; } });
   const stoppedResult = (code, extra = {}) => { const problems = stopAll(sys); return { ok: false, code, stopped: problems.length === 0, problems, ...extra }; };
 
   const status = async () => {
@@ -210,17 +223,20 @@ function makeController(deps) {
 
   const collect = async () => {
     const r = store.read();
-    if (!r.ok) return { ok: false, code: r.reason, detail: "only status and stop are allowed while the state file is not valid" };
+    // A refused collect changes nothing when the host is already stopped; if owned units are running in a state the
+    // controller cannot vouch for (invalid record, other build, unproven build), it stops them instead of leaving them.
+    const refuse = (code, detail) => (anyOwnedUnitRunning() ? stoppedResult(code, { detail }) : { ok: false, code, detail });
+    if (!r.ok) return refuse(r.reason, "only status and stop are allowed while the state file is not valid");
     const s = r.state;
     const cur = currentSha();
-    if (!s.active || cur !== s.active) return { ok: false, code: "ACTIVE_MISMATCH", detail: `state active=${s.active} current=${cur}` };
-    if (!s.adopted && !s.proven.some((p) => p.sha === s.active)) return { ok: false, code: "ACTIVE_NOT_PROVEN" };
+    if (!s.active || cur !== s.active) return refuse("ACTIVE_MISMATCH", `state active=${s.active} current=${cur}`);
+    if (!s.adopted && !s.proven.some((p) => p.sha === s.active)) return refuse("ACTIVE_NOT_PROVEN");
     let intentState;
     try {
       intentState = store.write(s.version, { ...s, version: s.version + 1, intent: { verb: "collect", version: s.version + 1, at: now() } });
-    } catch (e) { return { ok: false, code: e.code || "STATE_WRITE_FAILED", detail: "nothing was changed" }; }
+    } catch (e) { return { ok: false, code: e.code || "STATE_WRITE_FAILED", detail: "no unit was touched; if the record holds a pending intent, verify or the boot reconcile resolves it to STOPPED" }; }
     try {
-      writeModeFile(fsx, cfg.modeFile, "COLLECT_ONLY", cfg.expectedUid);
+      modeWrite();
       for (const unit of BOOT_UNITS) if (sys(["enable", unit]) !== 0) throw new ControlError("ENABLE_FAILED", unit);
       if (sys(["restart", RUNTIME_UNIT]) !== 0) throw new ControlError("START_FAILED", RUNTIME_UNIT);
       if (sys(["start", "nusa-research.timer"]) !== 0) throw new ControlError("START_FAILED", "nusa-research.timer");
@@ -233,7 +249,7 @@ function makeController(deps) {
           return { ok: true, code: "COLLECT_ONLY" };
         }
         // An answer that is wrong (not merely absent) ends the attempt at once.
-        if (["FOREIGN_LISTENER", "BUILD_MISMATCH"].includes(last.reason) || (last.reason === "MODE_MISMATCH" && last.seen === "PAPER_ORDERS")) throw new ControlError(last.reason, JSON.stringify(last));
+        if (["FOREIGN_SENDER", "BUILD_MISMATCH"].includes(last.reason) || (last.reason === "MODE_MISMATCH" && last.seen === "PAPER_ORDERS")) throw new ControlError(last.reason, JSON.stringify(last));
         await sleep(cfg.pollMs);
       }
       throw new ControlError("START_CEILING", `not verified within ${cfg.startCeilingMs} ms (last ${last && last.reason})`);
@@ -255,7 +271,7 @@ function makeController(deps) {
     if (currentSha() !== sha) return { ok: false, code: "ACTIVE_MISMATCH" };
     const problems = stopAll(sys);
     if (problems.length > 0) return { ok: false, code: "STOP_NOT_CONFIRMED", problems, detail: "init records nothing until the units are stopped" };
-    try { store.create({ schemaVersion: SCHEMA_VERSION, version: 1, desired: "STOPPED", active: sha, adopted: true, proven: [], attempt: null, grant: null, intent: null }); } catch (e) { return { ok: false, code: e.code || "STATE_CREATE_FAILED", stopped: true }; }
+    try { store.create({ schemaVersion: SCHEMA_VERSION, version: 1, desired: "STOPPED", active: sha, adopted: true, proven: [], attempt: null, grant: null, intent: null }); } catch (e) { return stoppedResult(e.code || "STATE_CREATE_FAILED", { detail: "re-checked: the units were stopped again" }); }
     return { ok: true, code: "INITIALISED_STOPPED" };
   };
 
@@ -273,7 +289,7 @@ function makeController(deps) {
         if (out.code === "STOPPED" && out.stopped) out.ok = true;
         return out;
       }
-      writeModeFile(fsx, cfg.modeFile, "COLLECT_ONLY", cfg.expectedUid);
+      modeWrite();
       return { ok: true, code: "START_PERMITTED_COLLECT_ONLY", quarantined };
     } catch (e) {
       return stoppedResult(`RECONCILED_STOPPED:${e.code || "ERROR"}`, { detail: e.message });
@@ -287,13 +303,19 @@ function makeController(deps) {
       if (!r.ok) return stoppedResult(`VERIFY_STOPPED:${r.reason}`);
       const s = r.state;
       if (s.desired === "STOPPED") {
-        const bad = UNITS.filter((u) => unitState(sys, u).active !== "inactive");
-        return bad.length === 0 ? { ok: true, code: "STOPPED_VERIFIED" } : stoppedResult("VERIFY_STOPPED:UNIT_RUNNING_WHILE_STOPPED", { units: bad });
+        const bad = UNITS.filter((u) => { const st = unitState(sys, u); return st.active !== "inactive" || (BOOT_UNITS.includes(u) && st.enabled !== "disabled"); });
+        return bad.length === 0 ? { ok: true, code: "STOPPED_VERIFIED" } : stoppedResult("VERIFY_STOPPED:UNIT_RUNNING_OR_ENABLED_WHILE_STOPPED", { units: bad });
       }
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
       const v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
-      return v.ok ? { ok: true, code: "COLLECT_ONLY_VERIFIED" } : stoppedResult(`VERIFY_STOPPED:${v.reason}`, { seen: v.seen });
+      if (v.ok) return { ok: true, code: "COLLECT_ONLY_VERIFIED" };
+      // A wrong answer stops at once. No answer yet is tolerated only while the unit is younger than the start ceiling.
+      const wrong = ["FOREIGN_SENDER", "BUILD_MISMATCH"].includes(v.reason) || (v.reason === "MODE_MISMATCH" && v.seen === "PAPER_ORDERS");
+      let age = null;
+      try { age = deps.unitActiveAgeMs(RUNTIME_UNIT); } catch { age = null; }
+      if (!wrong && Number.isFinite(age) && age >= 0 && age < cfg.startCeilingMs) return { ok: true, code: "STARTING_WITHIN_CEILING", reason: v.reason, ageMs: age };
+      return stoppedResult(`VERIFY_STOPPED:${v.reason}`, { seen: v.seen });
     } catch (e) {
       return stoppedResult(`VERIFY_STOPPED:${e.code || "ERROR"}`, { detail: e.message });
     }
@@ -304,14 +326,23 @@ function makeController(deps) {
 }
 
 // ---- host implementations of the injected effects ---------------------------------------------------------------
-// Processes listening on 127.0.0.1:<port>: socket inodes from /proc/net/tcp in LISTEN state, then the pids holding them.
-function hostListenerPids(port) {
-  const hexPort = port.toString(16).toUpperCase().padStart(4, "0");
-  const inodes = new Set();
-  for (const line of fs.readFileSync("/proc/net/tcp", "utf8").split("\n").slice(1)) {
-    const f = line.trim().split(/\s+/);
-    if (f.length > 9 && f[1].endsWith(`:${hexPort}`) && f[3] === "0A") inodes.add(f[9]);
+// Socket inodes of ESTABLISHED connections whose local port is `serverPort` and remote port is `clientPort`, from both
+// /proc/net/tcp and /proc/net/tcp6 (IPv4-mapped addresses appear in tcp6 when the server listens on ::).
+function serverSideInodes(readFile, serverPort, clientPort) {
+  const hex = (n) => n.toString(16).toUpperCase().padStart(4, "0");
+  const inodes = [];
+  for (const table of ["/proc/net/tcp", "/proc/net/tcp6"]) {
+    let text;
+    try { text = readFile(table); } catch { continue; }
+    for (const line of text.split("\n").slice(1)) {
+      const f = line.trim().split(/\s+/);
+      if (f.length > 9 && f[3] === "01" && f[1].endsWith(`:${hex(serverPort)}`) && f[2].endsWith(`:${hex(clientPort)}`)) inodes.push(f[9]);
+    }
   }
+  return inodes;
+}
+function pidsHoldingInodes(inodes) {
+  const want = new Set(inodes);
   const pids = [];
   for (const pid of fs.readdirSync("/proc").filter((d) => /^\d+$/.test(d))) {
     let fds;
@@ -320,17 +351,51 @@ function hostListenerPids(port) {
       let target;
       try { target = fs.readlinkSync(`/proc/${pid}/fd/${fd}`); } catch { continue; }
       const m = /^socket:\[(\d+)\]$/.exec(target);
-      if (m && inodes.has(m[1])) { pids.push(Number(pid)); break; }
+      if (m && want.has(m[1])) { pids.push(Number(pid)); break; }
     }
   }
   return pids;
+}
+// GET /health over one connection the controller owns; the sender is identified while that connection is open.
+function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000 } = {}) {
+  const net = require("node:net");
+  return new Promise((resolve, reject) => {
+    const socket = net.connect({ host, port });
+    const timer = setTimeout(() => { socket.destroy(); reject(new Error("health timeout")); }, timeoutMs);
+    let ownerPids = null;
+    const chunks = [];
+    socket.once("connect", () => {
+      try {
+        const inodes = serverSideInodes((f) => fs.readFileSync(f, "utf8"), port, socket.localPort);
+        ownerPids = inodes.length > 0 ? pidsHoldingInodes(inodes) : [];
+      } catch { ownerPids = []; }
+      socket.write(`GET /health HTTP/1.1\r\nHost: ${host}:${port}\r\nConnection: close\r\n\r\n`);
+    });
+    socket.on("data", (c) => chunks.push(c));
+    socket.on("error", (e) => { clearTimeout(timer); reject(e); });
+    socket.on("end", () => {
+      clearTimeout(timer);
+      const text = Buffer.concat(chunks).toString("utf8");
+      const split = text.indexOf("\r\n\r\n");
+      const head = split < 0 ? text : text.slice(0, split);
+      let body = null;
+      if (/^HTTP\/1\.[01] 200 /.test(head) && !/transfer-encoding:\s*chunked/i.test(head)) { try { body = JSON.parse(text.slice(split + 4)); } catch { body = null; } }
+      resolve({ body, ownerPids: ownerPids || [] });
+    });
+  });
 }
 
 async function main(argv) {
   const [verb, ...args] = argv;
   const sys = (a) => { const r = spawnSync("systemctl", a, { stdio: ["ignore", "ignore", "inherit"], timeout: 120_000 }); return r.status === null ? 99 : r.status; };
-  const health = async () => { const c = new AbortController(); const t = setTimeout(() => c.abort(), 5000); try { const res = await fetch(DEFAULTS.healthUrl, { signal: c.signal }); return res.ok ? await res.json() : null; } finally { clearTimeout(t); } };
-  const ctl = makeController({ systemctl: sys, health, listenerPids: hostListenerPids, cgroupOf: (pid) => fs.readFileSync(`/proc/${pid}/cgroup`, "utf8") });
+  // Age of the unit's current activation, from systemd's monotonic timestamp (microseconds, CLOCK_MONOTONIC).
+  const unitActiveAgeMs = (unit) => {
+    const r = spawnSync("systemctl", ["show", "-p", "ActiveEnterTimestampMonotonic", "--value", unit], { encoding: "utf8", timeout: 10_000 });
+    const us = Number(String(r.stdout).trim());
+    if (r.status !== 0 || !Number.isSafeInteger(us) || us <= 0) throw new Error("no activation timestamp");
+    return Number(process.hrtime.bigint() / 1000n - BigInt(us)) / 1000;
+  };
+  const ctl = makeController({ systemctl: sys, identifiedHealth: hostIdentifiedHealth, unitActiveAgeMs, cgroupOf: (pid) => fs.readFileSync(`/proc/${pid}/cgroup`, "utf8") });
   const known = ["status", "stop", "collect", "init", "reconcile", "verify", "release", "grant-orders"];
   if (!known.includes(verb)) { process.stdout.write(`${JSON.stringify({ ok: false, code: "UNKNOWN_VERB", known })}\n`); return 64; }
   const out = await ctl[verb](...args);
@@ -338,5 +403,5 @@ async function main(argv) {
   return out.ok ? 0 : 1;
 }
 
-module.exports = { makeController, validateState, stateStore, writeModeFile, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
+module.exports = { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
 if (require.main === module) main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { process.stdout.write(`${JSON.stringify({ ok: false, code: "INTERNAL", detail: String(e && e.message) })}\n`); process.exit(70); });

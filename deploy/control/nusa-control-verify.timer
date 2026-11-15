@@ -1,0 +1,9 @@
+[Unit]
+Description=NUSA control: periodic verify
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

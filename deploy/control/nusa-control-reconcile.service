@@ -1,0 +1,14 @@
+[Unit]
+Description=NUSA control: boot gate (reconcile the host state file before any runtime unit starts)
+DefaultDependencies=no
+After=local-fs.target
+Before=nusa.service nusa-research.timer nusa-research.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/nusa-control/nusa-control.sh reconcile
+RemainAfterExit=yes
+
+[Install]
+RequiredBy=nusa.service nusa-research.timer
+WantedBy=multi-user.target
