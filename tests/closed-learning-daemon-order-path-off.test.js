@@ -45,7 +45,7 @@ function harness(t, orderPath, extraEnv = {}) {
     state.repositoryHandedToRuntime = options.paperAccountRepository;
     return {
       startPaperRuntime: () => {
-        if (!(orderPath === undefined || orderPath === "ON")) return; // the documented rule; the last test pins runtime.isPaperOrderPathEnabled to it
+        if (orderPath !== "ON") return; // the documented rule; the last test pins runtime.isPaperOrderPathEnabled to it
         options.paperAccountRepository?.startWriterLease();
       },
       recoverResearch: () => {},
@@ -58,8 +58,8 @@ function harness(t, orderPath, extraEnv = {}) {
   return { env, db, state, directory, cleanup: () => { state.repositoryHandedToRuntime?.close?.(); db.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
-for (const value of ["OFF", "off", "false", "0", ""]) {
-  test(`daemon entry starts without a writer lease when NUSA_PAPER_ORDER_PATH=${JSON.stringify(value)}`, async (t) => {
+for (const value of [undefined, "OFF", "off", "false", "0", ""]) {
+  test(`daemon entry starts without a writer lease when NUSA_PAPER_ORDER_PATH=${value === undefined ? "UNSET (fail closed)" : JSON.stringify(value)}`, async (t) => {
     const h = harness(t, value);
     try {
       const composition = startClosedLearningProductionRuntime(h.env);
@@ -89,8 +89,8 @@ test("OFF does not schedule the closed-learning tick (neither the 0 ms timeout n
 // startup (3 inside the lease start, 4 between the runtime phases; same number as tests/research-startup-recovery.test.js).
 // The fixed entry must produce exactly the same number when the order path is ON or unset.
 const EXPECTED_VERIFY_CALLS_ON = 7;
-for (const value of [undefined, "ON"]) {
-  test(`control: the order path ${value === undefined ? "unset" : "ON"} still acquires and verifies the writer lease, and schedules both timers`, async (t) => {
+for (const value of ["ON"]) {
+  test(`control: the order path ON still acquires and verifies the writer lease, and schedules both timers`, async (t) => {
     const h = harness(t, value);
     try {
       const composition = startClosedLearningProductionRuntime(h.env);
@@ -152,7 +152,9 @@ test("OFF: the exposed closed-learning functions refuse to run (they cannot muta
 });
 
 test("the switch rule is one function shared by both entry points", () => {
-  assert.equal(runtime.isPaperOrderPathEnabled({}), true);
+  assert.equal(runtime.isPaperOrderPathEnabled({}), false, "unset fails closed");
   assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: "ON" }), true);
+  assert.equal(runtime.effectiveRunMode({}), "COLLECT_ONLY");
+  assert.equal(runtime.effectiveRunMode({ NUSA_PAPER_ORDER_PATH: "ON" }), "PAPER_ORDERS");
   for (const v of ["OFF", "off", "On", "true", "1", "", " ON", "ON "]) assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: v }), false, JSON.stringify(v));
 });

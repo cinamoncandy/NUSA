@@ -96,7 +96,7 @@ test("a still-held lease keeps renewing (control: the loss tests are not vacuous
 const baseEnv = {
   NUSA_CLOUD_RESEARCH_EXPERIMENTS: "0", NUSA_SOURCE_COMMIT: "b".repeat(40),
   NUSA_CLOUD_DASHBOARD_PORT: "41731", NUSA_CLOUD_DASHBOARD_TOKEN: "synthetic-test-only-not-a-credential".repeat(2),
-  NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
+  NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
 };
 
 for (const loss of [

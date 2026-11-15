@@ -119,7 +119,7 @@ test("the production PAPER tick path records a runtime observation for an explic
   try {
     let onTicker;
     const marketFactory = (_markets, tickerCallback) => { onTicker = tickerCallback; return { subscribe() {}, start() {}, stop() {} }; };
-    const runtimeEnv = { ...env(database, 42982), NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000", NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "10" };
+    const runtimeEnv = { ...env(database, 42982), NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC", NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000", NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "10" };
     handle = startCloudRuntime(runtimeEnv, undefined, undefined, marketFactory);
     const periodStartAt = Date.now() - 1_000;
     const observedAdvisory = { ...ADVISORY, generatedAt: new Date(periodStartAt - 100).toISOString() };

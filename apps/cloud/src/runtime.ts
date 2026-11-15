@@ -106,12 +106,18 @@ import { OrderBookCoverageWatch } from "./orderBookCoverage";
 import { TradeTickCoverageWatch } from "./tradeTickCoverage";
 
 /**
- * The single rule for the operator switch NUSA_PAPER_ORDER_PATH. Unset or exactly "ON" keeps the PAPER order path.
- * Any other value (including a typo) is OFF. Every entry point that touches the PAPER writer lease must use this
- * function, so two entry points can never disagree about whether the lease exists.
+ * The single rule for the operator switch NUSA_PAPER_ORDER_PATH. FAIL CLOSED: the PAPER order path exists only when the
+ * value is exactly "ON". Unset, empty, a typo or any other value means no order path (no writer lease, no execution
+ * loop, no order boundary). Every entry point that touches the PAPER writer lease must use this function, so two entry
+ * points can never disagree about whether the lease exists.
  */
 export function isPaperOrderPathEnabled(env: NodeJS.ProcessEnv): boolean {
-  return env.NUSA_PAPER_ORDER_PATH === undefined || env.NUSA_PAPER_ORDER_PATH === "ON";
+  return env.NUSA_PAPER_ORDER_PATH === "ON";
+}
+/** The mode this process actually runs in, derived from the same rule; published in /health as runtime.runMode. */
+export type CloudEffectiveRunMode = "COLLECT_ONLY" | "PAPER_ORDERS";
+export function effectiveRunMode(env: NodeJS.ProcessEnv): CloudEffectiveRunMode {
+  return isPaperOrderPathEnabled(env) ? "PAPER_ORDERS" : "COLLECT_ONLY";
 }
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
@@ -508,10 +514,12 @@ export function startCloudRuntime(
   let productionPaperBoundary: CloudPaperExecutionBoundary | undefined;
   let paperRuntimeStarted = false;
   // Operator switch that isolates the PAPER order path without stopping market data, research collection or the
-  // read-only dashboard. Unset or exactly "ON" keeps today's behaviour. Any other value (including a typo) is OFF:
-  // no writer lease, no execution loop and no order boundary are created, so no order can be produced. It can only
-  // remove the ability to order, never add authority.
-  const paperOrderPathEnabled = isPaperOrderPathEnabled(env);
+  // read-only dashboard. FAIL CLOSED: only exactly "ON" creates the order path. Unset, empty or any other value
+  // (including a typo) is OFF: no writer lease, no execution loop and no order boundary are created, so no order can
+  // be produced. The mode is decided once here and the same value is published in /health (runMode), so the report
+  // cannot drift from what was started.
+  const effectiveMode = effectiveRunMode(env);
+  const paperOrderPathEnabled = effectiveMode === "PAPER_ORDERS";
   const startPaperRuntime = (): void => {
     if (paperRuntimeStarted) return;
     if (!paperOrderPathEnabled) { paperRuntimeStarted = true; return; }
@@ -896,6 +904,8 @@ export function startCloudRuntime(
     runtimeLiveness: (livenessSnapshotForApp = () => Object.freeze({
       // The exact commit this process was built from, so main = deployed = running can be read directly.
       sourceCommitSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim(),
+      // The mode this process really runs in (same function that decides whether the writer lease and order path exist).
+      runMode: effectiveMode,
       startedAt: heartbeat.startedAt,
       lastHeartbeatAt: heartbeat.lastHeartbeatAt,
       lastMarketEventAt: heartbeat.lastMarketEventAt,
