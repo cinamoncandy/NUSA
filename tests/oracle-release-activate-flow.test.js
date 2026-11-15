@@ -36,10 +36,10 @@ function sandbox({ previousProven = false } = {}) {
     'verb="$1"; shift',
     'if [ "${1:-}" = "--quiet" ]; then shift; fi',
     'case "$verb" in',
-    `  stop) for u in "$@"; do case " \${STUCK:-} " in *" $u "*) ;; *) rm -f ${JSON.stringify(state)}/$u;; esac; done;;`,
+    `  stop) if [ "\${STOP_RC:-0}" != 0 ]; then for u in "$@"; do rm -f ${JSON.stringify(state)}/$u; done; exit "$STOP_RC"; fi; for u in "$@"; do case " \${STUCK:-} " in *" $u "*) ;; *) rm -f ${JSON.stringify(state)}/$u;; esac; done;;`,
     `  disable) for u in "$@"; do case " \${STUCK_ENABLED:-} " in *" $u "*) ;; *) rm -f ${JSON.stringify(state)}/$u.enabled;; esac; done;;`,
-    `  is-active) [ -e ${JSON.stringify(state)}/$1 ] || exit 3;;`,
-    `  is-enabled) [ -e ${JSON.stringify(state)}/$1.enabled ] || exit 1;;`,
+    `  is-active) if [ "\${ISACTIVE_RC:-}" != "" ]; then exit "$ISACTIVE_RC"; fi; [ -e ${JSON.stringify(state)}/$1 ] || exit 3;;`,
+    `  is-enabled) if [ "\${ISENABLED_RC:-}" != "" ]; then exit "$ISENABLED_RC"; fi; [ -e ${JSON.stringify(state)}/$1.enabled ] || exit 1;;`,
     "esac",
   ].join("\n");
   fs.writeFileSync(path.join(bin, "systemctl"), `${stub}\n`, { mode: 0o755 });
@@ -58,6 +58,9 @@ node() {
         ok) ln -sfn "$RELEASES/${NEW}" "$DEPLOY_ROOT/current";;
         clean) return 1;;
         partial) ln -sfn "$RELEASES/${NEW}" "$DEPLOY_ROOT/current"; return 1;;
+        prevonly) echo "$RELEASES/${NEW}" > "$PREVIOUS_RELEASE_FILE"; return 1;;
+        samepath) ln -sfn "$DEPLOY_ROOT/releases/../releases/${OLD}" "$DEPLOY_ROOT/current"; return 1;;
+        real|realfail) NUSA_DEPLOY_ROOT="$DEPLOY_ROOT" command node ${JSON.stringify(path.join(root, "scripts", "atomic-deploy.js"))};;
       esac;;
     */oracle-readiness-check.js)
       local rc=0
@@ -73,9 +76,9 @@ restart_units() { echo restart_units >> "$EVENTS"; }
 prove_post_activation_stability() { return "\${SOAK_RC:-0}"; }
 recover_abandoned_writer_lease_once() { return 1; }
 rollback_schema_compatible() { return "\${SCHEMA_RC:-0}"; }
-rollback_and_restore() { echo rollback_and_restore >> "$EVENTS"; ln -sfn "$RELEASES/${OLD}" "$DEPLOY_ROOT/current"; }
+rollback_and_restore() { echo rollback_and_restore >> "$EVENTS"; if [ "\${RESTORE_DIE:-0}" = 1 ]; then die "restore step failed"; fi; ln -sfn "$RELEASES/${OLD}" "$DEPLOY_ROOT/current"; }
 release_proven() { [ "\${PREV_PROVEN:-0}" = 1 ]; }
-mark_release_proven() { echo mark_release_proven >> "$EVENTS"; }
+mark_release_proven() { if [ "\${MARK_FAIL:-0}" = 1 ]; then die "cannot record the proof"; fi; echo mark_release_proven >> "$EVENTS"; }
 `;
   const program = `${head.replace("readonly DEPLOY_ROOT=/opt/nusa", `readonly DEPLOY_ROOT=${JSON.stringify(box.base)}`)}\n${stubs}\nEVENTS=${JSON.stringify(box.log)}\nSEQ=${JSON.stringify(path.join(box.base, "ready-seq"))}\nset -- ${NEW}\n${activateBody}\n`;
   const file = path.join(box.base, "activate.sh");
@@ -88,7 +91,7 @@ const active = (box, unit) => fs.existsSync(path.join(box.state, unit));
 const enabled = (box, unit) => fs.existsSync(path.join(box.state, `${unit}.enabled`));
 const assertStopped = (box, r) => {
   assert.equal(r.status, 1);
-  assert.match(r.stderr, /STOPPED confirmed: no runtime unit is active and none starts by itself/);
+  assert.match(r.stderr, /STOPPED confirmed for the managed units/);
   for (const u of UNITS) assert.equal(active(box, u), false, `${u} stopped`);
   for (const u of ["nusa.service", "nusa-autopilot.service", "nusa-research.timer"]) assert.equal(enabled(box, u), false, `${u} will not start at boot or by timer`);
   assert.doesNotMatch(events(box), /mark_release_proven/, "a failed activation never records a proof");
@@ -183,4 +186,57 @@ test("a unit that does not stop, or stays enabled, is reported as NOT CONFIRMED 
   const r2 = runActivate(enabledStill, { READY_SEQ: "1", STUCK_ENABLED: "nusa.service" });
   assert.equal(r2.status, 1);
   assert.match(r2.stderr, /STOP NOT CONFIRMED:.*nusa\.service\(still-enabled\)/);
+});
+
+test("atomic-deploy fails after changing ONLY the previous-release record: the host ends STOPPED", posixOnly, () => {
+  const box = sandbox();
+  assertStopped(box, runActivate(box, { ATOMIC: "prevonly" }));
+});
+
+test("atomic-deploy fails after replacing the link with a different literal target that resolves to the same release: detected, STOPPED", posixOnly, () => {
+  const box = sandbox();
+  assertStopped(box, runActivate(box, { ATOMIC: "samepath" }));
+});
+
+test("the REAL atomic-deploy.js: a successful switch completes; a refused switch (release not a real directory) changes nothing", posixOnly, () => {
+  const ok = sandbox();
+  const r1 = runActivate(ok, { ATOMIC: "real" });
+  assert.equal(r1.status, 0, r1.stderr);
+  assert.equal(fs.realpathSync(path.join(ok.base, "current")), fs.realpathSync(path.join(ok.base, "releases", NEW)));
+  const refused = sandbox();
+  fs.rmSync(path.join(refused.base, "releases", NEW), { recursive: true });
+  fs.symlinkSync("/tmp", path.join(refused.base, "releases", NEW));
+  const r2 = runActivate(refused, { ATOMIC: "realfail" });
+  assert.equal(r2.status, 1);
+  assert.match(r2.stderr, /changed nothing/);
+  for (const u of UNITS) assert.equal(active(refused, u), true);
+});
+
+test("recording the proof fails after an accepted soak: the host ends STOPPED, the activation is not accepted", posixOnly, () => {
+  const box = sandbox();
+  const r = runActivate(box, { MARK_FAIL: "1" });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /the proof of the accepted release could not be recorded/);
+  assert.doesNotMatch(r.stdout, /activation accepted/);
+  for (const u of UNITS) assert.equal(active(box, u), false);
+});
+
+test("a real die inside the restore of a proven previous release ends in the safe stop", posixOnly, () => {
+  const box = sandbox();
+  const r = runActivate(box, { READY_SEQ: "1", PREV_PROVEN: "1", RESTORE_DIE: "1" });
+  assertStopped(box, r);
+  assert.match(r.stderr, /restore step failed/);
+});
+
+test("abnormal is-active or is-enabled results, and failing stop commands, are NOT CONFIRMED", posixOnly, () => {
+  const a = sandbox();
+  const r1 = runActivate(a, { READY_SEQ: "1", ISACTIVE_RC: "5" });
+  assert.equal(r1.status, 1);
+  assert.match(r1.stderr, /STOP NOT CONFIRMED:.*is-active-check-failed:5/);
+  const b = sandbox();
+  const r2 = runActivate(b, { READY_SEQ: "1", ISENABLED_RC: "9" });
+  assert.match(r2.stderr, /STOP NOT CONFIRMED:.*is-enabled-check-failed:9/);
+  const c = sandbox();
+  const r3 = runActivate(c, { READY_SEQ: "1", STOP_RC: "1" });
+  assert.match(r3.stderr, /STOP NOT CONFIRMED:.*stop-failed/, "a failing stop command is never reported as a confirmed stop, even if the unit looks inactive");
 });

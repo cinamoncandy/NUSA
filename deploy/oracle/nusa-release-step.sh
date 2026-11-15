@@ -297,6 +297,14 @@ mark_release_proven() {
   printf '%s\n' "$sha" > "$tmp" && chown root:root "$tmp" && chmod 0644 "$tmp" && mv -fT -- "$tmp" "${PROVEN_DIR}/${sha}" \
     || { rm -f -- "$tmp"; die "cannot record the proof for $sha"; }
 }
+# The exact on-disk state of the two things atomic-deploy writes: the raw `current` link (type, owner, mode, literal target)
+# and the previous-release record (existence, type, owner, mode, content). Compared before and after a failed deploy.
+pointer_state() {
+  local link="${DEPLOY_ROOT}/current" prev="$PREVIOUS_RELEASE_FILE"
+  if [ -L "$link" ]; then printf 'link:%s:%s\n' "$(stat -c '%u:%g' -- "$link")" "$(readlink -- "$link")"; elif [ -e "$link" ]; then printf 'link:not-a-symlink\n'; else printf 'link:absent\n'; fi
+  if [ -L "$prev" ]; then printf 'prev:symlink\n'; elif [ -f "$prev" ]; then printf 'prev:%s:%s\n' "$(stat -c '%u:%g:%a' -- "$prev")" "$(sha256sum -- "$prev" | cut -d' ' -f1)"; elif [ -e "$prev" ]; then printf 'prev:not-a-file\n'; else printf 'prev:absent\n'; fi
+}
+
 # Failed activation with nothing safe to restore: the host ends STOPPED. STOPPED means every runtime unit is stopped and will
 # not start again at boot or by a timer: nusa.service, the autopilot, the research timer and the research service. Stops are
 # not hidden; afterwards each unit is checked, and an unconfirmed stop is reported loudly. Data and the failed build stay.
@@ -304,8 +312,8 @@ safe_stop_after_failed_activation() {
   local unit rc problems=""
   printf '%s\n' "nusa-release-step: activation of $1 failed ($2); stopping every runtime unit and leaving the host STOPPED (no automatic rollback)" >&2
   for unit in "$RESEARCH_TIMER" "$SERVICE" "$AUTOPILOT_SERVICE" "$RESEARCH_SERVICE"; do
-    systemctl disable "$unit" >&2 || printf '%s\n' "nusa-release-step: could not disable $unit" >&2
-    systemctl stop "$unit" >&2 || printf '%s\n' "nusa-release-step: could not stop $unit" >&2
+    systemctl disable "$unit" >&2 || problems="$problems ${unit}(disable-failed)"
+    systemctl stop "$unit" >&2 || problems="$problems ${unit}(stop-failed)"
   done
   for unit in "$RESEARCH_TIMER" "$SERVICE" "$AUTOPILOT_SERVICE" "$RESEARCH_SERVICE"; do
     # is-active: 0 active; 3 inactive; 4 no such unit. Anything else is a failed check, which is NOT a confirmed stop.
@@ -328,7 +336,9 @@ safe_stop_after_failed_activation() {
   if [ -n "$problems" ]; then
     printf '%s\n' "nusa-release-step: STOP NOT CONFIRMED:${problems}" >&2
   else
-    printf '%s\n' "nusa-release-step: STOPPED confirmed: no runtime unit is active and none starts by itself" >&2
+    # Scope: the four NUSA runtime units managed here. Restart paths outside them (cron, other agents, foreign units) are
+    # removed by the access audit (R3), not by this function.
+    printf '%s\n' "nusa-release-step: STOPPED confirmed for the managed units: none of the four NUSA runtime units is active or enabled" >&2
   fi
   exit 1
 }
@@ -588,10 +598,9 @@ case "$verb" in
     # atomic-deploy swaps the release symlink and writes the previous-release file; it restarts nothing. If it fails and BOTH
     # are exactly as before, the running processes and their pointers are unchanged and the step just fails. If either
     # changed (a partial failure), the host cannot be trusted to restart into a known build: it ends STOPPED.
-    link_before="$(active_release)"
-    previous_before="$(cat "$PREVIOUS_RELEASE_FILE" 2>/dev/null || true)"
+    link_before="$(pointer_state)"
     if ! NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"; then
-      if [ "$(active_release)" = "$link_before" ] && [ "$(cat "$PREVIOUS_RELEASE_FILE" 2>/dev/null || true)" = "$previous_before" ]; then
+      if [ "$(pointer_state)" = "$link_before" ]; then
         die "atomic deploy failed and changed nothing: the release pointer, the previous-release record and every running process are unchanged"
       fi
       safe_stop_after_failed_activation "$1" "atomic deploy failed after changing the release pointer or the previous-release record"
@@ -633,7 +642,7 @@ case "$verb" in
     fi
     systemctl is-active --quiet "$SERVICE" || safe_stop_after_failed_activation "$1" "PAPER service is not active after activation"
     systemctl is-active --quiet "$AUTOPILOT_SERVICE" || safe_stop_after_failed_activation "$1" "Autopilot service is not active after activation"
-    mark_release_proven "$dir"
+    ( mark_release_proven "$dir" ) || safe_stop_after_failed_activation "$1" "the proof of the accepted release could not be recorded"
     printf '%s\n' "nusa-release-step: activation accepted for $1"
     ;;
 
