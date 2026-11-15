@@ -57,5 +57,5 @@ export const testRecord = (query: PaperTradePermissionQuery, overrides: TestPerm
 
 export const acceptingPaperTradePermissionAuthority = (): PaperTradePermissionAuthority => ({
   policy: testPermissionPolicy(), probabilityModelVersion: TEST_MODEL_VERSION,
-  latestPermit: (query) => testRecord(query), evidenceExists: () => true
+  latestPermit: (query) => testRecord(query), evidenceExists: () => true, isLatest: () => true
 });

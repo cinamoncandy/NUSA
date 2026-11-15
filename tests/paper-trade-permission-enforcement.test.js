@@ -116,7 +116,17 @@ const auth = (overrides = {}, hooks = {}) => ({
   probabilityModelVersion: hooks.probabilityModelVersion ?? kit.TEST_MODEL_VERSION,
   latestPermit: (q) => { const r = kit.testRecord(q, overrides); return hooks.edit ? hooks.edit(r, q) : r; },
   evidenceExists: hooks.evidenceExists ?? (() => true),
+  isLatest: hooks.isLatest ?? (() => true),
 });
+
+/** A durable permit ledger that outlives any boundary or process: what a real canonical authority must provide. */
+const durableLedger = () => {
+  const latest = new Map();
+  return {
+    publish: (record) => { latest.set(record.permit.decisionId, JSON.stringify(record.permit)); },
+    isLatest: (record) => latest.get(record.permit.decisionId) === JSON.stringify(record.permit),
+  };
+};
 
 function rig(authority, options = {}) {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }), ...(options.repository ? { repository: options.repository } : {}) });
@@ -177,6 +187,9 @@ refusedNewOrder("a PERMIT whose evidence actually fails a gate (fabricated)", au
 refusedNewOrder("a hand-made permit with all gates passed but different numbers", auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, gates: r.permit.gates.map((g) => ({ ...g, observedValue: 0 })) } }) }), TAMPERED);
 refusedNewOrder("evidence the engine cannot even evaluate (invalid input behind a permit)", auth({}, { edit: (r) => ({ input: { ...r.input, dataQuality: 5 }, permit: r.permit }) }), TAMPERED);
 refusedNewOrder("evidence input of another decision", auth({}, { edit: (r) => ({ input: { ...r.input, decisionId: "other" }, permit: r.permit }) }), MISMATCH);
+refusedNewOrder("the durable store says the record is not the latest (replayed or superseded)", auth({}, { isLatest: () => false }), REPLAYED);
+refusedNewOrder("the durable store cannot answer", auth({}, { isLatest: () => { throw new Error("db down"); } }), UNVERIFIABLE);
+refusedNewOrder("the durable store answers with something other than true", auth({}, { isLatest: () => 1 }), REPLAYED);
 refusedNewOrder("evidence references do not exist in the trusted store", auth({}, { evidenceExists: () => false }), UNVERIFIED);
 refusedNewOrder("the evidence store throws", auth({}, { evidenceExists: () => { throw new Error("store down"); } }), UNVERIFIABLE);
 
@@ -212,7 +225,7 @@ test("no gap between lookup and use: a permit withdrawn while the risk gate runs
   }
 });
 
-test("replay: an older record than one already accepted for the same intent is refused; the same or a newer one is accepted", () => {
+test("in-process replay (second line of defence): an older record than one already accepted for the same intent is refused; the same or a newer one is accepted", () => {
   const q = { decisionId: "paper-intent:x", strategyId: "s", market: "KRW-BTC" };
   const memory = new PaperTradePermissionMemory();
   const at = (iso) => auth({ generatedAt: iso });
@@ -299,9 +312,26 @@ test("restart and restore: a working order restored from SQLite needs a valid pe
       assert.equal(JSON.stringify(restoredLoop.snapshot()), stateBefore, `${label}: restored state untouched`);
       assert.equal(repository.loadFills().length, fillsBefore, `${label}: no new fill is written`);
     }
-    // Replay inside one boundary: a newer permit was accepted, an older one for the same intent is then refused.
-    const replayBoundary = build({ ...auth(), latestPermit: (q) => kit.testRecord(q, { generatedAt: "1970-01-01T00:00:01.000Z" }) });
-    assert.equal(replayBoundary.processTick(tick(2_200, 2_100, 50_000_000, [], observedQuote(2_150, 0.02))).status, "FILLED");
+    // Replay across the restart: the durable ledger holds a NEWER permit for this intent; the OLD permit presented by a fresh
+    // boundary (no in-memory history at all) is refused, and the newer one continues the order.
+    const ledger = durableLedger();
+    const queryOf = () => { const q = restoredLoop.snapshot().workingOrders[0]; return { decisionId: q.idempotencyKey, strategyId: "sma-5-20", market: "KRW-BTC" }; };
+    const oldRecord = kit.testRecord(queryOf(), { generatedAt: "1970-01-01T00:00:01.000Z" });
+    const newRecord = kit.testRecord(queryOf(), { generatedAt: "1970-01-01T00:00:02.000Z" });
+    ledger.publish(oldRecord); ledger.publish(newRecord);
+    const withLedger = (record) => ({ ...auth(), latestPermit: () => record, isLatest: ledger.isLatest });
+    const stale = build(withLedger(oldRecord)).processTick(continuationTick());
+    assert.equal(stale.status, "BLOCKED");
+    assert.equal(stale.reason, REPLAYED);
+    assert.equal(JSON.stringify(restoredLoop.snapshot()), stateBefore, "the old permit changes nothing after the restart");
+    assert.equal(repository.loadFills().length, fillsBefore);
+    // Same time, different content for the same intent is a conflicting record, also refused within one boundary.
+    const pure = new PaperTradePermissionMemory();
+    const q = queryOf();
+    assert.equal(refusePaperTradePermission(withLedger(newRecord), q, 5_000, pure), null);
+    assert.equal(refusePaperTradePermission({ ...auth(), latestPermit: () => kit.testRecord(q, { generatedAt: "1970-01-01T00:00:02.000Z", evidenceReferences: ["test-evidence-2"] }), isLatest: () => true }, q, 5_000, pure), REPLAYED, "same time, different record");
+    const fresh = build(withLedger(newRecord)).processTick(continuationTick());
+    assert.equal(fresh.status, "FILLED");
     assert.equal(repository.loadFills().length, fillsBefore + 1);
   } finally {
     try { repository.close(); } catch {}

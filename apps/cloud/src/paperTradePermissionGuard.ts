@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { evaluateTradePermission, type TradePermissionGateName, type TradePermissionInput, type TradePermissionPolicy, type TradePermissionResult } from "./tradePermissionEngine";
 
 /**
@@ -43,6 +44,12 @@ export interface PaperTradePermissionAuthority {
   latestPermit(query: PaperTradePermissionQuery): PaperTradePermissionRecord | null;
   /** True only when every reference exists in the canonical evidence store and is linked to this query. May throw. */
   evidenceExists(references: readonly string[], query: PaperTradePermissionQuery): boolean;
+  /**
+   * PERSISTENT replay guard. True only when the trusted, durable store confirms that this exact record (same permit content)
+   * is the latest one for the intent, across restarts and for any number of intents. May throw; a throw means "not verifiable".
+   * The boundary's own memory is only a second line of defence and is lost on restart.
+   */
+  isLatest(record: PaperTradePermissionRecord, query: PaperTradePermissionQuery): boolean;
 }
 
 /** Production default until an independent producer exists: there is never a permit, so no strategy order is created. */
@@ -55,7 +62,8 @@ export const NO_PAPER_TRADE_PERMISSION_AUTHORITY: PaperTradePermissionAuthority 
   policy: UNAVAILABLE_POLICY,
   probabilityModelVersion: "UNAVAILABLE",
   latestPermit: () => null,
-  evidenceExists: () => false
+  evidenceExists: () => false,
+  isLatest: () => false
 });
 
 export type PaperTradePermissionRefusal =
@@ -72,14 +80,17 @@ export type PaperTradePermissionRefusal =
 
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
-/** Newest accepted permit time per intent. Bounded; losing an entry only weakens the replay check, never accepts a bad permit. */
+/**
+ * Second line of defence only (in memory, lost on restart, bounded): the newest accepted permit per intent. The durable
+ * guarantee is the authority's `isLatest`. Losing an entry only weakens this extra check, never accepts a bad permit.
+ */
 export class PaperTradePermissionMemory {
   private static readonly LIMIT = 10_000;
-  private readonly newest = new Map<string, number>();
-  public get(decisionId: string): number | undefined { return this.newest.get(decisionId); }
-  public record(decisionId: string, generatedAt: number): void {
+  private readonly newest = new Map<string, { readonly generatedAt: number; readonly fingerprint: string }>();
+  public get(decisionId: string): { readonly generatedAt: number; readonly fingerprint: string } | undefined { return this.newest.get(decisionId); }
+  public record(decisionId: string, generatedAt: number, fingerprint: string): void {
     this.newest.delete(decisionId);
-    this.newest.set(decisionId, generatedAt);
+    this.newest.set(decisionId, { generatedAt, fingerprint });
     if (this.newest.size > PaperTradePermissionMemory.LIMIT) this.newest.delete(this.newest.keys().next().value as string);
   }
 }
@@ -130,9 +141,13 @@ export function refusePaperTradePermission(
   // The references must exist in the canonical evidence store and be linked to this query (the authority is the trusted store).
   try { if (authority.evidenceExists(permit.evidenceReferences, query) !== true) return "PAPER_TRADE_PERMISSION_EVIDENCE_UNVERIFIED"; }
   catch { return "PAPER_TRADE_PERMISSION_UNVERIFIABLE"; }
-  // An older record than one already accepted for the same intent is a replay of a superseded permit.
+  // Replay: the durable store must confirm this exact record is the latest for the intent (survives restarts).
+  try { if (authority.isLatest(record, query) !== true) return "PAPER_TRADE_PERMISSION_REPLAYED"; }
+  catch { return "PAPER_TRADE_PERMISSION_UNVERIFIABLE"; }
+  // Second line: within this process an older record, or a different record with the same time, than one already accepted is refused.
+  const fingerprint = createHash("sha256").update(JSON.stringify(permit)).digest("hex");
   const newest = memory?.get(query.decisionId);
-  if (newest !== undefined && generatedAt < newest) return "PAPER_TRADE_PERMISSION_REPLAYED";
-  memory?.record(query.decisionId, generatedAt);
+  if (newest !== undefined && (generatedAt < newest.generatedAt || (generatedAt === newest.generatedAt && fingerprint !== newest.fingerprint))) return "PAPER_TRADE_PERMISSION_REPLAYED";
+  memory?.record(query.decisionId, generatedAt, fingerprint);
   return null;
 }
