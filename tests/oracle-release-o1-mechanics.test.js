@@ -45,8 +45,13 @@ test("O1: the verbs that DO start the service are exactly restart, activate and 
   assert.match(verb("rollback"), /atomic-deploy\.js/);
 });
 
-test("O1: activate keeps the NEW build running (no rollback) when the previous build cannot open the migrated database", () => {
-  assert.match(verb("activate"), /rollback_schema_compatible[\s\S]*keeping \$1 active \(no rollback\)[\s\S]*exit 1/);
+test("R2: a failed activation restores only a PROVEN, data-compatible previous release; otherwise the host ends STOPPED", () => {
+  const body = verb("activate");
+  assert.match(body, /release_proven "\$previous" && rollback_schema_compatible "\$previous"/);
+  assert.match(body, /safe_stop_after_failed_activation "\$1" "no proven, data-compatible previous release to restore"/);
+  assert.doesNotMatch(body, /keeping \$1 active \(no rollback\)/, "the old keep-running branch is gone");
+  assert.ok(body.indexOf("mark_release_proven") > body.indexOf('systemctl is-active --quiet "$AUTOPILOT_SERVICE"'), "a release is marked proven only after the final active checks");
+  assert.ok(body.indexOf("mark_release_proven") > body.indexOf("safe_stop_after_failed_activation"), "never marked proven on the failure path");
 });
 
 function layout() {
@@ -121,4 +126,43 @@ test("O1: bind_runtime_source_identity writes the new SHA into the env file and 
     assert.match(text, /^OTHER=keep$/m);
     assert.equal(fs.existsSync(l.marker), false);
   } finally { fs.rmSync(l.base, { recursive: true, force: true }); }
+});
+
+// R2: behaviour of the proven marker and the safe stop, run for real against a temp layout and a stub systemctl.
+function sandbox() {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-r2-"));
+  const bin = path.join(base, "bin");
+  fs.mkdirSync(bin);
+  const log = path.join(base, "systemctl.log");
+  fs.writeFileSync(path.join(bin, "systemctl"), `#!/usr/bin/env bash\necho "$*" >> ${JSON.stringify(log)}\n`, { mode: 0o755 });
+  return { base, bin, log };
+}
+const helperFns = () => ["release_proven() {", "mark_release_proven() {", "safe_stop_after_failed_activation() {"].map((name) => {
+  const start = script.indexOf(`\n${name}`);
+  assert.ok(start > 0, name);
+  return script.slice(start, script.indexOf("\n}\n", start) + 3);
+}).join("\n");
+const bash = (box, code) => spawnSync("bash", ["-c", `set -uo pipefail\nSERVICE=nusa.service\ndie() { echo "$*" >&2; exit 1; }\n${helperFns()}\n${code}`], { encoding: "utf8", env: { ...process.env, PATH: `${box.bin}:${process.env.PATH}` } });
+
+test("R2: an unmarked release is not proven; the safe stop stops only the PAPER service and fails the step", posixOnly, () => {
+  const box = sandbox();
+  const dir = path.join(box.base, "release");
+  fs.mkdirSync(dir);
+  assert.equal(bash(box, `release_proven ${JSON.stringify(dir)}`).status, 1, "no marker, not proven");
+  fs.writeFileSync(path.join(dir, ".nusa-proven"), "");
+  // The marker must be owned by root; a test process that is not root must not be accepted as proven.
+  const owned = bash(box, `release_proven ${JSON.stringify(dir)}`).status;
+  assert.equal(owned, process.getuid && process.getuid() === 0 ? 0 : 1, "only a root-owned marker proves a release");
+  const stop = bash(box, `safe_stop_after_failed_activation ${"2".repeat(40)} "test reason"`);
+  assert.equal(stop.status, 1);
+  assert.match(stop.stderr, /leaving the host STOPPED \(no automatic rollback\)/);
+  assert.equal(fs.readFileSync(box.log, "utf8").trim(), "stop nusa.service", "exactly one systemctl call: stop the PAPER service");
+});
+
+test("R2: mark_release_proven creates a root-owned marker that release_proven then accepts (root only)", { skip: process.platform === "win32" || (process.getuid && process.getuid() !== 0) ? "needs root to chown" : false }, () => {
+  const box = sandbox();
+  const dir = path.join(box.base, "release");
+  fs.mkdirSync(dir);
+  assert.equal(bash(box, `mark_release_proven ${JSON.stringify(dir)} && release_proven ${JSON.stringify(dir)}`).status, 0);
+  assert.equal(bash(box, `mark_release_proven ${JSON.stringify(path.join(box.base, "missing"))}`).status, 1, "a missing release cannot be marked");
 });

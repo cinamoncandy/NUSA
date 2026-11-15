@@ -266,6 +266,25 @@ rollback_schema_compatible() {
   return 0
 }
 
+# A release is "proven" once activate accepted it (readiness plus soak). The marker lives in the release directory,
+# owned by root, so a release cannot mark itself; a rollback target without it is never restored automatically.
+release_proven() {
+  local dir="${1:-}"
+  [ -n "$dir" ] && [ -d "$dir" ] && [ -f "$dir/.nusa-proven" ] && [ ! -L "$dir/.nusa-proven" ] \
+    && [ "$(stat -c '%u' -- "$dir/.nusa-proven")" = "0" ]
+}
+mark_release_proven() {
+  local dir="${1:-}"
+  [ -d "$dir" ] || die "cannot mark a missing release proven"
+  : > "$dir/.nusa-proven" && chown root:root "$dir/.nusa-proven" && chmod 0644 "$dir/.nusa-proven"
+}
+# Failed activation with nothing safe to restore: stop PAPER, keep the data and the failed build for diagnosis, fail loudly.
+safe_stop_after_failed_activation() {
+  printf '%s\n' "nusa-release-step: activation of $1 failed ($2); stopping $SERVICE and leaving the host STOPPED (no automatic rollback)" >&2
+  systemctl stop "$SERVICE" || true
+  exit 1
+}
+
 rollback_and_restore() {
   local rollback_release rollback_legacy_ok=true
   rollback_release="$(previous_release)"
@@ -536,19 +555,23 @@ case "$verb" in
       fi
     fi
     if [ "$paper_ready" != true ] || [ "$autopilot_ready" != true ] || [ "$stability_ready" != true ]; then
-      if ! rollback_schema_compatible "$(previous_release)"; then
-        # Rolling back would leave nothing running. Keep the new release and its units active and fail the step loudly.
-        printf '%s\n' "nusa-release-step: activation of $1 did not prove readiness, but the previous release cannot open the migrated database; keeping $1 active (no rollback)" >&2
-        exit 1
+      # A failed activation never rolls back to a build that was not PROVEN. A build is proven only after it completed a
+      # full activation (readiness and soak) and was marked by this helper. The 2026-11-15 failure restored a defective
+      # build; with no proven, data-compatible previous build the safe end state is STOPPED (nothing orders, data intact).
+      previous="$(previous_release)"
+      if [ -n "$previous" ] && release_proven "$previous" && rollback_schema_compatible "$previous"; then
+        printf '%s\n' "nusa-release-step: activation failed for $1; restoring the proven previous release" >&2
+        rollback_and_restore
+        if node "$(script_in "$(active_release)" oracle-readiness-check.js)" && node "$(script_in "$(active_release)" autopilot-readiness.js)"; then
+          exit 1
+        fi
+        safe_stop_after_failed_activation "$1" "the proven previous release did not become ready either"
       fi
-      printf '%s\n' "nusa-release-step: activation failed for $1; restoring previous release" >&2
-      rollback_and_restore
-      node "$(script_in "$(active_release)" oracle-readiness-check.js)" || die "rollback PAPER readiness failed"
-      node "$(script_in "$(active_release)" autopilot-readiness.js)" || die "rollback Autopilot readiness failed"
-      exit 1
+      safe_stop_after_failed_activation "$1" "no proven, data-compatible previous release to restore"
     fi
     systemctl is-active --quiet "$SERVICE" || die "PAPER service is not active after activation"
     systemctl is-active --quiet "$AUTOPILOT_SERVICE" || die "Autopilot service is not active after activation"
+    mark_release_proven "$dir"
     printf '%s\n' "nusa-release-step: activation accepted for $1"
     ;;
 

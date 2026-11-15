@@ -1,0 +1,23 @@
+id: WO-OPS-20261115-R2A-NO-ROLLBACK-TO-UNPROVEN
+title: "R2a: a failed activation restores only a PROVEN, data-compatible previous release; otherwise the host ends STOPPED"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/r2-release-safety
+owner_decision: "2026-11-15: redesign v4 phase R2 (release safety before any deploy); docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md section 5 and 7a."
+objective: "Remove the automatic rollback to an unproven build (the 2026-11-15 failure restored a defective build) and the keep-the-failed-build-running branch. A release becomes proven only after a full activation (readiness and soak)."
+change:
+  - "deploy/oracle/nusa-release-step.sh: release_proven / mark_release_proven (root-owned marker .nusa-proven in the release directory, written only after readiness, soak and the final active checks) and safe_stop_after_failed_activation (stops nusa.service, fails the step, keeps data and the failed build). activate restores the previous release only when it is proven and schema compatible; otherwise it stops the service."
+  - "tests/oracle-release-o1-mechanics.test.js and tests/oracle-release-rollback-schema-guard.test.js: structural pins plus real runs of the three helpers against a temp layout and a stub systemctl."
+not_changed:
+  - "No host change by this work order. The helper is root-owned on the host and the release workflow requires a byte-identical copy: after merge a release attempt is refused until the owner installs the reviewed helper (this belongs to R3, with the access audit). No limit, threshold, capital or authority change."
+  - "The currently running build 97109e88 is NOT marked proven (it was switched manually), so the first release after the install ends STOPPED if it fails, by design."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "bash -n on the helper; all 91 tests in tests/oracle-*.test.js pass locally."
+unverified: "Not run on the host (no rehearsal yet); the activate path is pinned structurally and its new helper functions are run against a stub. The independent review is pending. Phase-aware readiness, restart limits in the unit, and the backup split are separate R2 pull requests."
+acceptance:
+  - "CI green; non-author review before the PR leaves draft."
