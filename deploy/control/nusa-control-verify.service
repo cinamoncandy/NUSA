@@ -1,0 +1,6 @@
+[Unit]
+Description=NUSA control: verify that reality matches the host state file (stops on any mismatch)
+
+[Service]
+Type=oneshot
+ExecStart=/opt/nusa-control/nusa-control.sh verify

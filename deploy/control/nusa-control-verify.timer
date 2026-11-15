@@ -1,0 +1,10 @@
+[Unit]
+Description=NUSA control: periodic verify (the controller's collect already verifies every start itself)
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Unit=nusa-control-verify.service
+
+[Install]
+WantedBy=timers.target
