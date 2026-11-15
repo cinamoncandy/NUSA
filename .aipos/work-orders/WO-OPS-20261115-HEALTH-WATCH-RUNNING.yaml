@@ -1,0 +1,21 @@
+id: WO-OPS-20261115-HEALTH-WATCH-RUNNING
+title: "Health watch expects the PAPER service to run (restart with the order path OFF)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/health-watch-running
+owner_decision: "2026-11-15: the owner said to start the restart sequence ('시작'): env NUSA_PAPER_ORDER_PATH=OFF written on the host, backup verified, then this flip, then the release."
+objective: "Flip deploy/health-watch.json expectedState from STOPPED to RUNNING in the PR that precedes the PAPER restart, as the file's own note requires, so a stopped service is reported as DOWN after the restart."
+change:
+  - "deploy/health-watch.json: expectedState STOPPED -> RUNNING. No other change."
+not_changed:
+  - "The service stays stopped until the owner approves the release. The release workflow, the helper, the order-path switch, every risk limit and gate are untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "tests/health-watch.test.js and the AIPOS validators pass locally."
+unverified: "CI at the PR head. Until the release starts the service, the watch may report DOWN (expected for roughly the release window)."
+acceptance:
+  - The change is one value in deploy/health-watch.json and no other file changes behaviour.
