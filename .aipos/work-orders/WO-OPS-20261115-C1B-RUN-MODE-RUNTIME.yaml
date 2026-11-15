@@ -19,6 +19,6 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 validation:
   - "npx tsc; tests/production-entry-boot-modes, closed-learning-daemon-order-path-off, cloud-runtime-order-path-switch(+e2e), nusa-unit-start-limit and all tests/oracle-*.test.js pass locally."
-unverified: "Not deployed. The phase-aware readiness counter of v4 section 8 (listening, recovering, collecting, ready) is NOT part of this change and remains open; RestartPreventExitStatus is not used because the runtime has no dedicated exit code yet. No non-author review yet."
+unverified: "First Codex review (APPROVE WITH CONDITIONS): after the controller install its drop-in sets NUSA_REQUIRE_RUN_MODE=1 and the runtime then treats a missing NUSA_RUN_MODE as no order path (tested at the rule and at the real production entry); orderPathReady is documented as object existence only, not an operational approval. The mandatory EnvironmentFile (a missing mode file fails the unit start) is in the controller drop-in of the C1 pull request. Not verified on the host: the real systemd restart-limit behaviour and that the host applies the changed unit (C3). Not deployed. The phase-aware readiness counter of v4 section 8 (listening, recovering, collecting, ready) is NOT part of this change and remains open; RestartPreventExitStatus is not used because the runtime has no dedicated exit code yet. No non-author review yet."
 acceptance:
   - "CI green; non-author review before the PR leaves draft."

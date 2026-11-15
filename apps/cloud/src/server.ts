@@ -132,7 +132,7 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly sourceCommitSha?: string;
   /** The mode SELECTED at start-up: COLLECT_ONLY (no order path) or PAPER_ORDERS. It is not a readiness signal: PAPER_ORDERS with no capital or repository still has no execution loop. Omitted when absent or unknown. */
   readonly runMode?: "COLLECT_ONLY" | "PAPER_ORDERS";
-  /** True only when the PAPER execution loop and order boundary exist; false in COLLECT_ONLY. */
+  /** True only when the PAPER execution loop and order boundary objects exist; false in COLLECT_ONLY. It is NOT an operational approval: it says nothing about risk gates, lease health or owner authorisation. */
   readonly orderPathReady?: boolean;
   readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly consecutiveLossLimitEnabled?: boolean; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }

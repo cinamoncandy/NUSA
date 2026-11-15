@@ -163,5 +163,9 @@ test("the switch rule is one function shared by both entry points", () => {
   assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: "ON", NUSA_RUN_MODE: "PAPER_ORDERS" }), true);
   assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_RUN_MODE: "PAPER_ORDERS" }), false, "the host mode alone never enables orders");
   assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: "ON" }), true, "unset NUSA_RUN_MODE: the legacy switch decides (until the controller is installed)");
+  // After the controller install (its drop-in sets NUSA_REQUIRE_RUN_MODE=1) a missing host mode means no order path.
+  assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: "ON", NUSA_REQUIRE_RUN_MODE: "1" }), false, "required host mode missing: closed");
+  assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: "ON", NUSA_REQUIRE_RUN_MODE: "1", NUSA_RUN_MODE: "PAPER_ORDERS" }), true);
+  assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: "ON", NUSA_REQUIRE_RUN_MODE: "0" }), true, "only exactly 1 makes the host mode required");
   for (const v of ["OFF", "off", "On", "true", "1", "", " ON", "ON "]) assert.equal(runtime.isPaperOrderPathEnabled({ NUSA_PAPER_ORDER_PATH: v }), false, JSON.stringify(v));
 });

@@ -110,11 +110,15 @@ import { TradeTickCoverageWatch } from "./tradeTickCoverage";
  * exactly "ON" AND the host mode, if the host controller wrote one, allows it: NUSA_RUN_MODE (from /etc/nusa/run-mode.env,
  * written only by nusa-control) may only REMOVE the order path. When NUSA_RUN_MODE is set to anything but exactly
  * "PAPER_ORDERS" (COLLECT_ONLY, STOPPED, a typo, empty) there is no order path, whatever NUSA_PAPER_ORDER_PATH says. When
- * it is unset the legacy switch alone decides (until the controller is installed). Every entry point that touches the
+ * it is unset the legacy switch alone decides (until the controller is installed; its drop-in sets
+ * NUSA_REQUIRE_RUN_MODE=1, after which an unset NUSA_RUN_MODE also means no order path). Every entry point that touches the
  * PAPER writer lease must use this function, so two entry points can never disagree about whether the lease exists.
  */
 export function isPaperOrderPathEnabled(env: NodeJS.ProcessEnv): boolean {
   if (env.NUSA_RUN_MODE !== undefined && env.NUSA_RUN_MODE !== "PAPER_ORDERS") return false;
+  // After the controller is installed its unit drop-in sets NUSA_REQUIRE_RUN_MODE=1: from then on a missing host mode (an
+  // absent or emptied mode file) can never fall back to the legacy switch, it simply means no order path.
+  if (env.NUSA_REQUIRE_RUN_MODE === "1" && env.NUSA_RUN_MODE === undefined) return false;
   return env.NUSA_PAPER_ORDER_PATH === "ON";
 }
 /** The mode this process actually runs in, derived from the same rule; published in /health as runtime.runMode. */

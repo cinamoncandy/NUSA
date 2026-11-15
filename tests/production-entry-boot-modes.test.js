@@ -40,7 +40,7 @@ const { SqliteDatabase } = require(join(root, "dist/packages/storage/src/index.j
 })().catch((e) => { console.log("START_FAILED " + (e && e.message)); process.exit(2); });
 `;
 
-async function boot(orderPath, runMode) {
+async function boot(orderPath, runMode, extraEnv = {}) {
   const dir = mkdtempSync(join(tmpdir(), "nusa-entry-boot-"));
   const port = await freePort();
   const env = {
@@ -53,6 +53,7 @@ async function boot(orderPath, runMode) {
   };
   if (orderPath !== undefined) env.NUSA_PAPER_ORDER_PATH = orderPath;
   if (runMode !== undefined) env.NUSA_RUN_MODE = runMode;
+  Object.assign(env, extraEnv);
   try {
     const result = spawnSync(process.execPath, ["-e", CHILD, root, String(port)], { env, cwd: root, encoding: "utf8", timeout: 60_000 });
     const line = (result.stdout || "").split("\n").find((l) => l.startsWith("RESULT "));
@@ -87,4 +88,9 @@ for (const [label, mode] of [["COLLECT_ONLY", "COLLECT_ONLY"], ["STOPPED", "STOP
 test("production entry, ON and NUSA_RUN_MODE=PAPER_ORDERS (control): lease exists and orderPathReady is reported", async () => {
   const r = await boot("ON", "PAPER_ORDERS");
   assert.equal(r.runMode, "PAPER_ORDERS"); assert.ok(r.leaseRows >= 1); assert.equal(typeof r.ready, "boolean");
+});
+
+test("production entry, order path ON with the host mode REQUIRED but missing (mode file gone after the controller install): no order path, no lease", async () => {
+  const r = await boot("ON", undefined, { NUSA_REQUIRE_RUN_MODE: "1" });
+  assert.equal(r.runMode, "COLLECT_ONLY"); assert.equal(r.leaseRows, 0); assert.equal(r.ready, false);
 });
