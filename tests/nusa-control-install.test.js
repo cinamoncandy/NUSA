@@ -40,6 +40,7 @@ function world(opts = {}) {
     for (const c of fs.readdirSync(path.join(root, "deploy/control/dropins", `${u}.d`))) fs.copyFileSync(path.join(root, "deploy/control/dropins", `${u}.d`, c), path.join(src, "dropins", `${u}.d`, c));
   }
   fs.symlinkSync(path.join(R, "opt/nusa/releases", SHA), path.join(R, "opt/nusa/current"));
+  if (!opts.noUnitFile) fs.writeFileSync(path.join(R, "etc/systemd/system/nusa.service"), `[Service]\nEnvironmentFile=${R}/etc/nusa/cloud-runtime.env\nEnvironment=HOME=/var/lib/nusa\n`);
   fs.writeFileSync(path.join(R, "etc/nusa/cloud-runtime.env"), opts.env ?? "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_CLOUD_PORT=1\n");
   const bin = path.join(R, "bin"); fs.mkdirSync(bin);
   const showStub = `if [ "$1" = show ]; then ${opts.showFail ? "exit 1;" : ""} ${opts.showFailOn ? `case "$*" in *${JSON.stringify(opts.showFailOn)}*) exit 1;; esac;` : ""} case "$*" in *"-p Id"*) echo ${JSON.stringify(opts.showId ?? "nusa.service")};; *"-p EnvironmentFiles"*) printf '%s\\n' ${JSON.stringify(opts.showFiles ?? `${R}/etc/nusa/cloud-runtime.env (ignore_errors=no)`)};; *) printf '%s\\n' ${JSON.stringify(opts.showEnv || "HOME=/var/lib/nusa")};; esac; exit 0; fi`;
@@ -50,10 +51,12 @@ function world(opts = {}) {
     fs.writeFileSync(path.join(bin, "install"), `#!/usr/bin/env bash\nif [ ! -e ${JSON.stringify(flag)} ]; then touch ${JSON.stringify(flag)}; echo "// evil" >> ${JSON.stringify(path.join(src, "nusa-control.js"))}; fi\nexec /usr/bin/install "$@"\n`, { mode: 0o755 });
   }
   if (opts.tamperDuringPreflight) fs.writeFileSync(path.join(bin, "systemctl"), `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\n[ "$1" = is-active ] && echo "// evil" >> ${JSON.stringify(path.join(src, "nusa-control.js"))}\n${showStub}\nexit 0\n`, { mode: 0o755 });
+  if (opts.grepError) fs.writeFileSync(path.join(bin, "grep"), `#!/usr/bin/env bash\ncase "$*" in *"Environment=.*NUSA_PAPER_ORDER_PATH"*) exit 2;; esac\nexec /usr/bin/grep "$@"\n`, { mode: 0o755 });
   const health = opts.health ?? JSON.stringify({ runtime: { sourceCommitSha: SHA, runMode: "COLLECT_ONLY" } });
   fs.writeFileSync(path.join(bin, "curl"), `#!/usr/bin/env bash\ncat <<'JSON'\n${health}\nJSON\n`, { mode: 0o755 });
   if (opts.symlinkInTree) fs.symlinkSync("/etc/passwd", path.join(src, "evil"));
   if (opts.extraFile) fs.writeFileSync(path.join(src, "extra.conf"), "x");
+  if (opts.dropinDir) { fs.mkdirSync(path.join(R, "etc/systemd/system/nusa.service.d/sub"), { recursive: true }); }
   if (opts.dropinOrders) { fs.mkdirSync(path.join(R, "etc/systemd/system/nusa.service.d")); fs.writeFileSync(path.join(R, "etc/systemd/system/nusa.service.d/50.conf"), "[Service]\nEnvironment=NUSA_PAPER_ORDER_PATH=ON\n"); }
   if (opts.stateFile) { mk("var/lib/nusa-control", 0o700); fs.writeFileSync(path.join(R, "var/lib/nusa-control/state.json"), "{}"); }
   if (opts.unsafe) fs.chmodSync(path.join(R, opts.unsafe), 0o777);
@@ -85,6 +88,9 @@ test("every precondition is enforced: a failing one fails the preflight, and --a
     ["orders are not explicitly OFF", { env: "NUSA_CLOUD_PORT=1\n" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set twice in the env file", { env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_PAPER_ORDER_PATH=ON\n" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set in a unit drop-in", { dropinOrders: true }, /FAIL  orders are OFF from every environment source/],
+    ["the unit file cannot be searched (missing unit file: grep error is not OFF)", { noUnitFile: true }, /FAIL  orders are OFF from every environment source/],
+    ["a drop-in is unreadable (a directory where a file is expected)", { dropinDir: true }, /FAIL  orders are OFF from every environment source/],
+    ["grep itself fails (exit 2) while searching the unit files", { grepError: true }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer (fail closed)", { showFail: true }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer the Environment query only", { showFailOn: "-p Environment --value" }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer the EnvironmentFiles query only", { showFailOn: "-p EnvironmentFiles" }, /FAIL  orders are OFF from every environment source/],
@@ -184,15 +190,18 @@ test("--rollback refuses (changing nothing) without a manifest, after a managed 
     ["a managed file became a symlink", (w) => { const f = path.join(w.R, "opt/nusa-control/nusa-control.sh"); const c = fs.readFileSync(f); fs.rmSync(f); fs.writeFileSync(path.join(w.R, "real.sh"), c); fs.symlinkSync(path.join(w.R, "real.sh"), f); }, /missing, is a link, or has unsafe/],
     ["a managed file became group-writable", (w) => fs.chmodSync(path.join(w.R, "etc/systemd/system/nusa-control-verify.timer"), 0o664), /unsafe owner or mode/],
     ["systemd cannot answer at rollback time (fail closed)", (w) => fs.writeFileSync(path.join(w.R, "bin/systemctl"), "#!/usr/bin/env bash\n[ \"$1\" = show ] && exit 1\nexit 0\n", { mode: 0o755 }), /orders are not OFF/],
+    ["the anchor file became group-readable", (w) => fs.chmodSync(path.join(w.R, "var/lib/nusa-control/install-manifest.sha256"), 0o644), /unsafe owner or mode/],
+    ["the state directory became group-readable", (w) => fs.chmodSync(path.join(w.R, "var/lib/nusa-control"), 0o750), /unsafe owner or mode/],
+    ["the mode file says something else but manifest was forged to match", (w) => { fs.writeFileSync(path.join(w.R, "etc/nusa/run-mode.env"), "NUSA_RUN_MODE=PAPER_ORDERS\n"); const m = path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST"); const c = require("node:crypto"); const lines = fs.readFileSync(m, "utf8").split("\n").map((l) => l.endsWith("etc/nusa/run-mode.env") ? `${c.createHash("sha256").update("NUSA_RUN_MODE=PAPER_ORDERS\n").digest("hex")}  etc/nusa/run-mode.env` : l).join("\n"); fs.writeFileSync(m, lines); fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/install-manifest.sha256"), `${c.createHash("sha256").update(lines).digest("hex")}\n`, { mode: 0o600 }); }, /orders are not OFF/],
     ["orders turned ON in the env file", (w) => fs.writeFileSync(path.join(w.R, "etc/nusa/cloud-runtime.env"), "NUSA_PAPER_ORDER_PATH=ON\n"), /orders are not OFF/],
   ];
   for (const [label, damage, expected] of cases) {
     const w = world(); assert.equal(w.run(w.hash, "--apply").status, 0);
-    damage(w); const before = w.snapshot(); const callsBefore = w.calls().length;
+    damage(w); const before = w.snapshot(); const mutating = () => w.calls().filter((c) => !/is-active|^systemctl show/.test(c)).length; const callsBefore = mutating();
     const r = w.run("--rollback");
     assert.notEqual(r.status, 0, label); assert.match(r.stderr, expected, label);
     assert.equal(w.snapshot(), before, `${label}: nothing changed`);
-    assert.equal(w.calls().length, callsBefore, `${label}: systemd was not touched`);
+    assert.equal(mutating(), callsBefore, `${label}: systemd was not touched`);
   }
 });
 

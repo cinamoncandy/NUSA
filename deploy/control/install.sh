@@ -22,8 +22,10 @@ for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollbac
 R="${NUSA_INSTALL_ROOT:-}"
 if [ -n "$R" ]; then
   [ "${NUSA_INSTALL_TEST_MODE:-}" = "yes-this-is-a-test-tree" ] || { echo "STOP  NUSA_INSTALL_ROOT is for tests only; unset it" >&2; exit 1; }
-  # The real host always has the release helper; a test root is refused there even with both variables set.
-  if [ -e /opt/nusa/bin/nusa-release-step ]; then echo "STOP  this is the real host; a test root is not allowed here" >&2; exit 1; fi
+  # Any trace of a real installation (helper, release tree, runtime env, systemd unit, state) refuses a test root, even with both variables set.
+  for real in /opt/nusa /etc/nusa /var/lib/nusa /var/lib/nusa-control /etc/systemd/system/nusa.service; do
+    if [ -e "$real" ] || [ -L "$real" ]; then echo "STOP  this looks like the real host ($real exists); a test root is not allowed here" >&2; exit 1; fi
+  done
 else
   export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 fi
@@ -65,7 +67,21 @@ orders_off_everywhere() {
     case "$f" in "$R/etc/nusa/cloud-runtime.env"|"$R/etc/nusa/run-mode.env") ;; *) return 1;; esac
   done <<<"$files"
   # Only an assignment counts; the controller's own drop-in names the variable in UnsetEnvironment= (which closes it).
-  ! grep -rEqs '^[[:space:]]*Environment=.*NUSA_PAPER_ORDER_PATH' "$R/etc/systemd/system/nusa.service" "$R/etc/systemd/system/nusa.service.d" 2>/dev/null || return 1
+  # grep exit 1 = no match (good); 0 = match and 2 = error are both "not proven OFF". The files are listed first and must be readable.
+  local unitfiles
+  [ -f "$R/etc/systemd/system/nusa.service" ] && [ ! -L "$R/etc/systemd/system/nusa.service" ] || return 1
+  unitfiles=("$R/etc/systemd/system/nusa.service")
+  if [ -e "$R/etc/systemd/system/nusa.service.d" ]; then
+    [ -d "$R/etc/systemd/system/nusa.service.d" ] && [ ! -L "$R/etc/systemd/system/nusa.service.d" ] || return 1
+    local d; for d in "$R"/etc/systemd/system/nusa.service.d/*; do [ -e "$d" ] || continue; [ -f "$d" ] && [ ! -L "$d" ] && [ -r "$d" ] || return 1; unitfiles+=("$d"); done
+  fi
+  local rc=0
+  grep -Eq '^[[:space:]]*Environment=.*NUSA_PAPER_ORDER_PATH' "${unitfiles[@]}" 2>/dev/null || rc=$?
+  [ "$rc" = 1 ] || return 1
+  # When the mode file exists it must say exactly COLLECT_ONLY (the only value the controller writes).
+  if [ -e "$R/etc/nusa/run-mode.env" ]; then
+    [ -f "$R/etc/nusa/run-mode.env" ] && [ ! -L "$R/etc/nusa/run-mode.env" ] && [ "$(cat -- "$R/etc/nusa/run-mode.env")" = "NUSA_RUN_MODE=COLLECT_ONLY" ] || return 1
+  fi
 }
 sysctl() { systemctl "$@"; }
 UNITS_TOP="nusa-control-reconcile.service nusa-control-verify.service nusa-control-verify.timer"
@@ -82,6 +98,13 @@ MANIFEST_ANCHOR="$R/var/lib/nusa-control/install-manifest.sha256"
 # Every managed file is a plain file (no link), owned by root (test trees: any owner) and not writable by group or others.
 managed_files_sound() {
   local f p owner mode
+  # the state directory and the anchor: real directory / plain file, root-owned, closed to group and others (0700 / 0600)
+  local sd="$R/var/lib/nusa-control"
+  [ -d "$sd" ] && [ ! -L "$sd" ] && [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] || return 1
+  for p in "$sd" "$MANIFEST_ANCHOR"; do
+    owner="$(stat -c '%u' -- "$p")"; mode="$(stat -c '%a' -- "$p")"
+    { [ -n "$R" ] || [ "$owner" = 0 ]; } && [ $(( 8#$mode & 8#077 )) -eq 0 ] || return 1
+  done
   for f in $(managed_files) opt/nusa-control/INSTALL-MANIFEST; do
     p="$R/$f"
     [ -f "$p" ] && [ ! -L "$p" ] || return 1
