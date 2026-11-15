@@ -301,19 +301,34 @@ mark_release_proven() {
 # not start again at boot or by a timer: nusa.service, the autopilot, the research timer and the research service. Stops are
 # not hidden; afterwards each unit is checked, and an unconfirmed stop is reported loudly. Data and the failed build stay.
 safe_stop_after_failed_activation() {
-  local unit unconfirmed=""
+  local unit rc problems=""
   printf '%s\n' "nusa-release-step: activation of $1 failed ($2); stopping every runtime unit and leaving the host STOPPED (no automatic rollback)" >&2
   for unit in "$RESEARCH_TIMER" "$SERVICE" "$AUTOPILOT_SERVICE" "$RESEARCH_SERVICE"; do
     systemctl disable "$unit" >&2 || printf '%s\n' "nusa-release-step: could not disable $unit" >&2
     systemctl stop "$unit" >&2 || printf '%s\n' "nusa-release-step: could not stop $unit" >&2
   done
   for unit in "$RESEARCH_TIMER" "$SERVICE" "$AUTOPILOT_SERVICE" "$RESEARCH_SERVICE"; do
-    if systemctl is-active --quiet "$unit"; then unconfirmed="$unconfirmed $unit"; fi
+    # is-active: 0 active; 3 inactive; 4 no such unit. Anything else is a failed check, which is NOT a confirmed stop.
+    rc=0; systemctl is-active --quiet "$unit" || rc=$?
+    case "$rc" in
+      0) problems="$problems ${unit}(active)" ;;
+      3|4) ;;
+      *) problems="$problems ${unit}(is-active-check-failed:${rc})" ;;
+    esac
   done
-  if [ -n "$unconfirmed" ]; then
-    printf '%s\n' "nusa-release-step: STOP NOT CONFIRMED, still active:${unconfirmed}" >&2
+  # The units that start by themselves (at boot or by timer) must also be disabled; the research service has no install section of its own.
+  for unit in "$RESEARCH_TIMER" "$SERVICE" "$AUTOPILOT_SERVICE"; do
+    rc=0; systemctl is-enabled --quiet "$unit" || rc=$?
+    case "$rc" in
+      0) problems="$problems ${unit}(still-enabled)" ;;
+      1|4) ;;
+      *) problems="$problems ${unit}(is-enabled-check-failed:${rc})" ;;
+    esac
+  done
+  if [ -n "$problems" ]; then
+    printf '%s\n' "nusa-release-step: STOP NOT CONFIRMED:${problems}" >&2
   else
-    printf '%s\n' "nusa-release-step: STOPPED confirmed: no runtime unit is active" >&2
+    printf '%s\n' "nusa-release-step: STOPPED confirmed: no runtime unit is active and none starts by itself" >&2
   fi
   exit 1
 }
@@ -570,14 +585,25 @@ case "$verb" in
     [ -d "$dir" ] || die "release not staged: $dir"
     assert_segmented_replay_compatible "$dir"
     acquire_paper_activation_lock
-    # atomic-deploy only swaps the release symlink: if it fails, no unit was restarted and the running processes are unchanged.
-    NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)" || die "atomic deploy failed before any unit was restarted; running processes are unchanged"
+    # atomic-deploy swaps the release symlink and writes the previous-release file; it restarts nothing. If it fails and BOTH
+    # are exactly as before, the running processes and their pointers are unchanged and the step just fails. If either
+    # changed (a partial failure), the host cannot be trusted to restart into a known build: it ends STOPPED.
+    link_before="$(active_release)"
+    previous_before="$(cat "$PREVIOUS_RELEASE_FILE" 2>/dev/null || true)"
+    if ! NUSA_COMMIT_SHA="$1" node "$(script_in "$dir" atomic-deploy.js)"; then
+      if [ "$(active_release)" = "$link_before" ] && [ "$(cat "$PREVIOUS_RELEASE_FILE" 2>/dev/null || true)" = "$previous_before" ]; then
+        die "atomic deploy failed and changed nothing: the release pointer, the previous-release record and every running process are unchanged"
+      fi
+      safe_stop_after_failed_activation "$1" "atomic deploy failed after changing the release pointer or the previous-release record"
+    fi
     activation_started="$(date --iso-8601=seconds)"
     paper_ready=false
-    if bind_runtime_source_identity "$1" && install_units_from_release "$dir" && enable_units && restart_units; then
+    # Each step that can call die (which exits) runs in a subshell, so a failure there is a failed condition that ends in the
+    # safe stop below instead of ending the whole script with the new build half started.
+    if ( bind_runtime_source_identity "$1" && install_units_from_release "$dir" && enable_units && restart_units ); then
       if node "$(script_in "$dir" oracle-readiness-check.js)"; then
         paper_ready=true
-      elif recover_abandoned_writer_lease_once "$dir" "$activation_started"; then
+      elif ( recover_abandoned_writer_lease_once "$dir" "$activation_started" ); then
         paper_ready=true
       fi
     fi
@@ -585,7 +611,7 @@ case "$verb" in
     stability_ready=false
     if [ "$paper_ready" = true ] && node "$(script_in "$dir" autopilot-readiness.js)"; then
       autopilot_ready=true
-      if prove_post_activation_stability "$dir" "$1"; then
+      if ( prove_post_activation_stability "$dir" "$1" ); then
         stability_ready=true
       fi
     fi
@@ -596,7 +622,7 @@ case "$verb" in
       previous="$(previous_release)"
       if [ -n "$previous" ] && release_proven "$previous" && rollback_schema_compatible "$previous"; then
         printf '%s\n' "nusa-release-step: activation failed for $1; restoring the proven previous release" >&2
-        if rollback_and_restore \
+        if ( rollback_and_restore ) \
           && node "$(script_in "$(active_release)" oracle-readiness-check.js)" \
           && node "$(script_in "$(active_release)" autopilot-readiness.js)"; then
           exit 1

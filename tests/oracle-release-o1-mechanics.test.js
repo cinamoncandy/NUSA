@@ -49,9 +49,10 @@ test("R2: a failed activation restores only a PROVEN, data-compatible previous r
   const body = verb("activate");
   assert.match(body, /release_proven "\$previous" && rollback_schema_compatible "\$previous"/);
   assert.match(body, /safe_stop_after_failed_activation "\$1" "no proven, data-compatible previous release to restore"/);
-  assert.match(body, /rollback_and_restore \\\n\s+&& node/, "a failing restore step leads to the safe stop, it is not swallowed");
+  assert.match(body, /if \( rollback_and_restore \) \\\n\s+&& node/, "the restore runs in a subshell so a die inside it ends in the safe stop");
   assert.match(body, /is-active --quiet "\$SERVICE" \|\| safe_stop_after_failed_activation/, "the final active checks also end in the safe stop");
-  assert.match(body, /atomic-deploy\.js\)" \|\| die "atomic deploy failed before any unit was restarted/);
+  assert.match(body, /atomic deploy failed and changed nothing/);
+  assert.match(body, /atomic deploy failed after changing the release pointer/);
   assert.doesNotMatch(body, /keeping \$1 active \(no rollback\)/, "the old keep-running branch is gone");
   assert.ok(body.indexOf("mark_release_proven") > body.indexOf('systemctl is-active --quiet "$AUTOPILOT_SERVICE"'), "a release is marked proven only after the final active checks");
   assert.ok(body.indexOf("mark_release_proven") > body.indexOf("safe_stop_after_failed_activation"), "never marked proven on the failure path");
@@ -131,7 +132,7 @@ test("O1: bind_runtime_source_identity writes the new SHA into the env file and 
   } finally { fs.rmSync(l.base, { recursive: true, force: true }); }
 });
 
-// R2a: the proof, the safe stop and the restore are run for real against a temp layout and stub commands.
+// R2a: the proof and the restore are run for real (the safe stop and the whole activate flow are in oracle-release-activate-flow.test.js) against a temp layout and stub commands.
 function sandbox() {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-r2-"));
   const bin = path.join(base, "bin");
@@ -193,26 +194,6 @@ test("R2a: mark_release_proven writes a root-owned proof outside the release tre
   fs.symlinkSync("/etc/hostname", path.join(box.base, "proven", SHA));
   assert.equal(bash(box, `release_proven ${JSON.stringify(dir)}`).status, 1, "a symlink proof is refused");
   assert.equal(bash(box, `mark_release_proven ${JSON.stringify(path.join(box.base, "releases", "not-a-sha"))}`).status, 1, "a non-SHA directory cannot be marked");
-});
-
-test("R2a: the safe stop disables and stops every runtime unit, verifies it, and fails the step", posixOnly, () => {
-  const box = sandbox();
-  const units = ["nusa.service", "nusa-autopilot.service", "nusa-research.timer", "nusa-research.service"];
-  for (const u of units) fs.writeFileSync(path.join(box.state, u), "");
-  const r = bash(box, `safe_stop_after_failed_activation ${SHA} "test reason"`);
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /STOPPED confirmed: no runtime unit is active/);
-  const calls = fs.readFileSync(box.log, "utf8");
-  for (const u of units) { assert.match(calls, new RegExp(`disable ${u.replace(/\./g, "\\.")}`)); assert.match(calls, new RegExp(`stop ${u.replace(/\./g, "\\.")}`)); }
-  for (const u of units) assert.equal(fs.existsSync(path.join(box.state, u)), false, `${u} is no longer active`);
-});
-
-test("R2a: a stop that does not take effect is reported as NOT CONFIRMED (never hidden), and the step still fails", posixOnly, () => {
-  const box = sandbox();
-  for (const u of ["nusa.service", "nusa-autopilot.service", "nusa-research.timer", "nusa-research.service"]) fs.writeFileSync(path.join(box.state, u), "");
-  const r = bash(box, `safe_stop_after_failed_activation ${SHA} "test reason"`, { STUCK: "nusa-autopilot.service" });
-  assert.equal(r.status, 1);
-  assert.match(r.stderr, /STOP NOT CONFIRMED, still active: nusa-autopilot\.service/);
 });
 
 test("R2a: a failing step inside rollback_and_restore ends the restore at once (set -e does not apply inside a condition)", posixOnly, () => {
