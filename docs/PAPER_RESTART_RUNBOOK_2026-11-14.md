@@ -23,7 +23,7 @@ The PAPER host is **Datascale**, not Oracle (owner statement 2026-11-15). Paths,
 this description changes. A read-only host diagnosis on 2026-11-15 (run 43656493322, runner `nusa-paper-host-datascale`) read: 4 CPUs, about 7.9 GB memory (about 7.1 GB available), root disk 77 GB with 33% used (52 GB free), load 0.
 That is not the "1 vCPU, 954 MB, 90% used" host measured in October, so statements in older documents that rest on it (memory floors for the Codex runner, startup stalls, the release backup time, the disk headroom)
 must be re-measured before they are relied on; this runbook keeps its conditions and re-reads the host in precondition 0.3. The deployed build was `324768cd` (PR 3107), `nusa.service` inactive, `nusa-autopilot.service` active; that build does not contain
-the `NUSA_PAPER_ORDER_PATH` switch. The owner can reach the host by SSH.
+the `NUSA_PAPER_ORDER_PATH` switch. The owner can reach the host by SSH. The name `nusa-api.duckdns.org` (the phone origin) resolved to `165.140.21.228` on 2026-11-15 and the owner confirmed that this is the Datascale address, so the phone path no longer depends on the old Oracle instance. Still open before the Oracle account or instance is ended: data and backups that exist only there, and any runner still registered from there (the agent cannot read the runner list).
 
 ## What a release does to a stopped service (read in `deploy/oracle/nusa-release-step.sh`, 2026-11-14)
 
