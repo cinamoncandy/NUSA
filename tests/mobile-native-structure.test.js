@@ -105,7 +105,7 @@ test("local entry guard still exposes Splash and Auth Context without claiming i
   assert.match(app, /사용자 신원을 검증하지 않으며/);
 });
 
-test("mobile release workflow validates Android candidates and explicitly skips iOS delivery", () => {
+test("mobile release workflow validates Android candidates only (the iOS jobs and files were removed on 2026-11-15)", () => {
   const workflow = fs.readFileSync(path.join(__dirname, "../.github/workflows/mobile-native.yml"), "utf8");
   assert.equal(fs.existsSync(path.join(repoRoot, "scripts", "prepare-mobile-build-config.js")), true);
   assert.equal(fs.existsSync(path.join(mobile, "src", "generatedBuildConfig.ts")), true);
@@ -114,10 +114,9 @@ test("mobile release workflow validates Android candidates and explicitly skips 
   assert.match(workflow, /:app:assembleDebug -PnusaEmbedDebugBundle/);
   assert.match(workflow, /android-release-candidate:/);
   assert.match(workflow, /:app:assembleRelease/);
-  assert.match(workflow, /ios-debug:\s*\r?\n\s*if: \$\{\{ false \}\}/);
-  assert.match(workflow, /ios-release-candidate:\s*\r?\n\s*if: \$\{\{ false \}\}/);
-  assert.match(workflow, /Android-only/);
-  assert.doesNotMatch(workflow, /xcodebuild/);
+  assert.doesNotMatch(workflow, /ios-debug|ios-release-candidate|macos-|xcodebuild|testflight/i);
+  assert.equal(fs.existsSync(path.join(mobile, "ios")), false, "apps/mobile/ios was removed");
+  assert.equal(fs.existsSync(path.join(repoRoot, ".github", "workflows", "ios-testflight.yml")), false, "the TestFlight workflow was removed");
 });
 
 test("Android networking layer replaces (not appends) the User-Agent so Upbit's public API stops rejecting requests with HTTP 400", () => {

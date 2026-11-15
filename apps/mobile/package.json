@@ -35,7 +35,6 @@
   },
   "scripts": {
     "android": "react-native run-android",
-    "ios": "react-native run-ios",
     "start": "react-native start",
     "start:reset": "react-native start --reset-cache",
     "test": "jest"

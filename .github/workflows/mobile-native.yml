@@ -115,12 +115,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-  ios-debug:
-    if: ${{ false }}
-    runs-on: macos-15
-    steps:
-      - run: 'echo "iOS skipped: NUSA mobile delivery is Android-only"'
-
   android-release-candidate:
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'release-candidate')
     runs-on: ubuntu-latest
@@ -215,9 +209,3 @@ jobs:
             echo "- productionMutationAllowed: \`false\`"
             echo "- aiAuthority: \`ZERO_AUTHORITY\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
-  ios-release-candidate:
-    if: ${{ false }}
-    runs-on: macos-15
-    steps:
-      - run: 'echo "iOS release candidate skipped: NUSA mobile delivery is Android-only"'
