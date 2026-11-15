@@ -68,7 +68,6 @@
     "tests/architecture-storage-boundary.test.js": 12227,
     "tests/architecture-surface-governance.test.js": 328,
     "tests/artifact-manifest-integrity.test.js": 329,
-    "tests/autopilot-codex-coding.test.js": 1477,
     "tests/autopilot-consumer-failure-classification.test.js": 589,
     "tests/autopilot-control-plane-wiring.test.js": 3282,
     "tests/autopilot-dispatch-retry.test.js": 2968,
