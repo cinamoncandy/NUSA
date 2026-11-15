@@ -40,7 +40,12 @@ function world({ healthModes = [], stuck = [], failVerbs = {} } = {}) {
       default: return 1;
     }
   };
-  const health = async () => { const m = queue.length > 0 ? queue.shift() : null; return m === undefined || m === null ? null : { runtime: { runMode: m } }; };
+  const health = async () => {
+    const m = queue.length > 0 ? queue.shift() : null;
+    if (m === undefined || m === null) return null;
+    const [runMode, build] = m.split("@");
+    return { runtime: { runMode, sourceCommitSha: build === undefined ? SHA : build } };
+  };
   const ctl = makeController({ systemctl, health, now: () => clock, sleep: async (ms) => { clock += ms; }, config: { stateDir, modeFile: path.join(etc, "run-mode.env"), currentLink, startCeilingMs: 60_000, pollMs: 5_000 } });
   const store = stateStore(fs, stateDir);
   return { base, stateDir, etc, currentLink, units, calls, ctl, store, setLink: (sha) => { fs.rmSync(currentLink); fs.symlinkSync(path.join(base, "releases", sha), currentLink); }, modeFile: path.join(etc, "run-mode.env") };
@@ -205,4 +210,12 @@ test("property: no sequence of verbs and faults reaches orders, loses the state,
       if (action === "collect" && r.ok) assert.equal(path.basename(fs.readlinkSync(w.currentLink)), st.state.active);
     }
   }
+});
+
+test("collect accepts COLLECT_ONLY only from the recorded build: a stale or foreign process on the port is a mismatch and ends STOPPED", async () => {
+  const w = world({ healthModes: [`COLLECT_ONLY@${OTHER}`] }); await w.ctl.init(SHA);
+  const r = await w.ctl.collect();
+  assert.equal(r.ok, false); assert.equal(r.code, "BUILD_MISMATCH"); assert.ok(allStopped(w));
+  const noBuild = world({ healthModes: ["COLLECT_ONLY@"] }); await noBuild.ctl.init(SHA);
+  assert.equal((await noBuild.ctl.collect()).ok, false, "an answer without the build identity is not accepted");
 });

@@ -161,8 +161,11 @@ function makeController(deps) {
       const deadline = now() + cfg.startCeilingMs;
       let seen = null;
       while (now() < deadline) {
-        try { const h = await health(); seen = h && h.runtime ? h.runtime.runMode : null; } catch { seen = null; }
-        if (seen === "COLLECT_ONLY") { finish(); return { ok: true, code: "COLLECT_ONLY" }; }
+        let build = null;
+        try { const h = await health(); seen = h && h.runtime ? h.runtime.runMode : null; build = h && h.runtime ? h.runtime.sourceCommitSha : null; } catch { seen = null; }
+        // Any process on the port could answer: the answer counts only if it comes from the recorded build.
+        if (seen === "COLLECT_ONLY" && build === s.active) { finish(); return { ok: true, code: "COLLECT_ONLY" }; }
+        if (seen !== null && build !== null && build !== s.active) throw new ControlError("BUILD_MISMATCH", `runtime reports build ${build}, expected ${s.active}`);
         if (seen === "PAPER_ORDERS") throw new ControlError("MODE_MISMATCH", "runtime reports PAPER_ORDERS");
         await sleep(cfg.pollMs);
       }
