@@ -132,6 +132,8 @@ export interface CloudRuntimeLivenessSnapshot {
   readonly sourceCommitSha?: string;
   /** The mode SELECTED at start-up: COLLECT_ONLY (no order path) or PAPER_ORDERS. It is not a readiness signal: PAPER_ORDERS with no capital or repository still has no execution loop. Omitted when absent or unknown. */
   readonly runMode?: "COLLECT_ONLY" | "PAPER_ORDERS";
+  /** True only when the PAPER execution loop and order boundary exist; false in COLLECT_ONLY. */
+  readonly orderPathReady?: boolean;
   readonly paperLossSession?: { readonly evaluatedAt: number; readonly consecutiveLossCount: number; readonly maxConsecutiveLosses: number; readonly consecutiveLossLimitEnabled?: boolean; readonly todayCompletedSells: number; readonly todayLosingSells: number; readonly periodIdentity?: string; readonly periodStartedAt?: number; readonly lastIncrementAt?: number | null };
 }
 
@@ -675,7 +677,8 @@ function publicRuntimeLiveness(value: CloudRuntimeLivenessSnapshot): CloudRuntim
   // Build identity: only a full lowercase 40-hex commit is published, never other text.
   const sourceCommitSha = typeof source.sourceCommitSha === "string" && /^[0-9a-f]{40}$/.test(source.sourceCommitSha) ? { sourceCommitSha: source.sourceCommitSha } : {};
   const runMode = source.runMode === "COLLECT_ONLY" || source.runMode === "PAPER_ORDERS" ? { runMode: source.runMode } : {};
-  return Object.freeze({ ...sourceCommitSha, ...runMode, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...researchGapFill, ...rollingHoldout, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...orderBookCoverage, ...tradeTickCoverage, ...futuresCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
+  const orderPathReady = typeof source.orderPathReady === "boolean" ? { orderPathReady: source.orderPathReady } : {};
+  return Object.freeze({ ...sourceCommitSha, ...runMode, ...orderPathReady, ...paperLedger, ...timestamps, ...counters, ...(lastPaperDecisionOutcome === undefined ? {} : { lastPaperDecisionOutcome }), lastError, ...(previousStop === undefined ? {} : { previousStop }), ...stall, ...research, ...funnel, ...lossSession, ...lossAttribution, ...experimentTicks, ...experimentTicksByInterval, ...researchGapFill, ...rollingHoldout, ...closedLearningLoop, ...microstructure, ...orderBookCollector, ...orderBookCoverage, ...tradeTickCoverage, ...futuresCollector, ...dataIntegrity }) as unknown as CloudRuntimeLivenessSnapshot;
 }
 
 const PUBLIC_HEALTH_REASONS = new Set(["EVIDENCE_HEALTHY", "EVIDENCE_DEGRADED", "EVIDENCE_FAILED", "EVIDENCE_STALE", "EVIDENCE_MISSING", "EVIDENCE_INVALID_TIME", "RECOVERY_NOT_VERIFIED"]);

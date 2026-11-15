@@ -32,7 +32,7 @@ const { SqliteDatabase } = require(join(root, "dist/packages/storage/src/index.j
   }
   const db = new SqliteDatabase(process.env.NUSA_CLOUD_STATE_DB_PATH);
   const count = (sql) => { try { return db.connection.prepare(sql).get().n; } catch { return -1; } };
-  const out = { runMode: body && body.runtime && body.runtime.runMode, leaseRows: count("SELECT COUNT(*) AS n FROM cloud_paper_writer_leases"), fills: count("SELECT COUNT(*) AS n FROM cloud_paper_fill_ledger"), orders: body && body.runtime && body.runtime.paperOrderCount };
+  const out = { runMode: body && body.runtime && body.runtime.runMode, leaseRows: count("SELECT COUNT(*) AS n FROM cloud_paper_writer_leases"), fills: count("SELECT COUNT(*) AS n FROM cloud_paper_fill_ledger"), orders: body && body.runtime && body.runtime.paperOrderCount, ready: body && body.runtime && body.runtime.orderPathReady };
   db.close();
   await c.handle.stop();
   console.log("RESULT " + JSON.stringify(out));
@@ -40,7 +40,7 @@ const { SqliteDatabase } = require(join(root, "dist/packages/storage/src/index.j
 })().catch((e) => { console.log("START_FAILED " + (e && e.message)); process.exit(2); });
 `;
 
-async function boot(orderPath) {
+async function boot(orderPath, runMode) {
   const dir = mkdtempSync(join(tmpdir(), "nusa-entry-boot-"));
   const port = await freePort();
   const env = {
@@ -52,6 +52,7 @@ async function boot(orderPath) {
     NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "0", NUSA_MODE: "PAPER", NUSA_LIVE_MUTATION: "0",
   };
   if (orderPath !== undefined) env.NUSA_PAPER_ORDER_PATH = orderPath;
+  if (runMode !== undefined) env.NUSA_RUN_MODE = runMode;
   try {
     const result = spawnSync(process.execPath, ["-e", CHILD, root, String(port)], { env, cwd: root, encoding: "utf8", timeout: 60_000 });
     const line = (result.stdout || "").split("\n").find((l) => l.startsWith("RESULT "));
@@ -74,4 +75,16 @@ test("production entry, order path ON (control): the writer lease exists and /he
   const r = await boot("ON");
   assert.equal(r.runMode, "PAPER_ORDERS");
   assert.ok(r.leaseRows >= 1, "the lease row exists");
+});
+
+// The host controller mode closes the order path even when the legacy switch says ON, and /health says so.
+for (const [label, mode] of [["COLLECT_ONLY", "COLLECT_ONLY"], ["STOPPED", "STOPPED"], ["garbled", "PAPER_ORDERSX"], ["empty", ""]]) {
+  test(`production entry, order path ON but NUSA_RUN_MODE ${label}: collect-only, no lease, orderPathReady false`, async () => {
+    const r = await boot("ON", mode);
+    assert.equal(r.runMode, "COLLECT_ONLY"); assert.equal(r.leaseRows, 0); assert.equal(r.fills, 0); assert.equal(r.ready, false);
+  });
+}
+test("production entry, ON and NUSA_RUN_MODE=PAPER_ORDERS (control): lease exists and orderPathReady is reported", async () => {
+  const r = await boot("ON", "PAPER_ORDERS");
+  assert.equal(r.runMode, "PAPER_ORDERS"); assert.ok(r.leaseRows >= 1); assert.equal(typeof r.ready, "boolean");
 });
