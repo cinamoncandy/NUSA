@@ -1,5 +1,5 @@
 id: WO-OPS-20261115-REMOVE-IOS
-title: Remove the iOS project, the TestFlight workflow and the skipped iOS jobs (owner: iOS is not used)
+title: "Remove the iOS project, the TestFlight workflow and the skipped iOS jobs (owner: iOS is not used)"
 status: READY_FOR_REVIEW
 created: 2026-11-15
 implementation_branch: claude/remove-ios
