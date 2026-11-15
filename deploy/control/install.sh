@@ -11,6 +11,7 @@
 # a release tree that is changed after the check cannot change what is installed. Preflight
 # prints PASS or FAIL for every precondition; --apply refuses to run unless every one passes. It never touches the database,
 # the lease, the release link, any secret or the order switch; the runtime environment file is only READ (one exact line).
+# NOT an access audit: it does not check other accounts' sudo rights, SSH settings, cron/at/polkit or runners. Do not cite it as such.
 # It can only close things: the controller can write COLLECT_ONLY and nothing else.
 set -euo pipefail
 
@@ -21,6 +22,8 @@ for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollbac
 R="${NUSA_INSTALL_ROOT:-}"
 if [ -n "$R" ]; then
   [ "${NUSA_INSTALL_TEST_MODE:-}" = "yes-this-is-a-test-tree" ] || { echo "STOP  NUSA_INSTALL_ROOT is for tests only; unset it" >&2; exit 1; }
+  # The real host always has the release helper; a test root is refused there even with both variables set.
+  if [ -e /opt/nusa/bin/nusa-release-step ]; then echo "STOP  this is the real host; a test root is not allowed here" >&2; exit 1; fi
 else
   export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 fi
@@ -48,7 +51,19 @@ no_symlinks_in() { [ -z "$(find "$1" -type l -print -quit)" ]; }
 orders_off_everywhere() {
   [ "$(grep -c '^NUSA_PAPER_ORDER_PATH=' "$R/etc/nusa/cloud-runtime.env")" = 1 ] || return 1
   grep -qx 'NUSA_PAPER_ORDER_PATH=OFF' "$R/etc/nusa/cloud-runtime.env" || return 1
-  ! sysctl show nusa.service -p Environment --value 2>/dev/null | grep -q 'NUSA_PAPER_ORDER_PATH' || return 1
+  # Fail closed: every systemd query must SUCCEED and make sense; a failed or empty query is "not proven", never "OFF".
+  local id env files line f
+  id="$(sysctl show nusa.service -p Id --value 2>/dev/null)" || return 1
+  [ "$id" = "nusa.service" ] || return 1
+  env="$(sysctl show nusa.service -p Environment --value 2>/dev/null)" || return 1
+  if grep -q 'NUSA_PAPER_ORDER_PATH' <<<"$env"; then return 1; fi
+  # Only these two files may feed the unit's environment; any other EnvironmentFile could set the order switch.
+  files="$(sysctl show nusa.service -p EnvironmentFiles --value 2>/dev/null)" || return 1
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    f="${line%% (*}"
+    case "$f" in "$R/etc/nusa/cloud-runtime.env"|"$R/etc/nusa/run-mode.env") ;; *) return 1;; esac
+  done <<<"$files"
   # Only an assignment counts; the controller's own drop-in names the variable in UnsetEnvironment= (which closes it).
   ! grep -rEqs '^[[:space:]]*Environment=.*NUSA_PAPER_ORDER_PATH' "$R/etc/systemd/system/nusa.service" "$R/etc/systemd/system/nusa.service.d" 2>/dev/null || return 1
 }
@@ -62,6 +77,18 @@ managed_files() {
   for u in $DROPIN_UNITS; do for c in "$SRC"/dropins/"$u".d/*.conf; do echo "etc/systemd/system/$u.d/$(basename "$c")"; done; done
 }
 MANIFEST_FILE="$R/opt/nusa-control/INSTALL-MANIFEST"
+# A second copy of the manifest's own hash is kept in the root-only state directory: changing the manifest AND the files is not enough.
+MANIFEST_ANCHOR="$R/var/lib/nusa-control/install-manifest.sha256"
+# Every managed file is a plain file (no link), owned by root (test trees: any owner) and not writable by group or others.
+managed_files_sound() {
+  local f p owner mode
+  for f in $(managed_files) opt/nusa-control/INSTALL-MANIFEST; do
+    p="$R/$f"
+    [ -f "$p" ] && [ ! -L "$p" ] || return 1
+    owner="$(stat -c '%u' -- "$p")"; mode="$(stat -c '%a' -- "$p")"
+    { [ -n "$R" ] || [ "$owner" = 0 ]; } && [ $(( 8#$mode & 8#022 )) -eq 0 ] || return 1
+  done
+}
 
 preflight() {
   echo "== preflight (read-only) for $SHA"
@@ -118,6 +145,7 @@ apply() {
   CURRENT="install manifest"; step "$CURRENT"
   ( cd "${R:-/}" && managed_files | xargs sha256sum ) > "$stage/manifest.out"
   install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE"
+  sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR"
   sysctl daemon-reload
   CURRENT="enable the gate and the periodic verify"; step "$CURRENT"
   sysctl enable nusa-control-reconcile.service nusa-control-verify.timer
@@ -137,6 +165,8 @@ rollback() {
   # Refuse unless the files on disk are exactly what the install wrote, and orders are OFF from every source: a rollback
   # restarts the runtime, so it must never run on a host that was changed by hand.
   [ -f "$MANIFEST_FILE" ] && [ ! -L "$MANIFEST_FILE" ] || die "no install manifest at $MANIFEST_FILE; refusing to roll back (nothing was changed)"
+  [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] && [ "$(sha256sum -- "$MANIFEST_FILE" | cut -d' ' -f1)" = "$(cat -- "$MANIFEST_ANCHOR")" ] || die "the install manifest does not match its anchor in the state directory; refusing to roll back (nothing was changed)"
+  managed_files_sound || die "a managed file is missing, is a link, or has unsafe owner or mode; refusing to roll back (nothing was changed)"
   ( cd "${R:-/}" && sha256sum --check --strict --quiet "$MANIFEST_FILE" ) >/dev/null 2>&1 || die "a managed file differs from the install manifest; refusing to roll back (nothing was changed)"
   orders_off_everywhere || die "orders are not OFF from every environment source; refusing to roll back (nothing was changed)"
   sysctl disable --now nusa-control-verify.timer 2>/dev/null || true
