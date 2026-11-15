@@ -9,6 +9,7 @@ const {
   SqliteCloudPaperAccountRepository,
 } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
+const { acceptingPaperTradePermissionAuthority } = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 
 const candidateBinding = Object.freeze({
@@ -117,7 +118,7 @@ test("SQLite restart preserves strategy depth residual and canonical fill-ledger
       readP0State: () => ({ openP0: false }),
     });
     let riskCalls = 0;
-    const boundary = new CloudPaperExecutionBoundary({
+    const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
       loop,
       riskGate: {
         evaluate() {
@@ -157,7 +158,7 @@ test("SQLite restart preserves strategy depth residual and canonical fill-ledger
     assert.equal(restored.workingOrders[0].lastOrderBookObservedAt, 1_900);
 
     let restoredRiskCalls = 0;
-    const restoredBoundary = new CloudPaperExecutionBoundary({
+    const restoredBoundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
       loop: restoredLoop,
       riskGate: {
         evaluate() {

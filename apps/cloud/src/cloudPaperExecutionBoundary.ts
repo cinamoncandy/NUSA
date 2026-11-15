@@ -11,11 +11,17 @@ import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { buildPaperExecutionIntent, UPBIT_KRW_MINIMUM_ORDER_KRW, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
 import { PaperRuntimeExecutionCostEvidenceError, validatePaperObservedExecutionDepth, validatePaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { automaticPaperConfidenceAllowsAction } from "./automaticPaperExecutionPolicy";
+import { PaperTradePermissionMemory, refusePaperTradePermission, type PaperTradePermissionAuthority } from "./paperTradePermissionGuard";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
   readonly riskGate: CloudPaperRiskGate;
   readonly readP0State: () => Readonly<{ openP0: boolean }>;
+  /**
+   * Canonical TradePermission source (#3108). Required: a strategy order, new or continued, reaches the simulator only
+   * with an unexpired PERMIT bound to its intent. Use NO_PAPER_TRADE_PERMISSION_AUTHORITY when no producer exists.
+   */
+  readonly tradePermissionAuthority: PaperTradePermissionAuthority;
   readonly maximumMarketAgeMs?: number;
 }
 
@@ -30,6 +36,7 @@ const normalizedHealth = (value: MobileDashboardApiInput["overallHealth"]): Clou
  */
 export class CloudPaperExecutionBoundary {
   private readonly maximumMarketAgeMs: number;
+  private readonly permitMemory = new PaperTradePermissionMemory();
 
   public constructor(private readonly options: CloudPaperExecutionBoundaryOptions) {
     this.maximumMarketAgeMs = options.maximumMarketAgeMs ?? 30_000;
@@ -179,6 +186,8 @@ export class CloudPaperExecutionBoundary {
       }
       const quoteFailure = this.executionQuoteFailure(tick);
       if (quoteFailure != null) return quoteFailure;
+      const continuationPermitRefusal = refusePaperTradePermission(this.options.tradePermissionAuthority, { decisionId: paperExecutionIntentCommandId(intent), strategyId: intent.candidateId, market: intent.market }, tick.now, this.permitMemory);
+      if (continuationPermitRefusal != null) return this.blocked(continuationPermitRefusal);
       const continuationCommandId = `${working.idempotencyKey}:continue:${working.lifecycle.transitionSequence + 1}`;
       const risk = this.options.riskGate.evaluate({
         path: "STRATEGY",
@@ -200,6 +209,9 @@ export class CloudPaperExecutionBoundary {
         payloadFingerprintSha256: intent.intentFingerprintSha256
       });
       if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+      // Check again immediately before the simulator: the permit must still hold after the risk gate ran (no gap between lookup and use).
+      const continuationRecheck = refusePaperTradePermission(this.options.tradePermissionAuthority, { decisionId: paperExecutionIntentCommandId(intent), strategyId: intent.candidateId, market: intent.market }, tick.now, this.permitMemory);
+      if (continuationRecheck != null) return this.blocked(continuationRecheck);
       return this.withRisk(this.options.loop.advanceStrategyWorkingOrder(working.id, tick), risk);
     }
 
@@ -282,6 +294,9 @@ export class CloudPaperExecutionBoundary {
     const quoteFailure = this.executionQuoteFailure(tick);
     if (quoteFailure != null) return quoteFailure;
     const commandId = paperExecutionIntentCommandId(executionIntent);
+    // Canonical TradePermission (#3108): refused before the risk gate and the simulator are touched.
+    const permitRefusal = refusePaperTradePermission(this.options.tradePermissionAuthority, { decisionId: commandId, strategyId: executionIntent.candidateId, market: executionIntent.market }, tick.now, this.permitMemory);
+    if (permitRefusal != null) return this.blocked(permitRefusal);
     const risk = this.options.riskGate.evaluate({
       path: "STRATEGY",
       commandId,
@@ -302,6 +317,9 @@ export class CloudPaperExecutionBoundary {
       payloadFingerprintSha256: executionIntent.intentFingerprintSha256
     });
     if (risk.status !== "ALLOW") return this.riskResult(risk.status, risk.reasonCodes);
+    // Check again immediately before the simulator: the permit must still hold after the risk gate ran (no gap between lookup and use).
+    const permitRecheck = refusePaperTradePermission(this.options.tradePermissionAuthority, { decisionId: commandId, strategyId: executionIntent.candidateId, market: executionIntent.market }, tick.now, this.permitMemory);
+    if (permitRecheck != null) return this.blocked(permitRecheck);
 
     // PortfolioPlan -> immutable intent -> canonical risk -> execution is now one identity chain.
     // LIVE/production mutation authority remains absent by design.
