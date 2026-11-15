@@ -1,0 +1,27 @@
+id: WO-OPS-20261115-RETIRE-CODEX-RUNNERS
+title: "Retire the Codex coding runners and their workflows (owner: not used any more)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/retire-codex-runners
+owner_decision: "2026-11-15: the PAPER host moved to Datascale. A read-only check on that host showed only one runner (nusa-paper in /opt/actions-runner-nusa-paper); the two Codex runners nusa-codex-dev-1 and nusa-codex-dev-2 (labels nusa-codex-dev, nusa-codex-autopilot) run on another server (the old Oracle one). The owner answered that the automatic Codex coding is not used any more ('안 씁니다 (정리)'), so it is retired."
+objective: "Remove the dead automation so the old server can be stopped and ended without leaving a workflow that waits for a runner that will not exist, and so no scheduled workflow keeps a path to a credentialed runner."
+change:
+  - "Deleted: .github/workflows/autopilot-codex-coding.yml, .github/workflows/oracle-codex-dev.yml, scripts/autopilot-codex-select.js, scripts/autopilot-codex-host-guard.sh, scripts/oracle/bootstrap-codex-dev-runner.sh, docs/operations/oracle-codex-dev-runner.md, tests/autopilot-codex-coding.test.js, tests/oracle-codex-dev-worktree.test.js."
+  - "Removed the now unused export selectCodexBacklogTask and its interface from apps/autopilot/src/evolveGithubIssueBacklog.ts (it was used only by the deleted workflow, and the unwired-export ledger test flagged it)."
+  - "Updated: the authority map (the oracle-codex job removed), the test shard cost list (the deleted test removed), and two rows of docs/CLAUDE_CENTERED_OPERATING_MODEL.md that described these workflows."
+not_changed:
+  - "The PAPER release workflow and its tests (its assertion that the release path never mentions nusa-codex-dev still holds), the independent review design (the rejected Codex-runner variant is described as history only), apps/autopilot (a comment in evolveGithubIssueBacklog.ts still names the deleted workflow; the Cloudflare removal deletes that app), and every safety gate. Deleting automation removes authority and adds none."
+owner_actions_after_merge:
+  - "GitHub Settings, Actions, Runners: remove nusa-codex-dev-1 and nusa-codex-dev-2 (the agent cannot)."
+  - "Then stop the old server (stop, do not delete) for 1-2 weeks, take a final backup, then end it."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "AIPOS, portability, workflow authority map (41 workflows), action pins, action inputs, platform-independent and AI zero-authority validators pass; the apps/autopilot tests, the autopilot, worker, control-plane (including the unwired-export ledger) and workflow tests, and the aipos-current-truth test pass locally."
+review_round_1: "ACCEPT WITH P2 at 30f2c366f. P2-2 done: a repository-wide search at this head for the deleted workflow, script, function and runner names found no workflow, script, test or import that runs or loads a deleted file. What remains is (a) tests/oracle-paper-release-workflow.test.js:338, a NEGATIVE assertion that the release workflow never mentions nusa-codex-dev (still true, harmless), (b) documents that describe history or the retirement (the independent review design describing the rejected variant, the Cloudflare inventory mentioning the coding routes, the operating model rows now saying retired), and (c) 9 AIPOS and audit records kept as history. P2-1 accepted: deleting these files is NOT approval to end the old server. Ending it needs the owner to confirm data, backups and other services there (data moved and the DuckDNS address confirmed by the owner so far), then stop-not-delete for 1-2 weeks, a final backup and only then the end."
+unverified: "That nothing else on the old server is still used (data, backups, other services) beyond what the owner confirmed (data moved, address is the Datascale one)."
+acceptance:
+  - A non-author review confirms that only dead automation was removed and no safety rule, gate or the PAPER release path changed.

@@ -52,8 +52,8 @@
 | 항목 | 지금 | 근거 |
 |---|---|---|
 | 대화형 개발(CORE 자리) | ChatGPT/Codex에서 Claude Code로 전환 중. 메인 Claude는 소유자의 다른 Claude 계정, 이 세션은 보조 | 소유자 지시(2026-10-12) |
-| 백로그 자동 구현 | `Autopilot Codex Coding`: 매시 23분으로 예약돼 있습니다. 소유자 전용 ChatGPT 계정으로 로그인한 자체 러너 `nusa-codex-autopilot`에서 돌고, 이 러너는 PAPER 서버를 같이 씁니다. **꺼짐**(`disabled_manually`, 10-12 21:52 UTC). 10-08~10-11에는 병합 PR 4건(#2597, #2598, #2601, #2618)을 냈지만, 10-12에 실제로 돈 정기 실행 3번은 모두 실패 | `autopilot-codex-coding.yml` 머리 주석, Actions API |
-| 수동 Codex 작업 | `Oracle Codex Dev Runner`: 켜짐. 수동 실행 전용이고 `cinamoncandy`만 실행 가능 | `oracle-codex-dev.yml:32`, `:51` |
+| 백로그 자동 구현 | 폐기(소유자 결정 2026-11-15, 더 쓰지 않음). `Autopilot Codex Coding` 워크플로와 그 선택 스크립트, 호스트 가드, 러너 부트스트랩을 저장소에서 삭제했습니다. 러너 `nusa-codex-dev-1`, `nusa-codex-dev-2`는 GitHub에서 소유자가 삭제합니다 | 소유자 지시(2026-11-15), `WO-OPS-20261115-RETIRE-CODEX-RUNNERS` |
+| 수동 Codex 작업 | 폐기(같은 결정). `Oracle Codex Dev Runner` 워크플로와 설명 문서를 삭제했습니다 | 소유자 지시(2026-11-15), `WO-OPS-20261115-RETIRE-CODEX-RUNNERS` |
 | PR 자동 리뷰 | Codex 리뷰 봇이 사용량 한도에 걸려, PR마다 "usage limits" 댓글만 남깁니다(리뷰는 없고 알림만 늘어남) | #2637, #2643, #2644, #2648, #2650의 댓글 |
 | 오토파일럿 코딩 엔진 | Workers AI `@cf/meta/llama-3.3-70b-instruct-fp8-fast`(무료 한도. 워크플로 주석에 "매일 소진"으로 기록). 넘치면 GitHub Models `openai/gpt-4.1`(유료). 유료 일일 상한(#2631)이 병합되지 않아, 지금 유료 사용의 상한은 구매 잔액뿐 | `codingRunner.ts:217`, `:922`, #2631 본문 |
 | 제안 크기 | 한 제안에 150줄, 파일 1개 | `codingRunner.ts:221`, `:411` |
