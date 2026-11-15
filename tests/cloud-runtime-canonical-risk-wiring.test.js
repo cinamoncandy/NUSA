@@ -13,7 +13,7 @@ test("startCloudRuntime constructs one canonical risk adapter and one execution 
   assert.match(source, /const productionPaperRiskGate = config\.paperInitialCapitalKrw !== undefined && durableRepository instanceof SqliteCloudDashboardSnapshotRepository/);
   assert.match(source, /new CloudPaperCanonicalRiskGateway\(/);
   assert.match(source, /productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null\s*\?/);
-  assert.match(source, /new CloudPaperExecutionBoundary\(\{ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State, tradePermissionAuthority: NO_PAPER_TRADE_PERMISSION_AUTHORITY \}\)/);
+  assert.match(source, /new CloudPaperExecutionBoundary\(\{ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State, tradePermissionAuthority \}\)/);
 });
 
 test("PAPER has no direct execution-loop fallback around the risk boundary", () => {
