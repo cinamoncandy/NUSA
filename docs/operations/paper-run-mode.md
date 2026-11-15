@@ -15,11 +15,14 @@ Workflow `PAPER Run Mode` (`.github/workflows/paper-run-mode.yml`, dispatch only
 There is no mode that starts the PAPER order path. Stage B (orders) needs its own approval and its own change.
 Both verbs share the release's activation lock and the workflow shares the release's concurrency group, so a mode change waits for a release.
 A start takes between about 7 seconds and 5 minutes before `/health` answers; read it with `Oracle Host Diagnose`.
+If `start` refuses, the run log names the reason (for example a backslash, both quote kinds on one line, or an order-path line that is not exactly `NUSA_PAPER_ORDER_PATH=VALUE`). The host env file must then be simplified; a refusal changes nothing on the host.
 
 ## One-time setup (owner)
 
-1. **GitHub Environment.** Settings, Environments, create `paper-host-control`, turn on "Required reviewers" and add the owner. Without reviewers a run
-   would not wait for approval. (The workflow names the Environment; GitHub creates it with no protection if it does not exist yet.)
+1. **GitHub Environment, then the switch.** Settings, Environments, create `paper-host-control`, turn on "Required reviewers" and add the owner.
+   Required reviewers are a GitHub setting that code can neither read nor enforce, so the workflow is DISABLED until you say so: its first job fails
+   closed unless the repository variable `PAPER_RUN_MODE_ENABLED` is exactly `true` (Settings, Secrets and variables, Actions, Variables) and the actor is
+   the repository owner. Set that variable ONLY AFTER the reviewers are in place. Until then the button cannot touch the host.
 2. **Install the reviewed helper on the host.** The release refuses to run unless the installed helper is byte-identical to the reviewed source, so
    after this change merges the host helper must be replaced once, before the next release or the first button use. The exact command, commit and
    SHA-256 are given at merge time. It is the last shell step by design.

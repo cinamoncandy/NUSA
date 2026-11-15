@@ -414,15 +414,16 @@ prove_post_activation_stability() {
 # The value systemd will give the service for NUSA_PAPER_ORDER_PATH, read WITHOUT executing the env file and failing closed on anything systemd and a
 # shell could read differently. systemd's EnvironmentFile= is not a shell: a leading `export` makes the line invalid and it is IGNORED (the variable
 # stays unset, which the runtime reads as ON), quotes may span lines, a trailing backslash continues a line, `#` and `;` start comments and later
-# assignments win. So the file is accepted only if it has no carriage return, no line ending in a backslash and no line with an odd number of quotes,
+# assignments win. So the file is accepted only if it has no carriage return, no backslash anywhere (an escaped quote keeps a string open across lines),
+# no line with an odd number of quotes or with both quote kinds (a quote inside the other kind can open a string that swallows later lines),
 # and every non-comment line that mentions the variable is exactly `NUSA_PAPER_ORDER_PATH=<letters, digits, underscore>`. Prints the LAST such value.
 runtime_order_path_value() {
   local file="$1" mentions last
   [ -r "$file" ] || { printf '%s\n' "cannot read ${file}" >&2; return 1; }
   if grep -q "$(printf '\r')" "$file"; then printf '%s\n' "${file} has a carriage return" >&2; return 1; fi
-  if grep -qE '\\$' "$file"; then printf '%s\n' "${file} has a line continuation (backslash at the end of a line)" >&2; return 1; fi
-  if ! awk '{ d = gsub(/"/, "&"); q = gsub(/\047/, "&"); if ((d % 2) || (q % 2)) bad = 1 } END { exit bad ? 1 : 0 }' "$file"; then
-    printf '%s\n' "${file} has a line with an unbalanced quote" >&2; return 1
+  if grep -q '\\' "$file"; then printf '%s\n' "${file} has a backslash (escape or line continuation)" >&2; return 1; fi
+  if ! awk '{ d = gsub(/"/, "&"); q = gsub(/\047/, "&"); if ((d % 2) || (q % 2) || (d > 0 && q > 0)) bad = 1 } END { exit bad ? 1 : 0 }' "$file"; then
+    printf '%s\n' "${file} has a line with an unbalanced quote or both quote kinds" >&2; return 1
   fi
   mentions="$(grep -F 'NUSA_PAPER_ORDER_PATH' "$file" | grep -vE '^[#;]' || true)"
   [ -n "$mentions" ] || { printf '%s\n' "NUSA_PAPER_ORDER_PATH is not set in ${file}" >&2; return 1; }

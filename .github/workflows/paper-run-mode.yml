@@ -6,8 +6,10 @@ name: PAPER Run Mode
 #   STOPPED      -> stops nusa.service. Nothing else is touched.
 #   COLLECT_ONLY -> starts nusa.service ONLY when /etc/nusa/cloud-runtime.env sets NUSA_PAPER_ORDER_PATH exactly OFF; otherwise the helper
 #                   refuses. There is deliberately no mode that starts the PAPER order path: Stage B needs its own approval and its own change.
-# The job runs in the GitHub Environment `paper-host-control`. Configure required reviewers on that Environment (Settings, Environments) so a
-# run waits for the owner's approval in the GitHub app. This file grants no write permission and uses no secret and no third-party action.
+# The job runs in the GitHub Environment `paper-host-control`. Required reviewers on that Environment are a GitHub setting that code cannot enforce or
+# read, so the workflow is DISABLED until the owner turns it on: a first job fails closed unless the repository variable PAPER_RUN_MODE_ENABLED is exactly
+# `true` (the owner sets it ONLY AFTER adding required reviewers to the Environment, Settings, Environments) and the actor is the repository owner.
+# This file grants no write permission and uses no secret and no third-party action.
 # PAPER only, LIVE NONE, AI ZERO_AUTHORITY.
 
 on:
@@ -30,8 +32,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  guard:
+    name: Operational-use gate (fails closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      ENABLED: ${{ vars.PAPER_RUN_MODE_ENABLED }}
+      ACTOR: ${{ github.actor }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Require the owner's explicit enablement and the repository owner as the actor
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$ENABLED" != "true" ]; then
+            echo "::error::PAPER Run Mode is not enabled. Add required reviewers to the Environment paper-host-control first, then set the repository variable PAPER_RUN_MODE_ENABLED to true."
+            exit 1
+          fi
+          if [ "$ACTOR" != "$OWNER" ]; then
+            echo "::error::only the repository owner may run PAPER Run Mode"
+            exit 1
+          fi
+
   apply:
     name: Apply PAPER run mode
+    needs: guard
     runs-on: [self-hosted, Linux, nusa-paper-host]
     timeout-minutes: 10
     environment: paper-host-control
