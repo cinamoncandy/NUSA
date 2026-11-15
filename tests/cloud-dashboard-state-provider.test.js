@@ -184,7 +184,7 @@ test("runtime preserves initial paper capital when a supplied loop has no canoni
   const loop = new PaperTradingExecutionLoop({ initialCapital: 100_000 });
   let onTicker;
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
     provider,
     new CloudRuntimeDashboardHydrator(),
     (_markets, tickerHandler) => { onTicker = tickerHandler; return { subscribe() {}, start() {}, stop() {} }; },
@@ -227,7 +227,7 @@ test("runtime restores and projects the durable paper account after restart", as
   const port = await freePort();
   const provider = new InMemoryCloudDashboardStateProvider();
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "100000" },
     provider,
     new CloudRuntimeDashboardHydrator(),
     undefined,
@@ -260,7 +260,7 @@ test("WAIT ticks keep the projected paper account synchronized", async () => {
   const provider = new InMemoryCloudDashboardStateProvider();
   let onTicker;
   const handle = startCloudRuntime(
-    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
+    { NUSA_CLOUD_DASHBOARD_PORT: String(port), NUSA_CLOUD_DASHBOARD_TOKEN: DASHBOARD_TOKEN, NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true", NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC" },
     provider,
     { hydrate(target) { target.set(dashboardInput(Date.now())); } },
     (_markets, tickerHandler) => { onTicker = tickerHandler; return { subscribe() {}, start() {}, stop() {} }; },

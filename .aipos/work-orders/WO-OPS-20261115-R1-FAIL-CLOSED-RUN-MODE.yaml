@@ -1,0 +1,25 @@
+id: WO-OPS-20261115-R1-FAIL-CLOSED-RUN-MODE
+title: "R1: PAPER order path fails closed (unset means no orders), /health reports the effective runMode, production-entry boot tests per mode"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/r1-fail-closed-run-mode
+owner_decision: "2026-11-15: redesign v4 approved to proceed (R1 first); docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md section 5 R1. Code only, NOT deployed by this work order."
+objective: "Remove the fail-open default of NUSA_PAPER_ORDER_PATH (unset used to mean orders ON), publish the mode the process really runs in, and test the real production daemon entry in every mode."
+change:
+  - "apps/cloud/src/runtime.ts: isPaperOrderPathEnabled is true only for exactly ON; new effectiveRunMode (COLLECT_ONLY | PAPER_ORDERS); runtime liveness carries runMode."
+  - "apps/cloud/src/server.ts: /health runtime.runMode is published only for those two fixed values."
+  - "tests/production-entry-boot-modes.test.js (new): boots the real production daemon entry in a child process for unset, OFF, garbled, empty and ON; asserts no lease, no fills, no orders and runMode COLLECT_ONLY, and the control with ON."
+  - "tests that relied on unset meaning ON now set ON explicitly (11 files); the order-path switch tests gained unset and /health runMode cases."
+not_changed:
+  - "Nothing is deployed, no host, workflow, limit, threshold, capital or authority change. The host currently sets OFF explicitly (Stage A), so a later deploy of this build keeps COLLECT_ONLY."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "npx tsc -p tsconfig.json; all 35 tests that mention the runtime, the daemon entry or the switch pass except tests/paper-startup-lease-budget-2770.test.js, which fails here only because node:sqlite lacks setAuthorizer in this sandbox (needs Node 24, left to CI)."
+  - "Mutation check: restoring the old default in the compiled runtime makes five new or changed tests fail."
+unverified: "Not deployed; the effective mode on the host is not yet read through /health (R4). The independent review of this PR is pending."
+acceptance:
+  - "CI green; non-author review done before the PR leaves draft."

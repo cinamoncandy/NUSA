@@ -196,7 +196,7 @@ test('production Cloud runtime projects canonical PAPER heartbeat into readiness
     NUSA_CLOUD_DASHBOARD_TOKEN: dashboardToken,
     NUSA_CLOUD_UPBIT_PUBLIC_DATA: 'true',
     NUSA_CLOUD_UPBIT_MARKETS: 'KRW-BTC',
-    NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: '10000000',
+    NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: '10000000',
     NUSA_CLOUD_STATE_DB_PATH: ':memory:',
   }, undefined, undefined, (_markets, tickerCallback, connectionCallback) => ({
     subscribe() {},

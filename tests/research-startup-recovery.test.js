@@ -15,7 +15,7 @@ const env = {
   NUSA_RESEARCH_INTERVAL_MINUTES: "1,15,60", NUSA_RESEARCH_BACKFILL: "DISABLED",
   NUSA_CLOUD_DASHBOARD_PORT: "41731", NUSA_CLOUD_DASHBOARD_TOKEN: "synthetic-test-only-not-a-credential".repeat(2),
   NUSA_CLOUD_STATE_DB_PATH: join(tmpdir(), "nusa-synthetic-startup-no-write", "state.sqlite"),
-  NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
+  NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
 };
 
 test("preparation never pauses running sessions; writer-held recovery still does", () => {

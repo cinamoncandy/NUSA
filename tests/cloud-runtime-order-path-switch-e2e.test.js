@@ -172,15 +172,15 @@ async function runWith(overrides, port, label) {
 }
 
 test("control: with the order path ON a BUY decision produces a FILL (the harness can see an order)", async () => {
-  const run = await runWith({}, 41_981, "on");
+  const run = await runWith({ NUSA_PAPER_ORDER_PATH: "ON" }, 41_981, "on");
   assert.equal(run.snapshot.operations?.pipelineStage, "PAPER_EXECUTION_LOOP");
   assert.ok(run.stages.includes("DECISION"));
   assert.ok(run.stages.includes("FILL"), `control must fill, got ${run.stages.join(",")}`);
 });
 
 test("a BUY decision with the order path OFF produces no order, no fill and no order intent, while the read-only dashboard and market data continue", async () => {
-  for (const [value, port] of [["OFF", 41_982], ["off", 41_983], ["true", 41_984]]) {
-    const run = await runWith({ NUSA_PAPER_ORDER_PATH: value }, port, `off-${port}`);
+  for (const [value, port] of [["OFF", 41_982], ["off", 41_983], ["true", 41_984], [undefined, 41_986]]) {
+    const run = await runWith(value === undefined ? {} : { NUSA_PAPER_ORDER_PATH: value }, port, `off-${port}`);
     assert.equal(run.snapshot.liveAuthority, "NONE");
     assert.equal(run.snapshot.productionMutationAllowed, false);
     // The read-only dashboard still answers, the pipeline reports no execution loop, and market data still reaches it.
@@ -204,7 +204,7 @@ test("candidate rollback mitigation on THIS build: with the PAPER capital unset 
 // Runbook precondition 0.7: the release readiness probe (`/ready`, used by scripts/oracle-readiness-check.js) must pass with the order path OFF.
 // Scope: a fresh durable state in the sandbox. It does not prove the host, the soak, or scripts/autopilot-readiness.js.
 test("the release readiness route answers ok with all four checks true when the order path is OFF, as it does when ON", async () => {
-  for (const [label, extra, port] of [["on", {}, 41_991], ["off", { NUSA_PAPER_ORDER_PATH: "OFF" }, 41_992]]) {
+  for (const [label, extra, port] of [["on", { NUSA_PAPER_ORDER_PATH: "ON" }, 41_991], ["off", { NUSA_PAPER_ORDER_PATH: "OFF" }, 41_992]]) {
     const token = ["order-path", label, "ready", "fixture", "padding-to-reach-the-minimum-length"].join("-");
     const { directory, filename } = tempDbPath();
     let handle;

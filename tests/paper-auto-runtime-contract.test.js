@@ -102,7 +102,7 @@ test("Cloud runtime automatically processes a trusted public ticker without a ma
     NUSA_CLOUD_UPBIT_PUBLIC_DATA: "true",
     NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC",
     NUSA_CLOUD_STATE_DB_PATH: databasePath,
-    NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
+    NUSA_PAPER_ORDER_PATH: "ON", NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "10000000",
     NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "10",
     NUSA_SOURCE_COMMIT: "test-source"
   }, undefined, undefined, marketFactory);
