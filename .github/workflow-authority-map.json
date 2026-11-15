@@ -281,11 +281,6 @@
       "secrets": false,
       "environment": null
     },
-    "oracle-codex-dev.yml:oracle-codex": {
-      "write": [],
-      "secrets": false,
-      "environment": null
-    },
     "paper-real-elapsed-soak.yml:paper-real-elapsed-soak": {
       "write": [],
       "secrets": false,
