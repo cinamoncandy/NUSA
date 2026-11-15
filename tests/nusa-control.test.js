@@ -517,3 +517,35 @@ test("collect-in-flight age uses the monotonic clock: moving the wall clock cann
   const live = world({ wallBackwards: true }); await seed(live); rawWrite(live, { intent: collectIntent(live, { at: 1 }) });
   assert.equal((await live.ctl.reconcile()).code, "START_PERMITTED_COLLECT_ONLY", "a wall clock far from the intent time changes nothing");
 });
+
+test("the run-mode drop-in makes the host mode mandatory: no optional EnvironmentFile, the runtime is told to require it, the legacy switch is unset", () => {
+  const text = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "dropins", "nusa.service.d", "20-run-mode.conf"), "utf8");
+  assert.match(text, /^EnvironmentFile=\/etc\/nusa\/run-mode\.env$/m, "a missing mode file fails the unit start");
+  assert.doesNotMatch(text, /^EnvironmentFile=-/m);
+  assert.match(text, /^Environment=NUSA_REQUIRE_RUN_MODE=1$/m);
+  assert.match(text, /^UnsetEnvironment=NUSA_PAPER_ORDER_PATH$/m);
+  assert.doesNotMatch(text, /NUSA_RUN_MODE=PAPER_ORDERS/, "the drop-in never names an order mode");
+});
+
+test("stop with a failing intent write still stops every unit, reports the record problem, and a failing stop plus a failing record never claims success", posixOnly, async () => {
+  let renames = 0;
+  const failIntent = world({ healthAnswers: ["COLLECT_ONLY"], fsOverrides: { renameSync: (...a) => { renames += 1; if (renames > 0 && failIntent.failRename) throw Object.assign(new Error("EIO"), { code: "EIO" }); return fs.renameSync(...a); } } });
+  await seed(failIntent); await failIntent.ctl.collect();
+  failIntent.failRename = true;
+  const r1 = await failIntent.ctl.stop();
+  assert.ok(allStopped(failIntent), "the units are stopped although no record could be written");
+  assert.equal(r1.ok, false); assert.equal(r1.code, "STOPPED_STATE_NOT_RECORDED"); assert.equal(r1.stateRecorded, false);
+  const both = world({ healthAnswers: ["COLLECT_ONLY"], stuck: ["nusa.service"], fsOverrides: { renameSync: () => { throw Object.assign(new Error("EIO"), { code: "EIO" }); } } });
+  both.failRename = false;
+  fs.writeFileSync(path.join(both.stateDir, "state.json"), JSON.stringify({ schemaVersion: 1, version: 1, desired: "COLLECT_ONLY", active: SHA, adopted: true, proven: [], attempt: null, grant: null, intent: null }), { mode: 0o600 });
+  const r2 = await both.ctl.stop();
+  assert.equal(r2.ok, false); assert.equal(r2.code, "STOP_NOT_CONFIRMED"); assert.equal(r2.stateRecorded, false);
+  assert.equal(both.state().state.desired, "COLLECT_ONLY", "the record is unchanged and still says COLLECT_ONLY, so the next gate or verify decides again");
+});
+
+test("consecutive verify runs while another command holds the lock never claim verification, and the first run after it ends verifies for real", posixOnly, async () => {
+  const w = world({ healthAnswers: ["COLLECT_ONLY", "COLLECT_ONLY"] }); await seed(w); await w.ctl.collect();
+  for (let i = 0; i < 3; i += 1) { const r = await w.ctl.verify({ readonly: true }); assert.equal(r.verified, false); assert.equal(r.skipped, true); }
+  const real = await w.ctl.verify();
+  assert.equal(real.code, "COLLECT_ONLY_VERIFIED");
+});
