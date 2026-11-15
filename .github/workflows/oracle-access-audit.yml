@@ -1,19 +1,18 @@
 name: Oracle Access Audit
 
 # READ-ONLY audit of WHO and WHAT can start, stop or change the PAPER runtime on the host (design v5 C3, step 1). Dispatch by
-# hand only. It lists accounts, the runner account's own sudo rules (executable paths and verb-like words only), key and
-# permission METADATA (owner, mode, name, count; never file contents), timers, cron entries (names only), polkit rule files
-# (names only), unit directives from an ALLOWLIST (Environment values are never printed, only variable names), and the sudo
-# journal reduced to user, executable and a short lowercase verb. It never writes, restarts, enables, disables, reads any env,
-# key or token file, takes no secrets, checks out no repository code and calls no external service. PAPER only, LIVE NONE.
+# hand only. Nothing is printed raw: a Node script (embedded below, so no repository code is checked out) runs a fixed list of
+# read-only commands, PARSES their output and prints typed records `kind key=value`. Every value must pass a validator for its
+# type (account name, unit name, mode, integer, enum, known path, known executable, known command verb); a value that fails is
+# printed as <type:hash8>, so an unexpected entry is visible and comparable but unreadable. Command output, file names outside
+# the known sets, Environment values, unit descriptions, sudo arguments and error text are never echoed. It never writes,
+# restarts, enables, disables or reads any env, key or token file; the only sudo use is `sudo -n -l`. No secrets, no external
+# service. PAPER only, LIVE NONE.
 #
-# Secrets: nothing is "redacted after the fact". Every line that could carry a value goes through an allowlist filter that
-# prints only tokens of a known harmless shape and replaces everything else with <arg>. tests/oracle-access-audit-workflow.test.js
-# runs these very filters on synthetic secrets.
-#
-# Honesty: every check prints one status: OBSERVED, OBSERVED-EMPTY, DENIED (the runner account may not read it), NOT_CHECKED
-# (tool missing or needs root) or ERROR, plus TRUNCATED when output was cut. Anything but OBSERVED is NOT evidence of safety;
-# the real sshd -T, other accounts' sudo rules and crontabs need the root-owned check of C3b.
+# Honesty: every check prints a state: OBSERVED, OBSERVED-EMPTY, DENIED (the runner account may not read it), NOT_CHECKED (tool
+# missing or needs root) or ERROR; lists longer than 60 entries print a `truncated` record. Anything but OBSERVED is NOT evidence
+# of safety. Names of accounts and units are identifiers, not credentials, and are printed when they have the expected shape.
+# The real sshd -T, other accounts' sudo rules and crontabs and the polkit policy need the root-owned check of C3b.
 
 on:
   workflow_dispatch:
@@ -34,92 +33,161 @@ jobs:
       - name: Audit
         shell: bash
         run: |
-          set +u
-          # --- filters begin
-          # A token is printed only when it has a harmless shape: a lowercase verb (restart, stop, status), a wildcard, an
-          # absolute path of safe characters, or an option. Anything else (hex, base64, JWT, mixed case or digits, a long word)
-          # becomes <arg>. No regex list of "secret formats" is relied on.
-          safe_tokens() {
-            awk '{ out=""; for (i=1; i<=NF; i++) { t=$i;
-              if (t ~ /^\*$/ || t ~ /^-{1,2}[a-z][a-z-]{0,24}$/ || t ~ /^[a-z][a-z-]{0,23}$/ || t ~ /^\/[A-Za-z0-9_.\/-]{1,80}$/ || t ~ /^[a-z][a-z.-]{0,30}\.(service|timer|socket|path)$/) out = out " " t; else out = out " <arg>"; }
-              sub(/^ /, "", out); print out }'
-          }
-          # sudo rule lines: "(runas) TAGS: cmd args" -> keep the structure, filter every command token.
-          sudo_rules() { sed -E 's/^[[:space:]]+//' | awk '/^\(/ { split($0, a, ": "); pre=a[1]; rest=substr($0, length(pre)+3); n=split(rest, cmds, ", "); for (j=1;j<=n;j++) { print pre ": " cmds[j] } next } { print }' | while IFS= read -r line; do case "$line" in "("*) head="${line%%: *}"; body="${line#*: }"; printf '%s: %s\n' "$head" "$(printf '%s' "$body" | safe_tokens)";; *) printf '%s\n' "$line" | safe_tokens;; esac; done; }
-          # sudo journal COMMAND lines -> "<user> <executable> <filtered args>"
-          sudo_journal() { grep -E 'COMMAND=' | sed -E 's/.*USER=([^ ;]+).*COMMAND=(.*)/\1 \2/' | while read -r user cmd; do u=$(printf '%s' "$user" | tr -cd 'a-z0-9_-'); printf '%s %s\n' "${u:-<user>}" "$(printf '%s' "$cmd" | safe_tokens)"; done; }
-          # unit text -> allowlisted directives only; Environment/PassEnvironment print variable NAMES, never values.
-          unit_allowlist() {
-            awk '
-              /^\[/ { print; next }
-              /^(Description|Type|User|Group|WorkingDirectory|Restart|RestartSec|RestartPreventExitStatus|StartLimitIntervalSec|StartLimitBurst|StartLimitAction|Requires|Wants|BindsTo|PartOf|After|Before|Conflicts|WantedBy|RequiredBy|EnvironmentFile|UnsetEnvironment|ReadWritePaths|NoNewPrivileges|ProtectSystem|ProtectHome|PrivateTmp|UMask|OnBootSec|OnActiveSec|OnUnitActiveSec|OnCalendar|Unit|RemainAfterExit|DefaultDependencies|SuccessExitStatus)=/ { print; next }
-              /^(Environment|PassEnvironment)=/ { sub(/^[A-Za-z]+=/, ""); n = split($0, parts, /[ \t]+/); names = ""; for (i=1; i<=n; i++) { p = parts[i]; gsub(/^"|"$/, "", p); sub(/=.*/, "", p); if (p ~ /^[A-Za-z_][A-Za-z0-9_]{0,63}$/) names = names " " p; } print "Environment(names only):" names; next }
-              /^(ExecStart|ExecStartPre|ExecStartPost|ExecStop|ExecReload)=/ { split($0, kv, "="); rest = substr($0, length(kv[1]) + 2); sub(/^[-@+!:]+/, "", rest); split(rest, w, " "); print kv[1] "=" w[1] " <args hidden>"; next }
-              { next }'
-          }
-          # status wrapper: OBSERVED / OBSERVED-EMPTY / DENIED / NOT_CHECKED / ERROR, plus TRUNCATED
-          check() {
-            local label="$1" limit="$2"; shift 2
-            local out rc lines
-            if ! command -v "$1" >/dev/null 2>&1; then echo "[NOT_CHECKED] $label (command $1 is not installed)"; return; fi
-            out="$("$@" 2>&1)"; rc=$?
-            if [ $rc -ne 0 ] && printf '%s' "$out" | grep -qiE 'permission denied|not permitted|a password is required|may not run sudo|authentication'; then echo "[DENIED] $label"; return; fi
-            if [ $rc -ne 0 ] && [ -z "$out" ]; then echo "[ERROR] $label (exit $rc)"; return; fi
-            if [ $rc -ne 0 ]; then echo "[ERROR] $label (exit $rc): $(printf '%s' "$out" | head -n 2 | safe_tokens)"; return; fi
-            if [ -z "$out" ]; then echo "[OBSERVED-EMPTY] $label"; return; fi
-            lines=$(printf '%s\n' "$out" | wc -l)
-            echo "[OBSERVED] $label"; printf '%s\n' "$out" | head -n "$limit"
-            [ "$lines" -gt "$limit" ] && echo "[TRUNCATED] $label ($lines lines, first $limit shown)"
-          }
-          # --- filters end
+          /usr/bin/env -u NODE_OPTIONS node - <<'AUDIT_JS'
+          "use strict";
+          // Typed, allowlisted audit. NOTHING is printed raw: every fact is a record `kind key=value ...` whose values pass a validator
+          // for their type (account, unit name, path under a known prefix, enum, integer, mode, bool, verb). A value that fails its
+          // validator is printed as <type:hash8>: the owner can compare hashes but cannot read the text. Command output is parsed, never
+          // echoed. Statuses: OBSERVED, OBSERVED-EMPTY, DENIED, NOT_CHECKED, ERROR; TRUNCATED when a list was cut.
+          const fs = require("node:fs");
+          const crypto = require("node:crypto");
+          const { spawnSync } = require("node:child_process");
 
-          echo "== time"; date -u +%FT%TZ
-          echo "######## accounts, groups, this runner's sudo rules"
-          echo "== runner account"; id
-          check "login-capable accounts (name uid shell)" 40 awk -F: '$7 !~ /(nologin|false|sync|halt|shutdown)$/ { print $1, $3, $7 }' /etc/passwd
-          check "groups with admin power" 20 getent group sudo wheel admin adm systemd-journal
-          check "home directories" 20 ls -1 /home
-          out="$(sudo -n -l 2>&1)"; rc=$?
-          if [ $rc -ne 0 ]; then echo "[DENIED-OR-NONE] sudo -n -l (exit $rc: the runner account has no passwordless sudo rules, or may not run sudo)"; else echo "[OBSERVED] sudo -n -l (rules; every command token filtered)"; printf '%s\n' "$out" | sudo_rules | head -n 60; fi
-          check "sudoers.d file names, owner, mode" 40 ls -l /etc/sudoers.d
-          echo "######## ssh metadata (never contents)"
-          check "sshd config files (owner, mode, size)" 20 ls -l /etc/ssh/sshd_config /etc/ssh/sshd_config.d
-          for home in /root /home/*; do
-            [ -d "$home" ] || continue
-            echo "-- $home"
-            stat -c '%U:%G %a %n' "$home/.ssh" "$home/.ssh/authorized_keys" 2>&1 | head -4
-            if [ -r "$home/.ssh/authorized_keys" ]; then printf '[OBSERVED] key count: %s\n' "$(grep -cE '^(ssh|ecdsa|sk-)' "$home/.ssh/authorized_keys" 2>/dev/null)"
-            elif [ -e "$home/.ssh/authorized_keys" ]; then echo "[DENIED] authorized_keys of $home (exists, not readable by the runner account)"
-            elif [ -d "$home/.ssh" ]; then echo "[OBSERVED] no authorized_keys file in $home/.ssh"
-            else echo "[OBSERVED-EMPTY] no .ssh directory in $home or it is not visible to the runner account"; fi
-          done
-          if [ -r /etc/ssh/sshd_config ]; then echo "[OBSERVED] sshd directives (names and values of the four access directives only)"; grep -hEi '^[[:space:]]*(PermitRootLogin|PasswordAuthentication|AllowUsers|AllowGroups)[[:space:]]' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2>/dev/null | awk '{ print $1, $2 }' | head -12; else echo "[DENIED] sshd_config"; fi
-          echo "[NOT_CHECKED] effective sshd -T and Match blocks (needs root; C3b)"
-          echo "######## scheduled and automatic starters"
-          check "system timers" 40 systemctl list-timers --all --no-pager
-          check "enabled unit files that mention nusa, runner, autopilot or research" 40 bash -c "systemctl list-unit-files --state=enabled --no-pager 2>&1 | grep -Ei 'nusa|runner|autopilot|research|paper' "
-          check "cron entries (names, owner, mode)" 40 ls -l /etc/cron.d /etc/cron.daily /etc/cron.hourly /etc/crontab /var/spool/cron/crontabs
-          check "at queue" 5 atq
-          check "user lingering" 10 ls -1 /var/lib/systemd/linger
-          check "user units (names)" 20 bash -c "ls -1 /etc/systemd/user /home/*/.config/systemd/user 2>&1"
-          check "transient units" 10 systemctl list-units --all --no-pager 'run-*'
-          check "runner services" 10 systemctl list-units --all --no-pager 'actions.runner*'
-          check "runner installations (any directory with a .runner file, depth 3)" 10 bash -c "find /opt /home /srv -maxdepth 3 -name .runner 2>/dev/null"
-          check "polkit rule files (names)" 30 ls -l /etc/polkit-1/rules.d /usr/share/polkit-1/rules.d
-          echo "######## runtime units: directives from an allowlist, environment variable NAMES only"
-          for unit in nusa.service nusa-research.service nusa-research.timer nusa-autopilot.service nusa-health-guard.service nusa-health-guard.timer nusa-control-reconcile.service nusa-control-verify.service nusa-control-verify.timer; do
-            echo "== $unit"
-            systemctl cat "$unit" --no-pager 2>&1 | grep -vE '^\s*#' | unit_allowlist | head -n 40
-            systemctl show "$unit" -p FragmentPath -p DropInPaths -p EnvironmentFiles -p UnsetEnvironment -p Restart -p StartLimitBurst -p StartLimitIntervalUSec -p User -p UnitFileState -p ActiveState 2>&1 | head -n 12
-          done
-          echo "######## control surface ownership, ACLs and link targets (metadata only)"
-          check "owner, mode and type" 40 stat -c '%U:%G %a %F %n' /opt /opt/nusa /opt/nusa/releases /opt/nusa/current /opt/nusa/bin /opt/nusa/proven /opt/nusa-control /var/lib/nusa /var/lib/nusa-control /etc/nusa /etc/nusa/run-mode.env /etc/systemd/system /run/nusa-paper-activation
-          check "ACLs on the control surface" 40 getfacl -p -c /opt/nusa /opt/nusa/bin /etc/nusa /etc/systemd/system
-          check "resolved link targets" 10 readlink -f /opt/nusa/current /opt/nusa/bin /etc/nusa
-          check "path permissions from root to the release helper (namei)" 20 namei -l /opt/nusa/bin/nusa-release-step
-          check "names in /etc/nusa (no contents)" 20 ls -l /etc/nusa
-          check "release helper hash" 2 sha256sum /opt/nusa/bin/nusa-release-step
-          check "writable-by-others nusa unit files and drop-ins" 40 find /etc/systemd/system -maxdepth 3 -name 'nusa*' -printf '%u:%g %m %p\n'
-          echo "######## who ran what through sudo in the last 3 days (user, executable, filtered words)"
-          jout="$(journalctl _COMM=sudo --since '-3 days' --no-pager -o cat 2>&1)"; jrc=$?
-          if [ $jrc -ne 0 ] || printf '%s' "$jout" | grep -qiE 'not seeing messages|permission|no journal files'; then echo "[DENIED] sudo journal (the runner account may not read it)"; else echo "[OBSERVED] sudo journal (reduced)"; printf '%s\n' "$jout" | sudo_journal | sort | uniq -c | sort -rn | head -n 30; fi
+          const hash8 = (s) => crypto.createHash("sha256").update(String(s)).digest("hex").slice(0, 8);
+          const hidden = (type, s) => `<${type}:${hash8(s)}>`;
+          const V = {
+            int: (s) => (/^\d{1,12}$/.test(String(s)) ? String(s) : hidden("int", s)),
+            mode: (s) => (/^[0-7]{3,4}$/.test(String(s)) ? String(s) : hidden("mode", s)),
+            bool: (b) => (b ? "true" : "false"),
+            // an account name is printed only if it has the shape of one AND exists in this host's /etc/passwd or /etc/group
+          // (public identifiers anyone can read); any other string, whatever it looks like, is hashed
+          user: (s) => (/^[a-z_][a-z0-9_-]{0,31}$/.test(String(s)) && V.KNOWN.has(String(s)) ? String(s) : hidden("user", s)),
+          KNOWN: new Set(["root"]),
+            enum: (s, allowed) => (allowed.includes(String(s)) ? String(s) : hidden("enum", s)),
+            // unit names: only the shapes this system uses; anything else is hashed
+            unit: (s) => (/^actions\.runner\.[A-Za-z0-9._-]{1,80}\.service$/.test(String(s)) ? `actions.runner.${hidden("runner", s)}.service` : /^(nusa[a-z0-9-]{0,40}|cron|ssh|sshd|systemd-[a-z0-9-]{1,30}|apt-daily[a-z-]{0,20}|fstrim|logrotate|motd-news|e2scrub_all|man-db|snapd[a-z.-]{0,20}|unattended-upgrades|ufw|rsyslog|dbus|polkit)\.(service|timer|socket|path)$/.test(String(s)) ? String(s) : hidden("unit", s)),
+            // paths: only under known prefixes or exactly known system locations; otherwise hashed
+            // paths: an exact list of well-known locations, or a few strict patterns under the nusa prefixes; anything else is hashed
+            path: (s) => (V.FIXED_PATHS.has(String(s)) || V.PATH_PATTERNS.some((re) => re.test(String(s))) ? String(s) : hidden("path", s)),
+            FIXED_PATHS: new Set(["/root", "/home", "/opt", "/srv", "/etc/ssh/sshd_config", "/etc/ssh/sshd_config.d", "/etc/sudoers.d", "/etc/cron.d", "/etc/cron.daily", "/etc/cron.hourly", "/var/spool/cron/crontabs", "/etc/polkit-1/rules.d", "/usr/share/polkit-1/rules.d", "/var/lib/systemd/linger", "/etc/systemd/system", "/etc/nusa", "/etc/nusa/run-mode.env", "/etc/nusa/cloud-runtime.env", "/var/lib/nusa", "/var/lib/nusa-control", "/var/backups/nusa", "/opt/nusa", "/opt/nusa/releases", "/opt/nusa/current", "/opt/nusa/bin", "/opt/nusa/proven", "/opt/nusa/bin/nusa-release-step", "/opt/nusa-control", "/opt/nusa-control/nusa-control.js", "/run/nusa-paper-activation"]),
+            PATH_PATTERNS: [/^\/opt\/nusa\/releases\/[0-9a-f]{40}$/, /^\/etc\/systemd\/system\/nusa[a-z0-9.-]{0,40}(\.d(\/(10-control-gate|20-run-mode|override)\.conf)?)?$/, /^\/opt\/actions-runner[a-z0-9-]{0,40}$/, /^\/etc\/ssh\/sshd_config\.d\/(50-cloud-init|60-cloudimg-settings|10-nusa)\.conf$/, /^\/usr\/lib\/systemd\/system\/(ssh|cron|nusa[a-z0-9.-]{0,40})\.(service|timer)$/],
+            exe: (s) => (String(s) === "ALL" ? "ALL" : /^\/(usr\/(bin|sbin|local\/bin)|bin|sbin|opt\/nusa\/bin|opt\/nusa-control)\/(systemctl|journalctl|node|env|bash|sh|flock|nusa-release-step|nusa-control\.sh|nusa-run-mode|ls|cat|stat|tee|install|apt|apt-get|dpkg|reboot|shutdown|su|sudo)$/.test(String(s)) ? String(s) : hidden("exe", s)),
+            word: (s) => (V.WORDS.has(String(s)) ? String(s) : String(s) === "*" ? "*" : hidden("arg", s)),
+            WORDS: new Set(["start", "stop", "restart", "reload", "status", "enable", "disable", "daemon-reload", "is-active", "is-enabled", "show", "cat", "list-units", "list-timers", "list-unit-files", "mask", "unmask", "kill", "reset-failed", "--now", "--quiet", "--no-pager", "--no-block", "--user", "backup", "preflight", "install-units", "prune", "stage", "switch", "activate", "rollback", "readiness", "reconcile", "verify", "collect", "init", "release", "grant-orders", "nusa.service", "nusa-research.service", "nusa-research.timer", "nusa-autopilot.service", "nusa-health-guard.service", "nusa-health-guard.timer"]),
+          };
+          const out = [];
+          const emit = (kind, fields = {}) => out.push(`${kind}${Object.entries(fields).map(([k, v]) => ` ${k}=${v}`).join("")}`);
+          const status = (check, state, extra = {}) => emit("check", { name: check, state, ...extra });
+
+          function run(cmd, args, exec) {
+            const r = exec(cmd, args);
+            if (r.error && r.error.code === "ENOENT") return { state: "NOT_CHECKED", stdout: "", why: "tool_missing" };
+            const text = `${r.stdout || ""}${r.stderr || ""}`;
+            if (r.status !== 0 && /permission denied|not permitted|a password is required|may not run sudo|authentication|operation not permitted/i.test(text)) return { state: "DENIED", stdout: r.stdout || "", why: "denied" };
+            if (r.status !== 0 && /no such file|cannot access|not found|does not exist/i.test(text)) return { state: "OBSERVED-EMPTY", stdout: r.stdout || "", why: "absent" };
+            if (r.status !== 0) return { state: "ERROR", stdout: r.stdout || "", why: `exit_${r.status}` };
+            return { state: (r.stdout || "").trim() ? "OBSERVED" : "OBSERVED-EMPTY", stdout: r.stdout || "", why: "" };
+          }
+          const lines = (s) => String(s).split("\n").map((l) => l.trim()).filter(Boolean);
+          const LIMIT = 60;
+          const cut = (arr, name) => { if (arr.length > LIMIT) { emit("truncated", { check: name, total: arr.length, shown: LIMIT }); return arr.slice(0, LIMIT); } return arr; };
+
+          function sudoShape(cmdline) {
+            const t = String(cmdline).trim().split(/\s+/);
+            return { exe: V.exe(t[0] || ""), args: t.slice(1).map(V.word).join(",") || "-" };
+          }
+
+          function audit({ exec, readFile, readdir, stat, exists, now }) {
+            out.length = 0;
+          emit("audit", { time: now(), safety: "READ_ONLY_PAPER_ONLY_LIVE_NONE" });
+          for (const f of ["/etc/passwd", "/etc/group"]) { try { for (const l of lines(readFile(f))) V.KNOWN.add(l.split(":")[0]); } catch { /* only root stays known */ } }
+            // accounts
+            try {
+              const rows = lines(readFile("/etc/passwd")).map((l) => l.split(":")).filter((f) => f.length >= 7 && !/(nologin|false|sync|halt|shutdown)$/.test(f[6]));
+              status("accounts", rows.length ? "OBSERVED" : "OBSERVED-EMPTY");
+              for (const f of cut(rows, "accounts")) emit("account", { name: V.user(f[0]), uid: V.int(f[2]), shell: V.enum(f[6], ["/bin/bash", "/bin/sh", "/usr/bin/bash", "/bin/zsh", "/usr/bin/zsh"]) });
+            } catch { status("accounts", "DENIED"); }
+            { const r = run("getent", ["group", "sudo", "wheel", "admin", "adm", "systemd-journal"], exec); status("admin_groups", r.state);
+              for (const l of lines(r.stdout)) { const [g, , , m] = l.split(":"); for (const member of (m || "").split(",").filter(Boolean)) emit("group_member", { group: V.enum(g, ["sudo", "wheel", "admin", "adm", "systemd-journal"]), member: V.user(member) }); } }
+            // this runner's sudo rules
+            { const r = exec("sudo", ["-n", "-l"]);
+              if (r.error && r.error.code === "ENOENT") status("runner_sudo_rules", "NOT_CHECKED", { why: "sudo_missing" });
+              else if (r.status !== 0) status("runner_sudo_rules", "DENIED", { why: "no_passwordless_rules_or_not_allowed" });
+              else {
+                status("runner_sudo_rules", "OBSERVED");
+                for (const l of cut(lines(r.stdout).filter((x) => /^\(/.test(x)), "sudo_rules")) {
+                  const m = /^\(([^)]*)\)\s*((?:[A-Z_]+:\s*)*)(.*)$/.exec(l);
+                  if (!m) { emit("sudo_rule", { raw: hidden("line", l) }); continue; }
+                  for (const c of m[3].split(/,\s+/)) { const s = sudoShape(c); emit("sudo_rule", { runas: V.enum(m[1].split(":")[0].trim(), ["root", "ALL", "nusa"]), nopasswd: V.bool(/NOPASSWD/.test(m[2])), exe: s.exe, args: s.args }); }
+                }
+              } }
+            { let names = []; try { names = readdir("/etc/sudoers.d"); status("sudoers_d", names.length ? "OBSERVED" : "OBSERVED-EMPTY"); } catch (e) { status("sudoers_d", /EACCES|EPERM/.test(String(e.code)) ? "DENIED" : "OBSERVED-EMPTY"); }
+              for (const n of cut(names, "sudoers_d")) { let st = null; try { st = stat(`/etc/sudoers.d/${n}`); } catch { /* unreadable */ } emit("sudoers_file", { name: /^(README|[a-z0-9_-]{1,40})$/.test(n) ? n : hidden("name", n), owner: st ? V.user(st.owner) : "?", mode: st ? V.mode(st.mode) : "?" }); } }
+            // ssh metadata
+            for (const home of ["/root", ...(() => { try { return readdir("/home").map((h) => `/home/${h}`); } catch { return []; } })()]) {
+              const ssh = `${home}/.ssh`, ak = `${ssh}/authorized_keys`;
+              let dirSt = null; try { dirSt = stat(ssh); } catch { /* absent or hidden */ }
+              let akSt = null; try { akSt = stat(ak); } catch { /* absent or hidden */ }
+              let count = null; let readable = false;
+              if (akSt) { try { count = readFile(ak).split("\n").filter((l) => /^(ssh|ecdsa|sk-)/.test(l)).length; readable = true; } catch { readable = false; } }
+              emit("ssh_account", { home: home === "/root" ? "/root" : `/home/${V.user(home.slice(6))}`, ssh_dir: dirSt ? `${V.user(dirSt.owner)}:${V.mode(dirSt.mode)}` : "absent_or_hidden", authorized_keys: akSt ? `${V.user(akSt.owner)}:${V.mode(akSt.mode)}` : "absent_or_hidden", key_count: readable ? V.int(count) : "DENIED_OR_NA" });
+            }
+            { const files = ["/etc/ssh/sshd_config"]; try { files.push(...readdir("/etc/ssh/sshd_config.d").filter((n) => /\.conf$/.test(n)).map((n) => `/etc/ssh/sshd_config.d/${n}`)); } catch { /* none */ }
+              let any = false;
+              for (const f of files) { try { const t = readFile(f); any = true;
+                for (const l of lines(t)) { const m = /^(PermitRootLogin|PasswordAuthentication|PubkeyAuthentication)\s+(\S+)/i.exec(l); if (m) emit("sshd_directive", { name: m[1], value: V.enum(m[2], ["yes", "no", "prohibit-password", "without-password", "forced-commands-only"]), file: V.path(f) });
+                  const a = /^(AllowUsers|AllowGroups)\s+(.*)$/i.exec(l); if (a) emit("sshd_directive", { name: a[1], entries: V.int(a[2].split(/\s+/).length), names: a[2].split(/\s+/).map(V.user).join(",") }); } } catch { /* unreadable */ } }
+              status("sshd_config", any ? "OBSERVED" : "DENIED"); }
+            status("sshd_effective_T", "NOT_CHECKED", { why: "needs_root_C3b" });
+            // timers, cron, at, linger, user units, runners, polkit
+            { const r = run("systemctl", ["list-timers", "--all", "--no-pager", "--no-legend"], exec); status("timers", r.state);
+              for (const l of cut(lines(r.stdout), "timers")) { const unit = l.split(/\s+/).find((w) => /\.timer$/.test(w)); if (unit) emit("timer", { unit: V.unit(unit) }); } }
+            { const r = run("systemctl", ["list-unit-files", "--state=enabled", "--no-pager", "--no-legend"], exec); status("enabled_unit_files", r.state);
+              for (const l of cut(lines(r.stdout).map((x) => x.split(/\s+/)[0]).filter((u) => /nusa|runner|autopilot|research|paper|control/i.test(u)), "enabled_unit_files")) emit("enabled_unit", { unit: V.unit(l) }); }
+            for (const dir of ["/etc/cron.d", "/etc/cron.daily", "/etc/cron.hourly", "/var/spool/cron/crontabs"]) {
+              let names = null; try { names = readdir(dir); } catch (e) { status(`cron:${dir}`, /EACCES|EPERM/.test(String(e.code)) ? "DENIED" : "OBSERVED-EMPTY"); continue; }
+              status(`cron:${dir}`, names.length ? "OBSERVED" : "OBSERVED-EMPTY");
+              for (const n of cut(names, `cron:${dir}`)) { let st = null; try { st = stat(`${dir}/${n}`); } catch { /* hidden */ } emit("cron_entry", { dir: V.path(dir), name: /^(nusa[a-z0-9._-]*|e2scrub_all|sysstat|popularity-contest|logrotate|apt-compat|dpkg|man-db|mdadm|0anacron|\.placeholder)$/.test(n) ? n : hidden("name", n), owner: st ? V.user(st.owner) : "?", mode: st ? V.mode(st.mode) : "?" }); }
+            }
+            { const r = run("atq", [], exec); status("at_queue", r.state, { jobs: V.int(lines(r.stdout).length) }); }
+            { let names = []; try { names = readdir("/var/lib/systemd/linger"); status("linger", names.length ? "OBSERVED" : "OBSERVED-EMPTY"); } catch { status("linger", "OBSERVED-EMPTY"); } for (const n of names) emit("linger_user", { name: V.user(n) }); }
+            { const r = run("systemctl", ["list-units", "--all", "--no-pager", "--no-legend", "actions.runner*"], exec); status("runner_services", r.state);
+              for (const l of cut(lines(r.stdout), "runner_services")) { const u = l.replace(/^[●*\s]+/, "").split(/\s+/)[0]; emit("runner_service", { unit: V.unit(u) }); } }
+            { const r = run("find", ["/opt", "/home", "/srv", "-maxdepth", "3", "-name", ".runner"], exec); status("runner_installations", r.state);
+              for (const l of cut(lines(r.stdout), "runner_installations")) emit("runner_dir", { path: V.path(l.replace(/\/\.runner$/, "")) }); }
+            for (const dir of ["/etc/polkit-1/rules.d", "/usr/share/polkit-1/rules.d"]) { let names = []; try { names = readdir(dir); status(`polkit:${dir}`, names.length ? "OBSERVED" : "OBSERVED-EMPTY"); } catch { status(`polkit:${dir}`, "OBSERVED-EMPTY"); } for (const n of names) emit("polkit_rule", { dir: V.path(dir), name: /^[0-9]{2}-[a-z0-9.-]{1,40}\.rules$/.test(n) ? n : hidden("name", n) }); }
+            // units: typed properties only (no free-form text, no Environment)
+            const UNITS = ["nusa.service", "nusa-research.service", "nusa-research.timer", "nusa-autopilot.service", "nusa-health-guard.service", "nusa-health-guard.timer", "nusa-control-reconcile.service", "nusa-control-verify.service", "nusa-control-verify.timer"];
+            const PROPS = ["FragmentPath", "DropInPaths", "EnvironmentFiles", "UnsetEnvironment", "Requires", "After", "Before", "WantedBy", "Restart", "StartLimitBurst", "StartLimitIntervalUSec", "User", "UnitFileState", "ActiveState"];
+            for (const unit of UNITS) {
+              const r = run("systemctl", ["show", unit, "--no-pager", ...PROPS.flatMap((p) => ["-p", p])], exec);
+              status(`unit:${unit}`, r.state);
+              if (r.state !== "OBSERVED") continue;
+              const kv = Object.fromEntries(lines(r.stdout).map((l) => { const i = l.indexOf("="); return [l.slice(0, i), l.slice(i + 1)]; }));
+              emit("unit", { unit: V.unit(unit), active: V.enum(kv.ActiveState, ["active", "inactive", "failed", "activating", "deactivating"]), enabled: V.enum(kv.UnitFileState, ["enabled", "disabled", "static", "masked", "indirect", "generated", "transient", "linked", "enabled-runtime", ""]), user: kv.User ? V.user(kv.User) : "-", restart: V.enum(kv.Restart, ["no", "on-failure", "always", "on-success", "on-abnormal", "on-abort", "on-watchdog"]), start_limit_burst: V.int(kv.StartLimitBurst || "0") });
+              for (const p of ["FragmentPath"]) if (kv[p]) emit("unit_path", { unit: V.unit(unit), kind: p, path: V.path(kv[p]) });
+              for (const p of (kv.DropInPaths || "").split(/\s+/).filter(Boolean)) emit("unit_path", { unit: V.unit(unit), kind: "DropIn", path: V.path(p) });
+              for (const p of (kv.EnvironmentFiles || "").split(/\s+/).filter((x) => x.startsWith("/"))) emit("unit_path", { unit: V.unit(unit), kind: "EnvironmentFile", path: V.path(p), optional: V.bool(/ignore_errors=yes/.test(kv.EnvironmentFiles)) });
+              for (const n of (kv.UnsetEnvironment || "").split(/\s+/).filter(Boolean)) emit("unit_unset", { unit: V.unit(unit), name: /^[A-Z_][A-Z0-9_]{0,63}$/.test(n) ? n : hidden("name", n) });
+              for (const dep of ["Requires", "After", "Before", "WantedBy"]) for (const u of (kv[dep] || "").split(/\s+/).filter(Boolean)) emit("unit_dep", { unit: V.unit(unit), kind: dep, other: V.unit(u) });
+            }
+            // control surface: fixed paths only; owner, mode, type
+            for (const p of ["/opt", "/opt/nusa", "/opt/nusa/releases", "/opt/nusa/current", "/opt/nusa/bin", "/opt/nusa/proven", "/opt/nusa-control", "/var/lib/nusa", "/var/lib/nusa-control", "/etc/nusa", "/etc/nusa/run-mode.env", "/etc/systemd/system", "/run/nusa-paper-activation", "/opt/nusa/bin/nusa-release-step"]) {
+              try { const st = stat(p); emit("path_perm", { path: p, owner: V.user(st.owner), mode: V.mode(st.mode), type: V.enum(st.type, ["dir", "file", "symlink", "other"]) }); } catch (e) { emit("path_perm", { path: p, state: /EACCES|EPERM/.test(String(e.code)) ? "DENIED" : "ABSENT" }); }
+            }
+            { const r = run("getfacl", ["-p", "-c", "/opt/nusa", "/opt/nusa/bin", "/etc/nusa", "/etc/systemd/system"], exec); status("acl", r.state);
+              let cur = null; let extra = {}; for (const l of lines(r.stdout)) { if (/^#\s*file:/.test(l)) cur = l.replace(/^#\s*file:\s*/, ""); else if (cur && /^(user|group):[^:]+:/.test(l)) extra[cur] = (extra[cur] || 0) + 1; }
+              for (const [p, n] of Object.entries(extra)) emit("acl_extra_entries", { path: V.path(p), count: V.int(n) }); }
+            { const r = run("sha256sum", ["/opt/nusa/bin/nusa-release-step"], exec); status("helper_hash", r.state); const h = (r.stdout.match(/^[0-9a-f]{64}/) || [])[0]; if (h) emit("helper_sha256", { value: h }); }
+            { const r = run("find", ["/etc/systemd/system", "-maxdepth", "3", "-name", "nusa*", "-printf", "%u:%g %m %p\n"], exec); status("nusa_unit_files", r.state);
+              for (const l of cut(lines(r.stdout), "nusa_unit_files")) { const m = /^(\S+):(\S+) (\d+) (\/\S+)$/.exec(l); if (m) emit("unit_file", { owner: V.user(m[1]), group: V.user(m[2]), mode: V.mode(m[3]), path: V.path(m[4]) }); } }
+            // sudo journal, reduced
+            { const r = run("journalctl", ["_COMM=sudo", "--since", "-3 days", "--no-pager", "-o", "cat"], exec);
+              if (r.state === "OBSERVED" && /not seeing messages|no journal files/i.test(r.stdout)) status("sudo_journal", "DENIED");
+              else { status("sudo_journal", r.state); const agg = {};
+                for (const l of lines(r.stdout)) { const m = /(?:sudo:\s+)?(\S+)\s+:.*USER=([^ ;]+).*COMMAND=(.*)$/.exec(l); if (!m) continue; const s = sudoShape(m[3]); const key = `${V.user(m[1])}|${V.user(m[2])}|${s.exe}|${s.args}`; agg[key] = (agg[key] || 0) + 1; }
+                for (const [k, n] of cut(Object.entries(agg).sort((a, b) => b[1] - a[1]), "sudo_journal")) { const [user, runas, exe, args] = k.split("|"); emit("sudo_use", { user, as: runas, exe, args, count: V.int(n) }); } } }
+            return out;
+          }
+
+          const hostExec = (cmd, args) => spawnSync(cmd, args, { encoding: "utf8", timeout: 20000 });
+          const hostFs = {
+            readFile: (p) => fs.readFileSync(p, "utf8"),
+            readdir: (p) => fs.readdirSync(p),
+            stat: (p) => { const s = fs.lstatSync(p); let owner = String(s.uid); try { const m = fs.readFileSync("/etc/passwd", "utf8").split("\n").map((l) => l.split(":")).find((f) => Number(f[2]) === s.uid); if (m) owner = m[0]; } catch { /* keep numeric */ } return { owner, mode: (s.mode & 0o7777).toString(8).padStart(3, "0"), type: s.isDirectory() ? "dir" : s.isSymbolicLink() ? "symlink" : s.isFile() ? "file" : "other" }; },
+          };
+          globalThis.__audit = { audit, V, hash8 };
+          if (process.env.NUSA_AUDIT_TEST !== "1") {
+            for (const l of audit({ exec: hostExec, ...hostFs, now: () => new Date().toISOString() })) console.log(l);
+          }
+          AUDIT_JS
