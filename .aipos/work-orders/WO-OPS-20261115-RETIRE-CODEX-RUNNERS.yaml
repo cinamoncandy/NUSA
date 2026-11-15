@@ -1,5 +1,5 @@
 id: WO-OPS-20261115-RETIRE-CODEX-RUNNERS
-title: Retire the Codex coding runners and their workflows (owner: not used any more)
+title: "Retire the Codex coding runners and their workflows (owner: not used any more)"
 status: READY_FOR_REVIEW
 created: 2026-11-15
 implementation_branch: claude/retire-codex-runners
