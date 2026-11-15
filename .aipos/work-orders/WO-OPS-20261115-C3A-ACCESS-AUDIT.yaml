@@ -1,0 +1,22 @@
+id: WO-OPS-20261115-C3A-ACCESS-AUDIT
+title: "C3a: read-only access audit workflow (who and what can start, stop or change the PAPER runtime)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/c3-access-audit
+owner_decision: "2026-11-15: the owner approved proceeding from the code phases to the host check (C3) as soon as C1 and C1b are merged; the audit is the first, read-only step and precedes any install."
+objective: "Give the owner and the reviewers one reproducible, read-only picture of accounts, sudo, SSH metadata, timers, cron, runners, polkit, unit drop-ins and file ownership on the PAPER host, so the controller install (C3b) rests on evidence instead of assumptions."
+change:
+  - ".github/workflows/oracle-access-audit.yml: workflow_dispatch only, contents read, no checkout, no secrets, runs on the host runner; five steps print metadata only (owner, mode, name, count, hash) and the sudo journal's command verbs; `sudo -n -l` is the only sudo use; everything the runner account cannot read is printed as DENIED and is explicitly NOT evidence of safety."
+  - "tests/oracle-access-audit-workflow.test.js: pins manual-only and read-only, no systemctl mutation, no write command, sudo only as `sudo -n -l`, no read of env or key file contents, and the coverage of every start path named in the design."
+not_changed:
+  - "Nothing runs on the host by this change. The workflow is dispatched only after the non-author review and the merge. No unit, sudoers, key, limit or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/oracle-access-audit-workflow.test.js: 4 pass; validate-workflow-action-pins, -inputs and -authority-map pass; the YAML parses."
+unverified: "Not run on the host. As the runner account it cannot read root-only files (sudoers.d contents, other users' crontabs, the real sshd -T), so a root-owned check remains part of C3b. No non-author review yet."
+acceptance:
+  - "Non-author review before the PR leaves draft; the first dispatch after the merge is read back by the owner with the findings table."
