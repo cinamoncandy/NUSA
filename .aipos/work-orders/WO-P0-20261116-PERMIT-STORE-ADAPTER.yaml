@@ -1,0 +1,24 @@
+id: WO-P0-20261116-PERMIT-STORE-ADAPTER
+title: "Canonical permit store and read-only authority adapter (not wired into the runtime)"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/permit-store-adapter
+issue: "https://github.com/cinamoncandy/NUSA/issues/3108"
+owner_decision: "2026-11-16 (owner message 'A로 진행해' for the permit fix, then '다 해' for the follow-up steps): build the store and adapter described in docs/NUSA_PERMIT_PRODUCER_DESIGN_2026-11-16.md section 3, work item (a). It is not wired into any production path; no producer, no release, no host change, orders stay OFF. A draft PR with an independent non-author review and exact-head CI."
+objective: "Give the PaperTradePermissionAuthority contract of PR 3150 a durable, append-only trusted state: isLatest (replay guard that survives restarts, latest sequence wins so a newer REJECT supersedes an older PERMIT) and evidenceExists (a reference must be a stored evidence item linked to the same intent)."
+change:
+  - "apps/cloud/src/paperTradePermissionStore.ts (new): schema trade_permission_records and trade_permission_evidence with CHECK constraints and BEFORE UPDATE/DELETE triggers that abort (append-only); PaperTradePermissionStoreWriter.append (atomic, validates that permit and evidence input are bound to the same intent, unique references, SHA-256 content hashes, every cited reference supplied or already stored with identical content, ISO createdAt) and PaperTradePermissionStoreReader implementing PaperTradePermissionAuthority over a prepare()-only handle that issues SELECT statements only. latestPermit verifies the row against its own hash and columns (corruption throws, which the guard turns into a refusal)."
+  - "tests/paper-trade-permission-store.test.js (8 tests): round trip into the real guard with real-engine records; unknown intent and evidence of another intent; latest wins (a newer REJECT supersedes an older PERMIT, the older record is REPLAYED); append-only on both tables; atomic refusal of bad writes (missing, changed or malformed evidence, unbound input, bad time; rollback of a first inserted evidence item); corruption, row mismatch, missing schema and closed database all refuse; restart on a file database; source pins (reader never writes, boundary and runtime never import the store, no production source imports it). Mutation checks (each fails tests): remove the update trigger, the evidence delete trigger, latest ordering, the hash check, the row check, the evidence-to-intent link, the empty-references rule, isLatest comparing content, the transaction, the evidence content check, the intent binding."
+not_changed:
+  - "Nothing is wired: runtime.ts, the boundary and the production composition do not import the store (pinned by a test). No permit producer exists. The runtime still uses the no-permit authority, so every strategy order is still refused. No risk limit, threshold, capital, order switch, release or host action."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test (from dist/) tests/paper-trade-permission-store.test.js and the permit enforcement test pass; AIPOS, platform-independence, portability and architecture-surface validators pass. Not run here: pnpm run preflight and validate:full (Node 24, left to CI)."
+unverified: "The store has no producer and no production wiring; the reader's read-only connection is a later wiring step (the reader type exposes prepare() only). Stage B still needs the producer, a qualified candidate strategy, a release and a fresh written owner approval."
+acceptance:
+  - "Draft until the non-author review is done; exact-head CI; Audit; no release or restart merely because CI passes."
