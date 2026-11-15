@@ -311,7 +311,9 @@ function makeController(deps) {
       const v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
       if (v.ok) return { ok: true, code: "COLLECT_ONLY_VERIFIED" };
       // A wrong answer stops at once. No answer yet is tolerated only while the unit is younger than the start ceiling.
-      const wrong = ["FOREIGN_SENDER", "BUILD_MISMATCH"].includes(v.reason) || (v.reason === "MODE_MISMATCH" && v.seen === "PAPER_ORDERS");
+      // Only "no answer yet" (HEALTH_UNAVAILABLE, SENDER_UNKNOWN) can be a start in progress. Any answer that arrives from a
+      // process that identified itself, with another build or any other mode, is wrong at once.
+      const wrong = !["HEALTH_UNAVAILABLE", "SENDER_UNKNOWN"].includes(v.reason);
       let age = null;
       try { age = deps.unitActiveAgeMs(RUNTIME_UNIT); } catch { age = null; }
       if (!wrong && Number.isFinite(age) && age >= 0 && age < cfg.startCeilingMs) return { ok: true, code: "STARTING_WITHIN_CEILING", reason: v.reason, ageMs: age };
@@ -326,17 +328,39 @@ function makeController(deps) {
 }
 
 // ---- host implementations of the injected effects ---------------------------------------------------------------
-// Socket inodes of ESTABLISHED connections whose local port is `serverPort` and remote port is `clientPort`, from both
-// /proc/net/tcp and /proc/net/tcp6 (IPv4-mapped addresses appear in tcp6 when the server listens on ::).
-function serverSideInodes(readFile, serverPort, clientPort) {
-  const hex = (n) => n.toString(16).toUpperCase().padStart(4, "0");
+// Canonical text of an address as written in /proc/net/tcp (4 hex bytes, little-endian) and /proc/net/tcp6 (four 32-bit
+// little-endian words). IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) are folded to plain IPv4 so both tables compare.
+function procAddress(hex) {
+  const bytes = [];
+  if (hex.length === 8) { for (let i = 0; i < 8; i += 2) bytes.push(parseInt(hex.slice(i, i + 2), 16)); return bytes.reverse().join("."); }
+  if (hex.length !== 32) return null;
+  for (let w = 0; w < 32; w += 8) { const word = []; for (let i = 0; i < 8; i += 2) word.push(parseInt(hex.slice(w + i, w + i + 2), 16)); bytes.push(...word.reverse()); }
+  if (bytes.slice(0, 10).every((x) => x === 0) && bytes[10] === 0xff && bytes[11] === 0xff) return bytes.slice(12).join(".");
+  return bytes.map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+function canonicalAddress(text) {
+  const m = /^(?:::ffff:)?(\d+\.\d+\.\d+\.\d+)$/i.exec(text);
+  if (m) return m[1];
+  if (/^::1$/.test(text)) return "00000000000000000000000000000001";
+  return text;
+}
+// Socket inodes of ESTABLISHED connections that are exactly the SERVER side of the connection the controller opened: the
+// local address and port equal the client's remote address and port, and the remote address and port equal the client's
+// local ones. Ports alone are never enough.
+function serverSideInodes(readFile, { serverAddress, serverPort, clientAddress, clientPort }) {
+  const hexPort = (n) => n.toString(16).toUpperCase().padStart(4, "0");
+  const wantServer = canonicalAddress(serverAddress);
+  const wantClient = canonicalAddress(clientAddress);
   const inodes = [];
   for (const table of ["/proc/net/tcp", "/proc/net/tcp6"]) {
     let text;
     try { text = readFile(table); } catch { continue; }
     for (const line of text.split("\n").slice(1)) {
       const f = line.trim().split(/\s+/);
-      if (f.length > 9 && f[3] === "01" && f[1].endsWith(`:${hex(serverPort)}`) && f[2].endsWith(`:${hex(clientPort)}`)) inodes.push(f[9]);
+      if (f.length < 10 || f[3] !== "01") continue;
+      const [la, lp] = f[1].split(":"); const [ra, rp] = f[2].split(":");
+      if (!la || !ra || lp !== hexPort(serverPort) || rp !== hexPort(clientPort)) continue;
+      if (procAddress(la) === wantServer && procAddress(ra) === wantClient) inodes.push(f[9]);
     }
   }
   return inodes;
@@ -364,10 +388,14 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000 } = {
     const timer = setTimeout(() => { socket.destroy(); reject(new Error("health timeout")); }, timeoutMs);
     let ownerPids = null;
     const chunks = [];
+    let inode = null;
+    const holders = () => (inode === null ? [] : pidsHoldingInodes([inode]));
     socket.once("connect", () => {
       try {
-        const inodes = serverSideInodes((f) => fs.readFileSync(f, "utf8"), port, socket.localPort);
-        ownerPids = inodes.length > 0 ? pidsHoldingInodes(inodes) : [];
+        const inodes = serverSideInodes((f) => fs.readFileSync(f, "utf8"), { serverAddress: socket.remoteAddress, serverPort: port, clientAddress: socket.localAddress, clientPort: socket.localPort });
+        // Exactly one matching server-side socket, or the sender is unknown.
+        inode = inodes.length === 1 ? inodes[0] : null;
+        ownerPids = holders();
       } catch { ownerPids = []; }
       socket.write(`GET /health HTTP/1.1\r\nHost: ${host}:${port}\r\nConnection: close\r\n\r\n`);
     });
@@ -380,6 +408,8 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000 } = {
       const head = split < 0 ? text : text.slice(0, split);
       let body = null;
       if (/^HTTP\/1\.[01] 200 /.test(head) && !/transfer-encoding:\s*chunked/i.test(head)) { try { body = JSON.parse(text.slice(split + 4)); } catch { body = null; } }
+      // The holders were read while the connection was open and BEFORE the request was sent. Every process that holds the
+      // server-side socket is in that list; a foreign process could only answer by receiving the descriptor from one of them.
       resolve({ body, ownerPids: ownerPids || [] });
     });
   });
@@ -403,5 +433,5 @@ async function main(argv) {
   return out.ok ? 0 : 1;
 }
 
-module.exports = { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
+module.exports = { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
 if (require.main === module) main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { process.stdout.write(`${JSON.stringify({ ok: false, code: "INTERNAL", detail: String(e && e.message) })}\n`); process.exit(70); });

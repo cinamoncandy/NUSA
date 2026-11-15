@@ -7,7 +7,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, UNITS } = require("../deploy/control/nusa-control.js");
+const { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS } = require("../deploy/control/nusa-control.js");
 
 const SHA = "c".repeat(40);
 const OTHER = "d".repeat(40);
@@ -343,22 +343,85 @@ test("host identity: the server side of the controller's own connection is found
   } finally { v6.close(); }
 });
 
-test("serverSideInodes matches only ESTABLISHED server-side rows for the exact port pair, in tcp and tcp6", () => {
-  const tcp = ["  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode",
-    "   0: 0100007F:A0C3 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 111",
-    "   1: 0100007F:A0C3 0100007F:D431 01 00000000:00000000 00:00000000 00000000  1000        0 222",
-    "   2: 0100007F:D431 0100007F:A0C3 01 00000000:00000000 00:00000000 00000000  1000        0 333"].join("\n");
-  const tcp6 = ["  sl  local_address rem_address st",
-    "   0: 0000000000000000FFFF00000100007F:A0C3 0000000000000000FFFF00000100007F:D431 01 00000000:00000000 00:00000000 00000000  1000        0 444"].join("\n");
+test("serverSideInodes needs the exact address AND port pair: same ports with other addresses, the client's own row and non-ESTABLISHED rows never match; mapped IPv6 folds to IPv4", () => {
+  const head = "  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode";
+  const row = (n, local, remote, st, inode) => `   ${n}: ${local} ${remote} ${st} 00000000:00000000 00:00000000 00000000  1000        0 ${inode}`;
+  const tcp = [head,
+    row(0, "0100007F:A0C3", "00000000:0000", "0A", 111),
+    row(1, "0100007F:A0C3", "0100007F:D431", "01", 222),   // the server side we want (127.0.0.1)
+    row(2, "0100007F:D431", "0100007F:A0C3", "01", 333),   // the CLIENT side of the same connection
+    row(3, "0200007F:A0C3", "0100007F:D431", "01", 555),   // same ports, other local address
+    row(4, "0100007F:A0C3", "0200007F:D431", "01", 666),   // same ports, other remote address
+    row(5, "0100007F:A0C3", "0100007F:D431", "06", 777)].join("\n"); // not ESTABLISHED
+  const tcp6 = [head, row(0, "0000000000000000FFFF00000100007F:A0C3", "0000000000000000FFFF00000100007F:D431", "01", 444)].join("\n");
   const read = (f) => (f.endsWith("tcp6") ? tcp6 : tcp);
-  assert.deepEqual(serverSideInodes(read, 0xa0c3, 0xd431), ["222", "444"]);
+  const want = { serverAddress: "127.0.0.1", serverPort: 0xa0c3, clientAddress: "127.0.0.1", clientPort: 0xd431 };
+  assert.deepEqual(serverSideInodes(read, want), ["222", "444"], "tcp row 1 and the IPv4-mapped tcp6 row; nothing else");
+  assert.deepEqual(serverSideInodes(read, { ...want, serverAddress: "127.0.0.3" }), []);
+  assert.deepEqual(serverSideInodes(read, { ...want, clientAddress: "10.0.0.9" }), []);
+  assert.equal(procAddress("0100007F"), "127.0.0.1");
 });
 
-test("the sudo entry point checks the lock directory and file before flock, and the boot gate orders before the runtime", () => {
+test("an ambiguous sender is unknown: two matching server-side sockets would not be accepted (unique inode required)", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
+  assert.match(src, /inode = inodes\.length === 1 \? inodes\[0\] : null;/);
+  assert.match(src, /BEFORE the request was sent/, "the holders are read while the connection is open, before the request");
+});
+
+test("the sudo entry point checks the lock directory first and the OPEN lock file descriptor before flock", () => {
   const sh = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.sh"), "utf8");
   for (const check of ["LOCK_DIR_NOT_A_REAL_DIRECTORY", "LOCK_DIR_UNSAFE", "LOCK_FILE_IS_A_SYMLINK", "LOCK_FILE_NOT_REGULAR", "LOCK_FILE_UNSAFE"]) assert.ok(sh.indexOf(check) > 0 && sh.indexOf(check) < sh.indexOf("flock -w"), check);
-  const gate = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control-reconcile.service"), "utf8");
-  assert.match(gate, /Before=nusa\.service nusa-research\.timer nusa-research\.service/);
-  assert.match(gate, /RequiredBy=nusa\.service nusa-research\.timer/, "a failing gate keeps the runtime from starting");
-  assert.match(fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control-verify.timer"), "utf8"), /OnUnitActiveSec=5min/);
+  assert.match(sh, /stat -L -c '%u:%g:%a' \/proc\/self\/fd\/9/, "checked on the open descriptor, not the path");
+});
+
+// A small model of the systemd dependency graph for the shipped units and drop-ins: parse the directives that matter,
+// then check that the gate really blocks the runtime and that no ordering cycle exists. It does NOT replace a check on the
+// host (systemd-analyze verify with the real unit set), which is part of C3.
+function unitGraph() {
+  const dir = path.join(__dirname, "..", "deploy", "control");
+  const files = {
+    "nusa-control-reconcile.service": fs.readFileSync(path.join(dir, "nusa-control-reconcile.service"), "utf8"),
+    "nusa-control-verify.timer": fs.readFileSync(path.join(dir, "nusa-control-verify.timer"), "utf8"),
+    "nusa.service": fs.readFileSync(path.join(dir, "..", "oracle", "nusa.service"), "utf8"),
+  };
+  for (const u of ["nusa.service", "nusa-research.timer", "nusa-research.service"]) files[`${u}#dropin`] = fs.readFileSync(path.join(dir, "dropins", `${u}.d`, "10-control-gate.conf"), "utf8");
+  const g = {};
+  for (const [name, text] of Object.entries(files)) {
+    const unit = name.replace("#dropin", "");
+    g[unit] = g[unit] || { requires: [], after: [], before: [], bindsTo: [], partOf: [], wantedBy: [], requiredBy: [] };
+    for (const line of text.split("\n")) {
+      const m = /^(Requires|After|Before|BindsTo|PartOf|WantedBy|RequiredBy)=(.*)$/.exec(line.trim());
+      if (m) g[unit][m[1][0].toLowerCase() + m[1].slice(1)].push(...m[2].split(/\s+/).filter(Boolean));
+    }
+  }
+  return g;
+}
+test("systemd model: every runtime unit Requires and is ordered After the boot gate; the gate is ordered Before them and requires nothing; no ordering cycle", () => {
+  const g = unitGraph();
+  const gate = "nusa-control-reconcile.service";
+  for (const u of ["nusa.service", "nusa-research.timer", "nusa-research.service"]) {
+    assert.ok(g[u].requires.includes(gate), `${u} Requires the gate (a failed gate fails the start job)`);
+    assert.ok(g[u].after.includes(gate), `${u} is ordered after the gate`);
+    assert.ok(g[gate].before.includes(u), `the gate is ordered before ${u}`);
+  }
+  assert.deepEqual(g[gate].requires, [], "the gate depends on no runtime unit");
+  assert.deepEqual(g[gate].requiredBy, [], "no RequiredBy= install trick: the dependency comes from the drop-ins");
+  // ordering cycle check over After/Before edges
+  const edges = {};
+  const add = (a, b) => { (edges[a] = edges[a] || new Set()).add(b); }; // a must start before b
+  for (const [u, d] of Object.entries(g)) { d.after.forEach((x) => add(x, u)); d.before.forEach((x) => add(u, x)); }
+  const state = {};
+  const visit = (n) => { if (state[n] === 1) throw new Error(`ordering cycle at ${n}`); if (state[n] === 2) return; state[n] = 1; for (const m of edges[n] || []) visit(m); state[n] = 2; };
+  assert.doesNotThrow(() => Object.keys(edges).forEach(visit));
+});
+
+test("systemd model: the verify timer is bound to nusa.service, restarts with it, and fires 2 minutes after every start, then every 5 minutes", () => {
+  const text = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control-verify.timer"), "utf8");
+  assert.match(text, /BindsTo=nusa\.service/); assert.match(text, /PartOf=nusa\.service/); assert.match(text, /After=nusa\.service/);
+  assert.match(text, /OnActiveSec=2min/); assert.match(text, /OnUnitActiveSec=5min/); assert.match(text, /WantedBy=nusa\.service/);
+});
+
+test("verify: a runtime that answers with any wrong mode or build is stopped at once even inside the start ceiling; only no-answer is tolerated", posixOnly, async () => {
+  const w = world({ healthAnswers: ["COLLECT_ONLY", "STARTING"] }); await seed(w); await w.ctl.collect(); w.ageMs = 1_000;
+  assert.match((await w.ctl.verify()).code, /VERIFY_STOPPED:MODE_MISMATCH/); assert.ok(allStopped(w));
 });

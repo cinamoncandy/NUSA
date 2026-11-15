@@ -1,9 +1,15 @@
 [Unit]
-Description=NUSA control: periodic verify
+Description=NUSA control: verify the runtime 2 minutes after every start of nusa.service, then every 5 minutes
+# PartOf= restarts this timer whenever nusa.service restarts, so OnActiveSec fires again after every start; BindsTo= keeps it
+# from running while the runtime is stopped.
+BindsTo=nusa.service
+After=nusa.service
+PartOf=nusa.service
 
 [Timer]
-OnBootSec=10min
+OnActiveSec=2min
 OnUnitActiveSec=5min
+Unit=nusa-control-verify.service
 
 [Install]
-WantedBy=timers.target
+WantedBy=nusa.service

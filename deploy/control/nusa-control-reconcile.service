@@ -10,5 +10,4 @@ ExecStart=/opt/nusa-control/nusa-control.sh reconcile
 RemainAfterExit=yes
 
 [Install]
-RequiredBy=nusa.service nusa-research.timer
 WantedBy=multi-user.target
