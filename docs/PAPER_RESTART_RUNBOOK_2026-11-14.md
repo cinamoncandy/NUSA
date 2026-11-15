@@ -17,6 +17,14 @@ lets collection run while the order path is off, so the restart is split into tw
 | Owner | approves each stage, dispatches the release workflow, approves host changes. |
 | Operator (authorized, on the host) | sets the env value, runs `systemctl`, reports the outputs. |
 
+## The host (corrected 2026-11-15)
+
+The PAPER host is **Datascale**, not Oracle (owner statement 2026-11-15). Paths, scripts and workflows still carry the old name (`deploy/oracle/`, `oracle-paper-release.yml`, `oracle-host-diagnose.yml`) and are kept; only
+this description changes. A read-only host diagnosis on 2026-11-15 (run 43656493322, runner `nusa-paper-host-datascale`) read: 4 CPUs, about 7.9 GB memory (about 7.1 GB available), root disk 77 GB with 33% used (52 GB free), load 0.
+That is not the "1 vCPU, 954 MB, 90% used" host measured in October, so statements in older documents that rest on it (memory floors for the Codex runner, startup stalls, the release backup time, the disk headroom)
+must be re-measured before they are relied on; this runbook keeps its conditions and re-reads the host in precondition 0.3. The deployed build was `324768cd` (PR 3107), `nusa.service` inactive, `nusa-autopilot.service` active; that build does not contain
+the `NUSA_PAPER_ORDER_PATH` switch. The owner can reach the host by SSH. The name `nusa-api.duckdns.org` (the phone origin) resolved to `165.140.21.228` on 2026-11-15 and the owner confirmed that this is the Datascale address, so the phone path no longer depends on the old Oracle instance. Still open before the Oracle account or instance is ended: data and backups that exist only there, and any runner still registered from there (the agent cannot read the runner list).
+
 ## What a release does to a stopped service (read in `deploy/oracle/nusa-release-step.sh`, 2026-11-14)
 
 The release `activate` verb enables and **restarts** `nusa.service` and `nusa-autopilot.service` and starts the research timer, then
@@ -34,7 +42,7 @@ the release rolls back, and the rollback also restarts the services. Consequence
 | --- | --- | --- |
 | 0.1 | `main` contains the switch (#3115) and the SHA to release is the current protected `main` SHA with exact-source CI success | PR, CI run |
 | 0.2 | `deploy/health-watch.json` `expectedState` is `RUNNING` in a reviewed PR that merged BEFORE the release (else `UNEXPECTED_UP`) | merged PR |
-| 0.3 | A fresh backup exists and the disk has free space (the host was 90% used in October; re-measure). The release backup takes about 30 min and must not be cancelled | diagnose output |
+| 0.3 | A fresh backup exists and the disk has free space (the host was 90% used in October and 33% on 2026-11-15; re-measure at the time). The release backup takes about 30 min and must not be cancelled | diagnose output |
 | 0.4 | The owner states the start date so research studies can be re-pre-registered with the real span | owner message |
 | 0.5 | The rollback hazard is closed by PROOF, never by accepting the risk. The release rollback (`rollback_and_restore`) restarts the previous build, which does not know the switch. **Finding (2026-11-14): the earlier candidate, "leave `NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW` unset", does NOT work.** `scripts/start-cloud-runtime.js` sets that variable to a default (`DEFAULT_PAPER_CAPITAL_KRW` 10000) when it is blank and then overwrites it with `initialCapitalKrw` from the versioned `deploy/oracle/paper-account.json` (100000), so the order loop is created in every build that uses this start script, whatever the env file says. No env-file-only setting keeps the previous build from creating an order path. Closing 0.5 needs a different mechanism that has been verified (see "Options for 0.5" below). The owner cannot waive this condition, and the first release does not start until it passes | code reference (done: `scripts/start-cloud-runtime.js`), then a verified mechanism, test or rehearsal output |
 | 0.6 | `NUSA_PAPER_ORDER_PATH=OFF` is already written in `/etc/nusa/cloud-runtime.env` (`0600`) BEFORE the release is dispatched. Verified by the operator reading the file, not by starting the service | operator output |
