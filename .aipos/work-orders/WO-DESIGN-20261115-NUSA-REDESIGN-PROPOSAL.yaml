@@ -1,0 +1,21 @@
+id: WO-DESIGN-20261115-NUSA-REDESIGN-PROPOSAL
+title: "NUSA redesign proposal: one runtime, one RunMode, host control without a shell, release split in two"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/nusa-redesign-proposal
+owner_decision: "2026-11-15: the owner asked to redesign NUSA 'to the best' after the PAPER restart (Stage A) is proven, and approved starting the Cloudflare removal after the second Stage A reading."
+objective: "Record a design proposal, grounded in today's restart failures and repository facts, with phases, gates, rollbacks and owner decisions. Docs only."
+change:
+  - "docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md: evidence table, principles, target shape, phases R0 to R7, scope limits, decisions D1 to D5, risks."
+not_changed:
+  - "No code, workflow, host, limit, threshold, capital or authority changes. Nothing in the document is an approval; every phase is a separate governed PR and the owner approves the direction first."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "AIPOS yaml validator and aipos-current-truth test pass locally."
+unverified: "The numbers in the evidence table come from a read of the repository at origin/main on 2026-11-15 and from today's release and host logs; the proposal is not reviewed by a non-author. Effort and timing of phases are estimates."
+acceptance:
+  - The owner answers D1 to D5; no phase starts before that.
