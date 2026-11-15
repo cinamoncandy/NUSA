@@ -1,0 +1,23 @@
+id: WO-OPS-20261115-HEALTH-WATCH-RUNNING-2
+title: "Health watch expects the PAPER service to run (second restart attempt, with the daemon fix of PR 3133)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/health-watch-running-2
+owner_decision: "2026-11-15: the owner approved the second restart attempt after the daemon fix (PR 3133, non-author review ACCEPT WITH P2) merged."
+objective: "Flip deploy/health-watch.json expectedState from STOPPED to RUNNING in the PR that precedes the second PAPER restart attempt, as the file's own note requires."
+change:
+  - "deploy/health-watch.json: expectedState STOPPED -> RUNNING. No other change."
+context:
+  - "The first attempt (release run 43665972913) failed closed and the owner stopped the service. PR 3133 fixed the daemon entry for NUSA_PAPER_ORDER_PATH=OFF; a real-runtime start with OFF, a pre-fix reproduction and an ON control were run in the sandbox. The host start itself is not verified yet."
+not_changed:
+  - "The service stays stopped until the release starts it. No release, host change, risk limit or gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "tests/health-watch.test.js and the AIPOS validators pass locally."
+unverified: "CI at the PR head. Until the release starts the service the watch may report DOWN."
+acceptance:
+  - The change is one value in deploy/health-watch.json.
