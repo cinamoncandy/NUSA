@@ -9,6 +9,19 @@ stopped (verified 17:18 KST 2026-11-14). A PAPER order path was running without 
 Stopping the whole service also stopped research collection (an 18 h gap). The `NUSA_PAPER_ORDER_PATH` switch (merged in #3115)
 lets collection run while the order path is off, so the restart is split into two stages. Review round 1 (REJECT) found that a release starts the service itself and that its rollback target does not know the switch; both are handled below.
 
+## Incident 2026-11-15: the first restart attempt failed (fail-closed)
+
+Release run 43665972913 (source `9a3e165c`) built, backed up (50 min) and staged, then failed in `activate`. The daemon entry
+`startClosedLearningProductionRuntime` creates its own PAPER repository and verifies the writer lease at startup; the switch
+(`NUSA_PAPER_ORDER_PATH=OFF`) never starts that lease, so the daemon crash-looped on `PAPER_WRITER_LEASE_NOT_STARTED` before any
+order path existed. The owner stopped `nusa.service` (`inactive`). The release helper kept the new release active because the
+previous release cannot open the migrated database (no rollback, which was right: the previous build has no switch).
+What the earlier evidence missed: `tests/cloud-runtime-order-path-switch*.test.js` exercise `startCloudRuntime`, not the daemon
+entry that production runs. Lessons: a test for a start-up switch must go through the production entry point; the release takes
+about 75 minutes (backup alone 50), so a failed attempt costs more than an hour.
+The fix is in the PR that adds `tests/closed-learning-daemon-order-path-off.test.js`. Until a release contains it, Stage A stays BLOCKED.
+Precondition 0.8 below is new.
+
 ## Roles
 
 | Who | Does |
@@ -41,12 +54,13 @@ the release rolls back, and the rollback also restarts the services. Consequence
 | # | Condition | Evidence |
 | --- | --- | --- |
 | 0.1 | `main` contains the switch (#3115) and the SHA to release is the current protected `main` SHA with exact-source CI success | PR, CI run |
-| 0.2 | `deploy/health-watch.json` `expectedState` is `RUNNING` in a reviewed PR that merged BEFORE the release (else `UNEXPECTED_UP`) | merged PR |
+| 0.2 | `deploy/health-watch.json` `expectedState` is `RUNNING` (PR #3132 set it back to `STOPPED` after the failed attempt) in a reviewed PR that merged BEFORE the release (else `UNEXPECTED_UP`) | merged PR |
 | 0.3 | A fresh backup exists and the disk has free space (the host was 90% used in October and 33% on 2026-11-15; re-measure at the time). The release backup takes about 30 min and must not be cancelled | diagnose output |
 | 0.4 | The owner states the start date so research studies can be re-pre-registered with the real span | owner message |
 | 0.5 | The rollback hazard is closed by PROOF, never by accepting the risk. The release rollback (`rollback_and_restore`) restarts the previous build, which does not know the switch. **Finding (2026-11-14): the earlier candidate, "leave `NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW` unset", does NOT work.** `scripts/start-cloud-runtime.js` sets that variable to a default (`DEFAULT_PAPER_CAPITAL_KRW` 10000) when it is blank and then overwrites it with `initialCapitalKrw` from the versioned `deploy/oracle/paper-account.json` (100000), so the order loop is created in every build that uses this start script, whatever the env file says. No env-file-only setting keeps the previous build from creating an order path. Closing 0.5 needs a different mechanism that has been verified (see "Options for 0.5" below). The owner cannot waive this condition, and the first release does not start until it passes | code reference (done: `scripts/start-cloud-runtime.js`), then a verified mechanism, test or rehearsal output |
 | 0.6 | `NUSA_PAPER_ORDER_PATH=OFF` is already written in `/etc/nusa/cloud-runtime.env` (`0600`) BEFORE the release is dispatched. Verified by the operator reading the file, not by starting the service | operator output |
 | 0.7 | The readiness and soak checks pass with the order path off. Read and tested so far: the release readiness probe `/ready` checks only `database`, `migrations`, `dashboardPersistence` and `runtimeRecovery`, none of which names the order path, and `tests/cloud-runtime-order-path-switch-e2e.test.js` shows `/ready` answers 200 with all four true when the switch is ON and when it is OFF (fresh durable state in the sandbox). NOT yet shown: the same on the host with its real state, the full soak (about 180 s of repeated readiness plus `scripts/autopilot-readiness.js`), and the interaction with the activation lock. This condition stays open until the host evidence exists | the test (done in the sandbox), host readiness output after the first start |
+| 0.8 | The real daemon entry starts with the order path OFF. `tests/closed-learning-daemon-order-path-off.test.js` passes in exact-head CI and is contained in the SHA to release; the first attempt (2026-11-15) failed exactly here | CI run + `git merge-base --is-ancestor` | BLOCKED until a fix PR merges |
 
 ## Options for 0.5 (none is chosen or implemented; each needs the owner and a non-author review)
 

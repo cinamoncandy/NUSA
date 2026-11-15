@@ -39,7 +39,7 @@ import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshot
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PAPER_WRITER_LEASE_DURATION_MS, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
-import { registerGracefulShutdown, startCloudRuntimeFromOptions, type CloudRuntimeHandle } from "./runtime";
+import { isPaperOrderPathEnabled, registerGracefulShutdown, startCloudRuntimeFromOptions, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
 import { ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
@@ -176,7 +176,10 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // The lease starts inside startCloudRuntime immediately before the first PAPER account access.
   // The full runtime's synchronous setup can outlast the 30-second lease before the event loop can heartbeat.
   const leaseWindow = createLeaseStartupWindow(PAPER_WRITER_LEASE_DURATION_MS, (line) => console.log(line));
-  const paperRepository = config.paperInitialCapitalKrw === undefined
+  // NUSA_PAPER_ORDER_PATH=OFF: startCloudRuntime creates no writer lease, so this entry point must not create or verify
+  // one either (it used to, and the daemon crash-looped on PAPER_WRITER_LEASE_NOT_STARTED, release of 2026-11-15).
+  const orderPathEnabled = isPaperOrderPathEnabled(env);
+  const paperRepository = config.paperInitialCapitalKrw === undefined || !orderPathEnabled
     ? undefined
     : new SqliteCloudPaperAccountRepository(database, {
       accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw),
@@ -565,10 +568,14 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Recovery/bootstrap must not wait for a human or app launch. The listener is already bound;
   // defer the first async tick one turn, then keep one serialized rollover poll.
-  initialTimer = setTimeout(scheduleTick, 0);
-  initialTimer.unref?.();
-  rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
-  rolloverTimer.unref?.();
+  // With the order path OFF there is no PAPER account to learn from: the closed-learning cycle (PAPER periods, bootstrap,
+  // rollover) is not scheduled. Market data, research collection and the read-only dashboard keep running.
+  if (orderPathEnabled) {
+    initialTimer = setTimeout(scheduleTick, 0);
+    initialTimer.unref?.();
+    rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
+    rolloverTimer.unref?.();
+  }
 
   return Object.freeze({
     handle,

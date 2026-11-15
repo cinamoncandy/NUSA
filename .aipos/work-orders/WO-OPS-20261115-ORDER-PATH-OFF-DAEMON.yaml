@@ -1,0 +1,27 @@
+id: WO-OPS-20261115-ORDER-PATH-OFF-DAEMON
+title: "Fix the daemon entry for NUSA_PAPER_ORDER_PATH=OFF (the 2026-11-15 restart crash-looped on PAPER_WRITER_LEASE_NOT_STARTED)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/order-path-off-daemon
+owner_decision: "2026-11-15: fix the cause (option 1) and re-release; independent review stays because production code changes."
+objective: "Make the production daemon entry start cleanly with the order path OFF, with no PAPER writer lease and no closed-learning tick, so Stage A (collection ON, orders OFF) can be released."
+root_cause: "startClosedLearningProductionRuntime created its own PAPER repository and verified the writer lease at startup. NUSA_PAPER_ORDER_PATH=OFF makes startCloudRuntime skip startWriterLease, so verifyWriterLease threw PAPER_WRITER_LEASE_NOT_STARTED and the daemon crash-looped (release run 43665972913, source 9a3e165c). It failed closed: no order path existed. The earlier switch tests exercised startCloudRuntime, not this entry."
+change:
+  - "apps/cloud/src/runtime.ts: new exported isPaperOrderPathEnabled(env), the single rule for the switch (unset or exactly ON); startCloudRuntime uses it."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: with the order path OFF the PAPER repository is not created (so no lease is started or verified) and the closed-learning tick/rollover timers are not scheduled. Market data, research collection and the read-only dashboard are unchanged."
+  - "tests/closed-learning-daemon-order-path-off.test.js (9 tests): the real daemon entry with OFF/off/false/0/empty starts with no repository, no lease start, no lease verify, no lease row, no scheduled tick; controls unset and ON still start and verify the lease exactly as before; the rule is one function."
+  - "docs/PAPER_RESTART_RUNBOOK_2026-11-14.md: incident note and new precondition 0.8."
+not_changed:
+  - "ON behaviour (unset or exactly ON) is unchanged and pinned by the controls and by the existing lease, startup, lifecycle and switch tests. No risk limit, threshold, capital, gate, release workflow or helper changes. The legacy paper-account retirement at startup is unchanged. The service stays stopped until the owner approves a new release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  note: "The change only removes the ability to order when the operator switch is OFF; it adds no authority."
+validation:
+  - "Mutation check: with the closedLearningProductionRuntime.ts change removed, 6 of the 9 new tests fail with the production error PAPER_WRITER_LEASE_NOT_STARTED; the ON/unset controls and the rule test pass."
+  - "Passing locally from dist: the new test (9), closed-learning-daemon-fatal-exit (4), research-startup-recovery (22), paper-writer-lease-loss-fail-closed (8), cloud-runtime-order-path-switch (3) and -e2e (4), integration-paper-lifecycle-production-root (4), measure-startup-phases (7)."
+unverified: "CI at the PR head; the behaviour on the real host (it was reproduced only by the test, not by a start); that no other entry point touches the lease with the order path OFF (checked by reading: the five verifyWriterLease calls and the tick are the only ones in this file, all now guarded by the missing repository or the unscheduled tick). The non-author review is pending."
+acceptance:
+  - A non-author review confirms that OFF can only remove ordering ability, that ON is unchanged, and that no other start-up path verifies a lease that OFF never creates.
