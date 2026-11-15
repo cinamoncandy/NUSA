@@ -1,0 +1,21 @@
+id: WO-DESIGN-20261115-NUSA-CORE-V5
+title: "NUSA Core design v5: table-driven controller, one host state file, release rehearsed on a data copy"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/nusa-core-design-v5
+owner_decision: "2026-11-15: the owner asked for the most complete design after the R2a reviews."
+objective: "Replace the growing set of shell decisions and host markers with one controller program, one state file and a rehearse-before-switch release; state what the design cannot solve."
+change:
+  - "docs/NUSA_CORE_DESIGN_V5_2026-11-15.md: criteria, architecture, state table, release on a copy, access, phone and alerts, deletions, phases C1 to C7, risks, limits."
+not_changed:
+  - "No code, workflow, host, limit, threshold, capital or authority change. R2a (#3142) continues as the interim safety."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "AIPOS yaml validator passes."
+unverified: "Not reviewed by a non-author yet. Disk and time cost of the data-copy rehearsal on the host are estimates until C2 measures them."
+acceptance:
+  - "The owner approves the direction; a non-author review of the design before C1 code starts."
