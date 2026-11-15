@@ -105,6 +105,14 @@ import { learningPipelineProjection } from "./learningPipelineStage";
 import { OrderBookCoverageWatch } from "./orderBookCoverage";
 import { TradeTickCoverageWatch } from "./tradeTickCoverage";
 
+/**
+ * The single rule for the operator switch NUSA_PAPER_ORDER_PATH. Unset or exactly "ON" keeps the PAPER order path.
+ * Any other value (including a typo) is OFF. Every entry point that touches the PAPER writer lease must use this
+ * function, so two entry points can never disagree about whether the lease exists.
+ */
+export function isPaperOrderPathEnabled(env: NodeJS.ProcessEnv): boolean {
+  return env.NUSA_PAPER_ORDER_PATH === undefined || env.NUSA_PAPER_ORDER_PATH === "ON";
+}
 export interface CloudRuntimeDashboardHydratorLike { hydrate(provider: CloudDashboardStateProvider, observations?: readonly IntelligenceObservation[]): void; }
 export interface CloudRuntimeMarketDataClientLike { subscribe(markets: readonly string[]): void; start(): void; stop(): void; }
 export interface CloudRuntimeResearchRuntimeLike { onMarketData(tick: ResearchRuntimeMarketDataTick): void; }
@@ -503,7 +511,7 @@ export function startCloudRuntime(
   // read-only dashboard. Unset or exactly "ON" keeps today's behaviour. Any other value (including a typo) is OFF:
   // no writer lease, no execution loop and no order boundary are created, so no order can be produced. It can only
   // remove the ability to order, never add authority.
-  const paperOrderPathEnabled = env.NUSA_PAPER_ORDER_PATH === undefined || env.NUSA_PAPER_ORDER_PATH === "ON";
+  const paperOrderPathEnabled = isPaperOrderPathEnabled(env);
   const startPaperRuntime = (): void => {
     if (paperRuntimeStarted) return;
     if (!paperOrderPathEnabled) { paperRuntimeStarted = true; return; }

@@ -1,0 +1,28 @@
+id: WO-OPS-20261115-ORDER-PATH-OFF-DAEMON
+title: "Fix the daemon entry for NUSA_PAPER_ORDER_PATH=OFF (the 2026-11-15 restart crash-looped on PAPER_WRITER_LEASE_NOT_STARTED)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/order-path-off-daemon
+owner_decision: "2026-11-15: fix the cause (option 1) and re-release; independent review stays because production code changes."
+objective: "Make the production daemon entry start cleanly with the order path OFF, with no PAPER writer lease and no closed-learning tick, so Stage A (collection ON, orders OFF) can be released."
+root_cause: "startClosedLearningProductionRuntime created its own PAPER repository and verified the writer lease at startup. NUSA_PAPER_ORDER_PATH=OFF makes startCloudRuntime skip startWriterLease, so verifyWriterLease threw PAPER_WRITER_LEASE_NOT_STARTED and the daemon crash-looped (release run 43665972913, source 9a3e165c). It failed closed: no order path existed. The earlier switch tests exercised startCloudRuntime, not this entry."
+change:
+  - "apps/cloud/src/runtime.ts: new exported isPaperOrderPathEnabled(env), the single rule for the switch (unset or exactly ON); startCloudRuntime uses it."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: with the order path OFF the PAPER repository is not created (so no lease is started or verified) and the closed-learning tick/rollover timers are not scheduled. Market data, research collection and the read-only dashboard are unchanged."
+  - "Review round 1 (non-author, REJECT, P1 1 / P2 2) was addressed: P1 the legacy paper-account retirement (a DELETE of the retired account's rows at startup) no longer runs with the order path OFF; P2-2 the exposed closed-learning functions (cycle, bootstrap, rollover, their async forms and the governance feedback) refuse to run with OFF (PAPER_ORDER_PATH_OFF); P2-1 the ON/unset controls now pin the exact number of startup lease verifications (7, MEASURED on the pre-fix origin/main code) and the exact two closed-learning timers (a 0 ms timeout and the 30 s rollover interval)."
+  - "tests/closed-learning-daemon-order-path-off.test.js (12 tests): the real daemon entry with OFF/off/false/0/empty starts with no repository, no lease start, no lease verify, no lease row and no closed-learning timer; with OFF the retirement is not called and a legacy account row is untouched; with OFF the exposed functions refuse; controls unset and ON start and verify the lease exactly as before (7 verifications, two timers, the initial timer starts a tick that verifies the lease, the retirement still runs); the rule is one function."
+  - "docs/PAPER_RESTART_RUNBOOK_2026-11-14.md: incident note and new precondition 0.8."
+not_changed:
+  - "ON behaviour (unset or exactly ON) is unchanged and pinned by the controls and by the existing lease, startup, lifecycle and switch tests. No risk limit, threshold, capital, gate, release workflow or helper changes. The legacy paper-account retirement at startup is unchanged. The service stays stopped until the owner approves a new release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  note: "The change only removes the ability to order when the operator switch is OFF; it adds no authority."
+validation:
+  - "Mutation checks: with the daemon change removed, 6 OFF tests fail with the production error PAPER_WRITER_LEASE_NOT_STARTED; with only the retirement guard removed, the retirement test fails; with only the direct-call guards removed, the direct-call test fails. The ON controls (3) pass unchanged on the pre-fix origin/main code, which is the evidence that ON behaviour is the same."
+  - "Passing locally from dist: the new test (12), closed-learning-daemon-fatal-exit (4), research-startup-recovery (22), paper-writer-lease-loss-fail-closed (8), cloud-runtime-order-path-switch (3) and -e2e (4), integration-paper-lifecycle-production-root (4), measure-startup-phases (7)."
+unverified: "CI at the PR head; the behaviour on the real host (it was reproduced only by the test, not by a start); that no other entry point touches the lease with the order path OFF (checked by reading: the five verifyWriterLease calls and the tick are the only ones in this file, all now guarded by the missing repository or the unscheduled tick). The round-2 non-author review is pending. The test replaces only startCloudRuntimeFromOptions with a stand-in, so it is not a full runtime integration test."
+acceptance:
+  - A non-author review confirms that OFF can only remove ordering ability, that ON is unchanged, and that no other start-up path verifies a lease that OFF never creates.

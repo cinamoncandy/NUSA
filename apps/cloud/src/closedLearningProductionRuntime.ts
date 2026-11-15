@@ -39,7 +39,7 @@ import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshot
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PAPER_WRITER_LEASE_DURATION_MS, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
-import { registerGracefulShutdown, startCloudRuntimeFromOptions, type CloudRuntimeHandle } from "./runtime";
+import { isPaperOrderPathEnabled, registerGracefulShutdown, startCloudRuntimeFromOptions, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
 import { ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
 import { ClosedLearningResearchDecisionHistory } from "./closedLearningResearchDecisionHistory";
@@ -106,7 +106,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   const closedLearningConfig = readClosedLearningProductionConfig(env, config.cloudStateDbPath);
   const database = new SqliteDatabase(config.cloudStateDbPath);
   startupMark("database-open");
-  if (config.paperInitialCapitalKrw !== undefined) {
+  // NUSA_PAPER_ORDER_PATH=OFF: startCloudRuntime creates no writer lease, so this entry point must not create or verify
+  // one either (it used to, and the daemon crash-looped on PAPER_WRITER_LEASE_NOT_STARTED, release of 2026-11-15).
+  // OFF also means no PAPER account mutation of any kind from this entry, including the legacy account retirement below.
+  const orderPathEnabled = isPaperOrderPathEnabled(env);
+  const assertOrderPathEnabled = (): void => { if (!orderPathEnabled) throw new Error("PAPER_ORDER_PATH_OFF"); };
+  if (orderPathEnabled && config.paperInitialCapitalKrw !== undefined) {
     const retired = retiredPaperAccountIds(env);
     if (retired.length > 0) {
       const receipts = retirePaperAccounts(database, retired, paperAccountIdForCapital(config.paperInitialCapitalKrw), { stateDbPath: config.cloudStateDbPath });
@@ -176,7 +181,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
   // The lease starts inside startCloudRuntime immediately before the first PAPER account access.
   // The full runtime's synchronous setup can outlast the 30-second lease before the event loop can heartbeat.
   const leaseWindow = createLeaseStartupWindow(PAPER_WRITER_LEASE_DURATION_MS, (line) => console.log(line));
-  const paperRepository = config.paperInitialCapitalKrw === undefined
+  const paperRepository = config.paperInitialCapitalKrw === undefined || !orderPathEnabled
     ? undefined
     : new SqliteCloudPaperAccountRepository(database, {
       accountId: paperAccountIdForCapital(config.paperInitialCapitalKrw),
@@ -271,8 +276,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     governance: new PaperChallengerPolicyApproval({ artifacts, enabled: paperChallengerPolicyEnabled(env) }),
   });
   const coordinator = new ClosedLearningLoopCoordinator(cycleRepository, researchFactory, paperDeployment);
-  const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => coordinator.run(input);
-  const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => coordinator.runAsync(input);
+  const runClosedLearningCycle = (input: ClosedLearningEvidenceIdentity): ClosedLearningCycleResult => { assertOrderPathEnabled(); return coordinator.run(input); };
+  const runClosedLearningCycleAsync = (input: ClosedLearningEvidenceIdentity): Promise<ClosedLearningCycleResult> => orderPathEnabled ? coordinator.runAsync(input) : Promise.reject(new Error("PAPER_ORDER_PATH_OFF"));
 
   const bootstrap = new ClosedLearningInitialPaperBootstrap({
     snapshots: replaySnapshots,
@@ -283,8 +288,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     listOpenPeriods: periods.listOpenPeriods,
     listRealizedPeriods: periods.listRealizedPeriods,
   });
-  const runClosedLearningBootstrap = (): ClosedLearningInitialPaperBootstrapResult => bootstrap.runOnce();
-  const runClosedLearningBootstrapAsync = (): Promise<ClosedLearningInitialPaperBootstrapResult> => bootstrap.runOnceAsync();
+  const runClosedLearningBootstrap = (): ClosedLearningInitialPaperBootstrapResult => { assertOrderPathEnabled(); return bootstrap.runOnce(); };
+  const runClosedLearningBootstrapAsync = (): Promise<ClosedLearningInitialPaperBootstrapResult> => orderPathEnabled ? bootstrap.runOnceAsync() : Promise.reject(new Error("PAPER_ORDER_PATH_OFF"));
 
   const evidenceIdentity = new ClosedLearningEvidenceIdentitySource({
     paperEvidenceTransformationVersion: PAPER_COVERED_DAY_SCORING_VERSION,
@@ -342,8 +347,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     runClosedLearningCycle,
     runClosedLearningCycleAsync,
   });
-  const runClosedLearningRollover = (): ClosedLearningRolloverResult => rollover.runOnce();
-  const runClosedLearningRolloverAsync = (): Promise<ClosedLearningRolloverResult> => rollover.runOnceAsync();
+  const runClosedLearningRollover = (): ClosedLearningRolloverResult => { assertOrderPathEnabled(); return rollover.runOnce(); };
+  const runClosedLearningRolloverAsync = (): Promise<ClosedLearningRolloverResult> => orderPathEnabled ? rollover.runOnceAsync() : Promise.reject(new Error("PAPER_ORDER_PATH_OFF"));
 
   const readPaperPerformanceEvidence = (periodId: string): PaperPerformanceFromLedgerResult => {
     const normalized = periodId.trim();
@@ -366,6 +371,7 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     validation?: StrategyValidationSummary;
     votes: readonly CommitteeVote[];
   }>): PaperPerformanceGovernanceFeedbackReceipt => {
+    assertOrderPathEnabled();
     const ledgerPerformance = readPaperPerformanceEvidence(input.periodId);
     const adapted = adaptPersistedPaperForwardEvidence(baseHandle.listPaperRealizedPeriods());
     const candidate = adapted.candidates.find((item) => item.candidateId === ledgerPerformance.evidence.candidateId);
@@ -565,10 +571,14 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
 
   // Recovery/bootstrap must not wait for a human or app launch. The listener is already bound;
   // defer the first async tick one turn, then keep one serialized rollover poll.
-  initialTimer = setTimeout(scheduleTick, 0);
-  initialTimer.unref?.();
-  rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
-  rolloverTimer.unref?.();
+  // With the order path OFF there is no PAPER account to learn from: the closed-learning cycle (PAPER periods, bootstrap,
+  // rollover) is not scheduled. Market data, research collection and the read-only dashboard keep running.
+  if (orderPathEnabled) {
+    initialTimer = setTimeout(scheduleTick, 0);
+    initialTimer.unref?.();
+    rolloverTimer = setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS);
+    rolloverTimer.unref?.();
+  }
 
   return Object.freeze({
     handle,
