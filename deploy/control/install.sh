@@ -48,11 +48,15 @@ safe_dir() { # real directory, owned by root, not writable by group or others
 manifest_of() { ( cd "$1" && find . -type f ! -name install.sh -print0 | LC_ALL=C sort -z | xargs -0 sha256sum ); }
 manifest_hash() { manifest_of "$1" | sha256sum | cut -d' ' -f1; }
 no_symlinks_in() { [ -z "$(find "$1" -type l -print -quit)" ]; }
-# Orders must be OFF from EVERY environment source: exactly one NUSA_PAPER_ORDER_PATH line in the runtime env file and it is OFF,
+# Orders must be OFF from EVERY environment source: every NUSA_PAPER_ORDER_PATH mention in the runtime env file is exactly the OFF line,
 # the unit's own Environment and any drop-in do not set it. Used before the install and again before a rollback restarts anything.
 orders_off_everywhere() {
-  [ "$(grep -c '^NUSA_PAPER_ORDER_PATH=' "$R/etc/nusa/cloud-runtime.env")" = 1 ] || return 1
-  grep -qx 'NUSA_PAPER_ORDER_PATH=OFF' "$R/etc/nusa/cloud-runtime.env" || return 1
+  # The env file may repeat the OFF line (the real host has it twice); what matters is that EVERY line that mentions the switch,
+  # in any spelling (spaces, export, quotes, comments), is exactly NUSA_PAPER_ORDER_PATH=OFF, and at least one exists.
+  local mentions exact
+  mentions="$(grep -c 'NUSA_PAPER_ORDER_PATH' "$R/etc/nusa/cloud-runtime.env" || true)"
+  exact="$(grep -cx 'NUSA_PAPER_ORDER_PATH=OFF' "$R/etc/nusa/cloud-runtime.env" || true)"
+  [ "$mentions" -ge 1 ] && [ "$mentions" = "$exact" ] || return 1
   # Fail closed: every systemd query must SUCCEED and make sense; a failed or empty query is "not proven", never "OFF".
   local id env files line f
   id="$(sysctl show nusa.service -p Id --value 2>/dev/null)" || return 1

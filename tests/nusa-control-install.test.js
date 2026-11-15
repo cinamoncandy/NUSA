@@ -88,6 +88,10 @@ test("every precondition is enforced: a failing one fails the preflight, and --a
     ["a symlink is in the release tree", { symlinkInTree: true }, /FAIL  source tree has no symlinks/],
     ["orders are not explicitly OFF", { env: "NUSA_CLOUD_PORT=1\n" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set twice in the env file", { env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_PAPER_ORDER_PATH=ON\n" }, /FAIL  orders are OFF from every environment source/],
+    ["ON first, OFF later", { env: "NUSA_PAPER_ORDER_PATH=ON\nNUSA_PAPER_ORDER_PATH=OFF\n" }, /FAIL  orders are OFF from every environment source/],
+    ["an indented ON line after OFF", { env: "NUSA_PAPER_ORDER_PATH=OFF\n  NUSA_PAPER_ORDER_PATH=ON\n" }, /FAIL  orders are OFF from every environment source/],
+    ["an export ON line after OFF", { env: "NUSA_PAPER_ORDER_PATH=OFF\nexport NUSA_PAPER_ORDER_PATH=ON\n" }, /FAIL  orders are OFF from every environment source/],
+    ["a quoted ON line after OFF", { env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_PAPER_ORDER_PATH=\"ON\"\n" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set in a unit drop-in", { dropinOrders: true }, /FAIL  orders are OFF from every environment source/],
     ["the unit file cannot be searched (missing unit file: grep error is not OFF)", { noUnitFile: true }, /FAIL  orders are OFF from every environment source/],
     ["a drop-in is unreadable (a directory where a file is expected)", { dropinDir: true }, /FAIL  orders are OFF from every environment source/],
@@ -127,6 +131,12 @@ test("both systemd output shapes for EnvironmentFiles are accepted (one line, or
     const r = w.run(w.hash); assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.equal(w.run(w.hash, "--apply").status, 0); assert.equal(w.run("--rollback").status, 0);
   }
+});
+
+test("the real host's env file repeats the OFF line twice: that passes (every mention is exactly OFF), apply and rollback work", posixOnly, () => {
+  const w = world({ env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_CLOUD_PORT=1\nNUSA_PAPER_ORDER_PATH=OFF\n" });
+  const r = w.run(w.hash); assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(w.run(w.hash, "--apply").status, 0); assert.equal(w.run("--rollback").status, 0);
 });
 
 test("the test root is refused unless the test flag is set (a stray variable cannot redirect a root install)", posixOnly, () => {
