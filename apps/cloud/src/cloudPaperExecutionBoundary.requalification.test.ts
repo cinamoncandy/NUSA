@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-const EXPECTED_EXECUTION_BLOB = "ad2c58a998be4ed63839e1e77f5fadea54779564";
+const EXPECTED_EXECUTION_BLOB = "75c0985dca17eadc6c49138808bf8fba6c78923e";
 
 function gitBlobSha(content: string): string {
   const normalized = content.replace(/\r\n/g, "\n");
@@ -31,6 +31,9 @@ describe("EXECUTION exact-source re-qualification evidence", () => {
     assert.match(source, /validatePaperObservedExecutionDepth/);
     assert.match(source, /this\.executionQuoteFailure\(tick\)/);
     assert.match(source, /automaticPaperConfidenceAllowsAction\(decision\.confidence\)/);
+    assert.match(source, /tradePermissionAuthority: PaperTradePermissionAuthority/);
+    assert.equal(source.split("refusePaperTradePermission(this.options.tradePermissionAuthority").length - 1, 2);
+    assert.match(source, /PAPER_TRADE_PERMISSION|refusePaperTradePermission/);
     assert.doesNotMatch(source, /quantity = state\.cash \* investmentPercent/);
   });
 });

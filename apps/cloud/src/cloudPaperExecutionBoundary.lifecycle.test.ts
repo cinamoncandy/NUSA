@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { acceptingPaperTradePermissionAuthority } from "./testing/paperTradePermissionTestKit";
 import { describe, it } from "node:test";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
 import { PaperTradingExecutionLoop } from "./paperTradingExecutionLoop";
@@ -19,7 +20,7 @@ describe("Cloud PAPER working-order risk boundary", () => {
     it(`${status} prevents working fill and cancel mutations`, () => {
       const loop = new PaperTradingExecutionLoop({ initialCapital: 1_000_000 });
       let riskStatus: "ALLOW" | "REJECT" | "HALT" = "ALLOW";
-      const boundary = new CloudPaperExecutionBoundary({
+      const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
         loop,
         riskGate: { evaluate: () => ({ status: riskStatus, reasonCodes: riskStatus === "ALLOW" ? [] : ["TEST_BLOCK"] }) },
         readP0State: () => ({ openP0: false }),

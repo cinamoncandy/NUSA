@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { acceptingPaperTradePermissionAuthority } from "./testing/paperTradePermissionTestKit";
 import { describe, it } from "node:test";
 import { SqliteDatabase } from "../../../packages/storage/src/index";
 import type { PersonalPaperOrderCommand } from "../../../packages/contracts/src/personalPaperOrderCommand";
@@ -47,7 +48,7 @@ function withRealBoundary<T>(run: (boundary: CloudPaperExecutionBoundary, loop: 
   const db = new SqliteDatabase(":memory:");
   try {
     const loop = new PaperTradingExecutionLoop({ initialCapital: capital });
-    const boundary = new CloudPaperExecutionBoundary({
+    const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
       loop,
       riskGate: new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: capital, sourceCommitSha: "execution-behaviour" }),
       readP0State: () => ({ openP0: false }),
@@ -109,7 +110,7 @@ describe("EXECUTION receives only approved orders (behaviour, real risk gateway)
     const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000 });
     const db = new SqliteDatabase(":memory:");
     try {
-      const boundary = new CloudPaperExecutionBoundary({
+      const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
         loop,
         riskGate: new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 10_000_000, sourceCommitSha: "p0" }),
         readP0State: () => ({ openP0: true }),

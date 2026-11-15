@@ -11,11 +11,17 @@ import { validatePaperCandidateExecutionBinding } from "./cioDecisionEngine";
 import { buildPaperExecutionIntent, UPBIT_KRW_MINIMUM_ORDER_KRW, paperExecutionIntentCommandId, validatePaperExecutionIntent } from "./paperExecutionIntent";
 import { PaperRuntimeExecutionCostEvidenceError, validatePaperObservedExecutionDepth, validatePaperObservedExecutionQuote } from "./paperRuntimeExecutionCostEvidence";
 import { automaticPaperConfidenceAllowsAction } from "./automaticPaperExecutionPolicy";
+import { refusePaperTradePermission, type PaperTradePermissionAuthority } from "./paperTradePermissionGuard";
 
 export interface CloudPaperExecutionBoundaryOptions {
   readonly loop: PaperTradingExecutionLoop;
   readonly riskGate: CloudPaperRiskGate;
   readonly readP0State: () => Readonly<{ openP0: boolean }>;
+  /**
+   * Canonical TradePermission source (#3108). Required: a strategy order, new or continued, reaches the simulator only
+   * with an unexpired PERMIT bound to its intent. Use NO_PAPER_TRADE_PERMISSION_AUTHORITY when no producer exists.
+   */
+  readonly tradePermissionAuthority: PaperTradePermissionAuthority;
   readonly maximumMarketAgeMs?: number;
 }
 
@@ -179,6 +185,8 @@ export class CloudPaperExecutionBoundary {
       }
       const quoteFailure = this.executionQuoteFailure(tick);
       if (quoteFailure != null) return quoteFailure;
+      const continuationPermitRefusal = refusePaperTradePermission(this.options.tradePermissionAuthority, { decisionId: paperExecutionIntentCommandId(intent), strategyId: intent.candidateId, market: intent.market }, tick.now);
+      if (continuationPermitRefusal != null) return this.blocked(continuationPermitRefusal);
       const continuationCommandId = `${working.idempotencyKey}:continue:${working.lifecycle.transitionSequence + 1}`;
       const risk = this.options.riskGate.evaluate({
         path: "STRATEGY",
@@ -282,6 +290,9 @@ export class CloudPaperExecutionBoundary {
     const quoteFailure = this.executionQuoteFailure(tick);
     if (quoteFailure != null) return quoteFailure;
     const commandId = paperExecutionIntentCommandId(executionIntent);
+    // Canonical TradePermission (#3108): refused before the risk gate and the simulator are touched.
+    const permitRefusal = refusePaperTradePermission(this.options.tradePermissionAuthority, { decisionId: commandId, strategyId: executionIntent.candidateId, market: executionIntent.market }, tick.now);
+    if (permitRefusal != null) return this.blocked(permitRefusal);
     const risk = this.options.riskGate.evaluate({
       path: "STRATEGY",
       commandId,

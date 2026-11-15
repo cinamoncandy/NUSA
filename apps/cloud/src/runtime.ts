@@ -16,6 +16,7 @@ import { configurePaperExitOrderNotionalCap } from "./paperExecutionIntent";
 import { attributeTodayLosses, type PaperLossAttribution } from "./paperLossAttribution";
 import { classifyPaperWait } from "./paperWaitReason";
 import { CloudPaperExecutionBoundary } from "./cloudPaperExecutionBoundary";
+import { NO_PAPER_TRADE_PERMISSION_AUTHORITY, type PaperTradePermissionAuthority } from "./paperTradePermissionGuard";
 import { SqliteP0AlertRepository } from "./p0AlertRepository";
 import fs from "node:fs";
 import path from "node:path";
@@ -231,6 +232,8 @@ export interface CloudRuntimeOptions {
   readonly deferPaperRuntimeStart?: boolean;
   readonly deferResearchRecovery?: boolean;
   readonly researchRollingHoldout?: Parameters<typeof startCloudRuntime>[22];
+  /** Canonical TradePermission source for strategy orders (#3108). Omitted in production: no permit exists, so no strategy order is created. */
+  readonly tradePermissionAuthority?: PaperTradePermissionAuthority;
 }
 
 /** Same runtime as startCloudRuntime; undefined options take the same defaults. */
@@ -259,6 +262,7 @@ export function startCloudRuntimeFromOptions(options: CloudRuntimeOptions): Clou
     options.deferPaperRuntimeStart,
     options.deferResearchRecovery,
     options.researchRollingHoldout,
+    options.tradePermissionAuthority,
   );
 }
 
@@ -291,7 +295,9 @@ export function startCloudRuntime(
   deferPaperRuntimeStart?: boolean,
   deferResearchRecovery?: boolean,
   /** Display-only SHADOW rolling-holdout summaries keyed by bar length; empty or null unless the mode is SHADOW. */
-  researchRollingHoldout?: () => Readonly<Record<string, object>> | null
+  researchRollingHoldout?: () => Readonly<Record<string, object>> | null,
+  /** Canonical TradePermission source for strategy orders (#3108); the default has no permit, so no strategy order is created. */
+  tradePermissionAuthority: PaperTradePermissionAuthority = NO_PAPER_TRADE_PERMISSION_AUTHORITY
 ): CloudRuntimeHandle {
   const config = readCloudRuntimeConfig(env);
   const paperSupervisor = readPaperRuntimeSupervisorProjection(env);
@@ -533,7 +539,7 @@ export function startCloudRuntime(
     effectivePaperRepository?.startWriterLease?.();
     effectivePaperLoop = paperExecutionLoop ?? (config.paperInitialCapitalKrw === undefined || effectivePaperRepository === undefined ? undefined : new PaperTradingExecutionLoop({ initialCapital: config.paperInitialCapitalKrw, repository: effectivePaperRepository, readP0State: readPaperP0State }));
     productionPaperBoundary = effectivePaperLoop != null && productionPaperRiskGate != null
-      ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State })
+      ? new CloudPaperExecutionBoundary({ loop: effectivePaperLoop, riskGate: productionPaperRiskGate, readP0State: readPaperP0State, tradePermissionAuthority })
       : undefined;
     paperRuntimeStarted = true;
   };

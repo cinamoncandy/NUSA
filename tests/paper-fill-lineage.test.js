@@ -3,6 +3,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
+const { acceptingPaperTradePermissionAuthority } = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 const { validatePaperExecutionIntent, paperExecutionIntentCommandId } = require("../dist/apps/cloud/src/paperExecutionIntent.js");
 const { bindPaperCandidateForExecution } = require("../dist/packages/contracts/src/paperCandidateExecutionBinding.js");
 
@@ -60,7 +61,7 @@ const tick = Object.freeze({ observedQuote, now: 2_000, market: "KRW-BTC", price
 function fillThroughBoundary() {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }) });
   const riskGate = { evaluate: () => Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }) };
-  const boundary = new CloudPaperExecutionBoundary({ loop, riskGate, readP0State: () => ({ openP0: false }) });
+  const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(), loop, riskGate, readP0State: () => ({ openP0: false }) });
   const result = boundary.processTick(tick);
   return { result, state: loop.snapshot() };
 }
@@ -100,7 +101,7 @@ test("the same decision leads forward to exactly one order, one fill and a consu
 
 test("replaying the identical tick does not create a second order or fill", () => {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }) });
-  const boundary = new CloudPaperExecutionBoundary({ loop, riskGate: { evaluate: () => Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }) }, readP0State: () => ({ openP0: false }) });
+  const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(), loop, riskGate: { evaluate: () => Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }) }, readP0State: () => ({ openP0: false }) });
   boundary.processTick(tick);
   const before = loop.snapshot();
   const replay = boundary.processTick(tick);

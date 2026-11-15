@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
+const { startCloudRuntime, startCloudRuntimeFromOptions } = require("../dist/apps/cloud/src/runtime.js");
+const { acceptingPaperTradePermissionAuthority } = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 const { CloudRuntimeDashboardHydrator } = require("../dist/apps/cloud/src/cloudRuntimeDashboardHydrator.js");
 
 // Decision-driven proof for NUSA_PAPER_ORDER_PATH (WO-OPS-20261114-ORDER-PATH-SWITCH, runbook precondition for Stage A).
@@ -150,13 +151,13 @@ async function loadOperations(port, token) {
 }
 
 
-async function runWith(overrides, port, label) {
+async function runWith(overrides, port, label, tradePermissionAuthority) {
   const token = ["order-path", label, "e2e", "fixture", "padding-to-reach-the-minimum-length"].join("-");
   const { directory, filename } = tempDbPath();
   let handle;
   try {
     const capture = capturingFactory();
-    handle = startCloudRuntime(testEnv(token, port, filename, overrides), undefined, candidateBoundDashboardHydrator(), capture.factory);
+    handle = startCloudRuntimeFromOptions({ env: testEnv(token, port, filename, overrides), dashboardHydrator: candidateBoundDashboardHydrator(), marketDataClientFactory: capture.factory, ...(tradePermissionAuthority ? { tradePermissionAuthority } : {}) });
     await capture.fire(buyTicker());
     const snapshot = await loadOperations(port, token);
     // A missing field is a failure, never an empty list: the projection must be observable in every run.
@@ -172,10 +173,21 @@ async function runWith(overrides, port, label) {
 }
 
 test("control: with the order path ON a BUY decision produces a FILL (the harness can see an order)", async () => {
-  const run = await runWith({ NUSA_PAPER_ORDER_PATH: "ON" }, 41_981, "on");
+  const run = await runWith({ NUSA_PAPER_ORDER_PATH: "ON" }, 41_981, "on", acceptingPaperTradePermissionAuthority());
   assert.equal(run.snapshot.operations?.pipelineStage, "PAPER_EXECUTION_LOOP");
   assert.ok(run.stages.includes("DECISION"));
   assert.ok(run.stages.includes("FILL"), `control must fill, got ${run.stages.join(",")}`);
+});
+
+test("#3108: with the order path ON and NO canonical permit authority (the production default) a BUY decision produces no order and no fill, and the refusal is recorded", async () => {
+  const run = await runWith({ NUSA_PAPER_ORDER_PATH: "ON" }, 41_987, "on-nopermit");
+  assert.equal(run.snapshot.operations?.pipelineStage, "PAPER_EXECUTION_LOOP", "the execution loop exists; only the permit is missing");
+  assert.ok(run.stages.includes("DECISION"));
+  assert.ok(!run.stages.includes("FILL"), `no FILL without a permit, got ${run.stages.join(",")}`);
+  assert.equal(run.snapshot.orders.length, 0, "no order exists without a permit");
+  const intents = run.events.filter((event) => event.stage === "ORDER_INTENT");
+  assert.ok(intents.every((event) => event.status !== "PASS"), "no passing ORDER_INTENT without a permit");
+  assert.ok(intents.some((event) => /PAPER_TRADE_PERMISSION_ABSENT/.test(JSON.stringify(event))), `the refusal evidence must be recorded, got ${JSON.stringify(intents)}`);
 });
 
 test("a BUY decision with the order path OFF produces no order, no fill and no order intent, while the read-only dashboard and market data continue", async () => {

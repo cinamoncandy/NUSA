@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { startCloudRuntime } = require("../dist/apps/cloud/src/runtime.js");
+const { startCloudRuntime, startCloudRuntimeFromOptions } = require("../dist/apps/cloud/src/runtime.js");
+const { acceptingPaperTradePermissionAuthority } = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 const { CloudRuntimeDashboardHydrator } = require("../dist/apps/cloud/src/cloudRuntimeDashboardHydrator.js");
 
 const principal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
@@ -155,7 +156,7 @@ test("#755: a deterministic PAPER cycle exposes MARKET_DATA -> DECISION -> ... -
   let handle;
   try {
     const capture = capturingFactory();
-    handle = startCloudRuntime(testEnv(token, port, filename), undefined, candidateBoundDashboardHydrator(), capture.factory);
+    handle = startCloudRuntimeFromOptions({ env: testEnv(token, port, filename), dashboardHydrator: candidateBoundDashboardHydrator(), marketDataClientFactory: capture.factory, tradePermissionAuthority: acceptingPaperTradePermissionAuthority() });
     await capture.fire(buyTicker());
 
     const first = await loadOperations(port, token);
@@ -184,7 +185,7 @@ test("#755: a deterministic PAPER cycle exposes MARKET_DATA -> DECISION -> ... -
     // Restart against the same durable state with public ingestion paused: no new tick can occur,
     // so an identical, deduplicated timeline is the only correct outcome (acceptance: "restart/replay
     // 동일, dedupe PASS").
-    handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false" }), undefined, candidateBoundDashboardHydrator(), capturingFactory().factory);
+    handle = startCloudRuntimeFromOptions({ env: testEnv(token, port, filename, { NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false" }), dashboardHydrator: candidateBoundDashboardHydrator(), marketDataClientFactory: capturingFactory().factory, tradePermissionAuthority: acceptingPaperTradePermissionAuthority() });
     const second = await loadOperations(port, token);
     const secondIds = second.paperLearning.events.map((event) => event.id).sort();
     assert.deepEqual(secondIds, firstIds);
@@ -207,7 +208,7 @@ test("#661: a rejected PAPER trade exposes its real gate rejection reason throug
   let handle;
   try {
     const capture = capturingFactory();
-    handle = startCloudRuntime(testEnv(token, port, filename, { NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "0" }), undefined, candidateBoundDashboardHydrator(), capture.factory);
+    handle = startCloudRuntimeFromOptions({ env: testEnv(token, port, filename, { NUSA_CLOUD_PAPER_INVESTMENT_PERCENT: "0" }), dashboardHydrator: candidateBoundDashboardHydrator(), marketDataClientFactory: capture.factory, tradePermissionAuthority: acceptingPaperTradePermissionAuthority() });
     await capture.fire(buyTicker());
 
     const snapshot = await loadOperations(port, token);

@@ -12,6 +12,7 @@ const { upbitTickerToIntelligenceObservation } = require("../dist/apps/cloud/src
 const { SqliteCloudPaperAccountRepository, PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperCanonicalRiskGateway } = require("../dist/apps/cloud/src/cloudPaperCanonicalRiskGateway.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
+const { acceptingPaperTradePermissionAuthority } = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 
 const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 const principal = Object.freeze({ userId: "operator", scopes: Object.freeze(["dashboard:read"]) });
@@ -69,7 +70,7 @@ function createHarness() {
   const repository = new SqliteCloudPaperAccountRepository(db, { now: () => now });
   const loop = new PaperTradingExecutionLoop({ initialCapital: 100_000, repository, readP0State: () => ({ openP0 }) });
   const risk = new CloudPaperCanonicalRiskGateway({ database: db, initialCapital: 100_000, sourceCommitSha: "a".repeat(40) });
-  const boundary = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0 }) });
+  const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(), loop, riskGate: risk, readP0State: () => ({ openP0 }) });
 
   // Mirror startCloudRuntime bootstrap: the dashboard hydrates fail-closed first, then the
   // canonical PAPER account is projected so the first real market observation has deployable capital.
@@ -329,7 +330,7 @@ test("production PAPER path fails closed for stale data, kill switch, P0 uncerta
     assert.deepEqual(harness.loop.snapshot(), baseline);
     harness.setP0(false);
 
-    const uncertainBoundary = new CloudPaperExecutionBoundary({
+    const uncertainBoundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
       loop: harness.loop,
       riskGate: harness.risk,
       readP0State: () => { throw new Error("P0 unavailable"); }

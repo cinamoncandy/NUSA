@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
+const { acceptingPaperTradePermissionAuthority } = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 
 const genericDecision = Object.freeze({
@@ -103,7 +104,7 @@ function build(status, loopOptions = {}) {
       return Object.freeze({ status, reasonCodes: Object.freeze(status === "ALLOW" ? [] : [status === "HALT" ? "KILL_SWITCH_ACTIVE" : "MAX_ORDER_NOTIONAL"]) });
     }
   };
-  const boundary = new CloudPaperExecutionBoundary({ loop, riskGate, readP0State: () => ({ openP0: false }) });
+  const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(), loop, riskGate, readP0State: () => ({ openP0: false }) });
   return { loop, boundary, evaluations: () => evaluations, lastRiskRequest: () => lastRiskRequest };
 }
 
@@ -299,7 +300,7 @@ test("canonical strategy order carries orderbook-liquidity remainder across tick
     readP0State: () => ({ openP0: false })
   });
   let restoredEvaluations = 0;
-  const restoredBoundary = new CloudPaperExecutionBoundary({
+  const restoredBoundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
     loop: restoredLoop,
     riskGate: { evaluate() { restoredEvaluations += 1; return Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }); } },
     readP0State: () => ({ openP0: false })
@@ -342,7 +343,7 @@ test("strategy latency is restart-safe and continuation is risk checked again", 
   const restoredState = structuredClone(loop.snapshot());
   let restoredEvaluations = 0;
   const restoredLoop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, latencyTicks: 1, restoredState, readP0State: () => ({ openP0: false }) });
-  const restoredBoundary = new CloudPaperExecutionBoundary({
+  const restoredBoundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
     loop: restoredLoop,
     riskGate: { evaluate() { restoredEvaluations += 1; return Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }); } },
     readP0State: () => ({ openP0: false })
@@ -414,7 +415,7 @@ test("automatic strategy approval rejects non-spot or high-risk challenger mutat
 test("P0 uncertainty fails closed before risk evaluation and before mutation", () => {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0 });
   let evaluations = 0;
-  const boundary = new CloudPaperExecutionBoundary({
+  const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(),
     loop,
     riskGate: { evaluate() { evaluations += 1; return { status: "ALLOW", reasonCodes: [] }; } },
     readP0State: () => { throw new Error("unavailable"); }
@@ -533,7 +534,7 @@ test("restored working order cannot fill without a quote, then completes with im
   assert.equal(first.fills[0].runtimeExecutionCostEvidence, undefined);
   const restored = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, maxFillRatio: 0.5, restoredState: structuredClone(original.loop.snapshot()), readP0State: () => ({ openP0: false }) });
   let riskCalls = 0;
-  const boundary = new CloudPaperExecutionBoundary({ loop: restored, riskGate: { evaluate() { riskCalls += 1; return { status: "ALLOW", reasonCodes: [] }; } }, readP0State: () => ({ openP0: false }) });
+  const boundary = new CloudPaperExecutionBoundary({ tradePermissionAuthority: acceptingPaperTradePermissionAuthority(), loop: restored, riskGate: { evaluate() { riskCalls += 1; return { status: "ALLOW", reasonCodes: [] }; } }, readP0State: () => ({ openP0: false }) });
   const before = structuredClone(restored.snapshot());
   const continuation = { ...tick, now: 2_100, observedQuote: continuationQuote, observedAt: 2_050, decisions: [] };
   for (let replay = 0; replay < 2; replay += 1) {
