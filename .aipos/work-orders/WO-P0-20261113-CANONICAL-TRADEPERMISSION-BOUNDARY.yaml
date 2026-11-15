@@ -1,0 +1,29 @@
+id: WO-P0-20261113-CANONICAL-TRADEPERMISSION-BOUNDARY
+title: "Canonical TradePermission: a strategy order reaches the PAPER simulator only with an unexpired PERMIT (fail closed)"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/permit-fix-3108
+issue: "https://github.com/cinamoncandy/NUSA/issues/3108"
+owner_decision: "2026-11-16 (owner message 'A로 진행해'): lift the BLOCKED_WIP_UNKNOWN no-go of issue 3108 for this one change, because the Coordinator evidence source is being removed (Cloudflare removal) and the change only adds a refusal. This is a draft PR with an independent non-author review, exact-head CI, Audit and a separate release authorization. It does NOT approve turning orders on, a release, or any host action. The WIP/Lease source is still unknown and is not claimed."
+objective: "Risk ALLOW alone must not let a strategy order reach the PAPER simulator. Both strategy paths of CloudPaperExecutionBoundary (create a new order via loop.processTick, continue a working order via loop.advanceStrategyWorkingOrder) now require the latest canonical permission to be an unexpired PERMIT bound to the same intent identity (paperExecutionIntentCommandId), candidate (strategy), market, policy version and probability-model version, with complete gate evidence."
+change:
+  - "apps/cloud/src/paperTradePermissionGuard.ts (new): the check refusePaperTradePermission and the authority interface. Refusal codes: PAPER_TRADE_PERMISSION_ABSENT, NOT_PERMIT, MISMATCH, EVIDENCE_INCOMPLETE, INVALID_TIME, EXPIRED, UNVERIFIABLE. NO_PAPER_TRADE_PERMISSION_AUTHORITY never has a permit. Evidence must list every one of the 14 canonical gates as passed, none failed, with at least one evidence reference."
+  - "apps/cloud/src/cloudPaperExecutionBoundary.ts: new REQUIRED option tradePermissionAuthority; the check runs before the risk gate and before the simulator on both strategy paths, so a refusal has no side effect (no order, fill, ledger write, progression, risk command). Risk-reducing cancels (superseded binding, sub-minimum BUY) and the manual order paths are unchanged."
+  - "apps/cloud/src/runtime.ts: optional tradePermissionAuthority (default NO_PAPER_TRADE_PERMISSION_AUTHORITY). No producer of permits exists in production, so with the order path ON a strategy order is refused with PAPER_TRADE_PERMISSION_ABSENT and the refusal is recorded as the ORDER_INTENT evidence; nothing is created."
+  - "apps/cloud/src/testing/paperTradePermissionTestKit.ts: TEST ONLY helper that builds permits with the real engine (evaluateTradePermission). A source test pins that no production source imports it."
+  - "apps/cloud/src/moduleQualificationV1.ts and cloudPaperExecutionBoundary.requalification.test.ts: the EXECUTION source blob is rebound to the new boundary source (same practice as the earlier depth-guard rebinding); the requalification test also pins the two permit calls."
+  - "tests/paper-trade-permission-enforcement.test.js (24 tests): 19 refusal cases on the new-order path (no authority, authority missing, throws, no permit, empty versions, REJECT by governance and by kill switch, expired, expires exactly now, future-dated, other decision/strategy/market/policy/model, no evidence, a gate missing, a failed gate on a PERMIT, a gate not passed) each with the risk gate not called and the state unchanged; the positive path with the query identity; the continuation path refused on every tick for 8 failure kinds with the working order and ledger untouched, then filled with a valid permit; cancel of a superseded order needs no permit; the pure check; source order checks. Mutation checks: removing either call, ignoring strategy, policy, model, decision or market, using < instead of <= for expiry, dropping the PERMIT check each fail tests."
+  - "Existing boundary tests, the runtime e2e tests and the lifecycle tests now pass the accepting test authority where they exercise the real order path; tests/cloud-runtime-order-path-switch-e2e.test.js gains the no-permit case with the recorded refusal."
+not_changed:
+  - "No risk limit, threshold, capital, fill accounting, governance gate or authority limit. The order switch default (OFF) and run modes are untouched. No host action, release or deployment. No synthetic permit exists in production code."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test (from dist/) tests/paper-trade-permission-enforcement.test.js, the boundary, e2e, lineage, restart, lifecycle, requalification and module10XS tests pass; platform-independence, portability and AIPOS validators pass. Not run here: pnpm run preflight and validate:full (Node 24, left to CI)."
+unverified: "No producer of canonical permits exists yet, so the positive path is proven only with permits made by the real engine in tests. Stage B (orders ON) still needs a producer or an owner decision on how permits are produced, a release, and a fresh written owner approval."
+acceptance:
+  - "Draft until the non-author review is done; exact-head CI; Audit; separate release authorization; no restart or release merely because CI passes."
