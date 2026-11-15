@@ -411,6 +411,38 @@ prove_post_activation_stability() {
   printf '%s\n' "nusa-release-step: ${POST_ACTIVATION_SOAK_SECONDS}s stability soak passed for $expected_sha"
 }
 
+# The value systemd will give the service for NUSA_PAPER_ORDER_PATH, read WITHOUT executing the env file and failing closed on anything systemd and a
+# shell could read differently. systemd's EnvironmentFile= is not a shell: a leading `export` makes the line invalid and it is IGNORED (the variable
+# stays unset, which the runtime reads as ON), quotes may span lines, a trailing backslash continues a line, `#` and `;` start comments and later
+# assignments win. So the file is accepted only if it has no carriage return, no line ending in a backslash and no line with an odd number of quotes,
+# and every non-comment line that mentions the variable is exactly `NUSA_PAPER_ORDER_PATH=<letters, digits, underscore>`. Prints the LAST such value.
+runtime_order_path_value() {
+  local file="$1" mentions last
+  [ -r "$file" ] || { printf '%s\n' "cannot read ${file}" >&2; return 1; }
+  if grep -q "$(printf '\r')" "$file"; then printf '%s\n' "${file} has a carriage return" >&2; return 1; fi
+  if grep -qE '\\$' "$file"; then printf '%s\n' "${file} has a line continuation (backslash at the end of a line)" >&2; return 1; fi
+  if ! awk '{ d = gsub(/"/, "&"); q = gsub(/\047/, "&"); if ((d % 2) || (q % 2)) bad = 1 } END { exit bad ? 1 : 0 }' "$file"; then
+    printf '%s\n' "${file} has a line with an unbalanced quote" >&2; return 1
+  fi
+  mentions="$(grep -F 'NUSA_PAPER_ORDER_PATH' "$file" | grep -vE '^[#;]' || true)"
+  [ -n "$mentions" ] || { printf '%s\n' "NUSA_PAPER_ORDER_PATH is not set in ${file}" >&2; return 1; }
+  if printf '%s\n' "$mentions" | grep -qvE '^NUSA_PAPER_ORDER_PATH=[A-Za-z0-9_]*$'; then
+    printf '%s\n' "a line mentioning NUSA_PAPER_ORDER_PATH in ${file} is not exactly NUSA_PAPER_ORDER_PATH=VALUE" >&2; return 1
+  fi
+  last="$(printf '%s\n' "$mentions" | tail -n 1)"
+  printf '%s' "${last#NUSA_PAPER_ORDER_PATH=}"
+}
+
+# The unit must read exactly the one env file the check parsed and set the variable nowhere else (a later EnvironmentFile= or an Environment= line
+# in the unit or a drop-in could override it).
+assert_unit_env_sources() {
+  local files environment
+  files="$(systemctl show "$SERVICE" -p EnvironmentFiles --value 2>/dev/null)" || die "refusing to start: cannot read the unit EnvironmentFiles"
+  [ "$files" = "${RUNTIME_ENV} (ignore_errors=no)" ] || die "refusing to start: the unit must read exactly ${RUNTIME_ENV} (ignore_errors=no); got '${files}'"
+  environment="$(systemctl show "$SERVICE" -p Environment --value 2>/dev/null)" || die "refusing to start: cannot read the unit Environment"
+  case "$environment" in *NUSA_PAPER_ORDER_PATH*) die "refusing to start: the unit or a drop-in sets NUSA_PAPER_ORDER_PATH in Environment=";; esac
+}
+
 verb="${1:-}"
 shift || true
 
@@ -564,10 +596,11 @@ case "$verb" in
 
   start)
     acquire_paper_activation_lock
-    # Fail closed. Collection-only is the only mode this verb can start: the order path must be explicitly OFF in the runtime env. Any other value,
-    # an unset variable or an unreadable env file refuses to start, so this verb can never bring up the PAPER order path (Stage B needs its own approval).
-    [ -r "$RUNTIME_ENV" ] || die "refusing to start: ${RUNTIME_ENV} is not readable"
-    order_path="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_PAPER_ORDER_PATH:-}")" || die "refusing to start: could not read ${RUNTIME_ENV}"
+    # Fail closed. Collection-only is the only mode this verb can start: the order path must be explicitly OFF in the one env file the unit reads, read
+    # the way systemd reads it (see runtime_order_path_value). Any other value, an unset variable, an ambiguous file or an extra env source refuses
+    # to start, so this verb can never bring up the PAPER order path (Stage B needs its own approval).
+    assert_unit_env_sources
+    order_path="$(runtime_order_path_value "$RUNTIME_ENV")" || die "refusing to start: the order-path switch in ${RUNTIME_ENV} cannot be read unambiguously"
     [ "$order_path" = "OFF" ] || die "refusing to start: NUSA_PAPER_ORDER_PATH must be exactly OFF in ${RUNTIME_ENV} (collection only); got '${order_path:-unset}'"
     current="$(active_release)"
     [ -n "$current" ] && [ -d "$current" ] || die "refusing to start: there is no active release"

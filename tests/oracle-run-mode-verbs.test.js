@@ -45,13 +45,15 @@ test("the unknown-verb message lists stop and start", () => {
 });
 
 /** A temporary host layout with a stub systemctl, and a copy of the helper whose host paths point into it. */
-function layout({ env, withCurrent = true, active = false } = {}) {
+function layout({ env, withCurrent = true, active = false, unitFiles, unitEnvironment = "HOME=/var/lib/nusa" } = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-runmode-"));
   const releaseSha = "3".repeat(40);
   fs.mkdirSync(path.join(base, "releases", releaseSha), { recursive: true });
   if (withCurrent) fs.symlinkSync(path.join(base, "releases", releaseSha), path.join(base, "current"));
   const envFile = path.join(base, "cloud-runtime.env");
   if (env !== undefined) fs.writeFileSync(envFile, env);
+  if (typeof unitFiles === "function") unitFiles = unitFiles(envFile);
+  if (unitFiles === undefined) unitFiles = `${envFile} (ignore_errors=no)`;
   const bin = path.join(base, "bin");
   fs.mkdirSync(bin);
   const calls = path.join(base, "systemctl-calls");
@@ -62,6 +64,7 @@ function layout({ env, withCurrent = true, active = false } = {}) {
     `echo "$@" >> "${calls}"`,
     'case "$1" in',
     `  is-active) s=$(cat "${state}"); q=0; for a in "$@"; do [ "$a" = --quiet ] && q=1; done; if [ "$s" = active ]; then [ $q = 1 ] || echo active; exit 0; else [ $q = 1 ] || echo inactive; exit 3; fi ;;`,
+    `  show) case "$*" in *EnvironmentFiles*) printf '%s\\n' "${unitFiles}" ;; *Environment*) printf '%s\\n' "${unitEnvironment}" ;; *) exit 99 ;; esac; exit 0 ;;`,
     `  start) echo active > "${state}" ;;`,
     `  stop) echo inactive > "${state}" ;;`,
     "  *) echo \"UNEXPECTED systemctl $*\" >&2; exit 99 ;;",
@@ -150,3 +153,59 @@ test("start REFUSES when the env file is missing or there is no active release",
     }
   } finally { noEnv.cleanup(); noRelease.cleanup(); }
 });
+
+// The review of PR #3136 (P0): the first version read the env file with a shell `source`, but the unit reads it with systemd's EnvironmentFile=, which is NOT a
+// shell. The dangerous direction is a file a shell reads as OFF while systemd leaves the variable unset (the runtime reads unset as ON). Every shape that the two
+// could read differently must refuse.
+for (const [name, env] of [
+  ["a leading export (systemd ignores the line, the variable stays unset = ON)", "export NUSA_PAPER_ORDER_PATH=OFF\n"],
+  ["a double-quoted value", 'NUSA_PAPER_ORDER_PATH="OFF"\n'],
+  ["a single-quoted value", "NUSA_PAPER_ORDER_PATH='OFF'\n"],
+  ["an inline comment", "NUSA_PAPER_ORDER_PATH=OFF # collection only\n"],
+  ["a leading space", " NUSA_PAPER_ORDER_PATH=OFF\n"],
+  ["spaces around the equals sign", "NUSA_PAPER_ORDER_PATH = OFF\n"],
+  ["a trailing semicolon", "NUSA_PAPER_ORDER_PATH=OFF;\n"],
+  ["a CRLF line ending", "NUSA_PAPER_ORDER_PATH=OFF\r\n"],
+  ["a line continuation hiding the real assignment", "FOO=abc\\\nNUSA_PAPER_ORDER_PATH=OFF\n"],
+  ["an unbalanced quote that swallows the next lines", 'FOO="abc\nNUSA_PAPER_ORDER_PATH=OFF\nBAR="\n'],
+  ["a second, ambiguous mention after a good OFF", "NUSA_PAPER_ORDER_PATH=OFF\nexport NUSA_PAPER_ORDER_PATH=ON\n"],
+  ["a mention inside another variable", "X=NUSA_PAPER_ORDER_PATH=OFF\n"],
+]) {
+  test(`start REFUSES: the env file has ${name}`, posixOnly, () => {
+    const l = layout({ env });
+    try {
+      const r = l.run("start");
+      assert.notEqual(r.status, 0, "must fail closed");
+      assert.match(r.stderr, /refusing to start/);
+      assert.equal(l.calledWith().some((c) => c.startsWith("start")), false, "systemctl start must not be called");
+    } finally { l.cleanup(); }
+  });
+}
+
+test("start still accepts a normal env file: comments, other variables, a later OFF after an earlier ON, and never executes the file", posixOnly, () => {
+  const marker = path.join(os.tmpdir(), `nusa-runmode-pwned-${process.pid}`);
+  fs.rmSync(marker, { force: true });
+  const l = layout({ env: `# NUSA_PAPER_ORDER_PATH=ON is a comment\nNUSA_CLOUD_DASHBOARD_TOKEN=abc123\nX=$(touch ${marker})\nNUSA_PAPER_ORDER_PATH=ON\n;NUSA_PAPER_ORDER_PATH=ON\nNUSA_PAPER_ORDER_PATH=OFF\n` });
+  try {
+    const r = l.run("start");
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.existsSync(marker), false, "the env file must never be executed");
+  } finally { l.cleanup(); fs.rmSync(marker, { force: true }); }
+});
+
+for (const [name, opts] of [
+  ["the unit reads a different env file", { unitFiles: () => "/etc/other.env (ignore_errors=no)" }],
+  ["the unit reads a second env file after the first", { unitFiles: (f) => `${f} (ignore_errors=no) /etc/extra.env (ignore_errors=no)` }],
+  ["the unit ignores errors in the env file", { unitFiles: (f) => `${f} (ignore_errors=yes)` }],
+  ["the unit sets the variable in Environment=", { unitEnvironment: "HOME=/var/lib/nusa NUSA_PAPER_ORDER_PATH=ON" }],
+]) {
+  test(`start REFUSES: ${name}`, posixOnly, () => {
+    const l = layout({ env: "NUSA_PAPER_ORDER_PATH=OFF\n", ...opts });
+    try {
+      const r = l.run("start");
+      assert.notEqual(r.status, 0, "must fail closed");
+      assert.match(r.stderr, /refusing to start/);
+      assert.equal(l.calledWith().some((c) => c.startsWith("start")), false);
+    } finally { l.cleanup(); }
+  });
+}

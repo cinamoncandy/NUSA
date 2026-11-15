@@ -10,7 +10,7 @@ Workflow `PAPER Run Mode` (`.github/workflows/paper-run-mode.yml`, dispatch only
 | Mode | Helper verb | What happens |
 | --- | --- | --- |
 | `STOPPED` | `stop` | `systemctl stop nusa.service` under the activation lock. Nothing else is touched (autopilot, research timer, units, links stay). |
-| `COLLECT_ONLY` | `start` | `systemctl start nusa.service` under the activation lock, ONLY if `/etc/nusa/cloud-runtime.env` sets `NUSA_PAPER_ORDER_PATH` to exactly `OFF` (last assignment wins) and an active release exists. Otherwise it refuses and starts nothing. |
+| `COLLECT_ONLY` | `start` | `systemctl start nusa.service` under the activation lock, ONLY if the one env file the unit reads (`/etc/nusa/cloud-runtime.env`) sets `NUSA_PAPER_ORDER_PATH` to exactly `OFF` (last plain assignment wins) and an active release exists. The file is read as text, never executed, and the way systemd reads it, not the way a shell does: a file that could be read two ways (a leading `export`, quotes, an inline comment, spaces, a carriage return, a trailing backslash, an unbalanced quote) makes the verb refuse and start nothing. It also refuses if the unit reads any other env file or sets the variable in `Environment=`. |
 
 There is no mode that starts the PAPER order path. Stage B (orders) needs its own approval and its own change.
 Both verbs share the release's activation lock and the workflow shares the release's concurrency group, so a mode change waits for a release.
