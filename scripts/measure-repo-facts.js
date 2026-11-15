@@ -51,12 +51,22 @@ walk(path.join(root, ".aipos", "work-orders"), (f) => { if (/\.ya?ml$/.test(f)) 
 let testFilesAll = 0; let testFilesNamed = 0;
 walk(path.join(root, "tests"), (f) => { testFilesAll += 1; if (/\.(test|spec)\.[cm]?[jt]sx?$/.test(f)) testFilesNamed += 1; });
 
+const { execSync } = require("node:child_process");
+const git = (c) => { try { return execSync(c, { cwd: root, encoding: "utf8" }).trim(); } catch { return "UNKNOWN"; } };
+let cloudTestsStartingRuntime = 0; let switchTests = 0;
+walk(path.join(root, "tests"), (f) => { if (!/\.test\.js$/.test(f)) return; const t = fs.readFileSync(f, "utf8"); if (/startCloudRuntime\b|startCloudRuntimeFromOptions|startClosedLearningProductionRuntime/.test(t)) cloudTestsStartingRuntime += 1; if (t.includes("NUSA_PAPER_ORDER_PATH")) switchTests += 1; });
+
 const out = {
-  scope: "origin/main working tree; node_modules, dist, build and generated platform folders excluded; .d.ts and *.test.ts(x)/*.spec.ts(x) excluded from source counts",
+  measuredHead: git("git rev-parse HEAD"),
+  originMainHead: git("git rev-parse origin/main"),
+  mergeBaseWithMain: git("git merge-base HEAD origin/main"),
+  scope: "the checked-out working tree (see measuredHead); node_modules, dist, build and generated platform folders excluded; .d.ts and *.test.ts(x)/*.spec.ts(x) excluded from source counts",
   workflows,
   typescriptSourceLines: { apps: sourceLines(apps), packages: sourceLines(packages), appsAndPackages: sourceLines([...apps, ...packages]).total },
   cloudSource: { files: cloudSourceFiles, distinctNusaReferences: nusaRefs.size },
   workOrders: { all: woAll, archive: woArchive, withoutArchive: woAll - woArchive },
+  testFilesMentioningRuntimeOrDaemonEntry: cloudTestsStartingRuntime,
+  testsMentioningOrderPathSwitch: switchTests,
   tests: { filesInTestsDir: testFilesAll, filesNamedTestOrSpec: testFilesNamed },
 };
 process.stdout.write(`${JSON.stringify(out, null, 2)}\n`);

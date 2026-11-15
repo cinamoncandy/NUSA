@@ -1,13 +1,17 @@
-# NUSA redesign proposal v2: "NUSA Core" (2026-11-15)
+# NUSA redesign proposal v4: "NUSA Core" (2026-11-15)
 
 Status: PROPOSAL, not an approval. Nothing here changes code, a host, a workflow or a limit. Every phase is its own governed
 PR. Safety stays fixed: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`,
 Release=HOLD. A redesign may only REMOVE authority, never add.
 
-v2 revises v1 (merged in #3135) after the independent design review (verdict UNSOUND). Accepted in substance: the default
+v4 revises v3 after the third review (UNSOUND: access removal came after the first deploy; `UnsetEnvironment=` cannot remove one source of a variable; grant consumption undefined; restart loops could reset the readiness limits; D5 contradicted the shared-code finding; the measurement script lacked the main SHA). See sections 5, 7, 8, 10.
+
+v3 revised v2 after the second review (UNSOUND: v2 deployed the new build through the unsafe old release before fixing the release; direct agent access was not removed concretely; `UnsetEnvironment=` use was ambiguous; the grant was checked only at start; R7 would delete apps that cloud and Research still import). Section 5 reorders the phases, sections 7 to 9 add the control plane, readiness bounds and shared-code move.
+
+v2 revised v1 (merged in #3135) after the independent design review (verdict UNSOUND). Accepted in substance: the default
 was fail-open, the deployed build was never proven to support the mode, the phone path trusted a mutable workflow and the
 owner's grant had no expiry, rollback and data compatibility were undefined, and the numbers were not reproducible.
-Owner decisions D1 to D4 (approved) and D5 (apps/execution not used) stand; the order of phases changed (section 4).
+Owner decisions D1 to D4 (approved) stand; D5 is corrected in section 10 (apps/execution is still imported by cloud); the order of phases changed (section 5).
 
 ## 0. Summary for the owner (Korean, easy language)
 
@@ -15,6 +19,8 @@ Owner decisions D1 to D4 (approved) and D5 (apps/execution not used) stand; the 
 - v2는 순서를 바꿉니다. **먼저 안전장치(기본값 = 주문 꺼짐, 실제 입구 시험, 서버가 자기 모드를 /health에 보고)**, **그 다음에 폰 버튼**입니다. 안전장치가 증명되기 전에는 버튼은 꺼져 있습니다.
 - 서버의 원하는 상태는 **서버 안의 한 파일(루트 소유)**이 정합니다. GitHub는 요청과 기록만 합니다. 모르는 값이면 **항상 꺼짐**입니다.
 - "주문" 모드는 #3108이 닫히고 독립 검증이 끝나기 전에는 **아예 선택할 수 없습니다.** 사장님 허락도 **정확한 빌드 + 만료 시간**에 묶입니다.
+- **v4 추가:** 에이전트의 직접 서비스 제어를 **첫 배포 전에** 끊습니다(계정, 키, cron, 타이머까지 점검). 모드 값은 서버의 **한 파일에서만** 정합니다. 주문 허락은 재시작해도 한 번만 쓰이고 주문마다 만료를 확인합니다. 재시작 반복으로 시간 제한이 초기화되지 않게 **시도 전체**에 묶습니다. D5 정정: execution은 cloud가 아직 씁니다.
+- **v3 추가:** 새 코드를 서버에 올리는 것은 **릴리스를 안전하게 고친 뒤**에만 합니다(그 전에는 실패해도 자동 되돌림 없이 "꺼짐"으로 끝). 에이전트의 직접 서비스 제어 권한은 계정별로 점검해 **실제로 제거**합니다. 데스크톱·execution은 아직 쓰이는 코드를 옮긴 **다음에** 지웁니다.
 - 릴리스는 데이터 호환(앞뒤로 되돌릴 수 있는) 방식으로, 느린 시작을 실패로 보지 않게, 백업은 따로 합니다. "15분"은 백업 제외 시간입니다.
 - 사장님 터미널 사용은 0을 목표로 하되, **처음 한 번 설치는 터미널이 필요**합니다(예외로 명시).
 
@@ -34,9 +40,9 @@ platform folders, `.d.ts` and test files excluded from source counts).
 | Fact | Value (scope) | Consequence |
 | --- | --- | --- |
 | TypeScript source lines | apps 127,701; packages 23,862; total 151,563 | Most code is in apps, not packages. |
-| `apps/cloud` | 384 source files, 53,934 lines | One flat folder, no import boundary. |
+| `apps/cloud` | 384 source files, 53,934 lines | Many subfolders but no internal import boundary (the existing validator checks boundaries between apps). |
 | Other apps (source lines) | autopilot 16,294; desktop 29,960; execution 6,311; mobile 21,202 | desktop and execution are candidates to freeze. |
-| Distinct `NUSA_*` tokens in cloud source | 91 (all identifier tokens; the earlier "54" counted only environment reads) | Configuration is scattered and unvalidated. |
+| Distinct `NUSA_*` tokens in cloud source | 91 (all identifier tokens; the earlier "54" counted only environment reads) | Scattered, unvalidated (91 is an identifier token count, not a count of configuration reads). |
 | Workflows | 41 on main | Each is an attack and maintenance surface. |
 | Work order YAML files | 620 (29 in `archive/`) | Audit trail; keep, archive more, do not delete the record. |
 | Test files | 1,043 files under `tests/`, 1,004 named test or spec | Tests covered the inner start-up layer, not the production entry. |
@@ -69,38 +75,58 @@ platform folders, `.d.ts` and test files excluded from source counts).
 
 ## 5. Phases (each one governed PR or a small group, each reversible)
 
+v4 order. No production deploy of new code, and no phone button, before R1 to R3 are complete. Until then the only host action is the existing owner-approved manual path, restricted by R2 (section 7: the old release workflow cannot activate or roll back).
+
 | Phase | What | Gate to finish | Rollback |
 | --- | --- | --- | --- |
-| R0 | Stage A evidence: two readings, recorded | owner reads the record | none |
-| R1 | Fail-closed default (unset means no orders), effective `runMode` in `/health`, `UnsetEnvironment=`, production-entry boot tests per mode in CI | CI boots the real entry in each mode; an unset or garbled value yields no lease and no timers | revert |
-| R2 | Deploy a build with R1; capability and version check; verify `/health.runMode` on the host (read-only diagnose workflow) | diagnose output shows the expected mode and build | previous build |
-| R3 | Host mode record and controller, `nusa-run-mode` helper, mode-aware alerting; refactor PR #3136 into this shape | alerts fire in a drill; helper tested with stub `systemctl` and the systemd-parser soundness test | remove workflow and helper |
-| R4 | Phone workflow enabled (protected ref, runner group, Environment); owner presses stop and start once | sudo log shows only the helper; owner needs no terminal | disable the repo variable |
-| R5 | Release redesign: separate backup, phase-aware readiness, expand and contract data, safe fallback, restore rehearsal | one full release under 15 min excluding backup; one deliberate failure ends safe | keep old workflow |
-| R6 | Cloudflare removal S1 to S5 (docs/PROPOSAL_SIMPLIFICATION_2026-11-14.md) | per phase | per phase |
-| R7 | Single config module and composition root; split `apps/cloud/src` with import-boundary lint; delete retired WIP; freeze then delete desktop and `apps/execution`; archive work orders | CI time and workflow count drop; no behaviour change | revert |
+| R0 | Stage A evidence: two readings, recorded (done, PR #3138) | owner reads the record | none |
+| R1 | Code only, not deployed: fail-closed default (unset or unknown means no orders), effective `runMode` and build identity in `/health`, production-entry boot tests per mode in CI (real entry, not a stand-in) | CI boots the real entry in each mode; unset or garbled value yields no lease, no timers, no order boundary | revert |
+| R2 | Release safety before any deploy: the old activate and rollback verbs are disabled for agents; compatibility test on a migrated data copy with the previous build covering ledger reads, recovery and the required writes; no automatic rollback to an unproven build; failure ends in `STOPPED` with an alert; release-attempt-wide readiness bounds (section 8); backup as a separate verified job with a restore rehearsal | one rehearsal on a data copy: new build, previous build and a deliberate failure each end safe | keep old workflow, manual path only, nothing activated by agents |
+| R3 | Single control plane before the first deploy: complete start and stop path inventory, removal of every agent path, audit evidence (section 7) | audit evidence attached; the sudo journal shows no direct unit control by an agent account | restore the removed grant (owner action) |
+| R4 | Deploy the R1 build through the R2 path. Transition mode delivery: a root-owned `/etc/nusa/run-mode.env` containing `NUSA_RUN_MODE=COLLECT_ONLY`, written once by the owner-approved release step, is the only definition; the controller of R5 later takes over writing it | `/health.runMode` and build identity verified through the read-only diagnose workflow | stay stopped, fix forward |
+| R5 | Host mode controller, `nusa-run-mode` helper, mode-aware alerting tested to the owner phone; PR #3136 refactored into this | alert drill reaches the phone; helper tested with stub `systemctl` and the systemd-parser soundness test | remove helper |
+| R6 | Phone workflow enabled (protected ref, runner group, Environment); owner presses stop and start once | settings evidence (section 7) | disable the repo variable |
+| R7 | Cloudflare removal S1 to S5 (docs/PROPOSAL_SIMPLIFICATION_2026-11-14.md) | per phase | per phase |
+| R8 | Single config module and composition root; split `apps/cloud/src`; delete retired WIP; archive work orders; move the shared code (section 9), then freeze and delete what is really unused | CI time and workflow count drop; Research and cloud build and run unchanged | revert |
 
-Order: R0, R1, R2, R3, R4, R5, then R6 and R7 with care for the merge gate. The phone start button never precedes R1 to R3.
+The phone start button never precedes R1 to R5.
 
 ## 6. Not in scope
 
 - Stage B (orders ON): blocked on #3108, an independent verification, a release and fresh owner approval.
 - Any change of risk limits, thresholds, capital or authority. LIVE trading of any kind.
 
-## 7. Decisions
+## 7. Single control plane (enforced, not decided)
 
-D1 to D4 approved (direction, R1 first with direct agent control removed, desktop frozen after the phone path is proven, phase order now revised as above). D5: `apps/execution` is not used, so it is frozen then deleted in R7. New for the owner: approve the v2 order (proof before the phone button) and the one-time helper install.
+- Inventory every way a process can start, stop or restart `nusa.service`, `nusa-research`, `nusa-autopilot`: systemd units and `Restart=` policies, timers (health guard), transient units (`systemd-run`), root and user cron and `at`, every Actions runner and workflow that calls the release helper, sudoers entries, SSH keys and accounts including root login, `loginctl` lingering users, and the release helper itself.
+- Exact allowed verbs after R3: `nusa-release-step` verbs stage, switch, preflight and the owner-approved activate only from the Environment-protected release workflow; `nusa-run-mode status|stop|start-collect-only` from R5. No other path. If the release helper can start the service, the sudoers rule for it is limited to the release workflow's runner account and that workflow's pinned ref, and no agent account can call it.
+- Evidence: `sudo -l` per account, `authorized_keys` and sshd root-login setting, `crontab -l`/`atq` per user, `systemctl list-timers` and transient units, runner registrations, and the sudo journal, all read through the diagnose workflow; attached to the R3 PR. `sudo -l` alone is not proof; any path not listed fails the gate.
+- Mode delivery under systemd: the new mode variable is defined in one place only, the root-owned `EnvironmentFile`. A check fails the unit if it appears in `Environment=`, a drop-in, or a second file (`systemctl show -p Environment -p EnvironmentFiles` including drop-ins). `UnsetEnvironment=` is used only for the retired `NUSA_PAPER_ORDER_PATH`; it never names the new variable (it removes a name from the final environment regardless of source). `/health.runMode` must equal the record after every start; mismatch stops the service and alerts.
+- Workflow boundary evidence: Environment branch policy limited to the protected default branch, required reviewers, runner group restricted to this repository and that workflow, and a test that a dispatch from another ref is refused. Settings export attached to the R6 PR.
+- Order grant: maximum validity 24 h, bound to the exact release; "single use" means one mode entry into `PAPER_ORDERS`; its used and expired state is stored atomically on the host and survives restarts; the clock is trusted only if the host reports synchronized time, otherwise no orders; expiry is checked before every order is executed and expiry ends orders without a restart. The grant never replaces the per-order canonical permit of #3108; both must pass. Unavailable until #3108 is merged and independently verified.
 
-## 8. Risks
+## 8. Readiness and alerts
+
+Phases: listening, recovering, collecting, ready. A start is progressing only if a counter of real recovery or collection work advances (rows recovered, events collected), not a heartbeat. It fails on a stall of 120 s or a ceiling of 20 min. The ceiling and the attempt counter belong to the release attempt, not the process: they are persisted on the host, so `Restart=on-failure` loops cannot reset them; after three failed starts or the ceiling the service ends in `STOPPED` (restart policy off for that attempt), data untouched, with an owner alert. The alert drill must deliver to the owner phone, not only write a log line.
+
+## 9. Shared code before deleting apps
+
+Cloud imports `apps/execution` (the HTTP rate limiter) and the Research worker loads `apps/desktop` replay modules. R8 first lists the transitive dependencies, build and test scripts of both apps, moves exactly the used code into a kept package, builds and runs cloud and Research from the new location, then freezes, then deletes the rest. Deletion without this is blocked.
+
+## 10. Decisions
+
+D1 to D4 approved (direction, R1 first with direct agent control removed, desktop frozen after the phone path is proven, phase order revised as above). D5 (corrected, needs the owner's confirmation): `apps/execution` is NOT unused today because cloud imports its rate limiter; the unused remainder (certification and burn-in harnesses) is frozen and deleted in R8 after the rate limiter moves. New for the owner: approve the v4 order (access removal and release safety before the first deploy, proof before the phone button) and the one-time helper install.
+
+## 11. Risks
 
 - Inverting the default can stop a service that relied on unset meaning ON: R1 ships with the unit and env file set explicitly, verified by the diagnose workflow before use.
 - A bug in a control verb could stop a healthy service: every verb is tested against a stub `systemctl` and runs under the activation lock.
 - The mode record is a new single point: unknown means `STOPPED`, and the diagnose workflow reads it.
-- Large refactors (R7) wait for the R1 to R3 safety net. The Cloudflare gate is a required merge check and moves last.
+- Large refactors (R7) wait for the R1 to R5 safety net. The Cloudflare gate is a required merge check and moves last.
 
-## 9. Gaps checked in the repository (read-only, origin/main)
+## 12. Gaps checked in the repository (read-only, origin/main)
 
-- Nothing in the repo sets `NUSA_PAPER_ORDER_PATH` (no unit, script or env template). Its only source on the host is `/etc/nusa/cloud-runtime.env`, which is outside version control. Consequence: R1 must make the value explicit in the host record and verify it through `/health.runMode`; the repo alone cannot prove what the host runs.
+- No unit, script or env template in the repository sets `NUSA_PAPER_ORDER_PATH` (documents describe manual host settings). The unit reads `/etc/nusa/cloud-runtime.env`, which is outside version control; whether a host drop-in or another source also sets it is NOT verifiable from the repository and is part of the R3 audit. Consequence: R1 must make the value explicit in the host record and verify it through `/health.runMode`; the repo alone cannot prove what the host runs.
 - `/health` and `server.ts` carry no `runMode` today. R1 adds it.
-- 34 test files start the runtime or the daemon entry; only 4 mention the switch. Inverting the default means those tests must set the order path explicitly where they rely on ON. R1 lists them and changes only that line, with a control test that proves ON behaviour is unchanged when set explicitly.
-- Stale or corrupt host mode record: the controller treats a missing, unparsable, expired or wrong-build record as `STOPPED` and the health guard alerts instead of restarting. The R3 drill must cover each case.
+- The script counts 34 test files that mention the runtime or daemon entry functions and 4 that mention the switch (textual matches, not proof that each executes that path). Inverting the default means those tests must set the order path explicitly where they rely on ON. R1 lists them and changes only that line, with a control test that proves ON behaviour is unchanged when set explicitly.
+- Requirement (R4, not an observed fact): a stale or corrupt host mode record is treated a missing, unparsable, expired or wrong-build record as `STOPPED` and the health guard alerts instead of restarting. The R4 drill must cover each case.
