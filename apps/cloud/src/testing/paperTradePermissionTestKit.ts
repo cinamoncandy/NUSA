@@ -1,6 +1,6 @@
 import type { ProbabilityEstimate } from "../probabilityEngine";
-import { evaluateTradePermission, type TradePermissionPolicy, type TradePermissionResult } from "../tradePermissionEngine";
-import type { PaperTradePermissionAuthority, PaperTradePermissionQuery } from "../paperTradePermissionGuard";
+import { evaluateTradePermission, type TradePermissionInput, type TradePermissionPolicy, type TradePermissionResult } from "../tradePermissionEngine";
+import type { PaperTradePermissionAuthority, PaperTradePermissionQuery, PaperTradePermissionRecord } from "../paperTradePermissionGuard";
 
 /**
  * TEST ONLY. Never imported by the runtime (a source test pins that). Builds permits with the real canonical engine
@@ -23,17 +23,39 @@ export const testProbability = (market: string, overrides: Partial<ProbabilityEs
   modelVersion: TEST_MODEL_VERSION, generatedAt: EPOCH, ...overrides
 });
 
-export const testPermit = (query: PaperTradePermissionQuery, overrides: { readonly governanceApproved?: boolean; readonly killSwitchActive?: boolean; readonly policy?: Partial<TradePermissionPolicy>; readonly probability?: Partial<ProbabilityEstimate>; readonly decisionId?: string; readonly strategyId?: string; readonly market?: string; readonly generatedAt?: string } = {}): TradePermissionResult => {
+export interface TestPermitOverrides {
+  readonly governanceApproved?: boolean;
+  readonly killSwitchActive?: boolean;
+  readonly riskBudgetUsage?: number;
+  readonly policy?: Partial<TradePermissionPolicy>;
+  readonly probability?: Partial<ProbabilityEstimate>;
+  readonly decisionId?: string;
+  readonly strategyId?: string;
+  readonly market?: string;
+  readonly generatedAt?: string;
+  readonly evidenceReferences?: readonly string[];
+}
+
+export const testPermitInput = (query: PaperTradePermissionQuery, overrides: TestPermitOverrides = {}): TradePermissionInput => {
   const market = overrides.market ?? query.market;
-  return evaluateTradePermission({
+  return {
     decisionId: overrides.decisionId ?? query.decisionId, strategyId: overrides.strategyId ?? query.strategyId, market,
     generatedAt: overrides.generatedAt ?? EPOCH, probability: testProbability(market, overrides.probability), dataQuality: 0.9, sourceGeneratedAt: overrides.generatedAt ?? EPOCH, regime: "TEST",
     netExpectedValue: 1, expectedReward: 2, expectedLoss: 1, liquidityScore: 0.9, capacityUsd: 1_000_000, estimatedSlippageBps: 1,
-    modelProbabilities: [0.7, 0.7], riskBudgetUsage: 0.1, killSwitchActive: overrides.killSwitchActive ?? false,
-    governanceApproved: overrides.governanceApproved ?? true, evidenceReferences: ["test-evidence-1"]
-  }, testPermissionPolicy(overrides.policy));
+    modelProbabilities: [0.7, 0.7], riskBudgetUsage: overrides.riskBudgetUsage ?? 0.1, killSwitchActive: overrides.killSwitchActive ?? false,
+    governanceApproved: overrides.governanceApproved ?? true, evidenceReferences: overrides.evidenceReferences ?? ["test-evidence-1"]
+  };
 };
 
+export const testPermit = (query: PaperTradePermissionQuery, overrides: TestPermitOverrides = {}): TradePermissionResult =>
+  evaluateTradePermission(testPermitInput(query, overrides), testPermissionPolicy(overrides.policy));
+
+/** A record = the evidence input plus the permit the real engine computed from it. */
+export const testRecord = (query: PaperTradePermissionQuery, overrides: TestPermitOverrides = {}): PaperTradePermissionRecord => ({
+  input: testPermitInput(query, overrides), permit: testPermit(query, overrides)
+});
+
 export const acceptingPaperTradePermissionAuthority = (): PaperTradePermissionAuthority => ({
-  policyVersion: TEST_POLICY_VERSION, probabilityModelVersion: TEST_MODEL_VERSION, latestPermit: (query) => testPermit(query)
+  policy: testPermissionPolicy(), probabilityModelVersion: TEST_MODEL_VERSION,
+  latestPermit: (query) => testRecord(query), evidenceExists: () => true
 });

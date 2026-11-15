@@ -1,14 +1,18 @@
 "use strict";
 // Canonical TradePermission enforcement at the Cloud PAPER execution boundary (#3108). A strategy order, new or continued,
 // reaches the simulator only with an unexpired PERMIT bound to its intent, strategy, market, policy version and
-// probability-model version, with complete gate evidence. Everything else is refused before the risk gate and the simulator.
+// probability-model version, recomputed by the canonical engine from its evidence, with evidence confirmed by the trusted
+// authority. Everything else is refused before the risk gate and the simulator; the permit is checked again right before
+// the simulator.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
-const { PaperTradingExecutionLoop } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
+const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
+const { PaperTradingExecutionLoop, SqliteCloudPaperAccountRepository } = require("../dist/apps/cloud/src/paperTradingExecutionLoop.js");
 const { CloudPaperExecutionBoundary } = require("../dist/apps/cloud/src/cloudPaperExecutionBoundary.js");
-const { NO_PAPER_TRADE_PERMISSION_AUTHORITY, refusePaperTradePermission } = require("../dist/apps/cloud/src/paperTradePermissionGuard.js");
+const { NO_PAPER_TRADE_PERMISSION_AUTHORITY, refusePaperTradePermission, PaperTradePermissionMemory } = require("../dist/apps/cloud/src/paperTradePermissionGuard.js");
 const kit = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 const { buildPaperObservedExecutionQuote } = require("../dist/apps/cloud/src/paperRuntimeExecutionCostEvidence.js");
 
@@ -105,30 +109,36 @@ function observedQuote(observedAt, askSize) {
 }
 
 
-const authorityWith = (permitFor, versions = {}) => ({
-  policyVersion: versions.policyVersion ?? kit.TEST_POLICY_VERSION,
-  probabilityModelVersion: versions.probabilityModelVersion ?? kit.TEST_MODEL_VERSION,
-  latestPermit: permitFor,
+
+/** An authority whose permits come from the real engine; `overrides` shapes the evidence, `edit` tampers with the record afterwards. */
+const auth = (overrides = {}, hooks = {}) => ({
+  policy: kit.testPermissionPolicy(overrides.policy),
+  probabilityModelVersion: hooks.probabilityModelVersion ?? kit.TEST_MODEL_VERSION,
+  latestPermit: (q) => { const r = kit.testRecord(q, overrides); return hooks.edit ? hooks.edit(r, q) : r; },
+  evidenceExists: hooks.evidenceExists ?? (() => true),
 });
 
-function rig(authority) {
-  const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }) });
+function rig(authority, options = {}) {
+  const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }), ...(options.repository ? { repository: options.repository } : {}) });
   let riskCalls = 0;
   const queries = [];
   const wrapped = authority == null ? authority : { ...authority, latestPermit: (q) => { queries.push(q); return authority.latestPermit(q); } };
   const boundary = new CloudPaperExecutionBoundary({
     loop,
     tradePermissionAuthority: wrapped,
-    riskGate: { evaluate() { riskCalls += 1; return Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }); } },
+    riskGate: { evaluate() { riskCalls += 1; options.onRisk?.(); return Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }); } },
     readP0State: () => ({ openP0: false }),
   });
   return { loop, boundary, riskCalls: () => riskCalls, queries };
 }
 
+const openTick = () => tick(2_000, 1_500, 50_000_000, [decision], observedQuote(1_900, 0.005));
+const continuationTick = () => tick(2_200, 2_100, 50_000_000, [], observedQuote(2_150, 0.02));
+
 const refusedNewOrder = (label, authority, reason) => test(`new strategy order is refused: ${label}`, () => {
   const r = rig(authority);
   const before = JSON.stringify(r.loop.snapshot());
-  const result = r.boundary.processTick(tick(2_000, 1_500, 50_000_000, [decision], observedQuote(1_900, 0.005)));
+  const result = r.boundary.processTick(openTick());
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.reason, reason);
   assert.equal(r.riskCalls(), 0, "the risk gate is not even asked");
@@ -137,77 +147,174 @@ const refusedNewOrder = (label, authority, reason) => test(`new strategy order i
   assert.equal((r.loop.snapshot().workingOrders ?? []).length, 0);
 });
 
-refusedNewOrder("no authority configured (production default)", NO_PAPER_TRADE_PERMISSION_AUTHORITY, "PAPER_TRADE_PERMISSION_ABSENT");
-refusedNewOrder("authority object missing", undefined, "PAPER_TRADE_PERMISSION_UNVERIFIABLE");
-refusedNewOrder("authority throws", authorityWith(() => { throw new Error("boom"); }), "PAPER_TRADE_PERMISSION_UNVERIFIABLE");
-refusedNewOrder("no permit for the query", authorityWith(() => null), "PAPER_TRADE_PERMISSION_ABSENT");
-refusedNewOrder("empty policy version", authorityWith((q) => kit.testPermit(q), { policyVersion: " " }), "PAPER_TRADE_PERMISSION_UNVERIFIABLE");
-refusedNewOrder("explicit REJECT (governance not approved)", authorityWith((q) => kit.testPermit(q, { governanceApproved: false })), "PAPER_TRADE_PERMISSION_NOT_PERMIT");
-refusedNewOrder("explicit REJECT (kill switch)", authorityWith((q) => kit.testPermit(q, { killSwitchActive: true })), "PAPER_TRADE_PERMISSION_NOT_PERMIT");
-refusedNewOrder("expired", authorityWith((q) => kit.testPermit(q, { policy: { permissionTtlMs: 1_000 } })), "PAPER_TRADE_PERMISSION_EXPIRED");
-refusedNewOrder("expires exactly now", authorityWith((q) => kit.testPermit(q, { policy: { permissionTtlMs: 2_000 } })), "PAPER_TRADE_PERMISSION_EXPIRED");
-refusedNewOrder("generated in the future", authorityWith((q) => kit.testPermit(q, { generatedAt: "2050-01-01T00:00:00.000Z" })), "PAPER_TRADE_PERMISSION_INVALID_TIME");
-refusedNewOrder("other decision", authorityWith((q) => kit.testPermit(q, { decisionId: "paper-intent:other" })), "PAPER_TRADE_PERMISSION_MISMATCH");
-refusedNewOrder("other strategy", authorityWith((q) => kit.testPermit(q, { strategyId: "other-candidate" })), "PAPER_TRADE_PERMISSION_MISMATCH");
-refusedNewOrder("other market", authorityWith((q) => kit.testPermit(q, { market: "KRW-ETH" })), "PAPER_TRADE_PERMISSION_MISMATCH");
-refusedNewOrder("other policy version", authorityWith((q) => kit.testPermit(q, { policy: { policyVersion: "old-policy" } })), "PAPER_TRADE_PERMISSION_MISMATCH");
-refusedNewOrder("other probability model version", authorityWith((q) => kit.testPermit(q, { probability: { modelVersion: "old-model" } })), "PAPER_TRADE_PERMISSION_MISMATCH");
-refusedNewOrder("no evidence references", authorityWith((q) => ({ ...kit.testPermit(q), evidenceReferences: [] })), "PAPER_TRADE_PERMISSION_EVIDENCE_INCOMPLETE");
-refusedNewOrder("a gate missing from the evidence", authorityWith((q) => { const p = kit.testPermit(q); return { ...p, gates: p.gates.slice(1), passedGates: p.passedGates.slice(1) }; }), "PAPER_TRADE_PERMISSION_EVIDENCE_INCOMPLETE");
-refusedNewOrder("a failed gate listed on a PERMIT", authorityWith((q) => ({ ...kit.testPermit(q), failedGates: ["GOVERNANCE"] })), "PAPER_TRADE_PERMISSION_EVIDENCE_INCOMPLETE");
-refusedNewOrder("a gate recorded as not passed on a PERMIT", authorityWith((q) => { const p = kit.testPermit(q); return { ...p, gates: p.gates.map((g, i) => (i === 3 ? { ...g, passed: false } : g)) }; }), "PAPER_TRADE_PERMISSION_EVIDENCE_INCOMPLETE");
+const ABSENT = "PAPER_TRADE_PERMISSION_ABSENT", NOT_PERMIT = "PAPER_TRADE_PERMISSION_NOT_PERMIT", MISMATCH = "PAPER_TRADE_PERMISSION_MISMATCH";
+const INCOMPLETE = "PAPER_TRADE_PERMISSION_EVIDENCE_INCOMPLETE", UNVERIFIED = "PAPER_TRADE_PERMISSION_EVIDENCE_UNVERIFIED", TAMPERED = "PAPER_TRADE_PERMISSION_TAMPERED";
+const EXPIRED = "PAPER_TRADE_PERMISSION_EXPIRED", BADTIME = "PAPER_TRADE_PERMISSION_INVALID_TIME", UNVERIFIABLE = "PAPER_TRADE_PERMISSION_UNVERIFIABLE", REPLAYED = "PAPER_TRADE_PERMISSION_REPLAYED";
+
+refusedNewOrder("no authority configured (production default)", NO_PAPER_TRADE_PERMISSION_AUTHORITY, ABSENT);
+refusedNewOrder("authority object missing", undefined, UNVERIFIABLE);
+refusedNewOrder("authority throws", { ...auth(), latestPermit: () => { throw new Error("boom"); } }, UNVERIFIABLE);
+refusedNewOrder("no permit for the query", { ...auth(), latestPermit: () => null }, ABSENT);
+refusedNewOrder("empty policy version", auth({ policy: { policyVersion: " " } }), UNVERIFIABLE);
+refusedNewOrder("explicit REJECT (governance not approved)", auth({ governanceApproved: false }), NOT_PERMIT);
+refusedNewOrder("explicit REJECT (kill switch)", auth({ killSwitchActive: true }), NOT_PERMIT);
+refusedNewOrder("explicit REJECT (risk budget used up, as right after a daily reset with a stale budget reading)", auth({ riskBudgetUsage: 0.95, policy: { maximumRiskBudgetUsage: 0.9 } }), "PAPER_TRADE_PERMISSION_NOT_PERMIT");
+refusedNewOrder("expired", auth({ policy: { permissionTtlMs: 1_000 } }), EXPIRED);
+refusedNewOrder("expires exactly now", auth({ policy: { permissionTtlMs: 2_000 } }), EXPIRED);
+refusedNewOrder("generated in the future", auth({ generatedAt: "2050-01-01T00:00:00.000Z" }), BADTIME);
+refusedNewOrder("other decision", auth({ decisionId: "paper-intent:other" }), MISMATCH);
+refusedNewOrder("other strategy", auth({ strategyId: "other-candidate" }), MISMATCH);
+refusedNewOrder("other market", auth({ market: "KRW-ETH" }), MISMATCH);
+refusedNewOrder("authority requires another policy version than the permit carries", { ...auth(), policy: kit.testPermissionPolicy({ policyVersion: "newer-policy" }) }, MISMATCH);
+refusedNewOrder("authority requires another probability model version", auth({}, { probabilityModelVersion: "newer-model" }), MISMATCH);
+refusedNewOrder("no evidence references", auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, evidenceReferences: [] } }) }), INCOMPLETE);
+refusedNewOrder("a gate missing from the evidence", auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, gates: r.permit.gates.slice(1), passedGates: r.permit.passedGates.slice(1) } }) }), INCOMPLETE);
+refusedNewOrder("a failed gate listed on a PERMIT", auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, failedGates: ["GOVERNANCE"] } }) }), INCOMPLETE);
+refusedNewOrder("a gate recorded as not passed on a PERMIT", auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, gates: r.permit.gates.map((g, i) => (i === 3 ? { ...g, passed: false } : g)) } }) }), INCOMPLETE);
+// Provenance: the permit must be exactly what the canonical engine computes from the supplied evidence.
+refusedNewOrder("permit lifetime extended by hand (tampered)", auth({ policy: { permissionTtlMs: 1_000 } }, { edit: (r) => ({ input: r.input, permit: { ...r.permit, expiresAt: "2099-01-01T00:00:00.000Z" } }) }), TAMPERED);
+refusedNewOrder("a PERMIT whose evidence actually fails a gate (fabricated)", auth({}, { edit: (r) => ({ input: { ...r.input, governanceApproved: false }, permit: r.permit }) }), TAMPERED);
+refusedNewOrder("a hand-made permit with all gates passed but different numbers", auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, gates: r.permit.gates.map((g) => ({ ...g, observedValue: 0 })) } }) }), TAMPERED);
+refusedNewOrder("evidence the engine cannot even evaluate (invalid input behind a permit)", auth({}, { edit: (r) => ({ input: { ...r.input, dataQuality: 5 }, permit: r.permit }) }), TAMPERED);
+refusedNewOrder("evidence input of another decision", auth({}, { edit: (r) => ({ input: { ...r.input, decisionId: "other" }, permit: r.permit }) }), MISMATCH);
+refusedNewOrder("evidence references do not exist in the trusted store", auth({}, { evidenceExists: () => false }), UNVERIFIED);
+refusedNewOrder("the evidence store throws", auth({}, { evidenceExists: () => { throw new Error("store down"); } }), UNVERIFIABLE);
 
 test("a matching unexpired PERMIT reaches the existing path unchanged; the query carries the intent identity, candidate and market", () => {
-  const r = rig(authorityWith((q) => kit.testPermit(q)));
-  const first = r.boundary.processTick(tick(2_000, 1_500, 50_000_000, [decision], observedQuote(1_900, 0.005)));
+  const r = rig(auth());
+  const first = r.boundary.processTick(openTick());
   assert.equal(first.status, "WAIT");
   assert.equal(first.reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
   assert.equal(r.riskCalls(), 1);
-  assert.equal(r.queries.length, 1);
+  assert.equal(r.queries.length, 2, "checked before the risk gate and again right before the simulator");
+  assert.deepEqual(r.queries[0], r.queries[1]);
   assert.match(r.queries[0].decisionId, /^paper-intent:[a-f0-9]{64}$/);
   assert.equal(r.queries[0].strategyId, "sma-5-20");
   assert.equal(r.queries[0].market, "KRW-BTC");
   assert.equal(first.state.workingOrders[0].idempotencyKey, r.queries[0].decisionId, "the permit identity is the order identity");
 });
 
-test("a continued strategy working order needs a permit on every tick (restored or not)", () => {
+test("no gap between lookup and use: a permit withdrawn while the risk gate runs stops the order before the simulator (new order and continuation)", () => {
+  for (const phase of ["new", "continuation"]) {
+    let withdrawn = false;
+    const live = auth();
+    const authority = { ...live, latestPermit: (q) => (withdrawn ? null : live.latestPermit(q)) };
+    const r = rig(authority, { onRisk: () => { if (phase === "new" || r.loop.snapshot().workingOrders?.length) withdrawn = true; } });
+    if (phase === "continuation") {
+      assert.equal(r.boundary.processTick(openTick()).reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
+      withdrawn = false;
+    }
+    const before = JSON.stringify(r.loop.snapshot());
+    const result = r.boundary.processTick(phase === "new" ? openTick() : continuationTick());
+    assert.equal(result.status, "BLOCKED", phase);
+    assert.equal(result.reason, ABSENT, phase);
+    assert.equal(JSON.stringify(r.loop.snapshot()), before, `${phase}: the simulator was never reached`);
+  }
+});
+
+test("replay: an older record than one already accepted for the same intent is refused; the same or a newer one is accepted", () => {
+  const q = { decisionId: "paper-intent:x", strategyId: "s", market: "KRW-BTC" };
+  const memory = new PaperTradePermissionMemory();
+  const at = (iso) => auth({ generatedAt: iso });
+  assert.equal(refusePaperTradePermission(at("1970-01-01T00:00:10.000Z"), q, 20_000, memory), null);
+  assert.equal(refusePaperTradePermission(at("1970-01-01T00:00:10.000Z"), q, 20_000, memory), null, "the same record again (idempotent)");
+  assert.equal(refusePaperTradePermission(at("1970-01-01T00:00:15.000Z"), q, 20_000, memory), null, "a newer record");
+  assert.equal(refusePaperTradePermission(at("1970-01-01T00:00:10.000Z"), q, 20_000, memory), REPLAYED, "the superseded older record");
+  assert.equal(refusePaperTradePermission(at("1970-01-01T00:00:10.000Z"), { ...q, decisionId: "paper-intent:y" }, 20_000, memory), null, "memory is per intent");
+});
+
+test("duplicate permit: a permit issued for one intent is never accepted for another intent, market or strategy", () => {
+  const first = rig(auth());
+  assert.equal(first.boundary.processTick(openTick()).reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
+  const cached = kit.testRecord(first.queries[0]);
+  const second = rig({ ...auth(), latestPermit: () => cached });
+  const before = JSON.stringify(second.loop.snapshot());
+  const result = second.boundary.processTick(tick(2_000, 1_500, 50_500_000, [decision], observedQuote(1_900, 0.005)));
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.reason, MISMATCH);
+  assert.equal(JSON.stringify(second.loop.snapshot()), before);
+  assert.equal(second.riskCalls(), 0);
+});
+
+test("a continued strategy working order needs a permit on every tick", () => {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }) });
   const calls = { risk: 0 };
   const build = (authority) => new CloudPaperExecutionBoundary({
     loop, tradePermissionAuthority: authority, readP0State: () => ({ openP0: false }),
     riskGate: { evaluate() { calls.risk += 1; return Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }); } },
   });
-  const good = authorityWith((q) => kit.testPermit(q));
-  assert.equal(build(good).processTick(tick(2_000, 1_500, 50_000_000, [decision], observedQuote(1_900, 0.005))).reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
+  const good = auth();
+  assert.equal(build(good).processTick(openTick()).reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
   const workingBefore = JSON.stringify(loop.snapshot());
   const riskBefore = calls.risk;
-  const continuation = () => tick(2_200, 2_100, 50_000_000, [], observedQuote(2_150, 0.02));
   const cases = [
-    ["no authority", NO_PAPER_TRADE_PERMISSION_AUTHORITY, "PAPER_TRADE_PERMISSION_ABSENT"],
-    ["REJECT", authorityWith((q) => kit.testPermit(q, { governanceApproved: false })), "PAPER_TRADE_PERMISSION_NOT_PERMIT"],
-    ["expired", authorityWith((q) => kit.testPermit(q, { policy: { permissionTtlMs: 1_000 } })), "PAPER_TRADE_PERMISSION_EXPIRED"],
-    ["other strategy", authorityWith((q) => kit.testPermit(q, { strategyId: "x" })), "PAPER_TRADE_PERMISSION_MISMATCH"],
-    ["other decision", authorityWith((q) => kit.testPermit(q, { decisionId: "paper-intent:x" })), "PAPER_TRADE_PERMISSION_MISMATCH"],
-    ["other model", authorityWith((q) => kit.testPermit(q, { probability: { modelVersion: "m" } })), "PAPER_TRADE_PERMISSION_MISMATCH"],
-    ["no evidence", authorityWith((q) => ({ ...kit.testPermit(q), evidenceReferences: [] })), "PAPER_TRADE_PERMISSION_EVIDENCE_INCOMPLETE"],
-    ["throws", authorityWith(() => { throw new Error("x"); }), "PAPER_TRADE_PERMISSION_UNVERIFIABLE"],
+    ["no authority", NO_PAPER_TRADE_PERMISSION_AUTHORITY, ABSENT],
+    ["REJECT", auth({ governanceApproved: false }), NOT_PERMIT],
+    ["expired", auth({ policy: { permissionTtlMs: 1_000 } }), EXPIRED],
+    ["other strategy", auth({ strategyId: "x" }), MISMATCH],
+    ["other decision", auth({ decisionId: "paper-intent:x" }), MISMATCH],
+    ["other model", auth({}, { probabilityModelVersion: "m" }), MISMATCH],
+    ["no evidence", auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, evidenceReferences: [] } }) }), INCOMPLETE],
+    ["tampered", auth({ policy: { permissionTtlMs: 1_000 } }, { edit: (r) => ({ input: r.input, permit: { ...r.permit, expiresAt: "2099-01-01T00:00:00.000Z" } }) }), TAMPERED],
+    ["evidence missing in the store", auth({}, { evidenceExists: () => false }), UNVERIFIED],
+    ["throws", { ...good, latestPermit: () => { throw new Error("x"); } }, UNVERIFIABLE],
   ];
   for (const [label, authority, reason] of cases) {
-    const result = build(authority).processTick(continuation());
+    const result = build(authority).processTick(continuationTick());
     assert.equal(result.status, "BLOCKED", label);
     assert.equal(result.reason, reason, label);
     assert.equal(JSON.stringify(loop.snapshot()), workingBefore, `${label}: the working order and ledger are untouched`);
     assert.equal(calls.risk, riskBefore, `${label}: the risk gate is not asked`);
   }
-  const done = build(good).processTick(continuation());
-  assert.equal(done.status, "FILLED");
+  assert.equal(build(good).processTick(continuationTick()).status, "FILLED");
+});
+
+test("restart and restore: a working order restored from SQLite needs a valid permit on its first tick; stale, replayed or missing ones change nothing", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-permit-restore-"));
+  const databasePath = path.join(directory, "state.sqlite");
+  let db = new SqliteDatabase(databasePath);
+  let repository = new SqliteCloudPaperAccountRepository(db);
+  try {
+    const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, repository, readP0State: () => ({ openP0: false }) });
+    const risk = { evaluate: () => Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }) };
+    const first = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0: false }), tradePermissionAuthority: auth() });
+    assert.equal(first.processTick(openTick()).reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
+    const fillsBefore = repository.loadFills().length;
+    repository.close(); db.close();
+
+    db = new SqliteDatabase(databasePath);
+    repository = new SqliteCloudPaperAccountRepository(db);
+    const restoredLoop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, repository, readP0State: () => ({ openP0: false }) });
+    assert.equal(restoredLoop.snapshot().workingOrders.length, 1);
+    const stateBefore = JSON.stringify(restoredLoop.snapshot());
+    const build = (authority) => new CloudPaperExecutionBoundary({ loop: restoredLoop, riskGate: risk, readP0State: () => ({ openP0: false }), tradePermissionAuthority: authority });
+    for (const [label, authority, reason] of [
+      ["no permit after the restart", NO_PAPER_TRADE_PERMISSION_AUTHORITY, ABSENT],
+      ["an expired permit from before the restart", auth({ policy: { permissionTtlMs: 1_000 } }), EXPIRED],
+      ["a permit for another intent", auth({ decisionId: "paper-intent:old" }), MISMATCH],
+    ]) {
+      const result = build(authority).processTick(continuationTick());
+      assert.equal(result.status, "BLOCKED", label);
+      assert.equal(result.reason, reason, label);
+      assert.equal(JSON.stringify(restoredLoop.snapshot()), stateBefore, `${label}: restored state untouched`);
+      assert.equal(repository.loadFills().length, fillsBefore, `${label}: no new fill is written`);
+    }
+    // Replay inside one boundary: a newer permit was accepted, an older one for the same intent is then refused.
+    const replayBoundary = build({ ...auth(), latestPermit: (q) => kit.testRecord(q, { generatedAt: "1970-01-01T00:00:01.000Z" }) });
+    assert.equal(replayBoundary.processTick(tick(2_200, 2_100, 50_000_000, [], observedQuote(2_150, 0.02))).status, "FILLED");
+    assert.equal(repository.loadFills().length, fillsBefore + 1);
+  } finally {
+    try { repository.close(); } catch {}
+    try { db.close(); } catch {}
+    fs.rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  }
 });
 
 test("a risk-reducing cancel of a superseded working order does not need a permit (no new exposure)", () => {
   const loop = new PaperTradingExecutionLoop({ initialCapital: 10_000_000, feeRate: 0, readP0State: () => ({ openP0: false }) });
   const risk = { evaluate: () => Object.freeze({ status: "ALLOW", reasonCodes: Object.freeze([]) }) };
-  const open = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0: false }), tradePermissionAuthority: authorityWith((q) => kit.testPermit(q)) });
-  assert.equal(open.processTick(tick(2_000, 1_500, 50_000_000, [decision], observedQuote(1_900, 0.005))).reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
+  const open = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0: false }), tradePermissionAuthority: auth() });
+  assert.equal(open.processTick(openTick()).reason, "PAPER_STRATEGY_PARTIALLY_FILLED");
   const none = new CloudPaperExecutionBoundary({ loop, riskGate: risk, readP0State: () => ({ openP0: false }), tradePermissionAuthority: NO_PAPER_TRADE_PERMISSION_AUTHORITY });
   const other = Object.freeze({ ...decision, paperCandidateBinding: Object.freeze({ ...candidateBinding, bindingFingerprintSha256: "9".repeat(64) }) });
   const cancelled = none.processTick(tick(2_200, 2_100, 50_000_000, [other], observedQuote(2_150, 0.02)));
@@ -215,31 +322,33 @@ test("a risk-reducing cancel of a superseded working order does not need a permi
   assert.equal((cancelled.state.workingOrders ?? []).length, 0);
 });
 
-test("the pure check: every refusal code, and only a complete matching unexpired PERMIT passes", () => {
+test("the pure check: only a complete, matching, unexpired, engine-reproducible, store-confirmed PERMIT passes", () => {
   const q = { decisionId: "d", strategyId: "s", market: "KRW-BTC" };
-  const ok = authorityWith(() => kit.testPermit(q));
-  assert.equal(refusePaperTradePermission(ok, q, 5), null);
-  assert.equal(refusePaperTradePermission(ok, q, Number.NaN), "PAPER_TRADE_PERMISSION_UNVERIFIABLE");
-  assert.equal(refusePaperTradePermission(undefined, q, 5), "PAPER_TRADE_PERMISSION_UNVERIFIABLE");
-  assert.equal(refusePaperTradePermission(authorityWith(() => ({ ...kit.testPermit(q), expiresAt: "garbage" })), q, 5), "PAPER_TRADE_PERMISSION_INVALID_TIME");
-  assert.equal(refusePaperTradePermission(authorityWith(() => ({ ...kit.testPermit(q), expiresAt: kit.testPermit(q).generatedAt })), q, 5), "PAPER_TRADE_PERMISSION_INVALID_TIME");
+  assert.equal(refusePaperTradePermission(auth(), q, 5), null);
+  assert.equal(refusePaperTradePermission(auth(), q, Number.NaN), UNVERIFIABLE);
+  assert.equal(refusePaperTradePermission(undefined, q, 5), UNVERIFIABLE);
+  assert.equal(refusePaperTradePermission(auth({}, { edit: (r) => ({ input: r.input, permit: { ...r.permit, expiresAt: "garbage" } }) }), q, 5), TAMPERED);
+  assert.equal(refusePaperTradePermission(auth({}, { edit: (r) => ({ input: null, permit: r.permit }) }), q, 5), INCOMPLETE);
+  assert.equal(refusePaperTradePermission(auth({}, { evidenceExists: () => 1 }), q, 5), UNVERIFIED, "only a literal true confirms the evidence");
 });
 
-test("source: both strategy paths ask for the permit before the risk gate; the runtime uses the no-permit authority; the test kit is never imported by production code", () => {
+test("source: both strategy paths ask for the permit before the risk gate AND again before the simulator; the runtime uses the no-permit authority; the test kit is never imported by production code", () => {
   const boundary = fs.readFileSync(path.join(__dirname, "..", "apps/cloud/src/cloudPaperExecutionBoundary.ts"), "utf8").replace(/\r\n/g, "\n");
-  assert.equal(boundary.split("refusePaperTradePermission(this.options.tradePermissionAuthority").length - 1, 2);
-  const strategyRiskCalls = [...boundary.matchAll(/path: "STRATEGY"/g)].map((m) => m.index);
-  const permitCalls = [...boundary.matchAll(/refusePaperTradePermission\(this\.options/g)].map((m) => m.index);
-  assert.equal(strategyRiskCalls.length, 2);
-  for (let i = 0; i < 2; i += 1) assert.ok(permitCalls[i] < strategyRiskCalls[i], `permit check ${i} precedes the STRATEGY risk evaluation`);
+  assert.equal(boundary.split("refusePaperTradePermission(this.options.tradePermissionAuthority").length - 1, 4);
+  const calls = [...boundary.matchAll(/refusePaperTradePermission\(this\.options/g)].map((m) => m.index);
+  const strategyRisk = [...boundary.matchAll(/path: "STRATEGY"/g)].map((m) => m.index);
+  const simulator = [boundary.indexOf("this.options.loop.advanceStrategyWorkingOrder(working.id, tick)"), boundary.indexOf("this.options.loop.processTick(Object.freeze({")];
+  assert.equal(strategyRisk.length, 2);
+  // continuation: [0] before risk, [1] after risk and before advance; new order: [2] before risk, [3] after risk and before processTick
+  assert.ok(calls[0] < strategyRisk[0] && strategyRisk[0] < calls[1] && calls[1] < simulator[0], "continuation: permit, risk, permit, simulator");
+  assert.ok(calls[2] < strategyRisk[1] && strategyRisk[1] < calls[3] && calls[3] < simulator[1], "new order: permit, risk, permit, simulator");
   const runtime = fs.readFileSync(path.join(__dirname, "..", "apps/cloud/src/runtime.ts"), "utf8").replace(/\r\n/g, "\n");
   assert.match(runtime, /tradePermissionAuthority: PaperTradePermissionAuthority = NO_PAPER_TRADE_PERMISSION_AUTHORITY/, "the runtime default has no permit");
   assert.match(runtime, /new CloudPaperExecutionBoundary\(\{[^}]*tradePermissionAuthority \}\)/);
   const production = fs.readFileSync(path.join(__dirname, "..", "apps/cloud/src/closedLearningProductionRuntime.ts"), "utf8");
   assert.doesNotMatch(production, /tradePermissionAuthority/, "the production composition never supplies a permit source");
-  const srcRoot = path.join(__dirname, "..", "apps");
   const offenders = [];
   const walk = (dir) => { for (const n of fs.readdirSync(dir)) { const p = path.join(dir, n); if (fs.statSync(p).isDirectory()) { if (n !== "node_modules" && n !== "testing") walk(p); } else if (/\.ts$/.test(n) && !/\.test\.ts$/.test(n) && fs.readFileSync(p, "utf8").includes("paperTradePermissionTestKit")) offenders.push(p); } };
-  walk(srcRoot);
+  walk(path.join(__dirname, "..", "apps"));
   assert.deepEqual(offenders, [], "no production source imports the test kit");
 });
