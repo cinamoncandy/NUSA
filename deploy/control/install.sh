@@ -59,13 +59,21 @@ orders_off_everywhere() {
   [ "$id" = "nusa.service" ] || return 1
   env="$(sysctl show nusa.service -p Environment --value 2>/dev/null)" || return 1
   if grep -q 'NUSA_PAPER_ORDER_PATH' <<<"$env"; then return 1; fi
-  # Only these two files may feed the unit's environment; any other EnvironmentFile could set the order switch.
+  # Only these two files may feed the unit's environment, and cloud-runtime.env (which holds the OFF line) MUST be one of them:
+  # a unit that does not read it would not be proven OFF. systemd may print the files one per line or several on one line,
+  # each followed by "(ignore_errors=no|yes)"; both are split into one path per line before checking.
   files="$(sysctl show nusa.service -p EnvironmentFiles --value 2>/dev/null)" || return 1
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    f="${line%% (*}"
-    case "$f" in "$R/etc/nusa/cloud-runtime.env"|"$R/etc/nusa/run-mode.env") ;; *) return 1;; esac
-  done <<<"$files"
+  local seen_runtime=0
+  while IFS= read -r f; do
+    f="${f#"${f%%[![:space:]]*}"}"; f="${f%"${f##*[![:space:]]}"}"
+    [ -n "$f" ] || continue
+    case "$f" in
+      "$R/etc/nusa/cloud-runtime.env") seen_runtime=1 ;;
+      "$R/etc/nusa/run-mode.env") ;;
+      *) return 1 ;;
+    esac
+  done < <(sed -E 's/\(ignore_errors=[a-z]*\)/\n/g' <<<"$files" | tr -s ' \t' '\n\n')
+  [ "$seen_runtime" = 1 ] || return 1
   # Only an assignment counts; the controller's own drop-in names the variable in UnsetEnvironment= (which closes it).
   # grep exit 1 = no match (good); 0 = match and 2 = error are both "not proven OFF". The files are listed first and must be readable.
   local unitfiles

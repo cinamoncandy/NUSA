@@ -43,7 +43,7 @@ function world(opts = {}) {
   if (!opts.noUnitFile) fs.writeFileSync(path.join(R, "etc/systemd/system/nusa.service"), `[Service]\nEnvironmentFile=${R}/etc/nusa/cloud-runtime.env\nEnvironment=HOME=/var/lib/nusa\n`);
   fs.writeFileSync(path.join(R, "etc/nusa/cloud-runtime.env"), opts.env ?? "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_CLOUD_PORT=1\n");
   const bin = path.join(R, "bin"); fs.mkdirSync(bin);
-  const showStub = `if [ "$1" = show ]; then ${opts.showFail ? "exit 1;" : ""} ${opts.showFailOn ? `case "$*" in *${JSON.stringify(opts.showFailOn)}*) exit 1;; esac;` : ""} case "$*" in *"-p Id"*) echo ${JSON.stringify(opts.showId ?? "nusa.service")};; *"-p EnvironmentFiles"*) printf '%s\\n' ${JSON.stringify(opts.showFiles ?? `${R}/etc/nusa/cloud-runtime.env (ignore_errors=no)`)};; *) printf '%s\\n' ${JSON.stringify(opts.showEnv || "HOME=/var/lib/nusa")};; esac; exit 0; fi`;
+  const showStub = `if [ "$1" = show ]; then ${opts.showFail ? "exit 1;" : ""} ${opts.showFailOn ? `case "$*" in *${JSON.stringify(opts.showFailOn)}*) exit 1;; esac;` : ""} case "$*" in *"-p Id"*) echo ${JSON.stringify(opts.showId ?? "nusa.service")};; *"-p EnvironmentFiles"*) printf '%b\\n' ${JSON.stringify((opts.showFiles ?? "ROOT/etc/nusa/cloud-runtime.env (ignore_errors=no)").replaceAll("ROOT", R))};; *) printf '%s\\n' ${JSON.stringify(opts.showEnv || "HOME=/var/lib/nusa")};; esac; exit 0; fi`;
   fs.writeFileSync(path.join(bin, "systemctl"), `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\n${showStub}\nexit 0\n`, { mode: 0o755 });
   if (opts.tamperAt) {
     // A wrapper around install(1): on the first call after the private copy is checked, the release tree is changed (a race).
@@ -94,6 +94,9 @@ test("every precondition is enforced: a failing one fails the preflight, and --a
     ["systemd cannot answer (fail closed)", { showFail: true }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer the Environment query only", { showFailOn: "-p Environment --value" }, /FAIL  orders are OFF from every environment source/],
     ["systemd cannot answer the EnvironmentFiles query only", { showFailOn: "-p EnvironmentFiles" }, /FAIL  orders are OFF from every environment source/],
+    ["the unit does not read cloud-runtime.env (empty EnvironmentFiles)", { showFiles: "" }, /FAIL  orders are OFF from every environment source/],
+    ["only run-mode.env is registered", { showFiles: "ROOT/etc/nusa/run-mode.env (ignore_errors=no)" }, /FAIL  orders are OFF from every environment source/],
+    ["a second foreign file on the same line", { showFiles: "ROOT/etc/nusa/cloud-runtime.env (ignore_errors=no) /etc/nusa/extra.env (ignore_errors=yes)" }, /FAIL  orders are OFF from every environment source/],
     ["systemd answers for another unit", { showId: "other.service" }, /FAIL  orders are OFF from every environment source/],
     ["another EnvironmentFile feeds the unit", { showFiles: "/etc/nusa/extra.env (ignore_errors=no)" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set in the unit environment as systemd sees it", { showEnv: "Environment=NUSA_PAPER_ORDER_PATH=ON" }, /FAIL  orders are OFF from every environment source/],
@@ -111,6 +114,14 @@ test("every precondition is enforced: a failing one fails the preflight, and --a
     const apply = w.run(useHash, "--apply");
     assert.notEqual(apply.status, 0, `${label}: apply refuses`); assert.match(apply.stderr + apply.stdout, /nothing was changed/, label);
     assert.equal(w.snapshot(), before, `${label}: nothing changed`);
+  }
+});
+
+test("both systemd output shapes for EnvironmentFiles are accepted (one line, or one file per line), including after the install", posixOnly, () => {
+  for (const showFiles of ["ROOT/etc/nusa/cloud-runtime.env (ignore_errors=no) ROOT/etc/nusa/run-mode.env (ignore_errors=no)", "ROOT/etc/nusa/cloud-runtime.env (ignore_errors=no)\\nROOT/etc/nusa/run-mode.env (ignore_errors=no)"]) {
+    const w = world({ showFiles });
+    const r = w.run(w.hash); assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.equal(w.run(w.hash, "--apply").status, 0); assert.equal(w.run("--rollback").status, 0);
   }
 });
 
