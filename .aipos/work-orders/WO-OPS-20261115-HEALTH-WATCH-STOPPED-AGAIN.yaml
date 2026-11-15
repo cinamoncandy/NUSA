@@ -1,0 +1,23 @@
+id: WO-OPS-20261115-HEALTH-WATCH-STOPPED-AGAIN
+title: "Health watch expects STOPPED again (the 2026-11-15 restart failed and the service was stopped)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/health-watch-stopped
+owner_decision: "2026-11-15: the owner chose to fix the cause and re-release, and asked to set the watch back to STOPPED until then."
+objective: "Undo the RUNNING flip of PR #3131 so a stopped service is not reported as DOWN while the fix is prepared."
+change:
+  - "deploy/health-watch.json: expectedState RUNNING -> STOPPED. No other change."
+context:
+  - "Release run 43665972913 (source 9a3e165c) failed in activate: the daemon entry closedLearningProductionRuntime verifies the PAPER writer lease at startup, and NUSA_PAPER_ORDER_PATH=OFF never starts that lease (PAPER_WRITER_LEASE_NOT_STARTED, crash loop). It failed closed: no order path ran. The owner stopped nusa.service (inactive, NRestarts=0 before the stop). The previous release cannot open the migrated database, so no rollback."
+not_changed:
+  - "The service stays stopped. No release, no host change, no risk limit or gate."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "tests/health-watch.test.js and the AIPOS validators pass locally."
+unverified: "CI at the PR head."
+acceptance:
+  - The change is one value in deploy/health-watch.json.
