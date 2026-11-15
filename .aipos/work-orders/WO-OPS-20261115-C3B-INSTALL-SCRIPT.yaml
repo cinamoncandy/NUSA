@@ -1,0 +1,22 @@
+id: WO-OPS-20261115-C3B-INSTALL-SCRIPT
+title: "C3b: one-time install script for the host controller, with a read-only preflight and a rollback"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/c3b-install-plan
+owner_decision: "2026-11-15: the owner chose the reduced path: drop the separate audit workflow (PR 3146, closed after three review rounds) and go to one reviewed install with a read-only preflight."
+objective: "Replace many hand-typed root commands with one script the owner runs three times at most (preflight, apply, rollback), where the preflight doubles as the access and precondition check."
+change:
+  - "deploy/control/install.sh: preflight (read-only, PASS/FAIL per precondition, nothing changed): release staged and active, source files present, nusa-control.js hash equal to the hash printed in the reviewed pull request, /opt /opt/nusa /etc /etc/nusa /etc/systemd/system /var/lib real, root-owned, not group/other-writable, orders explicitly OFF in the runtime env file (one exact line is read, the file is never written), no NUSA_RUN_MODE yet, nusa.service active, /health shows this commit and runMode COLLECT_ONLY, no state file, controller not installed. --apply refuses unless every check passes, then: mode file, state directory 0700, controller files 0755 (hash re-verified after copy), units and drop-ins, daemon-reload, enable the gate and the verify timer, controller init (stops the units and records the build), collect (starts in COLLECT_ONLY and verifies). A failing step prints the rollback command. --rollback removes the units, drop-ins and mode file, re-enables nusa.service and the research timer and restarts them, keeping the controller files and the state file for inspection."
+  - "tests/nusa-control-install.test.js: 7 tests against a temporary tree with stub systemctl, curl and controller: read-only preflight, eight failing preconditions each refusing apply with nothing changed, the hash argument required, the exact step order and file modes, failure hints, rollback, no write to the runtime env file, no network except local /health. Mutation checks on the orders-OFF check, the apply refusal and the init step fail tests."
+not_changed:
+  - "Nothing runs on the host by this change. No sudoers rule is installed (the phone button is a later phase); the order switch and the runtime env file are never written; PAPER_ORDERS cannot be selected."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control-install.test.js: 7 pass; platform-independence and portability validators pass."
+unverified: "Never run on the host. The real systemd behaviour of the gate (the collect restarts nusa.service while holding the controller lock, and the gate runs read-only inside it) is exercised for the first time by --apply; if it fails the units end STOPPED and the rollback restores the old start. Needs a non-author review before the owner runs it."
+acceptance:
+  - "Non-author review; the owner runs the preflight first and sends its output before any --apply."
