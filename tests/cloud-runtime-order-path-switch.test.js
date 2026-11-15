@@ -71,7 +71,7 @@ const feedOneTicker = async (extra, port) => {
 };
 
 test("order path switch: research collection still receives market data when OFF, as it does when ON", async () => {
-  const on = await feedOneTicker({}, 43001);
+  const on = await feedOneTicker({ NUSA_PAPER_ORDER_PATH: "ON" }, 43001);
   const off = await feedOneTicker({ NUSA_PAPER_ORDER_PATH: "OFF" }, 43002);
   assert.equal(on.length, 1);
   assert.equal(off.length, 1, "market data must reach research while the order path is OFF");
@@ -110,4 +110,29 @@ test("/health.runtime.runMode reports COLLECT_ONLY when unset, OFF or garbled, a
   assert.equal(await healthRunMode({ NUSA_PAPER_ORDER_PATH: "OFF" }, 42981), "COLLECT_ONLY");
   assert.equal(await healthRunMode({ NUSA_PAPER_ORDER_PATH: "ONN" }, 42982), "COLLECT_ONLY");
   assert.equal(await healthRunMode({ NUSA_PAPER_ORDER_PATH: "ON" }, 42983), "PAPER_ORDERS");
+});
+
+// The reported mode is decided once at start-up (the same value that selected the order path), not re-read from the
+// environment on every /health request.
+test("/health.runtime.runMode is pinned at start-up: changing the environment object afterwards does not change it", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "nusa-order-path-pin-"));
+  const env = {
+    NUSA_CLOUD_STATE_DB_PATH: join(directory, "state.sqlite"), NUSA_CLOUD_DASHBOARD_PORT: "42984",
+    NUSA_CLOUD_DASHBOARD_TOKEN: "order-path-switch-test-token-0123456789", NUSA_CLOUD_UPBIT_PUBLIC_DATA: "false",
+    NUSA_CLOUD_PAPER_INITIAL_CAPITAL_KRW: "1000000", NUSA_PAPER_ORDER_PATH: "ON",
+  };
+  let handle;
+  try {
+    handle = startCloudRuntime(env, undefined, undefined, undefined, undefined, { startWriterLease: () => undefined, loadLatest: () => undefined, loadFills: () => [], save: () => undefined, clear: () => undefined });
+    env.NUSA_PAPER_ORDER_PATH = "OFF";
+    let body;
+    for (let i = 0; i < 100 && !body; i += 1) {
+      try { const response = await fetch("http://127.0.0.1:42984/health"); if (response.ok) body = await response.json(); } catch { /* not listening yet */ }
+      if (!body) await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    assert.equal(body?.runtime?.runMode, "PAPER_ORDERS", "the mode that selected the order path at start is the one reported");
+  } finally {
+    if (handle) await handle.stop();
+    rmSync(directory, { recursive: true, force: true });
+  }
 });

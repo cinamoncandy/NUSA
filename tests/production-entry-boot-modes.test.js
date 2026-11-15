@@ -1,4 +1,8 @@
 "use strict";
+// SCOPE: this boots the daemon module that scripts/start-cloud-runtime.js runs, directly; it does not go through that launcher's
+// supervisor and environment hand-over, and market data is off, so zero orders here is weak evidence on its own. The lease,
+// ledger rows and runMode are the proof; timers are covered by closed-learning-daemon-order-path-off.test.js and a real
+// order by cloud-runtime-order-path-switch-e2e.test.js.
 // Boots the REAL production daemon entry (dist/apps/cloud/src/closedLearningProductionRuntime.js, the module that
 // scripts/start-cloud-runtime.js runs) in a child process per mode. Nothing is stubbed: real runtime composition,
 // real SQLite file, real loopback HTTP. It asserts what exists and what does not, so a mode can no longer pass a test

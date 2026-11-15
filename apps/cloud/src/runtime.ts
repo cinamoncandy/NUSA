@@ -514,10 +514,12 @@ export function startCloudRuntime(
   let productionPaperBoundary: CloudPaperExecutionBoundary | undefined;
   let paperRuntimeStarted = false;
   // Operator switch that isolates the PAPER order path without stopping market data, research collection or the
-  // read-only dashboard. Unset or exactly "ON" keeps today's behaviour. Any other value (including a typo) is OFF:
-  // no writer lease, no execution loop and no order boundary are created, so no order can be produced. It can only
-  // remove the ability to order, never add authority.
-  const paperOrderPathEnabled = isPaperOrderPathEnabled(env);
+  // read-only dashboard. FAIL CLOSED: only exactly "ON" creates the order path. Unset, empty or any other value
+  // (including a typo) is OFF: no writer lease, no execution loop and no order boundary are created, so no order can
+  // be produced. The mode is decided once here and the same value is published in /health (runMode), so the report
+  // cannot drift from what was started.
+  const effectiveMode = effectiveRunMode(env);
+  const paperOrderPathEnabled = effectiveMode === "PAPER_ORDERS";
   const startPaperRuntime = (): void => {
     if (paperRuntimeStarted) return;
     if (!paperOrderPathEnabled) { paperRuntimeStarted = true; return; }
@@ -903,7 +905,7 @@ export function startCloudRuntime(
       // The exact commit this process was built from, so main = deployed = running can be read directly.
       sourceCommitSha: (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim(),
       // The mode this process really runs in (same function that decides whether the writer lease and order path exist).
-      runMode: effectiveRunMode(env),
+      runMode: effectiveMode,
       startedAt: heartbeat.startedAt,
       lastHeartbeatAt: heartbeat.lastHeartbeatAt,
       lastMarketEventAt: heartbeat.lastMarketEventAt,

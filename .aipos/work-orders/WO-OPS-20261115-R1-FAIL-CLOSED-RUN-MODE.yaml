@@ -20,6 +20,6 @@ safety:
 validation:
   - "scripts/actual-paper-runtime-e2e.js and scripts/paper-elapsed-soak.js set ON explicitly (their CI job failed on the first push because they relied on the old default); the env example documents the switch. npx tsc -p tsconfig.json; all 35 tests that mention the runtime, the daemon entry or the switch pass except tests/paper-startup-lease-budget-2770.test.js, which fails here only because node:sqlite lacks setAuthorizer in this sandbox (needs Node 24, left to CI)."
   - "Mutation check: restoring the old default in the compiled runtime makes five new or changed tests fail."
-unverified: "Not deployed; the effective mode on the host is not yet read through /health (R4). The independent review of this PR is pending."
+unverified: "First Codex review (REJECT): the ledger-preservation test passed vacuously under the new default; fixed by setting ON and asserting the path runs (fails without ON). The mode in /health is now pinned at start-up. tests/production-entry-boot-modes.test.js boots the daemon module directly, not the launcher supervisor, with market data off (scope stated in the test). Not deployed; the effective mode on the host is not yet read through /health (R4). The independent review of this PR is pending."
 acceptance:
   - "CI green; non-author review done before the PR leaves draft."
