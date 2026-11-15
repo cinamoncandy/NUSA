@@ -39,6 +39,7 @@ test("the rollback guard refuses a release that does not know an applied migrati
   assert.equal(run(["027_research_holdout_usage", "028_research_market_microstructure"], ["027_research_holdout_usage"]), 1);
 });
 
-test("activation keeps the new release when the previous one cannot open the migrated database", () => {
-  assert.match(script, /if ! rollback_schema_compatible "\$\(previous_release\)"; then[\s\S]*keeping \$1 active \(no rollback\)[\s\S]*exit 1/);
+test("activation restores the previous release only when it is proven AND schema compatible; otherwise it stops the service", () => {
+  assert.match(script, /release_proven "\$previous" && rollback_schema_compatible "\$previous"/);
+  assert.match(script, /safe_stop_after_failed_activation "\$1" "no proven, data-compatible previous release to restore"/);
 });

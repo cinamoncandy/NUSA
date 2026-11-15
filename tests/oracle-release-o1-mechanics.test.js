@@ -45,8 +45,17 @@ test("O1: the verbs that DO start the service are exactly restart, activate and 
   assert.match(verb("rollback"), /atomic-deploy\.js/);
 });
 
-test("O1: activate keeps the NEW build running (no rollback) when the previous build cannot open the migrated database", () => {
-  assert.match(verb("activate"), /rollback_schema_compatible[\s\S]*keeping \$1 active \(no rollback\)[\s\S]*exit 1/);
+test("R2: a failed activation restores only a PROVEN, data-compatible previous release; otherwise the host ends STOPPED", () => {
+  const body = verb("activate");
+  assert.match(body, /release_proven "\$previous" && rollback_schema_compatible "\$previous"/);
+  assert.match(body, /safe_stop_after_failed_activation "\$1" "no proven, data-compatible previous release to restore"/);
+  assert.match(body, /if \( rollback_and_restore \) \\\n\s+&& node/, "the restore runs in a subshell so a die inside it ends in the safe stop");
+  assert.match(body, /is-active --quiet "\$SERVICE" \|\| safe_stop_after_failed_activation/, "the final active checks also end in the safe stop");
+  assert.match(body, /atomic deploy failed and changed nothing/);
+  assert.match(body, /atomic deploy failed after changing the release pointer/);
+  assert.doesNotMatch(body, /keeping \$1 active \(no rollback\)/, "the old keep-running branch is gone");
+  assert.ok(body.indexOf("mark_release_proven") > body.indexOf('systemctl is-active --quiet "$AUTOPILOT_SERVICE"'), "a release is marked proven only after the final active checks");
+  assert.ok(body.indexOf("mark_release_proven") > body.indexOf("safe_stop_after_failed_activation"), "never marked proven on the failure path");
 });
 
 function layout() {
@@ -121,4 +130,87 @@ test("O1: bind_runtime_source_identity writes the new SHA into the env file and 
     assert.match(text, /^OTHER=keep$/m);
     assert.equal(fs.existsSync(l.marker), false);
   } finally { fs.rmSync(l.base, { recursive: true, force: true }); }
+});
+
+// R2a: the proof and the restore are run for real (the safe stop and the whole activate flow are in oracle-release-activate-flow.test.js) against a temp layout and stub commands.
+function sandbox() {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-r2-"));
+  const bin = path.join(base, "bin");
+  const state = path.join(base, "state");
+  fs.mkdirSync(bin);
+  fs.mkdirSync(state);
+  const log = path.join(base, "systemctl.log");
+  // The stub keeps one file per active unit: `stop` removes it unless the unit is listed in $STUCK; is-active reads it.
+  const stub = [
+    "#!/usr/bin/env bash",
+    `echo "$*" >> ${JSON.stringify(log)}`,
+    'case "$1" in',
+    `  stop) shift; for u in "$@"; do case " \${STUCK:-} " in *" $u "*) ;; *) rm -f ${JSON.stringify(state)}/$u;; esac; done;;`,
+    `  is-active) shift; if [ "\${1:-}" = "--quiet" ]; then shift; fi; [ -e ${JSON.stringify(state)}/$1 ];;`,
+    "esac",
+  ].join("\n");
+  fs.writeFileSync(path.join(bin, "systemctl"), `${stub}\n`, { mode: 0o755 });
+  return { base, bin, log, state };
+}
+const FNS = ["assert_proven_dir() {", "release_proven() {", "mark_release_proven() {", "safe_stop_after_failed_activation() {", "rollback_and_restore() {"];
+const extract = (name) => {
+  const start = script.indexOf(`\n${name}`);
+  assert.ok(start > 0, name);
+  return script.slice(start, script.indexOf("\n}\n", start) + 3);
+};
+const bash = (box, code, extraEnv = {}) => spawnSync("bash", ["-c", `set -euo pipefail
+DEPLOY_ROOT=${JSON.stringify(box.base)}
+PROVEN_DIR=${JSON.stringify(path.join(box.base, "proven"))}
+SERVICE=nusa.service; AUTOPILOT_SERVICE=nusa-autopilot.service; RESEARCH_TIMER=nusa-research.timer; RESEARCH_SERVICE=nusa-research.service
+die() { echo "$*" >&2; exit 1; }
+${FNS.map(extract).join("\n")}
+${code}`], { encoding: "utf8", env: { ...process.env, PATH: `${box.bin}:${process.env.PATH}`, ...extraEnv } });
+const isRoot = process.platform !== "win32" && process.getuid && process.getuid() === 0;
+const SHA = "3".repeat(40);
+
+test("R2a: no proof means not proven, a proof kept inside the release tree does not count", posixOnly, () => {
+  const box = sandbox();
+  const dir = path.join(box.base, "releases", SHA);
+  fs.mkdirSync(dir, { recursive: true });
+  assert.equal(bash(box, `release_proven ${JSON.stringify(dir)}`).status, 1, "no proof");
+  fs.writeFileSync(path.join(dir, ".nusa-proven"), SHA);
+  assert.equal(bash(box, `release_proven ${JSON.stringify(dir)}`).status, 1, "a marker inside the release tree is ignored");
+  fs.mkdirSync(path.join(box.base, "proven"), { mode: 0o777 });
+  fs.chmodSync(path.join(box.base, "proven"), 0o777);
+  fs.writeFileSync(path.join(box.base, "proven", SHA), SHA);
+  assert.equal(bash(box, `release_proven ${JSON.stringify(dir)}`).status, 1, "a writable proof directory is not trusted");
+});
+
+test("R2a: mark_release_proven writes a root-owned proof outside the release tree that release_proven accepts; wrong content or a symlink is refused (root only)", { skip: isRoot ? false : "needs root to chown" }, () => {
+  const box = sandbox();
+  const dir = path.join(box.base, "releases", SHA);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.chmodSync(box.base, 0o755);
+  assert.equal(bash(box, `mark_release_proven ${JSON.stringify(dir)} && release_proven ${JSON.stringify(dir)}`).status, 0);
+  assert.equal(fs.readFileSync(path.join(box.base, "proven", SHA), "utf8").trim(), SHA);
+  fs.writeFileSync(path.join(box.base, "proven", SHA), "wrong\n");
+  assert.equal(bash(box, `release_proven ${JSON.stringify(dir)}`).status, 1, "content must equal the SHA");
+  fs.rmSync(path.join(box.base, "proven", SHA));
+  fs.symlinkSync("/etc/hostname", path.join(box.base, "proven", SHA));
+  assert.equal(bash(box, `release_proven ${JSON.stringify(dir)}`).status, 1, "a symlink proof is refused");
+  assert.equal(bash(box, `mark_release_proven ${JSON.stringify(path.join(box.base, "releases", "not-a-sha"))}`).status, 1, "a non-SHA directory cannot be marked");
+});
+
+test("R2a: a failing step inside rollback_and_restore ends the restore at once (set -e does not apply inside a condition)", posixOnly, () => {
+  const box = sandbox();
+  const stubs = `previous_release() { echo /x/rel; }
+assert_segmented_replay_compatible() { :; }
+script_in() { echo "$2"; }
+active_release() { echo /x/rel; }
+active_release_sha() { echo ${SHA}; }
+node() { :; }
+install_units_from_release() { :; }
+enable_units() { :; }
+restart_units() { echo RESTARTED; }
+bind_runtime_source_identity() { return 1; }`;
+  const failing = bash(box, `${stubs}\nif rollback_and_restore; then echo RESTORED; else echo FAILED; fi`);
+  assert.match(failing.stdout, /FAILED/);
+  assert.doesNotMatch(failing.stdout, /RESTARTED|RESTORED/, "nothing after the failing step ran");
+  const ok = bash(box, `${stubs.replace("bind_runtime_source_identity() { return 1; }", "bind_runtime_source_identity() { :; }")}\nif rollback_and_restore; then echo RESTORED; else echo FAILED; fi`);
+  assert.match(ok.stdout, /RESTARTED[\s\S]*RESTORED/);
 });
