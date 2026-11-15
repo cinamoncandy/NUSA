@@ -63,16 +63,18 @@ orders_off_everywhere() {
   # a unit that does not read it would not be proven OFF. systemd may print the files one per line or several on one line,
   # each followed by "(ignore_errors=no|yes)"; both are split into one path per line before checking.
   files="$(sysctl show nusa.service -p EnvironmentFiles --value 2>/dev/null)" || return 1
-  local seen_runtime=0
-  while IFS= read -r f; do
-    f="${f#"${f%%[![:space:]]*}"}"; f="${f%"${f##*[![:space:]]}"}"
+  # Parse into one "path flag" line per file FIRST; a failing parser is a failure (never a partial list).
+  local parsed flag extra seen_runtime=0
+  parsed="$(sed -E 's/[[:space:]]*\(ignore_errors=([a-z]*)\)[[:space:]]*/ \1\n/g' <<<"$files")" || return 1
+  while read -r f flag extra; do
     [ -n "$f" ] || continue
+    [ -z "$extra" ] && [ -n "$flag" ] || return 1
     case "$f" in
-      "$R/etc/nusa/cloud-runtime.env") seen_runtime=1 ;;
-      "$R/etc/nusa/run-mode.env") ;;
+      "$R/etc/nusa/cloud-runtime.env") [ "$flag" = no ] || return 1; seen_runtime=1 ;;   # a missing OFF file must stop the start
+      "$R/etc/nusa/run-mode.env") [ "$flag" = no ] || return 1 ;;
       *) return 1 ;;
     esac
-  done < <(sed -E 's/\(ignore_errors=[a-z]*\)/\n/g' <<<"$files" | tr -s ' \t' '\n\n')
+  done <<<"$parsed"
   [ "$seen_runtime" = 1 ] || return 1
   # Only an assignment counts; the controller's own drop-in names the variable in UnsetEnvironment= (which closes it).
   # grep exit 1 = no match (good); 0 = match and 2 = error are both "not proven OFF". The files are listed first and must be readable.

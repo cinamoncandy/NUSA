@@ -52,6 +52,7 @@ function world(opts = {}) {
   }
   if (opts.tamperDuringPreflight) fs.writeFileSync(path.join(bin, "systemctl"), `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\n[ "$1" = is-active ] && echo "// evil" >> ${JSON.stringify(path.join(src, "nusa-control.js"))}\n${showStub}\nexit 0\n`, { mode: 0o755 });
   if (opts.grepError) fs.writeFileSync(path.join(bin, "grep"), `#!/usr/bin/env bash\ncase "$*" in *"Environment=.*NUSA_PAPER_ORDER_PATH"*) exit 2;; esac\nexec /usr/bin/grep "$@"\n`, { mode: 0o755 });
+  if (opts.sedFail) fs.writeFileSync(path.join(bin, "sed"), `#!/usr/bin/env bash\ncase "$*" in *ignore_errors*) echo "${R}/etc/nusa/cloud-runtime.env no"; exit 3;; esac\nexec /usr/bin/sed "$@"\n`, { mode: 0o755 });
   const health = opts.health ?? JSON.stringify({ runtime: { sourceCommitSha: SHA, runMode: "COLLECT_ONLY" } });
   fs.writeFileSync(path.join(bin, "curl"), `#!/usr/bin/env bash\ncat <<'JSON'\n${health}\nJSON\n`, { mode: 0o755 });
   if (opts.symlinkInTree) fs.symlinkSync("/etc/passwd", path.join(src, "evil"));
@@ -97,6 +98,9 @@ test("every precondition is enforced: a failing one fails the preflight, and --a
     ["the unit does not read cloud-runtime.env (empty EnvironmentFiles)", { showFiles: "" }, /FAIL  orders are OFF from every environment source/],
     ["only run-mode.env is registered", { showFiles: "ROOT/etc/nusa/run-mode.env (ignore_errors=no)" }, /FAIL  orders are OFF from every environment source/],
     ["a second foreign file on the same line", { showFiles: "ROOT/etc/nusa/cloud-runtime.env (ignore_errors=no) /etc/nusa/extra.env (ignore_errors=yes)" }, /FAIL  orders are OFF from every environment source/],
+    ["cloud-runtime.env is registered with ignore_errors=yes", { showFiles: "ROOT/etc/nusa/cloud-runtime.env (ignore_errors=yes)" }, /FAIL  orders are OFF from every environment source/],
+    ["a file entry without its ignore_errors flag", { showFiles: "ROOT/etc/nusa/cloud-runtime.env" }, /FAIL  orders are OFF from every environment source/],
+    ["the parser (sed) itself fails", { sedFail: true }, /FAIL  orders are OFF from every environment source/],
     ["systemd answers for another unit", { showId: "other.service" }, /FAIL  orders are OFF from every environment source/],
     ["another EnvironmentFile feeds the unit", { showFiles: "/etc/nusa/extra.env (ignore_errors=no)" }, /FAIL  orders are OFF from every environment source/],
     ["orders are set in the unit environment as systemd sees it", { showEnv: "Environment=NUSA_PAPER_ORDER_PATH=ON" }, /FAIL  orders are OFF from every environment source/],
