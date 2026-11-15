@@ -13,5 +13,11 @@ exec 9>>"$LOCK_FILE" || fail LOCK_OPEN_FAILED
 # Checked on the OPEN file descriptor (stat -L on /proc/self/fd/9), not on the path: what is locked is what was verified.
 [[ "$(stat -L -c '%F' /proc/self/fd/9)" == "regular file" || "$(stat -L -c '%F' /proc/self/fd/9)" == "regular empty file" ]] || fail LOCK_FILE_NOT_REGULAR
 [[ "$(stat -L -c '%u:%g:%a' /proc/self/fd/9)" == "0:0:600" ]] || fail LOCK_FILE_UNSAFE
-flock -w 30 9 || fail LOCK_BUSY
+# reconcile and verify never wait for another command: the start gate runs INSIDE `collect` (which holds this lock while it
+# restarts the runtime), so waiting would deadlock. With the lock busy they run read-only (see nusa-control.js).
+case "${1:-}" in
+  reconcile|verify)
+    if ! flock -n 9; then exec /usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa-control/nusa-control.js "$@" --readonly; fi ;;
+  *) flock -w 30 9 || fail LOCK_BUSY ;;
+esac
 exec /usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa-control/nusa-control.js "$@"

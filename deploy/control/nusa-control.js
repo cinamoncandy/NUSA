@@ -89,7 +89,11 @@ function validateState(s) {
   if (s.attempt !== null) fail("attempt (not supported in this version)");
   if (s.grant !== null) fail("grant (orders are not available in this version)");
   if (s.desired === "PAPER_ORDERS") fail("PAPER_ORDERS is not available in this version");
-  if (s.intent !== null && !(s.intent && ["stop", "collect"].includes(s.intent.verb) && Number.isSafeInteger(s.intent.version) && Number.isSafeInteger(s.intent.at))) fail("intent");
+  if (s.intent !== null) {
+    const i = s.intent;
+    if (!(i && ["stop", "collect"].includes(i.verb) && Number.isSafeInteger(i.version) && Number.isSafeInteger(i.at))) fail("intent");
+    if (i.verb === "collect" && !(i.owner && Number.isSafeInteger(i.owner.pid) && typeof i.owner.ident === "string" && i.owner.ident.length > 0 && typeof i.owner.bootId === "string" && i.owner.bootId.length > 0)) fail("collect intent needs an owner (pid, ident, bootId)");
+  }
   return s;
 }
 
@@ -205,6 +209,35 @@ function makeController(deps) {
   const currentSha = () => { try { const t = fsx.readlinkSync(cfg.currentLink); const sha = path.basename(t); return SHA.test(sha) ? sha : null; } catch { return null; } };
   // True when any owned unit is active, or a unit that starts by itself is still enabled: either needs the verified stop.
   const anyOwnedUnitRunning = () => UNITS.some((u) => { try { const st = unitState(sys, u); return st.active !== "inactive" || (BOOT_UNITS.includes(u) && st.enabled !== "disabled"); } catch { return true; } });
+  // A collect is "in flight" only while the process that wrote the intent is still the same process (pid and start time), in
+  // the same boot, and the intent is younger than the start ceiling plus a margin. Anything else is a stale intent.
+  const collectInFlight = (intent) => {
+    if (!intent || intent.verb !== "collect" || !intent.owner) return false;
+    try {
+      if (intent.owner.bootId !== deps.bootId()) return false;
+      if (deps.processIdentity(intent.owner.pid) !== intent.owner.ident) return false;
+    } catch { return false; }
+    const age = now() - intent.at;
+    return age >= 0 && age <= cfg.startCeilingMs + 60_000;
+  };
+  // Gate denial: stop what is running, disable what would start by itself, and leave inactive units alone (a stop on a unit
+  // with a queued start job is avoided; the failed gate already fails that job).
+  const gateStop = () => {
+    const problems = [];
+    for (const unit of UNITS) {
+      let st;
+      try { st = unitState(sys, unit); } catch { st = { active: "unknown:throw", enabled: "unknown:throw" }; }
+      if (BOOT_UNITS.includes(unit) && st.enabled !== "disabled") { let rc; try { rc = sys(["disable", unit]); } catch { rc = 99; } if (rc !== 0) problems.push(`${unit}:disable-failed`); }
+      if (st.active !== "inactive") { let rc; try { rc = sys(["stop", unit]); } catch { rc = 99; } if (rc !== 0) problems.push(`${unit}:stop-failed`); }
+    }
+    for (const unit of UNITS) {
+      let st;
+      try { st = unitState(sys, unit); } catch { st = { active: "unknown:throw", enabled: "unknown:throw" }; }
+      if (st.active !== "inactive") problems.push(`${unit}:${st.active}`);
+      if (BOOT_UNITS.includes(unit) && st.enabled !== "disabled") problems.push(`${unit}:${st.enabled}`);
+    }
+    return problems;
+  };
   const stoppedResult = (code, extra = {}) => { const problems = stopAll(sys); return { ok: false, code, stopped: problems.length === 0, problems, ...extra }; };
 
   const status = async () => {
@@ -239,7 +272,8 @@ function makeController(deps) {
     if (!s.adopted && !s.proven.some((p) => p.sha === s.active)) return refuse("ACTIVE_NOT_PROVEN");
     let intentState;
     try {
-      intentState = store.write(s.version, { ...s, version: s.version + 1, intent: { verb: "collect", version: s.version + 1, at: now() } });
+      const me = deps.selfIdentity();
+      intentState = store.write(s.version, { ...s, version: s.version + 1, intent: { verb: "collect", version: s.version + 1, at: now(), owner: { pid: me.pid, ident: me.ident, bootId: deps.bootId() } } });
     } catch (e) { return { ok: false, code: e.code || "STATE_WRITE_FAILED", detail: "no unit was touched; if the record holds a pending intent, verify or the boot reconcile resolves it to STOPPED" }; }
     try {
       modeWrite();
@@ -281,42 +315,43 @@ function makeController(deps) {
     return { ok: true, code: "INITIALISED_STOPPED" };
   };
 
-  // Start gate (runs before the runtime units; they Require= it). It succeeds ONLY when a start is permitted: the record is
-  // valid, its build is the running build, and either desired is COLLECT_ONLY with nothing pending or a `collect` is in
-  // flight. In every other case the gate FAILS (non-zero exit), so systemd fails the runtime units' start jobs, and any owned
-  // unit that is somehow running is stopped and verified first. A STOPPED host therefore never starts by itself.
-  const reconcile = async () => {
+  // Start gate (runs before the runtime units; they Require= it, and the gate unit has no RemainAfterExit, so it is
+  // evaluated again for every start). It succeeds ONLY when a start is permitted: a valid record whose build is the running
+  // build, and either desired COLLECT_ONLY with nothing pending, or a collect that is verifiably in flight (its owner process
+  // is alive, same start time, same boot, intent still fresh). Everything else FAILS the gate, so systemd fails the runtime
+  // start jobs. With { readonly: true } (the controller lock is held by another command) it never writes or stops anything.
+  const reconcile = async ({ readonly = false } = {}) => {
     try {
-      const quarantined = store.quarantineTemps();
+      const quarantined = readonly ? 0 : store.quarantineTemps();
       const deny = (code, extra = {}) => {
-        const problems = anyOwnedUnitRunning() ? stopAll(sys) : [];
+        if (readonly) return { ok: false, code, readonly: true, ...extra };
+        const problems = gateStop();
         return { ok: false, code, quarantined, stopped: problems.length === 0, problems, ...extra };
       };
       const r = store.read();
       if (!r.ok) return deny(`GATE_DENIED:${r.reason}`);
       const s = r.state;
-      if (s.active !== currentSha()) {
-        const out = deny("GATE_DENIED:MISMATCH");
-        if (out.stopped && s.desired !== "STOPPED") { try { store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", intent: null }); } catch { out.stateRecorded = false; } }
-        return out;
-      }
-      const collectInFlight = s.intent !== null && s.intent.verb === "collect";
+      const resolveStopped = (out) => { if (!readonly && out.stopped && (s.desired !== "STOPPED" || s.intent !== null)) { try { store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", intent: null }); } catch { out.stateRecorded = false; } } return out; };
+      if (s.active !== currentSha()) return resolveStopped(deny("GATE_DENIED:MISMATCH"));
+      const inFlight = collectInFlight(s.intent);
       const settledCollect = s.desired === "COLLECT_ONLY" && s.intent === null;
-      if (!collectInFlight && !settledCollect) {
-        const out = deny(s.desired === "STOPPED" && s.intent === null ? "GATE_DENIED:STOPPED" : "GATE_DENIED:PENDING_INTENT");
-        if (out.stopped && (s.desired !== "STOPPED" || s.intent !== null)) { try { store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", intent: null }); } catch { out.stateRecorded = false; } }
-        return out;
+      if (!inFlight && !settledCollect) {
+        const stale = s.intent !== null;
+        return resolveStopped(deny(stale ? "GATE_DENIED:STALE_OR_UNKNOWN_INTENT" : "GATE_DENIED:STOPPED"));
       }
-      modeWrite();
+      if (!readonly) modeWrite();
       return { ok: true, code: "START_PERMITTED_COLLECT_ONLY", quarantined };
     } catch (e) {
+      if (readonly) return { ok: false, code: `GATE_DENIED:${e.code || "ERROR"}`, readonly: true };
       const problems = stopAll(sys);
       return { ok: false, code: `GATE_DENIED:${e.code || "ERROR"}`, detail: e.message, stopped: problems.length === 0, problems };
     }
   };
 
   // Post-start and periodic check: the recorded desired state must match reality (units, listener identity, build, mode).
-  const verify = async () => {
+  const verify = async ({ readonly = false } = {}) => {
+    // Another controller command holds the lock: it is responsible for its own result; a periodic check never interferes.
+    if (readonly) return { ok: true, code: "CONTROLLER_COMMAND_RUNNING" };
     try {
       const r = store.read();
       if (!r.ok) return stoppedResult(`VERIFY_STOPPED:${r.reason}`);
@@ -325,6 +360,7 @@ function makeController(deps) {
         const bad = UNITS.filter((u) => { const st = unitState(sys, u); return st.active !== "inactive" || (BOOT_UNITS.includes(u) && st.enabled !== "disabled"); });
         return bad.length === 0 ? { ok: true, code: "STOPPED_VERIFIED" } : stoppedResult("VERIFY_STOPPED:UNIT_RUNNING_OR_ENABLED_WHILE_STOPPED", { units: bad });
       }
+      if (s.intent !== null && collectInFlight(s.intent) && s.active === currentSha()) return { ok: true, code: "COLLECT_IN_PROGRESS" };
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
       const v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
@@ -444,10 +480,15 @@ async function main(argv) {
     if (r.status !== 0 || !Number.isSafeInteger(us) || us <= 0) throw new Error("no activation timestamp");
     return Number(process.hrtime.bigint() / 1000n - BigInt(us)) / 1000;
   };
-  const ctl = makeController({ systemctl: sys, identifiedHealth: hostIdentifiedHealth, unitActiveAgeMs, cgroupOf: (pid) => fs.readFileSync(`/proc/${pid}/cgroup`, "utf8") });
+  const startTicks = (pid) => { const t = fs.readFileSync(`/proc/${pid}/stat`, "utf8"); const f = t.slice(t.lastIndexOf(")") + 2).split(" "); return f[19]; };
+  const ctl = makeController({ systemctl: sys, identifiedHealth: hostIdentifiedHealth, unitActiveAgeMs,
+    selfIdentity: () => ({ pid: process.pid, ident: startTicks(process.pid) }),
+    processIdentity: (pid) => { try { return startTicks(pid); } catch { return null; } },
+    bootId: () => fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(), cgroupOf: (pid) => fs.readFileSync(`/proc/${pid}/cgroup`, "utf8") });
   const known = ["status", "stop", "collect", "init", "reconcile", "verify", "release", "grant-orders"];
   if (!known.includes(verb)) { process.stdout.write(`${JSON.stringify({ ok: false, code: "UNKNOWN_VERB", known })}\n`); return 64; }
-  const out = await ctl[verb](...args);
+  const readonly = args.includes("--readonly");
+  const out = await ctl[verb](...args.filter((a) => a !== "--readonly"), ...(readonly && ["reconcile", "verify"].includes(verb) ? [{ readonly: true }] : []));
   process.stdout.write(`${JSON.stringify(out)}\n`);
   return out.ok ? 0 : 1;
 }
