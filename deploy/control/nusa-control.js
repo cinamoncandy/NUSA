@@ -187,6 +187,11 @@ async function verifyRuntime(deps, cfg, expectedSha, expectedMode) {
   return { ok: true };
 }
 
+// Only "no answer yet" can be a start in progress; any answer from a sender that identified itself with another build or
+// any other mode is wrong at once. Used by collect and verify alike.
+const NO_ANSWER_REASONS = Object.freeze(["HEALTH_UNAVAILABLE", "SENDER_UNKNOWN"]);
+const isWrongAnswer = (v) => !v.ok && !NO_ANSWER_REASONS.includes(v.reason);
+
 // ---- verbs ------------------------------------------------------------------------------------------------------
 function makeController(deps) {
   const cfg = { ...DEFAULTS, ...(deps.config || {}) };
@@ -198,7 +203,8 @@ function makeController(deps) {
   const store = stateStore(fsx, cfg.stateDir, cfg.expectedUid, cfg.checkAncestors);
   const modeWrite = () => writeModeFile(fsx, cfg.modeFile, "COLLECT_ONLY", cfg.expectedUid, cfg.checkAncestors);
   const currentSha = () => { try { const t = fsx.readlinkSync(cfg.currentLink); const sha = path.basename(t); return SHA.test(sha) ? sha : null; } catch { return null; } };
-  const anyOwnedUnitRunning = () => UNITS.some((u) => { try { return unitState(sys, u).active !== "inactive"; } catch { return true; } });
+  // True when any owned unit is active, or a unit that starts by itself is still enabled: either needs the verified stop.
+  const anyOwnedUnitRunning = () => UNITS.some((u) => { try { const st = unitState(sys, u); return st.active !== "inactive" || (BOOT_UNITS.includes(u) && st.enabled !== "disabled"); } catch { return true; } });
   const stoppedResult = (code, extra = {}) => { const problems = stopAll(sys); return { ok: false, code, stopped: problems.length === 0, problems, ...extra }; };
 
   const status = async () => {
@@ -249,7 +255,7 @@ function makeController(deps) {
           return { ok: true, code: "COLLECT_ONLY" };
         }
         // An answer that is wrong (not merely absent) ends the attempt at once.
-        if (["FOREIGN_SENDER", "BUILD_MISMATCH"].includes(last.reason) || (last.reason === "MODE_MISMATCH" && last.seen === "PAPER_ORDERS")) throw new ControlError(last.reason, JSON.stringify(last));
+        if (isWrongAnswer(last)) throw new ControlError(last.reason, JSON.stringify(last));
         await sleep(cfg.pollMs);
       }
       throw new ControlError("START_CEILING", `not verified within ${cfg.startCeilingMs} ms (last ${last && last.reason})`);
@@ -275,24 +281,37 @@ function makeController(deps) {
     return { ok: true, code: "INITIALISED_STOPPED" };
   };
 
-  // Boot gate (runs before nusa.service): it only PERMITS the start (writes the mode file, keeps units enabled) when the
-  // record is consistent; any doubt or error ends STOPPED. It does not claim the runtime is healthy: that is `verify`.
+  // Start gate (runs before the runtime units; they Require= it). It succeeds ONLY when a start is permitted: the record is
+  // valid, its build is the running build, and either desired is COLLECT_ONLY with nothing pending or a `collect` is in
+  // flight. In every other case the gate FAILS (non-zero exit), so systemd fails the runtime units' start jobs, and any owned
+  // unit that is somehow running is stopped and verified first. A STOPPED host therefore never starts by itself.
   const reconcile = async () => {
     try {
       const quarantined = store.quarantineTemps();
+      const deny = (code, extra = {}) => {
+        const problems = anyOwnedUnitRunning() ? stopAll(sys) : [];
+        return { ok: false, code, quarantined, stopped: problems.length === 0, problems, ...extra };
+      };
       const r = store.read();
-      if (!r.ok) return stoppedResult(`RECONCILED_STOPPED:${r.reason}`, { quarantined });
+      if (!r.ok) return deny(`GATE_DENIED:${r.reason}`);
       const s = r.state;
-      if (s.desired === "STOPPED" || s.intent !== null || s.active !== currentSha()) {
-        const out = stoppedResult(s.desired === "STOPPED" && s.intent === null ? "STOPPED" : "RECONCILED_STOPPED:MISMATCH_OR_PENDING_INTENT", { quarantined });
+      if (s.active !== currentSha()) {
+        const out = deny("GATE_DENIED:MISMATCH");
+        if (out.stopped && s.desired !== "STOPPED") { try { store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", intent: null }); } catch { out.stateRecorded = false; } }
+        return out;
+      }
+      const collectInFlight = s.intent !== null && s.intent.verb === "collect";
+      const settledCollect = s.desired === "COLLECT_ONLY" && s.intent === null;
+      if (!collectInFlight && !settledCollect) {
+        const out = deny(s.desired === "STOPPED" && s.intent === null ? "GATE_DENIED:STOPPED" : "GATE_DENIED:PENDING_INTENT");
         if (out.stopped && (s.desired !== "STOPPED" || s.intent !== null)) { try { store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", intent: null }); } catch { out.stateRecorded = false; } }
-        if (out.code === "STOPPED" && out.stopped) out.ok = true;
         return out;
       }
       modeWrite();
       return { ok: true, code: "START_PERMITTED_COLLECT_ONLY", quarantined };
     } catch (e) {
-      return stoppedResult(`RECONCILED_STOPPED:${e.code || "ERROR"}`, { detail: e.message });
+      const problems = stopAll(sys);
+      return { ok: false, code: `GATE_DENIED:${e.code || "ERROR"}`, detail: e.message, stopped: problems.length === 0, problems };
     }
   };
 
@@ -313,7 +332,7 @@ function makeController(deps) {
       // A wrong answer stops at once. No answer yet is tolerated only while the unit is younger than the start ceiling.
       // Only "no answer yet" (HEALTH_UNAVAILABLE, SENDER_UNKNOWN) can be a start in progress. Any answer that arrives from a
       // process that identified itself, with another build or any other mode, is wrong at once.
-      const wrong = !["HEALTH_UNAVAILABLE", "SENDER_UNKNOWN"].includes(v.reason);
+      const wrong = isWrongAnswer(v);
       let age = null;
       try { age = deps.unitActiveAgeMs(RUNTIME_UNIT); } catch { age = null; }
       if (!wrong && Number.isFinite(age) && age >= 0 && age < cfg.startCeilingMs) return { ok: true, code: "STARTING_WITHIN_CEILING", reason: v.reason, ageMs: age };

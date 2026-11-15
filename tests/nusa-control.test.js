@@ -122,7 +122,7 @@ test("a unit that does not stop or stays enabled, or a failing command, is STOP_
 });
 
 test("collect writes the mode file, starts the units and accepts only a verified answer from nusa.service with the recorded build", posixOnly, async () => {
-  const w = world({ healthAnswers: [null, "STARTING", "COLLECT_ONLY"] }); await seed(w);
+  const w = world({ healthAnswers: [null, null, "COLLECT_ONLY"] }); await seed(w);
   const r = await w.ctl.collect();
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(fs.readFileSync(w.modeFile, "utf8"), "NUSA_RUN_MODE=COLLECT_ONLY\n");
@@ -208,23 +208,30 @@ test("file safety: a symlinked or loose state directory, a symlinked state file,
   assert.throws(() => writeModeFile(fs, w.modeFile, "PAPER_ORDERS", UID), /cannot be written/);
 });
 
-test("boot reconcile: missing or unsafe state, a pending intent, or a moved pointer end STOPPED; a consistent record only PERMITS the start", posixOnly, async () => {
+test("start gate: it succeeds ONLY for a settled COLLECT_ONLY record or a collect in flight; every other state FAILS the gate (so systemd fails the runtime start) and stops owned units that run", posixOnly, async () => {
   const missing = world();
   const m = await missing.ctl.reconcile();
-  assert.match(m.code, /RECONCILED_STOPPED:STATE_MISSING/); assert.equal(m.ok, false); assert.ok(allStopped(missing));
-  const pending = world(); await seed(pending); rawWrite(pending, { desired: "COLLECT_ONLY", intent: { verb: "collect", version: 3, at: 1 } });
-  assert.match((await pending.ctl.reconcile()).code, /MISMATCH_OR_PENDING_INTENT/); assert.ok(allStopped(pending));
-  assert.equal(pending.state().state.desired, "STOPPED");
+  assert.equal(m.code, "GATE_DENIED:STATE_MISSING"); assert.equal(m.ok, false); assert.ok(allStopped(missing));
+  const stopped = world(); await seed(stopped);
+  const st = await stopped.ctl.reconcile();
+  assert.equal(st.ok, false, "a STOPPED host never starts by itself: the gate fails"); assert.equal(st.code, "GATE_DENIED:STOPPED");
+  assert.deepEqual(mutations(stopped), [], "nothing was running, so nothing was stopped (no queued-start conflict in the common boot path)");
+  const runningWhileStopped = world(); await seed(runningWhileStopped); runningWhileStopped.units["nusa.service"].active = true;
+  assert.equal((await runningWhileStopped.ctl.reconcile()).ok, false); assert.ok(allStopped(runningWhileStopped));
+  const pending = world(); await seed(pending); rawWrite(pending, { desired: "STOPPED", intent: { verb: "stop", version: 3, at: 1 } });
+  assert.equal((await pending.ctl.reconcile()).code, "GATE_DENIED:PENDING_INTENT"); assert.equal(pending.state().state.intent, null, "the stale intent is resolved to a clean STOPPED record");
   const moved = world({ healthAnswers: ["COLLECT_ONLY"] }); await seed(moved); await moved.ctl.collect(); moved.setLink(OTHER);
-  assert.match((await moved.ctl.reconcile()).code, /MISMATCH/); assert.ok(allStopped(moved));
+  assert.equal((await moved.ctl.reconcile()).code, "GATE_DENIED:MISMATCH"); assert.ok(allStopped(moved));
+  const inFlight = world(); await seed(inFlight); rawWrite(inFlight, { intent: { verb: "collect", version: 3, at: 1 } });
+  assert.equal((await inFlight.ctl.reconcile()).code, "START_PERMITTED_COLLECT_ONLY", "a collect in flight is exactly the start being permitted");
   const kept = world({ healthAnswers: ["COLLECT_ONLY"] }); await seed(kept); await kept.ctl.collect();
   fs.writeFileSync(path.join(kept.stateDir, ".state.json.1.x.tmp"), "half");
   const k = await kept.ctl.reconcile();
   assert.equal(k.code, "START_PERMITTED_COLLECT_ONLY"); assert.equal(k.quarantined, 1);
   const badEtc = world({ healthAnswers: ["COLLECT_ONLY"] }); await seed(badEtc); await badEtc.ctl.collect();
   fs.chmodSync(badEtc.etc, 0o777);
-  const b = await badEtc.ctl.reconcile();
-  assert.match(b.code, /RECONCILED_STOPPED:UNSAFE_PATH/); assert.ok(allStopped(badEtc), "an error inside reconcile ends STOPPED");
+  const b2 = await badEtc.ctl.reconcile();
+  assert.match(b2.code, /GATE_DENIED:UNSAFE_PATH/); assert.ok(allStopped(badEtc), "an error inside the gate ends STOPPED");
 });
 
 test("verify: a consistent running runtime passes; a dead runtime, a foreign listener, another build, or units running while STOPPED end STOPPED", posixOnly, async () => {
@@ -415,10 +422,17 @@ test("systemd model: every runtime unit Requires and is ordered After the boot g
   assert.doesNotThrow(() => Object.keys(edges).forEach(visit));
 });
 
-test("systemd model: the verify timer is bound to nusa.service, restarts with it, and fires 2 minutes after every start, then every 5 minutes", () => {
+test("systemd model: the periodic verify timer runs independently of the runtime (3 min after boot, then every 5 min) and is not owned by stop", () => {
   const text = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control-verify.timer"), "utf8");
-  assert.match(text, /BindsTo=nusa\.service/); assert.match(text, /PartOf=nusa\.service/); assert.match(text, /After=nusa\.service/);
-  assert.match(text, /OnActiveSec=2min/); assert.match(text, /OnUnitActiveSec=5min/); assert.match(text, /WantedBy=nusa\.service/);
+  assert.doesNotMatch(text, /BindsTo=|PartOf=/, "no coupling to nusa.service: a stopped host is verified too");
+  assert.match(text, /OnBootSec=3min/); assert.match(text, /OnUnitActiveSec=5min/); assert.match(text, /WantedBy=timers\.target/);
+  assert.equal(UNITS.includes("nusa-control-verify.timer"), false, "stop never disables the watch");
+});
+
+test("collect and verify classify answers the same way: a wrong mode such as STARTING ends collect at once", posixOnly, async () => {
+  const w = world({ healthAnswers: ["STARTING"] }); await seed(w);
+  const r = await w.ctl.collect();
+  assert.equal(r.code, "MODE_MISMATCH"); assert.equal(r.stopped, true); assert.ok(allStopped(w));
 });
 
 test("verify: a runtime that answers with any wrong mode or build is stopped at once even inside the start ceiling; only no-answer is tolerated", posixOnly, async () => {
