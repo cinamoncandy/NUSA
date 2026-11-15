@@ -53,9 +53,14 @@ no_symlinks_in() { [ -z "$(find "$1" -type l -print -quit)" ]; }
 orders_off_everywhere() {
   # The env file may repeat the OFF line (the real host has it twice); what matters is that EVERY line that mentions the switch,
   # in any spelling (spaces, export, quotes, comments), is exactly NUSA_PAPER_ORDER_PATH=OFF, and at least one exists.
-  local mentions exact
-  mentions="$(grep -c 'NUSA_PAPER_ORDER_PATH' "$R/etc/nusa/cloud-runtime.env" || true)"
-  exact="$(grep -cx 'NUSA_PAPER_ORDER_PATH=OFF' "$R/etc/nusa/cloud-runtime.env" || true)"
+  # grep -c exits 0 (matches) or 1 (none, prints 0); any other status is an error and means "not proven", even when it printed a number.
+  local mentions exact rc=0
+  mentions="$(grep -c 'NUSA_PAPER_ORDER_PATH' "$R/etc/nusa/cloud-runtime.env")" || rc=$?
+  [ "$rc" = 0 ] || [ "$rc" = 1 ] || return 1
+  rc=0
+  exact="$(grep -cx 'NUSA_PAPER_ORDER_PATH=OFF' "$R/etc/nusa/cloud-runtime.env")" || rc=$?
+  [ "$rc" = 0 ] || [ "$rc" = 1 ] || return 1
+  [[ "$mentions" =~ ^[0-9]+$ && "$exact" =~ ^[0-9]+$ ]] || return 1
   [ "$mentions" -ge 1 ] && [ "$mentions" = "$exact" ] || return 1
   # Fail closed: every systemd query must SUCCEED and make sense; a failed or empty query is "not proven", never "OFF".
   local id env files line f
