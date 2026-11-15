@@ -97,3 +97,10 @@ D1 to D4 approved (direction, R1 first with direct agent control removed, deskto
 - A bug in a control verb could stop a healthy service: every verb is tested against a stub `systemctl` and runs under the activation lock.
 - The mode record is a new single point: unknown means `STOPPED`, and the diagnose workflow reads it.
 - Large refactors (R7) wait for the R1 to R3 safety net. The Cloudflare gate is a required merge check and moves last.
+
+## 9. Gaps checked in the repository (read-only, origin/main)
+
+- Nothing in the repo sets `NUSA_PAPER_ORDER_PATH` (no unit, script or env template). Its only source on the host is `/etc/nusa/cloud-runtime.env`, which is outside version control. Consequence: R1 must make the value explicit in the host record and verify it through `/health.runMode`; the repo alone cannot prove what the host runs.
+- `/health` and `server.ts` carry no `runMode` today. R1 adds it.
+- 34 test files start the runtime or the daemon entry; only 4 mention the switch. Inverting the default means those tests must set the order path explicitly where they rely on ON. R1 lists them and changes only that line, with a control test that proves ON behaviour is unchanged when set explicitly.
+- Stale or corrupt host mode record: the controller treats a missing, unparsable, expired or wrong-build record as `STOPPED` and the health guard alerts instead of restarting. The R3 drill must cover each case.
