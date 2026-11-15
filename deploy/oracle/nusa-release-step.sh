@@ -552,11 +552,39 @@ case "$verb" in
     printf '%s\n' "nusa-release-step: activation accepted for $1"
     ;;
 
+  # Owner run-mode verbs (docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md, R1). They exist so the owner can stop and start the PAPER service from
+  # a GitHub button instead of a shell, and so no other actor needs a general `systemctl` permission. Both take the same activation lock as a
+  # release, so they can never interleave with one. They never enable, disable, install or restart anything else, and neither waits for readiness.
+  stop)
+    acquire_paper_activation_lock
+    systemctl stop "$SERVICE"
+    state="$(systemctl is-active "$SERVICE" 2>/dev/null || true)"
+    printf '{"status":"PASS","action":"stop","service":"%s","state":"%s"}\n' "$SERVICE" "${state:-unknown}"
+    ;;
+
+  start)
+    acquire_paper_activation_lock
+    # Fail closed. Collection-only is the only mode this verb can start: the order path must be explicitly OFF in the runtime env. Any other value,
+    # an unset variable or an unreadable env file refuses to start, so this verb can never bring up the PAPER order path (Stage B needs its own approval).
+    [ -r "$RUNTIME_ENV" ] || die "refusing to start: ${RUNTIME_ENV} is not readable"
+    order_path="$(set -a; source "$RUNTIME_ENV"; set +a; printf '%s' "${NUSA_PAPER_ORDER_PATH:-}")" || die "refusing to start: could not read ${RUNTIME_ENV}"
+    [ "$order_path" = "OFF" ] || die "refusing to start: NUSA_PAPER_ORDER_PATH must be exactly OFF in ${RUNTIME_ENV} (collection only); got '${order_path:-unset}'"
+    current="$(active_release)"
+    [ -n "$current" ] && [ -d "$current" ] || die "refusing to start: there is no active release"
+    if systemctl is-active --quiet "$SERVICE"; then
+      printf '{"status":"PASS","action":"start","service":"%s","state":"active","note":"already active"}\n' "$SERVICE"
+    else
+      systemctl start "$SERVICE"
+      state="$(systemctl is-active "$SERVICE" 2>/dev/null || true)"
+      printf '{"status":"PASS","action":"start","service":"%s","state":"%s","release":"%s"}\n' "$SERVICE" "${state:-unknown}" "$(basename "$current")"
+    fi
+    ;;
+
   readiness)
     exec node "$(script_in "$(active_release)" oracle-readiness-check.js)"
     ;;
 
   *)
-    die "unknown verb '${verb}'. Expected: backup|preflight|install-units|prune|stage|switch|activate|rollback|restart|readiness"
+    die "unknown verb '${verb}'. Expected: backup|preflight|install-units|prune|stage|switch|activate|rollback|restart|stop|start|readiness"
     ;;
 esac

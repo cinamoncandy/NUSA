@@ -1,0 +1,26 @@
+id: WO-OPS-20261115-R1-RUN-MODE-BUTTON
+title: "R1: stop and start the PAPER service from a GitHub button (host helper verbs stop and start, PAPER Run Mode workflow)"
+status: READY_FOR_REVIEW
+created: 2026-11-15
+implementation_branch: claude/r1-host-run-mode
+owner_decision: "2026-11-15: the owner approved D1 to D4 of docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md, which starts with R1: host control without a shell, and agents (Codex included) lose direct service control."
+objective: "Let the owner stop and start the PAPER service from the phone without a shell, so no actor needs a general systemctl permission, and make it impossible for this path to start the PAPER order path."
+change:
+  - "deploy/oracle/nusa-release-step.sh: new verbs stop (systemctl stop under the activation lock) and start (systemctl start under the activation lock, only when the runtime env sets NUSA_PAPER_ORDER_PATH exactly OFF and an active release exists; otherwise refuses). Neither enables, disables, installs, restarts, rolls back or waits for readiness."
+  - ".github/workflows/paper-run-mode.yml: dispatch-only workflow, contents read only, no secrets, no third-party action, Environment paper-host-control (owner approval configured in GitHub), same concurrency group as the release."
+  - "tests/oracle-run-mode-verbs.test.js (15 tests): the real helper run in a temporary layout with a stub systemctl; lock first, only stop/start, exact OFF rule (unset, ON, off, OFFX, empty, OFF then ON all refuse), missing env or release refuses, already active starts nothing."
+  - "docs/operations/paper-run-mode.md: procedure and the one-time owner setup."
+not_changed:
+  - "The release workflow and every other verb; risk limits, thresholds, capital, authority. There is no mode that starts the PAPER order path (Stage B stays blocked on #3108 and its own approval)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+  note: "The change adds an owner-controlled stop and a start that can only bring up collection-only; it removes the need for other accounts to hold service-control permissions."
+validation:
+  - "Mutation checks: OFF check removed, 7 tests fail; start also enabling units, 3 fail; lock removed from stop, 1 fails."
+  - "Passing locally: tests/oracle-run-mode-verbs.test.js (15), the workflow authority map (42 workflows), action pin and input validators, all workflow/oracle/authority/helper tests."
+unverified: "CI at the PR head; a run on the real host (the helper must be reinstalled there first); that GitHub Environment paper-host-control has required reviewers (an owner setting); the non-author review (required: root-owned helper and a workflow)."
+acceptance:
+  - A non-author review confirms the start path can only bring up collection-only, both verbs take the lock, nothing else is changed, and the workflow grants no write or secret.

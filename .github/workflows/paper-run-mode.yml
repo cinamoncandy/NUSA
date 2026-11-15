@@ -1,0 +1,78 @@
+name: PAPER Run Mode
+
+# Owner button: stop or start the PAPER service on the host WITHOUT a shell (docs/NUSA_REDESIGN_PROPOSAL_2026-11-15.md, R1).
+# Dispatch by hand only. It runs the root-owned host helper's `stop` or `start` verb through the same single sudo entry the release uses,
+# under the same activation lock, so it can never interleave with a release.
+#   STOPPED      -> stops nusa.service. Nothing else is touched.
+#   COLLECT_ONLY -> starts nusa.service ONLY when /etc/nusa/cloud-runtime.env sets NUSA_PAPER_ORDER_PATH exactly OFF; otherwise the helper
+#                   refuses. There is deliberately no mode that starts the PAPER order path: Stage B needs its own approval and its own change.
+# The job runs in the GitHub Environment `paper-host-control`. Configure required reviewers on that Environment (Settings, Environments) so a
+# run waits for the owner's approval in the GitHub app. This file grants no write permission and uses no secret and no third-party action.
+# PAPER only, LIVE NONE, AI ZERO_AUTHORITY.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "STOPPED = stop nusa.service. COLLECT_ONLY = start nusa.service with the order path OFF (refused otherwise)."
+        required: true
+        type: choice
+        options:
+          - STOPPED
+          - COLLECT_ONLY
+
+permissions:
+  contents: read
+
+# Same group as the release: a mode change waits for a running release instead of racing it.
+concurrency:
+  group: oracle-paper-release
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply PAPER run mode
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 10
+    environment: paper-host-control
+    env:
+      STEP: /opt/nusa/bin/nusa-release-step
+      MODE: ${{ inputs.mode }}
+    steps:
+      - name: Validate the mode (fail closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$MODE" in
+            STOPPED|COLLECT_ONLY) echo "mode=$MODE" ;;
+            *) echo "::error::unknown mode '$MODE'"; exit 1 ;;
+          esac
+
+      - name: Apply the mode through the host helper
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$MODE" = STOPPED ]; then
+            sudo "$STEP" stop
+          else
+            sudo "$STEP" start
+          fi
+
+      - name: Report the service state (read-only)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          {
+            echo "### PAPER run mode"
+            echo
+            echo "| requested mode | service state |"
+            echo "| --- | --- |"
+            echo "| $MODE | $(systemctl is-active nusa.service 2>&1) |"
+            echo
+            echo "A start takes between 7 seconds and 5 minutes before /health answers; read it with Oracle Host Diagnose."
+          } >> "$GITHUB_STEP_SUMMARY"
+          systemctl show nusa.service -p ActiveState,SubState,NRestarts,ActiveEnterTimestamp 2>&1
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'aiAuthority=ZERO_AUTHORITY'
