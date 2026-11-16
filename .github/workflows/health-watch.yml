@@ -2,7 +2,7 @@ name: Health Watch
 
 # Design gap found 2026-11-13/14: the PAPER service stopped and a PAPER order path ran without permit evidence, and in both cases a
 # person noticed before the system did. This read-only watch makes one GET of the public health route on a best-effort schedule (cron 7,37; in this repository GitHub has been seen to start scheduled runs hours apart, see docs/HEALTH_WATCH_V2_DESIGN_2026-11-14.md section 7, so this is NOT a 30-minute guarantee) and opens or
-# updates one issue when the host does not match deploy/health-watch.json (expectedState). It changes nothing on the host, in the
+# updates one issue when the host does not match deploy/health-watch.json (expectedState and, when set, expectedRunMode COLLECT_ONLY: mode, order path off, no paper order, fresh market events). It changes nothing on the host, in the
 # repository or in Cloudflare, and it never restarts anything. It only sees liveness; richer signals need a separate read path.
 on:
   schedule:
@@ -45,7 +45,7 @@ jobs:
           echo "reason=${RESULT#* }" >> "$GITHUB_OUTPUT"
           echo "$RESULT"
       - name: Report one issue
-        if: steps.decide.outputs.alert == 'DOWN' || steps.decide.outputs.alert == 'UNEXPECTED_UP' || steps.decide.outputs.alert == 'CONFIG_INVALID'
+        if: steps.decide.outputs.alert == 'DOWN' || steps.decide.outputs.alert == 'UNEXPECTED_UP' || steps.decide.outputs.alert == 'CONFIG_INVALID' || steps.decide.outputs.alert == 'MODE_MISMATCH' || steps.decide.outputs.alert == 'ORDER_WHILE_NOT_GRANTED' || steps.decide.outputs.alert == 'EVENTS_STALE'
         env:
           GH_TOKEN: ${{ github.token }}
           ALERT: ${{ steps.decide.outputs.alert }}
@@ -56,6 +56,9 @@ jobs:
           case "$ALERT" in
             DOWN) TITLE="PAPER host is not answering (expected RUNNING)";;
             UNEXPECTED_UP) TITLE="PAPER host is answering while it should be STOPPED";;
+            MODE_MISMATCH) TITLE="PAPER host is not in the expected run mode";;
+            ORDER_WHILE_NOT_GRANTED) TITLE="PAPER host shows an order path or order while orders are not granted";;
+            EVENTS_STALE) TITLE="PAPER host market events are stale or missing";;
             *) TITLE="Health watch configuration is invalid";;
           esac
           # Fixed text, a short reason code and the run URL only; nothing from the probe body reaches the issue.

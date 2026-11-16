@@ -42,3 +42,42 @@ test("the committed config and workflow stay read-only and https", () => {
   assert.match(workflow, /\|\| URL=""/);
   assert.match(workflow, /\|\| RESULT="CONFIG_INVALID unreadable_or_invalid_config"/);
 });
+
+const withRuntime = (runtime, offsetMs = 0) => ({ httpStatus: 200, body: JSON.stringify({ ok: true, observedAt: new Date(NOW - offsetMs).toISOString(), runtime }) });
+const collectOnly = (over = {}) => ({ runMode: "COLLECT_ONLY", orderPathReady: false, paperOrderCount: 0, startedAt: NOW - 3 * 3600_000, lastMarketEventAt: NOW - 30_000, ...over });
+
+test("expectedRunMode COLLECT_ONLY: the host must show the collect-only facts, and a missing fact is an alarm", () => {
+  assert.deepEqual(decide("RUNNING", withRuntime(collectOnly()), NOW, "COLLECT_ONLY"), { alert: "NONE", reason: "MODE_FACTS_OK" });
+  const cases = [
+    [collectOnly({ runMode: "PAPER_ORDERS" }), "MODE_MISMATCH"],
+    [collectOnly({ runMode: undefined }), "MODE_MISMATCH"],
+    [collectOnly({ orderPathReady: true }), "ORDER_WHILE_NOT_GRANTED"],
+    [collectOnly({ orderPathReady: undefined }), "ORDER_WHILE_NOT_GRANTED"],
+    [collectOnly({ paperOrderCount: 1 }), "ORDER_WHILE_NOT_GRANTED"],
+    [collectOnly({ paperOrderCount: undefined }), "ORDER_WHILE_NOT_GRANTED"],
+    [collectOnly({ paperOrderCount: "0" }), "ORDER_WHILE_NOT_GRANTED"],
+    [collectOnly({ lastMarketEventAt: NOW - 11 * 60 * 1000 }), "EVENTS_STALE"],
+    [collectOnly({ lastMarketEventAt: NOW + 5 * 60 * 1000 }), "EVENTS_STALE"],
+    [collectOnly({ lastMarketEventAt: null }), "EVENTS_STALE"],
+    [undefined, "MODE_MISMATCH"],
+    [null, "MODE_MISMATCH"],
+  ];
+  for (const [runtime, alert] of cases) assert.equal(decide("RUNNING", withRuntime(runtime), NOW, "COLLECT_ONLY").alert, alert, JSON.stringify(runtime));
+  // A runtime that has just started (a release, a restart) may have seen no market event yet: a start, not a stall. Only for 15 minutes.
+  for (const over of [{ startedAt: NOW - 60_000, lastMarketEventAt: null }, { startedAt: NOW - 14 * 60_000, lastMarketEventAt: NOW - 14 * 60_000 }]) assert.equal(decide("RUNNING", withRuntime(collectOnly(over)), NOW, "COLLECT_ONLY").alert, "NONE", JSON.stringify(over));
+  for (const over of [{ startedAt: NOW - 16 * 60_000, lastMarketEventAt: null }, { startedAt: undefined, lastMarketEventAt: null }, { startedAt: NOW + 10 * 60_000, lastMarketEventAt: null }]) assert.equal(decide("RUNNING", withRuntime(collectOnly(over)), NOW, "COLLECT_ONLY").alert, "EVENTS_STALE", JSON.stringify(over));
+  // The grace never excuses a wrong mode or an order.
+  assert.equal(decide("RUNNING", withRuntime(collectOnly({ startedAt: NOW - 60_000, orderPathReady: true })), NOW, "COLLECT_ONLY").alert, "ORDER_WHILE_NOT_GRANTED");
+  // A silent host is still DOWN first, and the mode facts never apply while the host is expected to be STOPPED.
+  assert.equal(decide("RUNNING", { httpStatus: 502, body: "" }, NOW, "COLLECT_ONLY").alert, "DOWN");
+  assert.equal(decide("STOPPED", withRuntime(collectOnly()), NOW, "COLLECT_ONLY").alert, "CONFIG_INVALID");
+  for (const mode of ["PAPER_ORDERS", "collect_only", "", null, 1]) assert.equal(decide("RUNNING", withRuntime(collectOnly()), NOW, mode).alert, "CONFIG_INVALID", String(mode));
+  // Without expectedRunMode the old behaviour is unchanged.
+  assert.equal(decide("RUNNING", withRuntime(collectOnly({ orderPathReady: true })), NOW).alert, "NONE");
+});
+
+test("the workflow reports one issue per new alert kind, with fixed text", () => {
+  const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "health-watch.yml"), "utf8").replace(/\r\n/g, "\n");
+  for (const alert of ["MODE_MISMATCH", "ORDER_WHILE_NOT_GRANTED", "EVENTS_STALE"]) assert.match(workflow, new RegExp(alert));
+  assert.doesNotMatch(workflow, /systemctl|ssh |secrets\./);
+});

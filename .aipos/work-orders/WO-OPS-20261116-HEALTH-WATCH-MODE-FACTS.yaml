@@ -1,0 +1,25 @@
+id: WO-OPS-20261116-HEALTH-WATCH-MODE-FACTS
+title: "Health watch: also alarm on run mode, order path, paper orders and stale market events"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/health-watch-mode
+owner_decision: "2026-11-16: the owner asked to do all remaining phases ('일단 다 해'). This is the first slice (the watch of design v5 C3/C5): a read-only watch beyond 'is the host answering'."
+objective: "The off-host watch must notice a host that answers but is in the wrong mode, shows an order path or a paper order while orders are not granted, or has stopped receiving market events."
+change:
+  - "scripts/health-watch-decide.js: with config expectedRunMode COLLECT_ONLY (only valid with expectedState RUNNING) an ANSWERING host must also show runtime.runMode COLLECT_ONLY, orderPathReady false, paperOrderCount 0 and lastMarketEventAt not older than 10 minutes (and not in the future by more than 1 minute), except for a runtime that started less than 15 minutes ago (independent review: a release or restart must not raise EVENTS_STALE before the first market event; the grace never excuses a wrong mode or an order). A missing or wrongly typed field is an alarm (fail closed). New alerts MODE_MISMATCH, ORDER_WHILE_NOT_GRANTED, EVENTS_STALE; a silent host is still DOWN first; an invalid expectedRunMode is CONFIG_INVALID. Without expectedRunMode the old behaviour is unchanged."
+  - ".github/workflows/health-watch.yml: one issue per new alert kind with fixed text (nothing from the probe body reaches the issue). Still read-only, no secrets, no host action."
+  - "deploy/health-watch.json: expectedRunMode COLLECT_ONLY. Removing it belongs to the PR that grants orders (needs the owner's fresh written approval)."
+  - "tests/health-watch.test.js (6, with the startup grace cases): the collect-only facts, 12 wrong/missing-fact cases, config misuse, the old behaviour unchanged, the workflow issue titles. Mutations (order path check removed; event age bar 100 min) each fail a test."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. No host action, no release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/health-watch.test.js passes; the decision script, run against the real public /health of 2026-11-16 17:57 KST (build 43e6cdefb), answers NONE MODE_FACTS_OK."
+unverified: "The watch runs on GitHub's best-effort schedule (it has been seen to start hours apart, docs/HEALTH_WATCH_V2_DESIGN_2026-11-14.md section 7); the delivery of its issues to the phone was not drilled here. The 10-minute event bar was not tuned against a longer observation of the real feed."
+acceptance:
+  - "Non-author review; exact-head CI; the watch must not raise an issue on the first scheduled run after merge."
