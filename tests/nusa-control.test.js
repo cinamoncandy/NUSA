@@ -63,7 +63,7 @@ function world(opts = {}) {
     bootId: () => w.bootId,
     now: () => (opts.wallBackwards ? (wall -= 10_000) : wall),
     monotonic: () => mono,
-    sleep: async (ms) => { mono += ms; wall += ms; },
+    sleep: async (ms) => { mono += ms; wall += ms; (w.slept ||= []).push(ms); },
     config: { stateDir, modeFile: w.modeFile, currentLink, startCeilingMs: 60_000, pollMs: 5_000, expectedUid: UID, checkAncestors: false },
   });
   w.store = stateStore(fs, stateDir, UID);
@@ -307,6 +307,29 @@ test("property: no sequence of verbs and faults reaches orders, loses the state,
       if ((action === "collect" && r.ok) || r.code === "COLLECT_ONLY_VERIFIED") { assert.equal(path.basename(fs.readlinkSync(w.currentLink)), st.state.active); assert.equal(w.listener, "nusa"); }
     }
   }
+});
+
+test("verify asks again when the runtime is busy for a moment (real host 2026-11-16: a 14 s research job stopped a healthy runtime); a wrong answer is never retried", posixOnly, async () => {
+  // Old unit (past the start ceiling): one missing answer used to stop it. Now up to 4 probes, 20 s apart.
+  for (const answers of [[null], [null, null], [null, null, null]]) {
+    const w = world({ healthAnswers: ["COLLECT_ONLY", ...answers, "COLLECT_ONLY"] }); await seed(w); await w.ctl.collect(); w.ageMs = 3_600_000;
+    const r = await w.ctl.verify();
+    assert.equal(r.code, "COLLECT_ONLY_VERIFIED", `${answers.length} missing answers then a good one`);
+    assert.ok(!allStopped(w), "the runtime keeps running");
+  }
+  // Four missing answers in a row is still a stop (fail closed).
+  const gone = world({ healthAnswers: ["COLLECT_ONLY", null, null, null, null, "COLLECT_ONLY"] }); await seed(gone); await gone.ctl.collect(); gone.ageMs = 3_600_000;
+  assert.match((await gone.ctl.verify()).code, /VERIFY_STOPPED/); assert.ok(allStopped(gone));
+  // A wrong answer stops at once: the good answer queued behind it is never asked for.
+  const wrong = world({ healthAnswers: ["COLLECT_ONLY", `COLLECT_ONLY@${OTHER}`, "COLLECT_ONLY"] }); await seed(wrong); await wrong.ctl.collect(); wrong.ageMs = 3_600_000;
+  assert.match((await wrong.ctl.verify()).code, /BUILD_MISMATCH/); assert.ok(allStopped(wrong));
+  const mode = world({ healthAnswers: ["COLLECT_ONLY", "PAPER_ORDERS", "COLLECT_ONLY"] }); await seed(mode); await mode.ctl.collect(); mode.ageMs = 3_600_000;
+  assert.match((await mode.ctl.verify()).code, /MODE_MISMATCH/); assert.ok(allStopped(mode));
+  // The retries are spaced 20 s apart: 3 missing answers, then a good one, means 3 sleeps of 20 s.
+  const timed = world({ healthAnswers: ["COLLECT_ONLY", null, null, null, "COLLECT_ONLY"] }); await seed(timed); await timed.ctl.collect(); timed.ageMs = 3_600_000;
+  timed.slept = [];
+  assert.equal((await timed.ctl.verify()).code, "COLLECT_ONLY_VERIFIED");
+  assert.deepEqual(timed.slept, [20_000, 20_000, 20_000]);
 });
 
 test("verify tolerates a missing answer only while the unit is younger than the start ceiling; a wrong answer stops at once", posixOnly, async () => {

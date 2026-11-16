@@ -1,0 +1,24 @@
+id: WO-OPS-20261116-C1-VERIFY-RETRY
+title: "Controller: the periodic verify asks again before it stops a runtime that did not answer once"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/verify-retry
+owner_decision: "2026-11-16: the owner approved the rollback of the installed controller after nusa.service was stopped by it, and asked for speed. The install of the fixed controller (#3156) had verified the runtime at 15:08 KST; the periodic verify then stopped a healthy runtime at about 16:15 KST."
+objective: "Stop a healthy runtime from being stopped by one missed /health answer, without weakening any check of a WRONG answer."
+evidence: "Host evidence (read-only host diagnose 2026-11-16 07:19 UTC and the owner's journal): nusa.service active since 06:09:01 UTC, then inactive with NRestarts 0; the log shows 'Stopping nusa.service' while a research '1m materialized dataset manifest' build (durationMs 14263, a synchronous job) was running; nusa-control-verify.service then reported VERIFY_STOPPED:RUNTIME_NOT_ACTIVE every 5 minutes (a consequence of the stop). Cause (read from the code, NOT proven on the host): after the start ceiling (20 min) a single 'no answer' (HEALTH_UNAVAILABLE or SENDER_UNKNOWN, including a 5 s health timeout) stopped the runtime at once; a 14 s event-loop block makes /health miss that timeout. The first failing verify line was not read (the owner's screenshot started later)."
+change:
+  - "deploy/control/nusa-control.js: the periodic verify asks again on 'no answer' (up to 4 probes in total, 20 s apart, so up to 60 s) before it stops. A WRONG answer (another build, another mode, a foreign sender) is never retried and stops at once, exactly as before. Config verifyNoAnswerAttempts=4, verifyNoAnswerRetryMs=20000."
+  - "tests/nusa-control.test.js (49): after the start ceiling 1, 2 and 3 missing answers followed by a good one verify and keep the runtime running; 4 missing answers stop it; a wrong build or a wrong mode stops at once and the good answer queued behind it is never asked for; the retries are spaced 3 x 20 s. Mutations (no retry; retry wrong answers too) each fail tests."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. The collect path, the start gate and the install are unchanged. No release or host action by this change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control.test.js tests/nusa-control-install.test.js pass on Linux; AIPOS validators pass."
+unverified: "The cause is a reading of the code and the host log, not a measurement; the fix is proven only against fake clocks and probes. A runtime that is blocked longer than about 60 s is still stopped. The verify unit is Type=oneshot (no start timeout by default), so the extra 60 s does not hit a unit timeout; the timer runs every 5 minutes."
+acceptance:
+  - "Non-author review; exact-head CI; a new release only with the owner's approval; then rollback-free re-install (the controller is currently rolled back) with a fresh approval before --apply."

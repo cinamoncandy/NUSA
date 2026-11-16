@@ -26,6 +26,11 @@ const DEFAULTS = Object.freeze({
   checkAncestors: true,
   startCeilingMs: 20 * 60 * 1000,
   pollMs: 5000,
+  // The periodic verify tolerates a runtime that is busy for a moment (a long synchronous research job can keep /health from
+  // answering for about 15 s): "no answer" is asked again this many times, this far apart, before the runtime is stopped. A WRONG answer
+  // (other build, other mode, foreign sender) is never retried and stops at once.
+  verifyNoAnswerAttempts: 4,
+  verifyNoAnswerRetryMs: 20_000,
 });
 
 class ControlError extends Error {
@@ -374,7 +379,11 @@ function makeController(deps) {
       if (s.intent !== null && collectInFlight(s.intent) && s.active === currentSha()) return { ok: true, code: "COLLECT_IN_PROGRESS", verified: false };
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
-      const v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
+      let v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
+      for (let n = 1; !v.ok && !isWrongAnswer(v) && n < cfg.verifyNoAnswerAttempts; n += 1) {
+        await sleep(cfg.verifyNoAnswerRetryMs);
+        v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
+      }
       if (v.ok) return { ok: true, code: "COLLECT_ONLY_VERIFIED" };
       // A wrong answer stops at once. No answer yet is tolerated only while the unit is younger than the start ceiling.
       // Only "no answer yet" (HEALTH_UNAVAILABLE, SENDER_UNKNOWN) can be a start in progress. Any answer that arrives from a
