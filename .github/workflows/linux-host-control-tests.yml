@@ -1,0 +1,51 @@
+name: Linux Host Control Tests
+
+# The host controller and its installer are Linux-only (they read /proc and run bash). The main CI runs on Windows, where these
+# tests are skipped, so a change to them was never exercised by CI. This job runs them for real on Linux. It builds nothing,
+# deploys nothing and touches no secret.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "deploy/control/**"
+      - "deploy/oracle/**"
+      - "tests/nusa-control.test.js"
+      - "tests/nusa-control-install.test.js"
+      - ".github/workflows/linux-host-control-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/control/**"
+      - "deploy/oracle/**"
+      - "tests/nusa-control.test.js"
+      - "tests/nusa-control-install.test.js"
+      - ".github/workflows/linux-host-control-tests.yml"
+
+concurrency:
+  group: linux-host-control-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  linux-control:
+    name: linux-control
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Controller and installer tests on Linux (none may be skipped)
+        run: |
+          set -euo pipefail
+          out="$(node --test --test-reporter=spec tests/nusa-control.test.js tests/nusa-control-install.test.js 2>&1 | tee /dev/stderr)"
+          printf '%s\n' "$out" | grep -E '^ℹ (tests|pass|fail|skipped)' || true
+          if printf '%s\n' "$out" | grep -Eq '^ℹ fail [1-9]'; then echo "::error::a controller or installer test failed"; exit 1; fi
+          if printf '%s\n' "$out" | grep -Eq '^ℹ skipped [1-9]'; then echo "::error::a controller or installer test was skipped on Linux; these tests must run here"; exit 1; fi
+          printf '%s\n' "$out" | grep -Eq '^ℹ pass [1-9]'
