@@ -1,0 +1,25 @@
+id: WO-OPS-20261116-C3B-AFTER-INSTALL-ROLLBACK
+title: "Installer: --after-rollback accepts the leftovers of a rollback after a verified install; the preflight asks /health up to 3 times"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/installer-after-install-rollback
+owner_decision: "2026-11-16: the owner approved the rollback of the installed controller (after the verify stopped a healthy runtime) and then the release of 43e6cdefb. The read-only preflight with --after-rollback of that release FAILED twice on the real host."
+objective: "Let the next install run after a rollback that followed a successful install, and stop one missed probe from failing the preflight."
+evidence: "Real host 2026-11-16 18:1x KST (owner's screenshots): preflight 2 failures: (1) '/health is valid JSON from the commit ... in mode COLLECT_ONLY'; (2) 'only the leftovers of a rollback of this script exist'. state.json then read: desired COLLECT_ONLY, active dfb75c16..., attempt/grant/intent null. A /health probe a minute later took 0.0026 s with HTTP 200, and the public /health showed build 43e6cdefb in COLLECT_ONLY. Cause (read from the code): (2) the leftover check required desired STOPPED, but a rollback after a verified install leaves COLLECT_ONLY (the rollback does not rewrite the state); (1) NOT proven: most likely the runtime was busy for more than the 6 s probe timeout at that moment (the same kind of stall that stopped it earlier)."
+change:
+  - "deploy/control/install.sh: rolled_back_leftovers_ok accepts desired STOPPED or COLLECT_ONLY (still: a valid state by the controller's own validateState, no attempt, no grant, no intent, units/drop-ins/mode file removed, manifest equals its anchor, controller files as recorded). The next install's init stops everything and writes a fresh state anyway. The old state is still moved aside, never deleted."
+  - "deploy/control/install.sh: the preflight /health check asks up to 3 times, 5 s apart (NUSA_INSTALL_HEALTH_RETRY_SLEEP, tests set 0). Read-only; each probe keeps the same strict check (valid JSON, expected build, COLLECT_ONLY)."
+  - "tests/nusa-control-install.test.js (19): a COLLECT_ONLY leftover is accepted and installs again; COLLECT_ONLY with an intent, an attempt or a grant, and PAPER_ORDERS, are refused; a runtime missing 2 probes passes, 3 misses fail. The old 'state says COLLECT_ONLY is refused' case was removed on purpose."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. No host action, no release by this change; a release is needed so the staged install.sh carries it (install.sh is excluded from the control manifest hash, so the manifest of the controller files is unchanged)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control-install.test.js (19) and tests/nusa-control.test.js (51) pass on Linux; AIPOS validators pass."
+unverified: "Failure (1) of the real preflight is an inference (a busy runtime); the retry is proven only against a stub curl. Not run on the host. Until a release carries this install.sh, the staged install.sh refuses the COLLECT_ONLY leftover."
+acceptance:
+  - "Non-author review; exact-head CI; a release only with the owner's approval; the owner re-runs the read-only preflight and sends its output before any --apply."
