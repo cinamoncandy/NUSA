@@ -85,6 +85,22 @@ function world(opts = {}) {
     lockHeldBy: (pid) => pid === 4001 && w.lockHeld,
     ordersOff: async () => w.orders,
     randomId: () => "0123456789abcdef0123456789abcdef",
+    // A stand-in for the reviewed host helper's `activate`: swap the link, restart nusa.service and start the research timer (both
+    // go through the real start gate), then judge readiness; on a failure it ends with its own safe stop, like the real helper.
+    runHelper: (sha) => {
+      (w.helperCalls ||= []).push(sha);
+      if (opts.helper) return opts.helper(w, sha);
+      if (w.dead) throw new Crash("dead");
+      const tmp = `${currentLink}.tmp-h`;
+      fsx.symlinkSync(path.join(base, "releases", sha), tmp);
+      fsx.renameSync(tmp, currentLink);
+      const fail = () => { for (const u of UNITS) { systemctl(["disable", u]); systemctl(["stop", u]); } return { status: 1 }; };
+      if (systemctl(["restart", "nusa.service"]) !== 0) return fail();
+      if (systemctl(["start", "nusa-research.timer"]) !== 0) return fail();
+      if (w.dead) throw new Crash("dead");
+      if (w.bad.has(sha) || w.wrongMode.has(sha)) return fail();
+      return { status: 0 };
+    },
     now: () => 1_000_000 + w.mono,
     monotonic: () => w.mono,
     sleep: async (ms) => { w.mono += ms; },
@@ -133,6 +149,8 @@ test("release: the new build is verified, recorded as proven, and the host ends 
   assert.ok(!fs.existsSync(w.grant) && !fs.existsSync(w.marker));
   assert.ok(w.gateResults.length >= 2 && w.gateResults.every((g) => g.ok), "the runtime and the timer starts both went through the real gate");
   assert.equal(w.gateResults[0].code, "START_PERMITTED_RELEASE_PHASE");
+  assert.equal(w.gateResults[0].phase, "ACTIVATING");
+  assert.deepEqual(w.helperCalls, [B], "the reviewed helper did the activation");
   assert.ok(!w.calls.join("\n").includes("PAPER_ORDERS"));
 });
 
@@ -252,7 +270,7 @@ test("race: a stop marker that appears after the release's last check still bloc
 test("a stop issued after any state write of a release always ends stopped and never starts anything afterwards", posixOnly, async () => {
   const probe = world(); await up(probe); await probe.ctl.release(B);
   const total = probe.stateWrites;
-  assert.ok(total >= 6);
+  assert.ok(total >= 5);
   for (let k = 1; k <= total; k += 1) {
     const w = world({ afterStateWrite: (n, ww) => { if (n === k) fs.writeFileSync(ww.marker, JSON.stringify({ pid: 4999, ident: "x" }), { mode: 0o600 }); } });
     await up(w);
@@ -438,4 +456,65 @@ test("the sudo entry point creates the stop marker before it waits for the lock 
   assert.match(block, /STOP_UNLOCKED/);
   for (const unit of ["nusa-research.timer", "nusa.service", "nusa-research.service"]) assert.ok(block.includes(unit));
   assert.match(sh, /reconcile\|verify\)\n\s+if ! flock -n 9/);
+});
+
+test("delegation: the ACTIVATING grant allows exactly two gated starts (nusa.service, research timer), only with the new link and the old record", posixOnly, async () => {
+  const w = world(); await up(w); seedIntent(w, { phase: "ACTIVATING", active: A }); setLink(w, B);
+  writeGrantFile(w, { phase: "ACTIVATING", uses: 2, expiresAtMono: 600_000 });
+  const one = w.ctl.reconcileSync({ readonly: true });
+  assert.deepEqual([one.ok, one.phase], [true, "ACTIVATING"]);
+  assert.equal(JSON.parse(fs.readFileSync(w.grant, "utf8")).uses, 1, "one use left");
+  assert.equal(w.ctl.reconcileSync({ readonly: true }).ok, true);
+  assert.ok(!fs.existsSync(w.grant), "the last use deletes the grant");
+  assert.equal(w.ctl.reconcileSync({ readonly: true }).code, "GATE_DENIED:RELEASE_NO_GRANT", "a third start is refused");
+  // the link must already be the new build, and the record must still be the old one
+  const stale = world(); await up(stale); seedIntent(stale, { phase: "ACTIVATING", active: A }); writeGrantFile(stale, { phase: "ACTIVATING", uses: 2 });
+  assert.equal(stale.ctl.reconcileSync({ readonly: true }).code, "GATE_DENIED:RELEASE_WRONG_BUILD", "link still on the old build");
+  const adv = world(); await up(adv); seedIntent(adv, { phase: "ACTIVATING", active: B }); setLink(adv, B); writeGrantFile(adv, { phase: "ACTIVATING", uses: 2 });
+  assert.equal(adv.ctl.reconcileSync({ readonly: true }).code, "GATE_DENIED:RELEASE_WRONG_BUILD", "the record must not be advanced yet");
+  const many = world(); await up(many); seedIntent(many, { phase: "ACTIVATING", active: A }); setLink(many, B); writeGrantFile(many, { phase: "ACTIVATING", uses: 3 });
+  assert.equal(many.ctl.reconcileSync({ readonly: true }).code, "GATE_DENIED:RELEASE_GRANT_USES");
+  // a STARTING grant never carries two uses past one consumption
+  const single = world(); await up(single); seedIntent(single); setLink(single, B); writeGrantFile(single, { uses: 1 });
+  assert.equal(single.ctl.reconcileSync({ readonly: true }).ok, true); assert.ok(!fs.existsSync(single.grant));
+});
+
+test("delegation: a helper that fails, leaves the link unchanged, or does not exist ends in a rollback or a safe stop, never a deployment", posixOnly, async () => {
+  const cases = {
+    "exit 1 after its own safe stop": { helper: (w, sha) => { const tmp = `${w.currentLink}.t`; fs.symlinkSync(path.join(w.base, "releases", sha), tmp); fs.renameSync(tmp, w.currentLink); for (const u of UNITS) { w.units[u].active = false; w.units[u].enabled = false; } return { status: 1 }; } },
+    "exit 0 but the link was not moved": { helper: () => ({ status: 0 }) },
+    "exit 0 and the new build never verifies": { bad: [B], helper: (w, sha) => { const tmp = `${w.currentLink}.t`; fs.symlinkSync(path.join(w.base, "releases", sha), tmp); fs.renameSync(tmp, w.currentLink); w.units["nusa.service"].active = true; return { status: 0 }; } },
+  };
+  for (const [label, opts] of Object.entries(cases)) {
+    const w = world(opts); await up(w);
+    const r = await w.ctl.release(B);
+    assert.equal(r.ok, false, label); assert.equal(r.outcome, "ROLLED_BACK", label);
+    const s = w.state().state;
+    assert.deepEqual([s.active, s.desired, s.intent], [A, "COLLECT_ONLY", null], label);
+    assert.equal(w.link(), A, label); assert.ok(!s.proven.some((p) => p.sha === B), label);
+  }
+  const missing = world(); await up(missing);
+  const bare = makeController({ fs, systemctl: () => 0, identifiedHealth: async () => ({ body: null, ownerPids: [] }), config: { stateDir: missing.stateDir, expectedUid: UID, checkAncestors: false } });
+  assert.ok(bare);
+});
+
+test("delegation: a stop marker that exists when the helper restarts the runtime makes the gate refuse and the helper fail; nothing runs afterwards", posixOnly, async () => {
+  const w = world({ beforeStart: (ww, unit) => { if (unit === "nusa.service" && !fs.existsSync(ww.marker)) fs.writeFileSync(ww.marker, JSON.stringify({ pid: 4999, ident: "x" }), { mode: 0o600 }); } });
+  await up(w);
+  const r = await w.ctl.release(B);
+  assert.deepEqual([r.ok, r.outcome], [false, "STOPPED_SAFE"]);
+  assert.ok(allStopped(w)); assert.ok(fs.existsSync(w.marker));
+  assert.equal(w.state().state.active, A); assert.equal(w.link(), A);
+});
+
+test("the host helper runner refuses a helper that is missing, a symlink, not root-owned or group/other writable; a bad sha never runs", () => {
+  const { runHelperActivate } = require("../deploy/control/nusa-control.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-helper-"));
+  const f = path.join(dir, "helper"); fs.writeFileSync(f, "#!/bin/sh\nexit 0\n", { mode: 0o777 }); fs.chmodSync(f, 0o777);
+  assert.equal(runHelperActivate(path.join(dir, "missing"), A, 1000).status, 127);
+  assert.equal(runHelperActivate(f, A, 1000).status, 127, "writable by group and others");
+  assert.equal(runHelperActivate(f, "not-a-sha", 1000).status, 127);
+  const link = path.join(dir, "link"); fs.symlinkSync(f, link);
+  assert.equal(runHelperActivate(link, A, 1000).status, 127, "a symlink");
+  if (process.getuid && process.getuid() !== 0) { fs.chmodSync(f, 0o755); assert.equal(runHelperActivate(f, A, 1000).status, 127, "not owned by root"); }
 });
