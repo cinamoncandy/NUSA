@@ -1,6 +1,6 @@
 # C4 design: release through the controller (2026-11-16)
 
-Status: DESIGN for review and owner decisions. Revised after the independent review of 2026-11-16 (REJECT: P0-1 state transitions, P0-2 crash recovery, P0-3 'main moved' outcome, P1 stop priority); sections 3.1 to 3.5 answer each finding. Nothing here changes code, the host or the order switch. Safety is unchanged:
+Status: DESIGN for review and owner decisions. Revised after the independent review of 2026-11-16 (REJECT: P0-1 state transitions, P0-2 crash recovery, P0-3 'main moved' outcome, P1 stop priority) and again on PR #3165 (REJECT: P0-1 gate cannot identify the release, P0-2 recovery table incomplete, P0-3 stop marker race, P1 outcome contract in the workflow); sections 3.1 to 3.5 answer each finding. Nothing here changes code, the host or the order switch. Safety is unchanged:
 PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, orders OFF, Release=HOLD.
 
 ## 1. The problem, from 2026-11-16
@@ -35,42 +35,61 @@ New controller verb `release <sha>` (root, under the same lock as every verb; `s
    recorded. A failed release never leaves a half state and never starts anything that was not verified.
 6. The controller never sets `PAPER_ORDERS`; `grant-orders` stays "not available". A release changes the build only.
 
-### 3.1 State machine and the start gate (answers P0-1)
+### 3.1 Authenticated start grant and the start gate (answers P0-1)
 
-The state file gets one intent kind next to `collect`: `RELEASE {from, to, phase, startedAt}` with `phase` in `PREPARED`, `UNITS_STOPPED`, `SWAPPING`, `SWAPPED`, `STARTING_NEW`, `ROLLING_BACK`, `STARTING_OLD`. Every phase change is one durable state write (write, fsync, rename, fsync the directory) BEFORE the step it announces.
+A held lock proves nothing about WHO holds it, so the gate does not trust the lock. Every start of the runtime units needs a single-use start grant that only the verb holding the lock can create.
 
-The start gate (`reconcile`, run by `Requires=` on the runtime units) permits a start only in exactly these cases and denies everything else:
+- Identity: the release verb creates a random 128-bit `runId` and stores it in the intent `RELEASE {runId, from, to, phase, startedAt}`. `phase` is one of `PREPARED`, `UNITS_STOPPED`, `SWAPPING`, `SWAPPED`, `STARTING_NEW`, `ROLLING_BACK`, `STARTING_OLD`. Every phase change is one durable state write (write, fsync, rename, fsync the directory) BEFORE the step it announces.
+- Grant: immediately before it asks systemd to start the runtime units, the verb writes `/run/nusa-control/start-grant` (root, 0600, `O_EXCL`, `/run` is tmpfs so a reboot erases it) with `{runId, phase, sha, pid, pidStartTime, expiresAt}`. `sha` is `to` for `STARTING_NEW` and `from` for `STARTING_OLD`; `expiresAt` is 60 s after creation (monotonic clock).
+- The gate (`reconcile`, run by `Requires=`) permits a start only when ALL hold, and otherwise refuses with a named reason: state valid; `desired` allows a start; the intent (if any) has the same `runId` as the grant; the grant `phase` equals the intent phase and is `STARTING_NEW` or `STARTING_OLD`; `grant.sha` equals what `/opt/nusa/current` points at and equals `state.active`; the grant is not expired; the process `pid` still exists with the same start time (`/proc/<pid>/stat`), its command line is `nusa-control release`, and `/proc/locks` shows that pid holding the controller lock; no stop marker exists (3.4). The gate consumes (deletes) the grant when it permits, so one grant is one start. A start with no grant is permitted only in the plain case: `desired COLLECT_ONLY`, no intent, `active == current`, no stop marker (the normal boot and `Restart=` path).
+- So an outside `collect`, `status`, a stray lock holder, a systemd restart or a boot cannot start the runtime during a release: they have no grant, and a RELEASE intent makes the plain case false.
+- No re-entrancy and no deadlock: the release verb does not call the `collect` command as a subprocess (it would need the same lock). It calls the in-process start-and-verify function while it already holds the lock. The gate never takes or waits for the lock (it only reads `/proc/locks`), so the verb waiting on `systemctl start` cannot block on the gate.
 
-| State | The gate permits a start of the runtime units |
+| State | A start of the runtime units is permitted |
 | --- | --- |
-| `desired COLLECT_ONLY`, no intent, `active == current` | yes (normal) |
-| intent `RELEASE`, phase `STARTING_NEW`, `current == to` | yes, only while the release verb holds the lock |
-| intent `RELEASE`, phase `STARTING_OLD`, `current == from`, `from` is proven | yes, only while the release verb holds the lock |
-| any other RELEASE phase, or a RELEASE intent whose lock holder is gone | no (external or boot-time starts are refused) |
-| `desired STOPPED` | no |
-
-"Holds the lock" is checked, not assumed: the gate runs `flock -n` on the controller lock and a start is permitted for a RELEASE intent only when the lock is held by another process (the release verb). With no lock holder the intent is stale and recovery (3.2) runs instead of a start.
+| `desired COLLECT_ONLY`, no intent, `active == current`, no marker | yes (normal, no grant needed) |
+| intent `RELEASE` phase `STARTING_NEW` or `STARTING_OLD`, a valid grant as above | yes, once |
+| any RELEASE intent without a valid grant, any other phase | no |
+| `desired STOPPED`, or a stop marker exists | no |
 
 ### 3.2 Crash and failure recovery (answers P0-2)
 
-The symlink swap, `state.active` and the unit start are not one atomic operation, so the order makes every crash point decidable by comparing three facts: the intent phase, where `/opt/nusa/current` points, and `state.active`.
+Facts read by recovery: the intent phase, where `/opt/nusa/current` points, `state.active`, the unit states, the recorded proofs. The rule is: a recovery never moves forward. Whatever it finds, it converges to `STOPPED` on the previous build, or to `STOPPED` with a named reason; it starts nothing (starting is only done by a live verb with a grant). Only the live `release` process rolls back and restarts the old proven build.
 
-| Phase when the process died | Recovery |
-| --- | --- |
-| `PREPARED`, `UNITS_STOPPED` | nothing was swapped: clear the intent, end STOPPED (or start the old build through `collect` if the owner runs it) |
-| `SWAPPING` (the link may or may not have moved) | read the link: if it equals `from`, as `PREPARED`; if it equals `to`, continue as `SWAPPED` |
-| `SWAPPED`, `STARTING_NEW` | the new build was never verified: move the link back to `from`, set `active = from`, phase `ROLLING_BACK`, then `STARTING_OLD` |
-| `ROLLING_BACK`, `STARTING_OLD` | finish the rollback to `from` if `from` is proven (a recorded proof from a verified start); otherwise end STOPPED |
+Allowed combinations (any other combination is the last row):
 
-Recovery runs at the start of every controller command that takes the lock (so the next `release`, `collect`, `stop` or the periodic `reconcile` finishes or abandons a half release before anything else) and never starts anything that is not verified. If the link points at neither `from` nor `to`, or a proof is missing, the end state is STOPPED with the reason recorded; no step guesses. The rollback target must be a build with a recorded proof.
+| Phase | link | `state.active` | Recovery |
+| --- | --- | --- | --- |
+| `PREPARED`, `UNITS_STOPPED` | `from` | `from` | stop units (idempotent), clear intent, STOPPED |
+| `SWAPPING` | `from` or `to` | `from` | stop units, set link to `from` if it is `to`, clear intent, STOPPED |
+| `SWAPPED`, `STARTING_NEW` | `to` | `to` or `from` | stop units and confirm inactive, link to `from`, `active = from`, clear intent, STOPPED (the new build was never verified, so it is never continued) |
+| `ROLLING_BACK`, `STARTING_OLD` | `from` | `from` | stop units, clear intent, STOPPED (the live verb, not recovery, restarts the old build) |
+| anything else (link is neither `from` nor `to`, `active` is neither, an unreadable intent, units that will not stop) | any | any | stop units; if they will not stop, report `STOPPED_UNCONFIRMED` and refuse further verbs except `stop`; else STOPPED with `active = null`, reason `RECOVERY_UNKNOWN`, the link left untouched (no guess); the owner or the next `release` names a staged sha |
 
-### 3.3 Outcome contract (answers P0-3)
+Order inside recovery: (1) stop the units and confirm `inactive`, (2) fix link and `state.active` with the two atomic operations (`ln -sfn` to a temp name then `rename`; state write as in 3.1), (3) clear the intent in the same write that records STOPPED. Each step re-reads the facts, so running recovery again after a crash inside recovery reaches the same end (idempotent). The proof record for a build is written only in the same state write that ends a verified `DEPLOYED` or confirms a verified old build; a rollback target must have a proof.
 
-`release` ends in exactly one of: `DEPLOYED` (new build verified), `ROLLED_BACK` (the previous proven build verified), `STOPPED_SAFE` (nothing verified, everything stopped, intent cleared), `REFUSED` (a precondition failed, nothing changed), `SUPERSEDED` (protected main moved before the host was touched, nothing changed). Only `DEPLOYED` is a release. The workflow's final step must read this one-line result: any other result is a visible non-DEPLOYED outcome (the job summary names it and the run is not reported as a deployment). Today's `oracle-paper-release.yml` ends its run with a SUCCESS conclusion when main moved (`deploymentResult=SKIPPED_MAIN_MOVED`, 2026-11-16 19:38 KST: stage and activate were skipped); the follow-up change makes that result a failing conclusion with the text "NOT DEPLOYED: protected main moved". Until then: nobody (agent or owner) reports a release as done from the run conclusion alone, only from `deploymentResult=DEPLOYED` and the host's reported build; and no PR is merged while a release runs.
+Recovery runs at the start of every command that takes the lock and, for `status` and the periodic `reconcile`, only reports (it does not change anything without the lock).
 
-### 3.4 Emergency stop priority (answers P1)
+### 3.3 Outcome contract and the workflow (answers P1)
 
-`stop` first creates the marker file `/run/nusa-control/stop-requested` (atomic, root only) and only then waits for the lock (90 s). The release verb checks the marker before every phase change, between probes and inside every wait; on the marker it takes the recovery path to STOPPED at once (no rollback start). Every wait inside `release` is at most one probe or one retry gap (about 13 s), so the lock is released well inside the 90 s of `stop`. The marker is removed by `stop` after the units are stopped and by recovery.
+`release` ends in exactly one of: `DEPLOYED` (new build verified), `ROLLED_BACK` (the previous proven build verified), `STOPPED_SAFE` (nothing verified, everything stopped, intent cleared), `REFUSED` (a precondition failed, nothing changed), `SUPERSEDED` (protected main moved before the host was touched, nothing changed). Only `DEPLOYED` is a deployment.
+
+Workflow contract (a tested script, `scripts/release-verdict.js`, not shell logic scattered in YAML):
+
+- The step that rechecks protected main after the backup emits `outcome=SUPERSEDED` when main moved, and the host jobs are then skipped. The `activate` job emits `outcome=<the controller's one-line result>`.
+- A final job `verdict` always runs (`if: always()`). It reads the `outcome` outputs, then reads the host with `sudo nusa-control status` and the public `/health`. It reports a deployment only when `outcome == DEPLOYED` AND the host `active` sha equals the target sha AND `runtime.sourceCommitSha` equals the target sha AND `runtime.ok` is true. A missing outcome (job skipped, cancelled, no output) is treated as NOT DEPLOYED.
+- Any other result fails the run with the text `NOT DEPLOYED: <outcome>` in the job summary; `SUPERSEDED` is a failing "not deployed" result, never `success`, and is excluded from any count of successful deployments. `deploymentResult` is set to `DEPLOYED` only by `verdict`.
+- Until this change is merged: nobody (agent or owner) reports a release as done from the run conclusion alone (2026-11-16 19:38 KST: the run was `success` while stage and activate were skipped), only from `deploymentResult=DEPLOYED` plus the host's reported build; and no PR is merged while a release runs.
+
+### 3.4 Emergency stop priority (answers P1 stop and P0-3)
+
+The stop marker `/run/nusa-control/stop-requested` is checked at the ONE irreversible dangerous action, not only between steps: the gate (3.1) denies every start while the marker exists, even a start with a valid grant. So a race between the release's last marker check and its next action cannot start the runtime: the start is refused at the gate, atomically, by the file's existence. The release also checks the marker before each phase change and inside each wait and then takes the recovery path to STOPPED without a rollback start; that is only for speed.
+
+- Create: `stop` creates the marker first with `O_EXCL` (root, 0600) containing `{stopId, pid, pidStartTime, createdAt}`; an existing marker is joined, not replaced.
+- Wait and fallback: `stop` waits up to 90 s for the lock. If it still has no lock, it stops the runtime units directly (`systemctl stop` is idempotent and always safe), keeps the marker and reports `STOP_UNLOCKED`; the next command that takes the lock runs recovery (3.2) and records STOPPED. With the marker present nothing can restart the runtime in the meantime.
+- Consume: only `stop` removes its own marker, and only after it holds the lock, the units are confirmed inactive, and the state write with `desired STOPPED` and no intent is done (state first, marker second: a crash between leaves a marker with a STOPPED state, which is harmless and fail-closed).
+- Leftover marker (stop crashed, or no lock): it never expires by time and recovery never deletes it, because an unsafe auto-delete could re-open starts. It is removed only by (a) a later complete `stop`, or (b) an explicit `collect` run by the owner while no live process matches the marker's `pid` and start time and the state is `STOPPED`. A reboot clears `/run`, but the durable state (`desired STOPPED` or a RELEASE intent) still makes the gate refuse, so a reboot never reopens a start.
+- Every wait inside `release` is at most one probe or one retry gap (about 13 s), so the lock is free inside the 90 s of `stop`.
 
 ### 3.5 Invariant enforcement and tests (answers the PAPER_ORDERS remark)
 
@@ -88,7 +107,10 @@ Before every phase change the verb re-checks: orders OFF from every source, the 
 
 - A property test: a random crash or failure injected at every phase of `release` (including both halves of the SWAPPING step) ends in exactly one of the outcomes of 3.3; never a mixed state, never `PAPER_ORDERS`; a stale RELEASE intent is recovered by the next controller command.
 - Gate tests: the table of 3.1 (a start is refused for every state not listed as permitted, and with no lock holder).
-- A `stop` issued during every phase wins within the 90 s lock wait.
+- A `stop` issued during every phase wins within the 90 s lock wait; a marker created right after the release's last check still blocks the start at the gate; `stop` without the lock stops the units directly and the marker survives; a leftover marker is never auto-deleted.
+- Grant tests: a start with a missing, expired, reused, wrong-runId, wrong-phase, wrong-sha or dead-pid grant is refused; a stray process holding the lock gets no start; a release calling start does not deadlock with the gate.
+- Recovery tests: every row of the 3.2 table, a crash inside recovery at every step followed by a second recovery (same end state), and the unknown-combination row ends STOPPED with the link untouched.
+- Verdict tests (`scripts/release-verdict.js`): for every combination of outcome (five values, missing), host sha and health, only DEPLOYED with matching shas and `runtime.ok` is a deployment; SUPERSEDED and a missing outcome fail the run.
 - A test for the outcome line the workflow reads (one JSON line, one of the five results).
 - The real `/health` of the cloud runtime (the new test of PR #3163) for the post-swap verification.
 - A test that `release` refuses with orders not OFF, with a pending intent, with an unstaged or malformed hash, and with the lock busy.
