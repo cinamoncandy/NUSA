@@ -142,6 +142,75 @@ test("the real host's env file repeats the OFF line twice: that passes (every me
   assert.equal(w.run(w.hash, "--apply").status, 0); assert.equal(w.run("--rollback").status, 0);
 });
 
+const STOPPED_STATE = { schemaVersion: 1, version: 3, desired: "STOPPED", active: "e".repeat(40), adopted: true, proven: [], attempt: null, grant: null, intent: null };
+function afterRollbackWorld(opts = {}) {
+  const w = world(opts);
+  assert.equal(w.run(w.hash, "--apply").status, 0);
+  assert.equal(w.run("--rollback").status, 0);
+  fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify(opts.state ?? STOPPED_STATE), { mode: 0o600 });
+  return w;
+}
+
+test("--after-rollback installs again after a rollback: the leftovers are moved aside (never deleted) and a new manifest and anchor are written", posixOnly, () => {
+  const w = afterRollbackWorld();
+  // without the flag the leftovers are refused
+  const plain = w.run(w.hash);
+  assert.notEqual(plain.status, 0); assert.match(plain.stdout, /FAIL  no controller state file exists yet/);
+  const pre = w.run(w.hash, "--after-rollback");
+  assert.equal(pre.status, 0, pre.stdout + pre.stderr);
+  assert.match(pre.stdout, /PASS  only the leftovers of a rollback/);
+  const before = w.snapshot();
+  assert.equal(w.run(w.hash, "--after-rollback").status, 0); assert.equal(w.snapshot(), before, "preflight with the flag is read-only too");
+  const stateDir = path.join(w.R, "var/lib/nusa-control");
+  const oldManifest = fs.readFileSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST"), "utf8");
+  const r = w.run(w.hash, "--apply", "--after-rollback");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /DONE  controller installed/);
+  const names = fs.readdirSync(stateDir);
+  assert.ok(names.some((n) => /^state\.json\.rolled-back-\d{8}T\d{6}Z$/.test(n)), `the old state is kept: ${names}`);
+  assert.ok(names.some((n) => /^install-manifest\.sha256\.rolled-back-/.test(n)), "the old anchor is kept");
+  assert.equal(names.includes("state.json"), false, "no stale state is left for the new init");
+  const aside = fs.readdirSync(path.join(w.R, "opt/nusa-control")).find((n) => /^INSTALL-MANIFEST\.rolled-back-/.test(n));
+  assert.equal(fs.readFileSync(path.join(w.R, "opt/nusa-control", aside), "utf8"), oldManifest);
+  assert.ok(names.includes("install-manifest.sha256"), "a new anchor");
+  const calls = w.calls().filter((c) => /controller (init|collect|status)/.test(c));
+  assert.deepEqual(calls.slice(-3), [`controller init ${SHA}`, "controller collect", "controller status"]);
+  // and the new install can be rolled back again
+  assert.equal(w.run("--rollback").status, 0);
+});
+
+test("--after-rollback refuses anything that is not exactly a rollback leftover, and changes nothing", posixOnly, () => {
+  const damage = {
+    "state says COLLECT_ONLY": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, desired: "COLLECT_ONLY" })),
+    "state has an attempt": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, attempt: { sha: "x", count: 1 } })),
+    "state has an intent": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, intent: { verb: "collect" } })),
+    "state has a grant": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, grant: { sha: "x" } })),
+    "state is not JSON": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), "not json"),
+    "no state file": (w) => fs.rmSync(path.join(w.R, "var/lib/nusa-control/state.json")),
+    "state is a symlink": (w) => { const f = path.join(w.R, "var/lib/nusa-control/state.json"); fs.renameSync(f, path.join(w.R, "real-state.json")); fs.symlinkSync(path.join(w.R, "real-state.json"), f); },
+    "a controller unit is still installed": (w) => fs.writeFileSync(path.join(w.R, "etc/systemd/system/nusa-control-verify.timer"), "[Timer]\n"),
+    "a drop-in is still installed": (w) => { fs.mkdirSync(path.join(w.R, "etc/systemd/system/nusa.service.d"), { recursive: true }); fs.writeFileSync(path.join(w.R, "etc/systemd/system/nusa.service.d/20-run-mode.conf"), "[Service]\n"); },
+    "the mode file is still there": (w) => fs.writeFileSync(path.join(w.R, "etc/nusa/run-mode.env"), "NUSA_RUN_MODE=COLLECT_ONLY\n"),
+    "the anchor does not match the manifest": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/install-manifest.sha256"), "0".repeat(64) + "\n", { mode: 0o600 }),
+    "the manifest was edited": (w) => fs.appendFileSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST"), "x\n"),
+    "the controller script was changed": (w) => fs.appendFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "//x\n"),
+    "the manifest is missing": (w) => fs.rmSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST")),
+  };
+  for (const [label, fn] of Object.entries(damage)) {
+    const w = afterRollbackWorld(); fn(w);
+    const before = w.snapshot(); const callsBefore = w.calls().length;
+    const pre = w.run(w.hash, "--after-rollback");
+    assert.notEqual(pre.status, 0, label); assert.match(pre.stdout, /FAIL  only the leftovers of a rollback/, label);
+    const apply = w.run(w.hash, "--apply", "--after-rollback");
+    assert.notEqual(apply.status, 0, `${label}: apply refuses`); assert.match(apply.stderr + apply.stdout, /nothing was changed/, label);
+    assert.equal(w.snapshot(), before, `${label}: nothing changed`);
+    assert.equal(w.calls().filter((c) => !/is-active|^systemctl show/.test(c)).length, w.calls().slice(0, callsBefore).filter((c) => !/is-active|^systemctl show/.test(c)).length, `${label}: no new mutation`);
+  }
+  // on a fresh host (no leftovers) the flag is refused too
+  const fresh = world(); const r = fresh.run(fresh.hash, "--after-rollback");
+  assert.notEqual(r.status, 0); assert.match(r.stdout, /FAIL  only the leftovers of a rollback/);
+});
+
 test("the test root is refused unless the test flag is set (a stray variable cannot redirect a root install)", posixOnly, () => {
   const w = world({ noTestFlag: true }); const r = w.run(w.hash);
   assert.notEqual(r.status, 0); assert.match(r.stderr, /NUSA_INSTALL_ROOT is for tests only/);

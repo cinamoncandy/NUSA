@@ -384,6 +384,49 @@ test("serverSideInodes needs the exact address AND port pair: same ports with ot
   assert.equal(procAddress("0100007F"), "127.0.0.1");
 });
 
+test("a connection the server has not accept()ed yet (kernel inode 0) is not an owner: the table row is skipped", () => {
+  const head = "  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode";
+  const row = (local, remote, inode) => `   0: ${local} ${remote} 01 00000000:00000000 00:00000000 00000000  1000        0 ${inode}`;
+  const tcp = [head, row("0100007F:A0C3", "0100007F:D431", 0)].join("\n");
+  const want = { serverAddress: "127.0.0.1", serverPort: 0xa0c3, clientAddress: "127.0.0.1", clientPort: 0xd431 };
+  assert.deepEqual(serverSideInodes((f) => (f.endsWith("tcp6") ? head : tcp), want), [], "an unaccepted connection has no owner process yet");
+  const accepted = [head, row("0100007F:A0C3", "0100007F:D431", 777)].join("\n");
+  assert.deepEqual(serverSideInodes((f) => (f.endsWith("tcp6") ? head : accepted), want), ["777"]);
+});
+
+test("REAL-HOST REGRESSION (first collect on the host failed with SENDER_UNKNOWN): a server that accepts late, because its event loop is busy at start-up, is still identified", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const { spawn } = require("node:child_process");
+  // The child opens its listener and then blocks its event loop for 800 ms: the kernel completes the handshake into the
+  // accept backlog (inode 0) and the child cannot accept until it unblocks, exactly like a runtime that is busy starting.
+  const script = `const http=require("node:http");const s=http.createServer((q,r)=>{const b='{"runtime":{"x":true}}';r.writeHead(200,{"content-type":"application/json","content-length":String(b.length)});r.end(b);});s.listen(0,"127.0.0.1",()=>{process.stdout.write(String(s.address().port)+"\\n");const t=Date.now();while(Date.now()-t<800){}});`;
+  const child = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "inherit"] });
+  try {
+    const port = await new Promise((resolve, reject) => { child.stdout.once("data", (d) => resolve(Number(String(d).trim()))); child.once("error", reject); });
+    const r = await hostIdentifiedHealth(port);
+    assert.ok(r.ownerPids.includes(child.pid), `the late-accepting server is found: ${JSON.stringify(r.ownerPids)} ${JSON.stringify(r.diag)}`);
+    assert.ok(r.diag.attempts > 1 && r.diag.waitedMs >= 100, `the controller waited for the accept: ${JSON.stringify(r.diag)}`);
+    assert.equal(r.body.runtime.x, true, "and the answer is read afterwards");
+  } finally { child.kill("SIGKILL"); }
+});
+
+test("a server that never accepts within the identification budget is an unknown sender (fail closed), with diagnostics; the request is only sent after identification", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const { spawn } = require("node:child_process");
+  const script = `const http=require("node:http");const s=http.createServer((q,r)=>{const b='{"runtime":{"x":true}}';r.writeHead(200,{"content-type":"application/json","content-length":String(b.length)});r.end(b);});s.listen(0,"127.0.0.1",()=>{process.stdout.write(String(s.address().port)+"\\n");const t=Date.now();while(Date.now()-t<1500){}});`;
+  const child = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "inherit"] });
+  try {
+    const port = await new Promise((resolve) => child.stdout.once("data", (d) => resolve(Number(String(d).trim()))));
+    const r = await hostIdentifiedHealth(port, { identifyBudgetMs: 300, timeoutMs: 4000 });
+    // The server only accepts after about 1.5 s: inside the 300 ms budget no owner may be claimed, whatever it answers later.
+    assert.deepEqual(r.ownerPids, [], JSON.stringify(r.diag));
+    assert.ok(r.diag.waitedMs >= 300 && r.diag.waitedMs < 1400 && r.diag.holders === 0, JSON.stringify(r.diag));
+  } finally { child.kill("SIGKILL"); }
+});
+
+test("a failed identification reports its diagnostics (attempts, waited time, inodes) so the next real-host failure explains itself", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
+  assert.match(src, /reason: "SENDER_UNKNOWN", \.\.\.\(r && r\.diag \? \{ diag: r\.diag \} : \{\}\)/);
+});
+
 test("an ambiguous sender is unknown: two matching server-side sockets would not be accepted (unique inode required)", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
   assert.match(src, /inode = inodes\.length === 1 \? inodes\[0\] : null;/);

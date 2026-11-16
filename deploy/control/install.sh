@@ -4,6 +4,7 @@
 #   sudo bash install.sh <full-commit-sha> <manifest-sha256>            preflight only: READ-ONLY, changes nothing
 #   sudo bash install.sh <full-commit-sha> <manifest-sha256> --apply    install, then init and collect
 #   sudo bash install.sh <full-commit-sha> --rollback                    remove what this script installed, restore the old start
+#   ... <sha> <manifest-sha256> [--apply] --after-rollback               install again after a rollback of this script (see below)
 #
 # The files come from the STAGED RELEASE of that commit (/opt/nusa/releases/<sha>/deploy/control). They are first copied into a
 # root-only private directory; the manifest hash given on the command line (printed in the reviewed pull request, it covers
@@ -16,7 +17,8 @@
 set -euo pipefail
 
 SHA="${1:-}"; HASH_ARG="${2:-}"; MODE="preflight"
-for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollback";; esac; done
+AFTER=0
+for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollback";; --after-rollback) AFTER=1;; esac; done
 # NUSA_INSTALL_ROOT lets the tests run the whole script against a temporary directory tree. It is refused unless the test flag is
 # also set, so a stray variable can never redirect a root install on the host; on the host the PATH is fixed.
 R="${NUSA_INSTALL_ROOT:-}"
@@ -132,6 +134,25 @@ managed_files_sound() {
   done
 }
 
+# After a rollback of this script the controller files, the install manifest, its anchor and the state file are kept for
+# inspection, so a plain install refuses. --after-rollback accepts exactly that leftover and nothing else: the state says
+# STOPPED with no attempt, intent or grant; the manifest matches its anchor; the two controller files are the recorded ones;
+# no unit, drop-in or mode file of the controller is installed any more. The leftovers are moved aside (never deleted).
+rolled_back_leftovers_ok() {
+  local state="$R/var/lib/nusa-control/state.json" f
+  [ -f "$state" ] && [ ! -L "$state" ] || return 1
+  node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); process.exit(s.desired==="STOPPED" && s.attempt===null && s.intent===null && s.grant===null ? 0 : 1)' "$state" || return 1
+  [ -f "$MANIFEST_FILE" ] && [ ! -L "$MANIFEST_FILE" ] && [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] || return 1
+  [ "$(sha256sum -- "$MANIFEST_FILE" | cut -d' ' -f1)" = "$(cat -- "$MANIFEST_ANCHOR")" ] || return 1
+  for f in opt/nusa-control/nusa-control.js opt/nusa-control/nusa-control.sh; do
+    [ -f "$R/$f" ] && [ ! -L "$R/$f" ] || return 1
+    grep -qF "$(sha256sum -- "$R/$f" | cut -d' ' -f1)  $f" "$MANIFEST_FILE" || return 1
+  done
+  for f in $(managed_files); do
+    case "$f" in opt/nusa-control/*) ;; *) [ ! -e "$R/$f" ] && [ ! -L "$R/$f" ] || return 1 ;; esac
+  done
+}
+
 preflight() {
   echo "== preflight (read-only) for $SHA"
   [ -n "$R" ] || check "running as root" test "$(id -u)" = 0
@@ -151,8 +172,12 @@ preflight() {
   check "nusa.service is active" sysctl is-active --quiet nusa.service
   local health; health="$(curl -fsS -m 6 http://127.0.0.1:41731/health 2>/dev/null || true)"
   check "/health is valid JSON from the commit $SHA in mode COLLECT_ONLY (the new runtime is running)" node -e 'const h=JSON.parse(process.argv[1]).runtime; process.exit(h && h.sourceCommitSha===process.argv[2] && h.runMode==="COLLECT_ONLY" ? 0 : 1)' "$health" "$SHA"
-  check "no controller state file exists yet" test ! -e "$R/var/lib/nusa-control/state.json"
-  check "the controller is not installed yet" test ! -e "$R/opt/nusa-control/nusa-control.js"
+  if [ "$AFTER" = 1 ]; then
+    check "only the leftovers of a rollback of this script exist (state STOPPED without attempt, intent or grant; manifest matches its anchor; controller files as recorded; no unit, drop-in or mode file installed)" rolled_back_leftovers_ok
+  else
+    check "no controller state file exists yet" test ! -e "$R/var/lib/nusa-control/state.json"
+    check "the controller is not installed yet" test ! -e "$R/opt/nusa-control/nusa-control.js"
+  fi
   echo "== preflight result: $fails failure(s)"
 }
 
@@ -185,6 +210,13 @@ apply() {
     for c in "$S"/dropins/"$u".d/*.conf; do install "${OWN[@]}" -m 0644 "$c" "$R/etc/systemd/system/$u.d/$(basename "$c")"; done
   done
   CURRENT="install manifest"; step "$CURRENT"
+  if [ "$AFTER" = 1 ]; then
+    # Set the rolled-back leftovers aside (kept, never deleted) so the controller starts from a clean state again.
+    local stamp; stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+    mv -- "$R/var/lib/nusa-control/state.json" "$R/var/lib/nusa-control/state.json.rolled-back-$stamp"
+    mv -- "$MANIFEST_FILE" "$MANIFEST_FILE.rolled-back-$stamp"
+    mv -- "$MANIFEST_ANCHOR" "$MANIFEST_ANCHOR.rolled-back-$stamp"
+  fi
   ( cd "${R:-/}" && managed_files | xargs sha256sum ) > "$stage/manifest.out"
   install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE"
   sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR"
