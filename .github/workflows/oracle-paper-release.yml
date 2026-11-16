@@ -176,6 +176,9 @@ jobs:
     # bounded so stage/preflight/activation cannot inherit a long backup timeout.
     runs-on: [self-hosted, Linux, nusa-paper-host]
     timeout-minutes: 40
+    # The final verdict job reads this receipt; it never trusts the job conclusion alone (a superseded run ends "success").
+    outputs:
+      deploymentResult: ${{ steps.record.outputs.deploymentResult }}
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa
@@ -250,6 +253,7 @@ jobs:
         run: sudo "$STEP" activate "$SOURCE_SHA"
 
       - name: Record deployed identity and fail-closed authority
+        id: record
         if: always()
         env:
           SOURCE_FRESH: ${{ steps.source_fresh.outputs.fresh }}
@@ -269,9 +273,56 @@ jobs:
             RESULT=FAILED_ACTIVATION_IDENTITY
           fi
           echo "deploymentResult=$RESULT"
+          echo "deploymentResult=$RESULT" >> "$GITHUB_OUTPUT"
           echo "::notice::deploymentResult=$RESULT source=$SOURCE_SHA"
           printf '### Oracle PAPER release\n\n| deploymentResult | requestedSource | currentRelease |\n| --- | --- | --- |\n| %s | %s | %s |\n' "$RESULT" "$SOURCE_SHA" "$CURRENT_RELEASE" >> "$GITHUB_STEP_SUMMARY"
           if [ "$RESULT" = "FAILED_ACTIVATION_IDENTITY" ]; then echo "::error::activation reported success but current does not resolve to $SOURCE_SHA"; exit 1; fi
           echo 'liveAuthority=NONE'
           echo 'productionMutationAllowed=false'
           echo 'aiAuthority=ZERO_AUTHORITY'
+
+  # The only place a run is called a deployment. It runs even when an earlier job failed or was skipped, reads the receipt and the
+  # public /health, and fails the run with "NOT DEPLOYED: ..." for anything but a verified deployment (design C4 3.3).
+  verdict:
+    name: Verdict (a run is a deployment only when every fact agrees)
+    needs: [backup, release]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      BACKUP_JOB: ${{ needs.backup.result }}
+      RELEASE_JOB: ${{ needs.release.result }}
+      DEPLOYMENT_RESULT: ${{ needs.release.outputs.deploymentResult }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Read the public health (read-only, only when the receipt says DEPLOYED)
+        id: health
+        run: |
+          set -uo pipefail
+          HEALTH_SHA=""
+          if [ "$DEPLOYMENT_RESULT" = "DEPLOYED" ]; then
+            URL="$(node -e 'const u=JSON.parse(require("fs").readFileSync("deploy/health-watch.json","utf8")).healthUrl;if(typeof u!=="string"||!/^https:\/\/[a-z0-9.-]+\/health$/.test(u))process.exit(1);process.stdout.write(u)' 2>/dev/null)" || URL=""
+            if [ -n "$URL" ]; then
+              for n in 1 2 3 4 5 6; do
+                curl -sS -m 20 -o /tmp/health.json "$URL" 2>/dev/null || true
+                HEALTH_SHA="$(node -e 'try{const h=JSON.parse(require("fs").readFileSync("/tmp/health.json","utf8"));process.stdout.write(String(h.runtime&&h.runtime.sourceCommitSha||""))}catch{}' 2>/dev/null)" || HEALTH_SHA=""
+                [ "$HEALTH_SHA" = "$SOURCE_SHA" ] && break
+                [ "$n" = 6 ] || sleep 10
+              done
+            fi
+          fi
+          echo "sha=$HEALTH_SHA" >> "$GITHUB_OUTPUT"
+      - name: Decide
+        env:
+          HEALTH_SHA: ${{ steps.health.outputs.sha }}
+        run: |
+          set -uo pipefail
+          node scripts/release-verdict.js | tee -a "$GITHUB_STEP_SUMMARY"
+          exit "${PIPESTATUS[0]}"

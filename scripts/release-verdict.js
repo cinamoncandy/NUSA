@@ -1,0 +1,41 @@
+"use strict";
+// Pure verdict for the Oracle PAPER release workflow (docs/NUSA_C4_RELEASE_THROUGH_CONTROLLER_DESIGN_2026-11-16.md 3.3).
+// Read-only. A run counts as a deployment ONLY when every fact agrees; a missing fact is "not deployed", never success.
+// 2026-11-16 19:38 KST: the run ended with conclusion success while every host step was skipped because protected main moved.
+const SHA = /^[0-9a-f]{40}$/;
+const CONTROLLER_OUTCOMES = new Set(["DEPLOYED", "ROLLED_BACK", "STOPPED_SAFE", "REFUSED", "STOPPED_UNCONFIRMED", "SUPERSEDED"]);
+
+// input: { sourceSha, backupJob, releaseJob, deploymentResult, controllerOutcome?, healthSha }
+function decide(input) {
+  const i = input && typeof input === "object" ? input : {};
+  const no = (result, reason) => ({ deployed: false, result, reason });
+  if (!SHA.test(String(i.sourceSha ?? ""))) return no("NOT_DEPLOYED", "SOURCE_SHA_INVALID");
+  if (i.backupJob !== "success") return no("NOT_DEPLOYED", `BACKUP_${String(i.backupJob || "MISSING").toUpperCase()}`);
+  if (i.releaseJob !== "success" && i.releaseJob !== "failure" && i.releaseJob !== "cancelled") return no("NOT_DEPLOYED", `RELEASE_JOB_${String(i.releaseJob || "MISSING").toUpperCase()}`);
+  // The workflow's own recheck of protected main: the host was never touched, so this is a clean "superseded", not a deployment.
+  if (i.deploymentResult === "SKIPPED_MAIN_MOVED") return no("SUPERSEDED", "PROTECTED_MAIN_MOVED");
+  if (i.deploymentResult !== "DEPLOYED") return no("FAILED", String(i.deploymentResult || "RESULT_MISSING"));
+  if (i.releaseJob !== "success") return no("FAILED", `RELEASE_JOB_${i.releaseJob.toUpperCase()}`);
+  // Once the release goes through the controller its one-line outcome must say DEPLOYED as well; an unknown word is not a success.
+  if (i.controllerOutcome !== undefined && i.controllerOutcome !== "") {
+    if (!CONTROLLER_OUTCOMES.has(i.controllerOutcome)) return no("FAILED", "CONTROLLER_OUTCOME_UNKNOWN");
+    if (i.controllerOutcome !== "DEPLOYED") return no(i.controllerOutcome === "SUPERSEDED" ? "SUPERSEDED" : "FAILED", `CONTROLLER_${i.controllerOutcome}`);
+  }
+  if (!SHA.test(String(i.healthSha ?? ""))) return no("FAILED", "HEALTH_SHA_MISSING");
+  if (i.healthSha !== i.sourceSha) return no("FAILED", "HEALTH_SHA_MISMATCH");
+  return { deployed: true, result: "DEPLOYED", reason: "ALL_FACTS_AGREE" };
+}
+
+function main(env) {
+  const v = decide({ sourceSha: env.SOURCE_SHA, backupJob: env.BACKUP_JOB, releaseJob: env.RELEASE_JOB, deploymentResult: env.DEPLOYMENT_RESULT, controllerOutcome: env.CONTROLLER_OUTCOME, healthSha: env.HEALTH_SHA });
+  const lines = [`deploymentResult=${v.result}`, `reason=${v.reason}`];
+  if (!v.deployed) lines.push(`NOT DEPLOYED: ${v.result} (${v.reason})`);
+  return { v, text: lines.join("\n") };
+}
+
+module.exports = { decide, main };
+if (require.main === module) {
+  const { v, text } = main(process.env);
+  process.stdout.write(`${text}\n`);
+  process.exit(v.deployed ? 0 : 1);
+}
