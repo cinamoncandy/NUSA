@@ -464,15 +464,29 @@ test("the diagnostics also survive a response that is not a valid health answer 
 
 test("the real client records the response status and whether the body parsed", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
   const http = require("node:http");
-  for (const [label, status, payload, parsed] of [["500", 500, "boom", false], ["200 bad json", 200, "not json", false], ["200 ok", 200, '{"runtime":{"x":1}}', true]]) {
-    const server = http.createServer((q, r) => { r.writeHead(status, { "content-length": String(payload.length) }); r.end(payload); });
+  for (const [label, status, payload, parsed] of [["500", 500, "boom", false], ["200 bad json", 200, "not json", false], ["200 ok", 200, '{"runtime":{"x":1}}', true], ["200 multi-byte", 200, '{"runtime":{"x":"가나다"}}', true]]) {
+    const server = http.createServer((q, r) => { r.writeHead(status, { "content-length": String(Buffer.byteLength(payload)) }); r.end(payload); });
     await new Promise((r) => server.listen(0, "127.0.0.1", r));
     try {
       const r = await hostIdentifiedHealth(server.address().port);
       assert.ok(r.ownerPids.includes(process.pid), label);
-      assert.equal(r.diag.responseStatus, status, label); assert.equal(r.diag.bodyParsed, parsed, label); assert.ok(r.diag.responseBytes > 0, label); assert.equal(r.diag.requestSent, true, label);
+      assert.equal(r.diag.responseStatus, status, label); assert.equal(r.diag.bodyParsed, parsed, label); assert.equal(r.diag.requestSent, true, label);
+      assert.ok(r.diag.responseBytes > Buffer.byteLength(payload), `${label}: bytes on the wire, headers included`);
     } finally { server.close(); }
   }
+});
+
+test("responseBytes counts bytes on the wire, not characters", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const http = require("node:http");
+  const measure = async (payload) => {
+    const server = http.createServer((q, r) => { r.sendDate = false; r.writeHead(200, { "content-length": String(Buffer.byteLength(payload)) }); r.end(payload); });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try { return (await hostIdentifiedHealth(server.address().port)).diag.responseBytes; } finally { server.close(); }
+  };
+  const ascii = '{"runtime":{"x":"abc"}}';
+  const korean = '{"runtime":{"x":"가나다"}}';                 // same number of characters, 6 more bytes
+  assert.equal(ascii.length, korean.length);
+  assert.equal(await measure(korean) - await measure(ascii), Buffer.byteLength(korean) - Buffer.byteLength(ascii));
 });
 
 test("a /proc table that cannot be read is told apart from 'no such socket' in the diagnostics", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {

@@ -167,33 +167,42 @@ verify_manifest_files() {
 # rollback works at every later failure point.
 swap_in_install_set() {
   local stamp state="$R/var/lib/nusa-control/state.json" undo_list=() item t
+  RECOVERY_FAILED=()
   local new_files=("$MANIFEST_FILE" "$MANIFEST_ANCHOR" "$R/opt/nusa-control/nusa-control.js" "$R/opt/nusa-control/nusa-control.sh")
   stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-  undo() {
+  undo() {   # returns 1 when everything was put back, 2 when a restore failed (RECOVERY_FAILED lists what is left where)
     local i kind rest x y
     for (( i=${#undo_list[@]}-1; i>=0; i-- )); do
       item="${undo_list[$i]}"; kind="${item%%|*}"; rest="${item#*|}"; x="${rest%%|*}"; y="${rest#*|}"
-      case "$kind" in M) mv -n -- "$y" "$x" || true ;; P) rm -f -- "$x" ;; esac
+      case "$kind" in
+        M) if ! mv -n -- "$y" "$x" || [ ! -e "$x" ] || [ -e "$y" ]; then RECOVERY_FAILED+=("$y should be at $x"); fi ;;
+        P) rm -f -- "$x"; if [ -e "$x" ] || [ -L "$x" ]; then RECOVERY_FAILED+=("$x should not exist"); fi ;;
+      esac
     done
+    if [ "${#RECOVERY_FAILED[@]}" -gt 0 ]; then KEEP_NEW=1; return 2; fi
     for t in "${new_files[@]}"; do rm -f -- "$t.new"; done
+    return 1
   }
   aside() {   # move $1 to its collision-proof name when it exists; the source must really be gone afterwards
     local src="$1" dst="$1.rolled-back-$stamp"
     if [ ! -e "$src" ] && [ ! -L "$src" ]; then return 0; fi
     if [ -e "$dst" ] || [ -L "$dst" ]; then return 1; fi
-    mv -n -- "$src" "$dst" || return 1
-    undo_list+=("M|$src|$dst")
-    if [ -e "$src" ] || [ ! -e "$dst" ]; then return 1; fi
+    mv -n -- "$src" "$dst" || true
+    # Record the move only when it really happened; a move that did nothing (mv -n can skip silently) needs no restore.
+    if [ ! -e "$src" ] && [ -e "$dst" ]; then undo_list+=("M|$src|$dst"); return 0; fi
+    if [ -e "$src" ] && [ ! -e "$dst" ]; then return 1; fi
+    undo_list+=("M|$src|$dst"); return 1     # anything else is inconsistent: let undo try and report it
   }
   place() {   # rename $1.new into place; the .new must really be gone afterwards
-    mv -n -- "$1.new" "$1" || return 1
-    undo_list+=("P|$1|")
-    if [ -e "$1.new" ]; then return 1; fi
+    mv -n -- "$1.new" "$1" || true
+    if [ ! -e "$1.new" ] && [ -e "$1" ]; then undo_list+=("P|$1|"); return 0; fi
+    if [ -e "$1.new" ] && [ ! -e "$1" ]; then return 1; fi
+    undo_list+=("P|$1|"); return 1
   }
-  if [ "$AFTER" = 1 ]; then aside "$state" || { undo; return 1; }; fi
+  if [ "$AFTER" = 1 ]; then aside "$state" || { undo; return $?; }; fi
   for t in "${new_files[@]}"; do
-    if [ -e "$t" ] || [ -L "$t" ]; then aside "$t" || { undo; return 1; }; fi
-    place "$t" || { undo; return 1; }
+    if [ -e "$t" ] || [ -L "$t" ]; then aside "$t" || { undo; return $?; }; fi
+    place "$t" || { undo; return $?; }
   done
 }
 
@@ -253,7 +262,8 @@ apply() {
   CURRENT="private copy"; step "$CURRENT"
   # Copy once into a root-only directory, verify THAT copy, install only from it: later changes to the release tree cannot matter.
   stage="$(mktemp -d "$R/var/lib/.nusa-install.XXXXXX")"
-  trap 'rm -rf -- "$stage"; rm -f -- "$MANIFEST_FILE.new" "$MANIFEST_ANCHOR.new" "$R/opt/nusa-control/nusa-control.js.new" "$R/opt/nusa-control/nusa-control.sh.new"' EXIT
+  KEEP_NEW=0
+  trap 'rm -rf -- "$stage"; [ "$KEEP_NEW" = 1 ] || rm -f -- "$MANIFEST_FILE.new" "$MANIFEST_ANCHOR.new" "$R/opt/nusa-control/nusa-control.js.new" "$R/opt/nusa-control/nusa-control.sh.new"' EXIT
   chmod 0700 "$stage"
   cp -a --no-dereference -- "$SRC/." "$stage/"
   no_symlinks_in "$stage" || die "the private copy contains a symlink"
@@ -271,7 +281,18 @@ apply() {
   sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR.new"
   install "${OWN[@]}" -m 0755 "$S/nusa-control.js" "$R/opt/nusa-control/nusa-control.js.new"
   install "${OWN[@]}" -m 0755 "$S/nusa-control.sh" "$R/opt/nusa-control/nusa-control.sh.new"
-  swap_in_install_set || die "could not swap in the controller files and the manifest; everything was put back and nothing else was changed"
+  local rc=0
+  swap_in_install_set || rc=$?
+  if [ "$rc" = 2 ]; then
+    trap - ERR
+    {
+      echo "RECOVERY_REQUIRED  the swap failed AND putting the old files back failed. Nothing orders (orders are OFF); the old units are unchanged."
+      printf '  %s\n' "${RECOVERY_FAILED[@]}"
+      echo "  Every moved file is kept (*.rolled-back-*), and the prepared *.new files are kept. Do NOT run --apply or --rollback now; send this output."
+    } >&2
+    exit 3
+  fi
+  [ "$rc" = 0 ] || die "could not swap in the controller files and the manifest; everything was put back and nothing else was changed"
   CURRENT="mode file"; step "$CURRENT"
   install "${OWN[@]}" -m 0644 /dev/stdin "$R/etc/nusa/run-mode.env" <<<"NUSA_RUN_MODE=COLLECT_ONLY"
   CURRENT="units and drop-ins"; step "$CURRENT"

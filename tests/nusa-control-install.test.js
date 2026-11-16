@@ -65,7 +65,7 @@ function world(opts = {}) {
   if (opts.unsafe) fs.chmodSync(path.join(R, opts.unsafe), 0o777);
   if (opts.notActive) { fs.rmSync(path.join(R, "opt/nusa/current")); fs.mkdirSync(path.join(R, "opt/nusa/releases", "f".repeat(40)), { recursive: true }); fs.symlinkSync(path.join(R, "opt/nusa/releases", "f".repeat(40)), path.join(R, "opt/nusa/current")); }
   const counterDir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-install-counters-"));
-  const wrap = (name, envVar, mode) => fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\nc="${counterDir}/${name}"; n=$(( $(cat "$c" 2>/dev/null || echo 0) + 1 )); echo $n > "$c"\nif [ "$n" = "\${${envVar}:-0}" ]; then ${mode === "noop" ? "exit 0" : "exit 1"}; fi\nexec /usr/bin/${name} "$@"\n`, { mode: 0o755 });
+  const wrap = (name, envVar, mode) => fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\nc="${counterDir}/${name}"; n=$(( $(cat "$c" 2>/dev/null || echo 0) + 1 )); echo $n > "$c"\ncase ",\${${envVar}:-}," in *",$n,"*) ${mode === "noop" ? "exit 0" : "exit 1"};; esac\nexec /usr/bin/${name} "$@"\n`, { mode: 0o755 });
   if (opts.countCommands && !opts.tamperAt) { wrap("mv", "MV_FAIL_AT", "fail"); wrap("install", "INSTALL_FAIL_AT", "fail"); }
   if (opts.mvNoop) wrap("mv", "MV_NOOP_AT", "noop");
   const resetCounters = () => { for (const n of ["mv", "install"]) fs.rmSync(path.join(counterDir, n), { force: true }); };
@@ -216,6 +216,36 @@ test("re-install with a NEWER controller than the leftovers: every failure point
   const inst = sweep("install", "INSTALL_FAIL_AT", 40);
   assert.ok(mv.restored > 0 && inst.restored > 0, "failures before the swap restore the old leftovers");
   assert.ok(inst.rolledBack > 0, "failures after the swap are rolled back");
+});
+
+test("a restore that fails while undoing a failed swap is never reported as 'put back': RECOVERY_REQUIRED, exit 3, every moved and prepared file kept", posixOnly, () => {
+  // Fail one forward move k, and one later move j (which is then a restore inside undo). Sweep the pairs.
+  let recoveryCases = 0; let cleanCases = 0;
+  for (let k = 1; k <= 7; k += 1) {
+    for (let j = k + 1; j <= k + 6; j += 1) {
+      const w = afterRollbackWorld({ countCommands: true });
+      const before = w.snapshot();
+      const r = w.runEnv({ MV_FAIL_AT: `${k},${j}` }, w.hash, "--apply", "--after-rollback");
+      const out = r.stdout + r.stderr;
+      if (r.status === 0) continue;
+      if (/RECOVERY_REQUIRED/.test(out)) {
+        recoveryCases += 1;
+        assert.equal(r.status, 3, `k=${k} j=${j}`);
+        assert.doesNotMatch(out, /everything was put back/, `k=${k} j=${j}: never claimed`);
+        assert.match(out, /should be at|should not exist/, `k=${k} j=${j}: says what is left where`);
+        const listing = (d) => (fs.existsSync(path.join(w.R, d)) ? fs.readdirSync(path.join(w.R, d)) : []);
+        const all = [...listing("var/lib/nusa-control"), ...listing("opt/nusa-control")];
+        assert.ok(all.some((n) => /\.rolled-back-/.test(n)), `k=${k} j=${j}: the moved files are kept: ${all}`);
+        assert.ok(all.some((n) => /\.new$/.test(n)), `k=${k} j=${j}: the prepared files are kept: ${all}`);
+        assert.equal(fs.existsSync(path.join(w.R, "etc/nusa/run-mode.env")), false, `k=${k} j=${j}: nothing was installed after the swap`);
+      } else if (/everything was put back/.test(out)) {
+        // Any failure that claims everything was put back must really have put everything back.
+        cleanCases += 1; assert.equal(w.snapshot(), before, `k=${k} j=${j}: 'put back' is true`);
+      }
+    }
+  }
+  assert.ok(recoveryCases > 0, "the sweep hit restores that failed");
+  assert.ok(cleanCases > 0, "and failures that were cleanly put back");
 });
 
 test("--after-rollback refuses anything that is not exactly a rollback leftover, and changes nothing", posixOnly, () => {

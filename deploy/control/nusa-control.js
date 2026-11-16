@@ -492,12 +492,13 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000, iden
     socket.on("error", (e) => fail(e));
     socket.on("end", () => {
       clearTimeout(timer);
-      const text = Buffer.concat(chunks).toString("utf8");
+      const raw = Buffer.concat(chunks);
+      const text = raw.toString("utf8");
       const split = text.indexOf("\r\n\r\n");
       const head = split < 0 ? text : text.slice(0, split);
       let body = null;
       const status = /^HTTP\/1\.[01] (\d{3}) /.exec(head);
-      diag.responseStatus = status ? Number(status[1]) : null; diag.responseBytes = text.length;
+      diag.responseStatus = status ? Number(status[1]) : null; diag.responseBytes = raw.length;
       if (/^HTTP\/1\.[01] 200 /.test(head) && !/transfer-encoding:\s*chunked/i.test(head)) { try { body = JSON.parse(text.slice(split + 4)); } catch { body = null; } }
       diag.bodyParsed = body !== null;
       // Every process that holds the server-side socket is in the list; a foreign process could only answer by receiving the
