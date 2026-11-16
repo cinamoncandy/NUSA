@@ -5,6 +5,10 @@
 #   sudo bash install.sh <full-commit-sha> <manifest-sha256> --apply    install, then init and collect
 #   sudo bash install.sh <full-commit-sha> --rollback                    remove what this script installed, restore the old start
 #   ... <sha> <manifest-sha256> [--apply] --after-rollback               install again after a rollback of this script (see below)
+#   ... <sha> <manifest-sha256> --upgrade-controller [--apply]           replace ONLY the two controller files and the manifest of an
+#        installed, verified COLLECT_ONLY host with those of the staged release <sha> (units, drop-ins, state and runtime untouched,
+#        nothing restarted); the release does NOT have to be the running one. Preflight (without --apply) is read-only. After the swap
+#        the new controller must report the runtime verified; otherwise the old files are put back (backups *.upgrade-backup-<UTC>-<pid> are kept).
 #
 # The files come from the STAGED RELEASE of that commit (/opt/nusa/releases/<sha>/deploy/control). They are first copied into a
 # root-only private directory; the manifest hash given on the command line (printed in the reviewed pull request, it covers
@@ -17,8 +21,9 @@
 set -euo pipefail
 
 SHA="${1:-}"; HASH_ARG="${2:-}"; MODE="preflight"
-AFTER=0
-for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollback";; --after-rollback) AFTER=1;; esac; done
+AFTER=0; UPG=0
+for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollback";; --after-rollback) AFTER=1;; --upgrade-controller) UPG=1;; esac; done
+if [ "$UPG" = 1 ] && { [ "$MODE" = rollback ] || [ "$AFTER" = 1 ]; }; then echo "STOP  --upgrade-controller cannot be combined with --rollback or --after-rollback" >&2; exit 1; fi
 # NUSA_INSTALL_ROOT lets the tests run the whole script against a temporary directory tree. It is refused unless the test flag is
 # also set, so a stray variable can never redirect a root install on the host; on the host the PATH is fixed.
 R="${NUSA_INSTALL_ROOT:-}"
@@ -350,6 +355,107 @@ rollback() {
   echo "DONE  rolled back. The controller files, the install manifest and the state file are kept for inspection: /opt/nusa-control, /var/lib/nusa-control"
 }
 
+# ---- --upgrade-controller: replace the controller files in place, without touching the runtime ------------------------------------
+controller_status_ok() {   # the installed controller's own read-only status: COLLECT_ONLY, no pending intent, runtime verified
+  local out
+  out="$("$R/opt/nusa-control/nusa-control.sh" status 2>/dev/null)" || return 1
+  node -e 'const o=JSON.parse(process.argv[1]); process.exit(o.ok===true && o.state && o.state.desired==="COLLECT_ONLY" && o.state.intent===null && o.runtime && o.runtime.ok===true ? 0 : 1)' "$out"
+}
+units_unchanged() {   # an upgrade never changes units, drop-ins or the mode file: they must already be exactly the release's
+  local f exp
+  for f in $(managed_files); do
+    case "$f" in
+      opt/nusa-control/*) continue ;;
+      etc/nusa/run-mode.env) [ "$(cat -- "$R/$f" 2>/dev/null)" = "NUSA_RUN_MODE=COLLECT_ONLY" ] || return 1 ;;
+      etc/systemd/system/*.d/*) exp="$SRC/dropins/${f#etc/systemd/system/}"; cmp -s -- "$R/$f" "$exp" || return 1 ;;
+      etc/systemd/system/*) exp="$SRC/${f##*/}"; cmp -s -- "$R/$f" "$exp" || return 1 ;;
+      *) return 1 ;;
+    esac
+  done
+}
+new_accepts_state() {   # the NEW controller's own validator must accept the current state file, which must be COLLECT_ONLY with no intent
+  node -e 'const fs=require("fs"); const c=require(process.argv[1]); const s=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); c.validateState(s); process.exit(s.desired==="COLLECT_ONLY" && s.intent===null ? 0 : 1)' "$SRC/nusa-control.js" "$R/var/lib/nusa-control/state.json"
+}
+installed_sound() {
+  [ -f "$MANIFEST_FILE" ] && [ ! -L "$MANIFEST_FILE" ] && [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] || return 1
+  [ "$(sha256sum -- "$MANIFEST_FILE" | cut -d' ' -f1)" = "$(cat -- "$MANIFEST_ANCHOR")" ] || return 1
+  managed_files_sound && verify_manifest_files
+}
+upgrade_preflight() {
+  echo "== upgrade preflight (read-only) for $SHA: replaces ONLY the controller files and the manifest; the runtime is not touched"
+  [ -n "$R" ] || check "running as root" test "$(id -u)" = 0
+  check "release $SHA is staged" test -d "$R/opt/nusa/releases/$SHA"
+  check "source tree has no symlinks" no_symlinks_in "$SRC"
+  local f
+  for f in nusa-control.js nusa-control.sh nusa-control-reconcile.service nusa-control-verify.service nusa-control-verify.timer dropins/nusa.service.d/10-control-gate.conf dropins/nusa.service.d/20-run-mode.conf dropins/nusa-research.timer.d/10-control-gate.conf dropins/nusa-research.service.d/10-control-gate.conf; do
+    check "source file $f" test -f "$SRC/$f" -a ! -L "$SRC/$f"
+  done
+  if [ -d "$SRC" ] && no_symlinks_in "$SRC"; then
+    printf 'INFO  manifest sha256 of the release copy = %s\n' "$(manifest_hash "$SRC")"
+    if [[ "$HASH_ARG" =~ ^[0-9a-f]{64}$ ]]; then check "every control file matches the manifest hash from the reviewed pull request" test "$(manifest_hash "$SRC")" = "$HASH_ARG"; else fail "second argument must be the manifest sha256 (64 lowercase hex) of the reviewed pull request"; fi
+  fi
+  local d
+  for d in /opt /opt/nusa /etc /etc/nusa /etc/systemd/system /var/lib; do check "directory $d is real, root-owned and not group/other-writable" safe_dir "$d"; done
+  check "orders are OFF from every environment source" orders_off_everywhere
+  check "nusa.service is active" sysctl is-active --quiet nusa.service
+  check "the controller is installed; its install manifest matches its anchor; every managed file matches the manifest" installed_sound
+  check "installed units, drop-ins and the mode file are exactly those of the staged release (an upgrade never changes them)" units_unchanged
+  check "the new controller accepts the current state file, which says COLLECT_ONLY with no pending intent" new_accepts_state
+  check "the installed controller reports the runtime verified in COLLECT_ONLY (read-only status)" controller_status_ok
+  echo "== upgrade preflight result: $fails failure(s)"
+}
+upgrade_apply() {
+  [ "$fails" -eq 0 ] || die "upgrade preflight has failures; nothing was changed"
+  step() { printf '\n>> %s\n' "$*"; }
+  local t f
+  js="$R/opt/nusa-control/nusa-control.js"; sh="$R/opt/nusa-control/nusa-control.sh"   # global: the EXIT trap uses them
+  step "private copy"
+  stage="$(mktemp -d "$R/var/lib/.nusa-install.XXXXXX")"
+  trap 'rm -rf -- "$stage"; rm -f -- "$MANIFEST_FILE.new" "$MANIFEST_ANCHOR.new" "$js.new" "$sh.new"' EXIT
+  chmod 0700 "$stage"
+  cp -a --no-dereference -- "$SRC/." "$stage/"
+  no_symlinks_in "$stage" || die "the private copy contains a symlink"
+  [ "$(manifest_hash "$stage")" = "$HASH_ARG" ] || die "the private copy does not match the reviewed manifest hash"
+  S="$stage"
+  step "prepare the new controller files and manifest"
+  for f in $(managed_files); do printf '%s  %s\n' "$(expected_hash "$f")" "$f"; done > "$stage/manifest.out"
+  install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE.new"
+  sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR.new"
+  install "${OWN[@]}" -m 0755 "$S/nusa-control.js" "$js.new"
+  install "${OWN[@]}" -m 0755 "$S/nusa-control.sh" "$sh.new"
+  step "take the controller lock, back up, swap (each file is replaced by one rename)"
+  install "${OWN[@]}" -d -m 0700 "$R/run/nusa-control"
+  exec 9>>"$R/run/nusa-control/lock"
+  flock -w 120 9 || die "the controller is busy (lock not free within 120 s); nothing was changed"
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  for t in "$js" "$sh" "$MANIFEST_FILE" "$MANIFEST_ANCHOR"; do cp -a -- "$t" "$t.upgrade-backup-$stamp"; done
+  restore() {
+    local x
+    for x in "$js" "$sh" "$MANIFEST_FILE" "$MANIFEST_ANCHOR"; do [ -f "$x.upgrade-backup-$stamp" ] && cp -a -- "$x.upgrade-backup-$stamp" "$x.restore" && mv -f -- "$x.restore" "$x"; done
+  }
+  if ! { mv -f -- "$js.new" "$js" && mv -f -- "$sh.new" "$sh" && mv -f -- "$MANIFEST_FILE.new" "$MANIFEST_FILE" && mv -f -- "$MANIFEST_ANCHOR.new" "$MANIFEST_ANCHOR"; }; then
+    restore || true
+    exec 9>&-
+    die "the swap failed; the old controller files were put back (backups: *.upgrade-backup-$stamp); the runtime was never touched"
+  fi
+  exec 9>&-
+  step "the new controller must report the runtime verified"
+  if ! controller_status_ok; then
+    exec 9>>"$R/run/nusa-control/lock"; flock -w 120 9 || true
+    restore || true
+    exec 9>&-
+    controller_status_ok && die "the new controller did not report the runtime verified; the OLD controller files were put back and it verifies (backups: *.upgrade-backup-$stamp)"
+    die "the new controller did not report the runtime verified AND the old files were put back but the status is still not ok; run: sudo /opt/nusa-control/nusa-control.sh status (backups: *.upgrade-backup-$stamp)"
+  fi
+  "$sh" verify
+  echo; echo "DONE  controller upgraded in place to $SHA; runtime verified in COLLECT_ONLY; nothing was restarted. Backups of the old files: *.upgrade-backup-$stamp"
+}
+
+if [ "$UPG" = 1 ]; then
+  upgrade_preflight
+  if [ "$MODE" = apply ]; then upgrade_apply; else [ "$fails" -eq 0 ] && echo "Upgrade preflight passed. Re-run with --apply to upgrade in place." || exit 1; fi
+  exit 0
+fi
 case "$MODE" in
   preflight) preflight; [ "$fails" -eq 0 ] && echo "Preflight passed. Re-run with --apply to install." || exit 1 ;;
   apply) preflight; apply ;;

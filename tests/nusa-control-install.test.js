@@ -485,3 +485,91 @@ test("the script never writes the runtime environment file or any secret path, a
   assert.match(text, /curl -fsS -m 6 http:\/\/127\.0\.0\.1:41731\/health/);
   assert.doesNotMatch(text, /PAPER_ORDERS/, "the installer never names an order mode");
 });
+
+// ---- --upgrade-controller: replace the controller files in place on an installed, verified COLLECT_ONLY host ----------------------
+// The installed controller is a stub whose `status` prints what the real one would; the release's stub (what the upgrade installs)
+// does the same, or a failing answer when opts.newStatusBad is set.
+function upgradeWorld(opts = {}) {
+  const statusOk = JSON.stringify({ ok: true, state: { desired: "COLLECT_ONLY", intent: null }, runtime: { ok: true } });
+  const statusBad = JSON.stringify({ ok: true, state: { desired: "STOPPED", intent: null }, runtime: { ok: false } });
+  const stub = (answer) => `#!/usr/bin/env bash\necho "controller $*" >> LOG\ncase "$1" in status) echo '${answer}';; verify) echo '{"ok":true,"code":"COLLECT_ONLY_VERIFIED"}';; esac\nexit 0\n`;
+  // 1. install the OLD controller with the real installer (its stub controller already prints a good status)
+  const w = world({ tag: "old" });
+  const log = path.join(w.R, "calls.log");
+  fs.writeFileSync(path.join(w.src, "nusa-control.sh"), stub(statusOk).replace("LOG", JSON.stringify(log)));
+  const first = w.run(w.hash, "--apply");
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  fs.mkdirSync(path.join(w.R, "var/lib/nusa-control"), { recursive: true });
+  fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ schemaVersion: 1, version: 3, desired: "COLLECT_ONLY", active: SHA, adopted: true, proven: [], attempt: null, grant: null, intent: opts.intent ?? null }));
+  fs.chmodSync(path.join(w.R, "var/lib/nusa-control/state.json"), 0o600);
+  // 2. the NEW release: other controller code (and its own stub)
+  fs.writeFileSync(path.join(w.src, "nusa-control.js"), fs.readFileSync(path.join(root, "deploy/control/nusa-control.js"), "utf8") + `\n// new ${opts.tag || "build"}\n`);
+  fs.writeFileSync(path.join(w.src, "nusa-control.sh"), stub(opts.newStatusBad ? statusBad : statusOk).replace("LOG", JSON.stringify(log)));
+  if (opts.changeUnit) fs.appendFileSync(path.join(w.src, "nusa-control-verify.timer"), "# changed\n");
+  fs.writeFileSync(path.join(w.R, "calls.log"), "");
+  return w;
+}
+const installedFiles = (R) => ["opt/nusa-control/nusa-control.js", "opt/nusa-control/nusa-control.sh", "opt/nusa-control/INSTALL-MANIFEST", "var/lib/nusa-control/install-manifest.sha256"].map((f) => fs.readFileSync(path.join(R, f), "utf8"));
+
+test("upgrade preflight is read-only and passes on an installed, verified COLLECT_ONLY host", posixOnly, () => {
+  const w = upgradeWorld(); const before = w.snapshot();
+  const r = w.run(w.hash, "--upgrade-controller");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /upgrade preflight result: 0 failure\(s\)/);
+  assert.match(r.stdout, /PASS  the new controller accepts the current state file/);
+  assert.equal(w.snapshot(), before, "read-only");
+  assert.ok(!w.calls().some((c) => /^systemctl (restart|stop|start|enable|disable|daemon-reload)/.test(c)), "nothing is restarted or changed");
+});
+
+test("upgrade --apply swaps only the two controller files and the manifest, keeps backups, verifies, and restarts nothing", posixOnly, () => {
+  const w = upgradeWorld();
+  const oldFiles = installedFiles(w.R);
+  const units = fs.readdirSync(path.join(w.R, "etc/systemd/system")).sort().join(",");
+  const state = fs.readFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), "utf8");
+  const r = w.run(w.hash, "--upgrade-controller", "--apply");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /DONE  controller upgraded in place/);
+  const now = installedFiles(w.R);
+  assert.notEqual(now[0], oldFiles[0], "controller code replaced"); assert.match(now[0], /\/\/ new build/);
+  assert.equal(sha256(now[2]), now[3].trim(), "manifest matches its anchor");
+  assert.match(now[2], new RegExp(`${sha256(now[0])}  opt/nusa-control/nusa-control.js`));
+  const backups = fs.readdirSync(path.join(w.R, "opt/nusa-control")).filter((n) => n.includes(".upgrade-backup-"));
+  assert.equal(backups.length, 3, "js, sh and the manifest are backed up beside the files");
+  assert.equal(fs.readFileSync(path.join(w.R, "opt/nusa-control", backups.find((n) => n.startsWith("nusa-control.js"))), "utf8"), oldFiles[0]);
+  assert.equal(fs.readFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), "utf8"), state, "the state file is untouched");
+  assert.equal(fs.readdirSync(path.join(w.R, "etc/systemd/system")).sort().join(","), units);
+  assert.ok(!w.calls().some((c) => /^systemctl (restart|stop|start|enable|disable|daemon-reload)/.test(c)), "no unit is touched");
+  assert.ok(w.calls().includes("controller status") && w.calls().includes("controller verify"));
+});
+
+test("upgrade refuses (changing nothing) for every unsafe precondition", posixOnly, () => {
+  const cases = [
+    ["a changed unit file (needs the full installer)", { changeUnit: true }, /FAIL  installed units, drop-ins and the mode file are exactly those/],
+    ["a pending intent in the state file", { intent: { verb: "stop", version: 3, at: 1 } }, /FAIL  the new controller accepts the current state file/],
+    ["the installed controller does not report the runtime verified", {}, /FAIL  the installed controller reports the runtime verified/, (w) => fs.writeFileSync(path.join(w.R, "opt/nusa-control/nusa-control.sh"), "#!/usr/bin/env bash\necho '{\"ok\":true,\"state\":{\"desired\":\"STOPPED\",\"intent\":null},\"runtime\":{\"ok\":false}}'\n", { mode: 0o755 })],
+    ["a managed file differs from the install manifest", {}, /FAIL  the controller is installed; its install manifest matches its anchor/, (w) => fs.appendFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "// tampered\n")],
+    ["the manifest does not match its anchor", {}, /FAIL  the controller is installed; its install manifest matches its anchor/, (w) => fs.appendFileSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST"), "x\n")],
+    ["a wrong manifest hash from the pull request", {}, /FAIL  every control file matches the manifest hash/, null, "0".repeat(64)],
+  ];
+  for (const [label, o, re, arrange, hash] of cases) {
+    const w = upgradeWorld(o); if (arrange) arrange(w);
+    const before = w.snapshot();
+    const r = w.run(hash || w.hash, "--upgrade-controller", "--apply");
+    assert.notEqual(r.status, 0, label); assert.match(r.stdout, re, label);
+    assert.equal(w.snapshot(), before, `${label}: nothing changed`);
+  }
+});
+
+test("upgrade puts the old files back when the new controller does not report the runtime verified", posixOnly, () => {
+  const w = upgradeWorld({ newStatusBad: true });
+  const oldFiles = installedFiles(w.R);
+  const r = w.run(w.hash, "--upgrade-controller", "--apply");
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /OLD controller files were put back/);
+  assert.deepEqual(installedFiles(w.R), oldFiles, "the old controller files and manifest are back");
+});
+
+test("--upgrade-controller cannot be combined with --rollback or --after-rollback", posixOnly, () => {
+  const w = world();
+  for (const extra of ["--rollback", "--after-rollback"]) { const r = w.run(w.hash, "--upgrade-controller", extra); assert.notEqual(r.status, 0); assert.match(r.stderr, /cannot be combined/); }
+});
