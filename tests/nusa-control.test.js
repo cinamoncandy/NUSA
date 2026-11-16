@@ -443,6 +443,38 @@ test("the identification diagnostics reach the final collect failure, for an unk
   assert.ok(allStopped(a) && allStopped(b));
 });
 
+test("the diagnostics also survive a response that is not a valid health answer (wrong status, bad JSON, wrong build or mode)", posixOnly, async () => {
+  const base = { attempts: 1, waitedMs: 5, inodes: ["9"], holders: 1, tableErrors: 0, tableError: null, requestSent: true, bodyParsed: false, responseBytes: 12 };
+  for (const [label, answer, expected] of [
+    ["status 500", { body: null, ownerPids: [4242], diag: { ...base, responseStatus: 500 } }, /"responseStatus":500/],
+    ["status 200 with bad JSON", { body: null, ownerPids: [4242], diag: { ...base, responseStatus: 200 } }, /"responseStatus":200/],
+  ]) {
+    const w = world({ identifiedHealth: async () => answer }); w.listener = "nusa"; await seed(w);
+    const r = await w.ctl.collect();
+    assert.equal(r.code, "START_CEILING", label); assert.match(r.detail, /HEALTH_UNAVAILABLE/, label); assert.match(r.detail, expected, label); assert.match(r.detail, /"requestSent":true/, label);
+    assert.ok(allStopped(w), label);
+  }
+  // wrong build / wrong mode end the attempt at once and keep the record too
+  for (const [label, body, code] of [["wrong build", { runtime: { sourceCommitSha: "f".repeat(40), runMode: "COLLECT_ONLY" } }, /BUILD_MISMATCH/], ["wrong mode", { runtime: { sourceCommitSha: SHA, runMode: "PAPER_ORDERS" } }, /MODE_MISMATCH/]]) {
+    const w = world({ identifiedHealth: async () => ({ body, ownerPids: [4242], diag: { ...base, responseStatus: 200, bodyParsed: true } }) }); w.listener = "nusa"; await seed(w);
+    const r = await w.ctl.collect();
+    assert.match(r.detail, code, label); assert.match(r.detail, /"responseStatus":200/, label); assert.ok(allStopped(w), label);
+  }
+});
+
+test("the real client records the response status and whether the body parsed", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const http = require("node:http");
+  for (const [label, status, payload, parsed] of [["500", 500, "boom", false], ["200 bad json", 200, "not json", false], ["200 ok", 200, '{"runtime":{"x":1}}', true]]) {
+    const server = http.createServer((q, r) => { r.writeHead(status, { "content-length": String(payload.length) }); r.end(payload); });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const r = await hostIdentifiedHealth(server.address().port);
+      assert.ok(r.ownerPids.includes(process.pid), label);
+      assert.equal(r.diag.responseStatus, status, label); assert.equal(r.diag.bodyParsed, parsed, label); assert.ok(r.diag.responseBytes > 0, label); assert.equal(r.diag.requestSent, true, label);
+    } finally { server.close(); }
+  }
+});
+
 test("a /proc table that cannot be read is told apart from 'no such socket' in the diagnostics", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
   const http = require("node:http");
   const server = http.createServer((q, r) => { r.writeHead(200, { "content-length": "2" }); r.end("{}"); });

@@ -181,15 +181,16 @@ async function verifyRuntime(deps, cfg, expectedSha, expectedMode) {
   // The diagnostics survive every failure path: the identification record, or the connection/response error with its record.
   const diag = (r && r.diag) || (error && error.diag) || null;
   if (!r || !Array.isArray(r.ownerPids) || r.ownerPids.length === 0) return { ok: false, reason: "SENDER_UNKNOWN", ...(diag ? { diag } : {}), ...(error ? { error: String(error.message || error).slice(0, 120) } : {}) };
+  const withDiag = (o) => ({ ...o, ...(diag ? { diag } : {}) });
   for (const pid of r.ownerPids) {
     let cg;
     try { cg = deps.cgroupOf(pid); } catch { cg = null; }
-    if (typeof cg !== "string" || !cg.split("\n").some((line) => line.endsWith(`/${RUNTIME_UNIT}`))) return { ok: false, reason: "FOREIGN_SENDER", pid };
+    if (typeof cg !== "string" || !cg.split("\n").some((line) => line.endsWith(`/${RUNTIME_UNIT}`))) return withDiag({ ok: false, reason: "FOREIGN_SENDER", pid });
   }
   const h = r.body;
-  if (!h || !h.runtime) return { ok: false, reason: "HEALTH_UNAVAILABLE" };
-  if (h.runtime.sourceCommitSha !== expectedSha) return { ok: false, reason: "BUILD_MISMATCH", seen: h.runtime.sourceCommitSha };
-  if (h.runtime.runMode !== expectedMode) return { ok: false, reason: "MODE_MISMATCH", seen: h.runtime.runMode };
+  if (!h || !h.runtime) return withDiag({ ok: false, reason: "HEALTH_UNAVAILABLE" });
+  if (h.runtime.sourceCommitSha !== expectedSha) return withDiag({ ok: false, reason: "BUILD_MISMATCH", seen: h.runtime.sourceCommitSha });
+  if (h.runtime.runMode !== expectedMode) return withDiag({ ok: false, reason: "MODE_MISMATCH", seen: h.runtime.runMode });
   return { ok: true };
 }
 
@@ -455,7 +456,7 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000, iden
   const net = require("node:net");
   return new Promise((resolve, reject) => {
     const socket = net.connect({ host, port });
-    const diag = { attempts: 0, waitedMs: 0, inodes: [], holders: 0, tableErrors: 0, tableError: null, requestSent: false };
+    const diag = { attempts: 0, waitedMs: 0, inodes: [], holders: 0, tableErrors: 0, tableError: null, requestSent: false, responseStatus: null, bodyParsed: false, responseBytes: 0 };
     const fail = (e) => { clearTimeout(timer); try { socket.destroy(); } catch { /* already closed */ } e.diag = diag; reject(e); };
     const timer = setTimeout(() => fail(new Error("health timeout")), timeoutMs);
     let ownerPids = null;
@@ -495,7 +496,10 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000, iden
       const split = text.indexOf("\r\n\r\n");
       const head = split < 0 ? text : text.slice(0, split);
       let body = null;
+      const status = /^HTTP\/1\.[01] (\d{3}) /.exec(head);
+      diag.responseStatus = status ? Number(status[1]) : null; diag.responseBytes = text.length;
       if (/^HTTP\/1\.[01] 200 /.test(head) && !/transfer-encoding:\s*chunked/i.test(head)) { try { body = JSON.parse(text.slice(split + 4)); } catch { body = null; } }
+      diag.bodyParsed = body !== null;
       // Every process that holds the server-side socket is in the list; a foreign process could only answer by receiving the
       // descriptor from one of them.
       resolve({ body, ownerPids: ownerPids || [], diag });

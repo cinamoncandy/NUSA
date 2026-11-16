@@ -160,27 +160,41 @@ verify_manifest_files() {
     fi
   done < "$MANIFEST_FILE"
 }
-# Write the new manifest and anchor next to the old ones (as *.new) and swap them in; with --after-rollback the old state,
-# manifest and anchor are moved aside first (never deleted, collision-proof names) and every step is undone if one fails.
-swap_in_manifest() {
-  local stamp state="$R/var/lib/nusa-control/state.json" t pair moved=()
-  undo() { for pair in "${moved[@]}"; do mv -n -- "${pair#*|}" "${pair%%|*}" || true; done; rm -f -- "$MANIFEST_FILE.new" "$MANIFEST_ANCHOR.new"; }
-  if [ "$AFTER" = 1 ]; then
-    stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
-    for t in "$state.rolled-back-$stamp" "$MANIFEST_FILE.rolled-back-$stamp" "$MANIFEST_ANCHOR.rolled-back-$stamp"; do
-      if [ -e "$t" ] || [ -L "$t" ]; then undo; return 1; fi
+# Everything that must change together is prepared as *.new files next to its target and then swapped in by renames: the
+# controller files and the manifest with its anchor. With --after-rollback the old state, and any old file that is replaced,
+# are moved aside first (*.rolled-back-<UTC>-<pid>: never deleted, collision-proof). If ANY step fails every step is undone and
+# the old leftovers are exactly as they were; once it succeeds the manifest matches the controller files that are in place, so a
+# rollback works at every later failure point.
+swap_in_install_set() {
+  local stamp state="$R/var/lib/nusa-control/state.json" undo_list=() item t
+  local new_files=("$MANIFEST_FILE" "$MANIFEST_ANCHOR" "$R/opt/nusa-control/nusa-control.js" "$R/opt/nusa-control/nusa-control.sh")
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  undo() {
+    local i kind rest x y
+    for (( i=${#undo_list[@]}-1; i>=0; i-- )); do
+      item="${undo_list[$i]}"; kind="${item%%|*}"; rest="${item#*|}"; x="${rest%%|*}"; y="${rest#*|}"
+      case "$kind" in M) mv -n -- "$y" "$x" || true ;; P) rm -f -- "$x" ;; esac
     done
-    for pair in "$state|$state.rolled-back-$stamp" "$MANIFEST_FILE|$MANIFEST_FILE.rolled-back-$stamp" "$MANIFEST_ANCHOR|$MANIFEST_ANCHOR.rolled-back-$stamp"; do
-      mv -n -- "${pair%%|*}" "${pair#*|}" || { undo; return 1; }
-      moved+=("$pair")
-      # mv -n skips silently when the target exists: the source must really be gone and the target really be there.
-      if [ -e "${pair%%|*}" ] || [ ! -e "${pair#*|}" ]; then undo; return 1; fi
-    done
-  fi
-  mv -n -- "$MANIFEST_FILE.new" "$MANIFEST_FILE" || { undo; return 1; }
-  if [ -e "$MANIFEST_FILE.new" ]; then undo; return 1; fi
-  mv -n -- "$MANIFEST_ANCHOR.new" "$MANIFEST_ANCHOR" || { rm -f -- "$MANIFEST_FILE"; undo; return 1; }
-  if [ -e "$MANIFEST_ANCHOR.new" ]; then rm -f -- "$MANIFEST_FILE"; undo; return 1; fi
+    for t in "${new_files[@]}"; do rm -f -- "$t.new"; done
+  }
+  aside() {   # move $1 to its collision-proof name when it exists; the source must really be gone afterwards
+    local src="$1" dst="$1.rolled-back-$stamp"
+    if [ ! -e "$src" ] && [ ! -L "$src" ]; then return 0; fi
+    if [ -e "$dst" ] || [ -L "$dst" ]; then return 1; fi
+    mv -n -- "$src" "$dst" || return 1
+    undo_list+=("M|$src|$dst")
+    if [ -e "$src" ] || [ ! -e "$dst" ]; then return 1; fi
+  }
+  place() {   # rename $1.new into place; the .new must really be gone afterwards
+    mv -n -- "$1.new" "$1" || return 1
+    undo_list+=("P|$1|")
+    if [ -e "$1.new" ]; then return 1; fi
+  }
+  if [ "$AFTER" = 1 ]; then aside "$state" || { undo; return 1; }; fi
+  for t in "${new_files[@]}"; do
+    if [ -e "$t" ] || [ -L "$t" ]; then aside "$t" || { undo; return 1; }; fi
+    place "$t" || { undo; return 1; }
+  done
 }
 
 # After a rollback of this script the controller files, the install manifest, its anchor and the state file are kept for
@@ -239,7 +253,7 @@ apply() {
   CURRENT="private copy"; step "$CURRENT"
   # Copy once into a root-only directory, verify THAT copy, install only from it: later changes to the release tree cannot matter.
   stage="$(mktemp -d "$R/var/lib/.nusa-install.XXXXXX")"
-  trap 'rm -rf -- "$stage"' EXIT
+  trap 'rm -rf -- "$stage"; rm -f -- "$MANIFEST_FILE.new" "$MANIFEST_ANCHOR.new" "$R/opt/nusa-control/nusa-control.js.new" "$R/opt/nusa-control/nusa-control.sh.new"' EXIT
   chmod 0700 "$stage"
   cp -a --no-dereference -- "$SRC/." "$stage/"
   no_symlinks_in "$stage" || die "the private copy contains a symlink"
@@ -249,17 +263,17 @@ apply() {
   CURRENT="state directory and controller directory"; step "$CURRENT"
   install "${OWN[@]}" -d -m 0700 "$R/var/lib/nusa-control"
   install "${OWN[@]}" -d -m 0755 "$R/opt/nusa-control"
-  CURRENT="install manifest"; step "$CURRENT"
-  # Written FIRST, from the verified private copy: a rollback then works at every later failure point.
+  CURRENT="controller files and install manifest"; step "$CURRENT"
+  # The manifest records the verified private copy. It and the controller files are prepared as *.new and swapped in together
+  # (see swap_in_install_set), so the manifest always matches the controller files in place and a rollback works from here on.
   for f in $(managed_files); do printf '%s  %s\n' "$(expected_hash "$f")" "$f"; done > "$stage/manifest.out"
   install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE.new"
   sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR.new"
-  swap_in_manifest || die "could not set the old leftovers aside or write the manifest; everything was put back and nothing else was changed"
+  install "${OWN[@]}" -m 0755 "$S/nusa-control.js" "$R/opt/nusa-control/nusa-control.js.new"
+  install "${OWN[@]}" -m 0755 "$S/nusa-control.sh" "$R/opt/nusa-control/nusa-control.sh.new"
+  swap_in_install_set || die "could not swap in the controller files and the manifest; everything was put back and nothing else was changed"
   CURRENT="mode file"; step "$CURRENT"
   install "${OWN[@]}" -m 0644 /dev/stdin "$R/etc/nusa/run-mode.env" <<<"NUSA_RUN_MODE=COLLECT_ONLY"
-  CURRENT="controller files"; step "$CURRENT"
-  install "${OWN[@]}" -m 0755 "$S/nusa-control.js" "$R/opt/nusa-control/nusa-control.js"
-  install "${OWN[@]}" -m 0755 "$S/nusa-control.sh" "$R/opt/nusa-control/nusa-control.sh"
   CURRENT="units and drop-ins"; step "$CURRENT"
   for u in $UNITS_TOP; do install "${OWN[@]}" -m 0644 "$S/$u" "$R/etc/systemd/system/$u"; done
   for u in $DROPIN_UNITS; do

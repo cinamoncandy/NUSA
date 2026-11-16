@@ -155,6 +155,8 @@ function afterRollbackWorld(opts = {}) {
   assert.equal(w.run(w.hash, "--apply").status, 0);
   assert.equal(w.run("--rollback").status, 0);
   fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify(opts.state ?? STOPPED_STATE), { mode: 0o600 });
+  // The release being re-installed carries a NEWER controller than the leftovers on the host (the real case: a fixed controller).
+  if (opts.newerController !== false) fs.appendFileSync(path.join(w.src, "nusa-control.js"), "\n// newer controller in the new release\n");
   return w;
 }
 
@@ -184,6 +186,36 @@ test("--after-rollback installs again after a rollback: the leftovers are moved 
   assert.deepEqual(calls.slice(-3), [`controller init ${SHA}`, "controller collect", "controller status"]);
   // and the new install can be rolled back again
   assert.equal(w.run("--rollback").status, 0);
+});
+
+test("re-install with a NEWER controller than the leftovers: every failure point either puts the old leftovers back exactly or can be rolled back", posixOnly, () => {
+  const sweep = (label, envName, max) => {
+    let reachedSuccess = false; let restored = 0; let rolledBack = 0;
+    for (let n = 1; n <= max; n += 1) {
+      const w = afterRollbackWorld({ countCommands: true });
+      const oldJs = fs.readFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "utf8");
+      assert.notEqual(oldJs, fs.readFileSync(path.join(w.src, "nusa-control.js"), "utf8"), "the leftover controller really differs from the new one");
+      const before = w.snapshot();
+      const r = w.runEnv({ [envName]: String(n) }, w.hash, "--apply", "--after-rollback");
+      if (r.status === 0) { reachedSuccess = true; break; }
+      if (w.snapshot() === before) {
+        restored += 1;
+        assert.equal(w.run(w.hash, "--after-rollback").status, 0, `${label} ${n}: the old leftovers are intact and the command can be run again`);
+      } else {
+        rolledBack += 1;
+        const rb = w.run("--rollback");
+        assert.equal(rb.status, 0, `${label} ${n}: failed after the swap, rollback must work: ${rb.stdout}${rb.stderr}`);
+        for (const f of ["etc/nusa/run-mode.env", "etc/systemd/system/nusa-control-reconcile.service", "etc/systemd/system/nusa.service.d/20-run-mode.conf"]) assert.equal(fs.existsSync(path.join(w.R, f)), false, `${label} ${n}: ${f}`);
+        assert.equal(fs.readFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "utf8").includes("newer controller"), true, `${label} ${n}: the swapped-in controller matches the new manifest`);
+      }
+    }
+    assert.ok(reachedSuccess, `${label}: the sweep reached a successful run`);
+    return { restored, rolledBack };
+  };
+  const mv = sweep("mv", "MV_FAIL_AT", 20);
+  const inst = sweep("install", "INSTALL_FAIL_AT", 40);
+  assert.ok(mv.restored > 0 && inst.restored > 0, "failures before the swap restore the old leftovers");
+  assert.ok(inst.rolledBack > 0, "failures after the swap are rolled back");
 });
 
 test("--after-rollback refuses anything that is not exactly a rollback leftover, and changes nothing", posixOnly, () => {
