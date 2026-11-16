@@ -95,6 +95,16 @@ The stop marker `/run/nusa-control/stop-requested` is checked at the ONE irrever
 
 Before every phase change the verb re-checks: orders OFF from every source, the mode file says `COLLECT_ONLY`, no unit or drop-in sets `NUSA_PAPER_ORDER_PATH`. A failure stops the release (`STOPPED_SAFE`). `PAPER_ORDERS` is not representable in the state, the mode file writer or any phase. The tests in section 5 inject a failure at every phase, a stale lock, a tampered order switch between phases and a `stop` during every phase.
 
+### 3.6 Finding while wiring (2026-11-16): the helper's `activate` does more than swap and start
+
+Reading `deploy/oracle/nusa-release-step.sh activate` shows what a release does today beyond the link swap and the runtime start: the replay-compatibility check, its own activation lock, `atomic-deploy.js` (link plus the previous-release record), binding the commit into the runtime environment file, installing the unit files of the release, `enable`, `restart` of `nusa.service`, the autopilot (not gated) and the research timer, `oracle-readiness-check.js`, the writer-lease recovery, the autopilot readiness, the post-activation soak, the proven marker and the schema check for a rollback. The `release` verb as implemented (link swap, mode file, grant, start, verify) is the state-machine core; it is NOT yet a replacement for all of that, and must not be wired into the workflow as one.
+
+Decision (to be reviewed): the controller DELEGATES, it does not reimplement. New phase `ACTIVATING`: after `UNITS_STOPPED` the controller runs `nusa-release-step activate <sha>` as a child while it holds the lock. The helper does everything above; its two gated starts (`restart nusa.service`, `start nusa-research.timer`) ask the gate, which accepts a grant with `uses: 2` bound to the intent (run id, phase `ACTIVATING`, build `to`, link must already equal `to`, `state.active` still `from`, owner process alive and holding the lock); each accepted start decrements `uses`, a third is refused. The autopilot restart is not gated and stays the helper's concern. When the helper returns 0 the controller verifies on its own (`verifyRuntime`), writes `active = to`, the proof and `COLLECT_ONLY`. When it returns non-zero (its own safe stop, or a gate refusal) the controller confirms every unit stopped and takes the existing rollback path (`ROLLING_BACK`, `STARTING_OLD`, a fresh single grant for the previous proven build) or ends `STOPPED_SAFE`. Recovery for `ACTIVATING` is the `SWAPPING` row (link `from` or `to`, active `from`).
+
+Sudo consequence: the runner no longer needs `activate` (only the controller, as root, calls it): its rule keeps `stage` and `preflight` of the helper and gains `nusa-control status|stop|collect|release <sha>`.
+
+Bootstrap consequence: the installed controller (678085c2f) has no `release`. The first release that carries this verb cannot go through the controller, and the old helper path is refused by the gate. To avoid the three-session dance one last time, the installer gets an in-place mode (`--upgrade-controller`): with the runtime running and verified, it replaces only the controller files and the manifest from a staged release (units and drop-ins unchanged), then verifies; no restart. Workflow input `stage_only` lets a release stop after `stage` so the owner can run that upgrade.
+
 ## 4. What changes in the workflow and on the host
 
 - `oracle-paper-release.yml`: build and backup stay; the `activate` job calls `sudo nusa-control release <sha>` and reads its one-line JSON.
@@ -130,5 +140,5 @@ Before every phase change the verb re-checks: orders OFF from every source, the 
 
 ## 8. Order of work
 
-(a) `release` verb with its property test, no host change; (b) review; (c) the sudo hand-over and the workflow change in one reviewed PR and
+(a) `release` verb with its property test, no host change (state-machine core, PR 3167); (a2) delegation to the helper's `activate` with the `ACTIVATING` phase and the two-use grant; (a3) the installer's `--upgrade-controller` and the workflow's `stage_only`; (b) review; (c) the sudo hand-over and the workflow change in one reviewed PR and
 one owner terminal session; (d) the first release through the controller (C4), with a deliberate failure drill on a copy first (C2 rehearsal).
