@@ -1,12 +1,12 @@
-# CORE handoff — host controller install attempts, permit enforcement, release in flight (2026-11-16)
+# CORE handoff — host controller installed, permit enforcement, release done (2026-11-16)
 
-Observed: `2026-11-16` (Asia/Seoul), about 14:10 KST (05:10 UTC). Everything below is what the records claim; re-verify on GitHub and with the read-only host diagnose before acting. It supersedes `2026-11-14-main-handoff.md` for the host state and the next safe actions.
+Observed: `2026-11-16` (Asia/Seoul), about 15:20 KST (06:20 UTC). UPDATE: the release of `dfb75c16e` succeeded (run 43807184375), the read-only preflight passed, and the owner-approved `--apply --after-rollback` finished at about 15:08 KST with `DONE  controller installed; runtime verified in COLLECT_ONLY` (collect `{"ok":true,"code":"COLLECT_ONLY"}`, status `desired COLLECT_ONLY`, active `dfb75c16e`, `runtime.ok` true, `nusa.service` and `nusa-research.timer` active and enabled). The second-attempt cause (chunked /health) is therefore confirmed in practice. Sections below were written before that and describe the path to it; the steps under "Next safe actions" 1-3 are DONE. Everything below is what the records claim; re-verify on GitHub and with the read-only host diagnose before acting. It supersedes `2026-11-14-main-handoff.md` for the host state and the next safe actions.
 
 ## Canonical state
 
 - Protected `main`: `dfb75c16e` (merge of #3156). Main CI for it was green at 13:54 KST.
 - Safety unchanged: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, orders OFF everywhere (`NUSA_PAPER_ORDER_PATH=OFF`), Release=HOLD. Stage B (orders ON) is blocked: it needs a permit producer with a durable store, a qualified candidate strategy, a release and a fresh written owner approval.
-- Host: `nusa.service` runs in `COLLECT_ONLY` (old start behaviour, restored by the owner-approved rollback at about 13:57 KST). The release of `66cffaea3` is the current build until the release of `dfb75c16e` (run 43807184375, dispatched 13:57 KST, about 40 minutes) finishes. The controller files, the install manifest and the state file are kept at `/opt/nusa-control` and `/var/lib/nusa-control` (state `STOPPED`); the controller units, drop-ins and mode file are removed.
+- Host (now): release `dfb75c16e` runs in `COLLECT_ONLY` WITH the host controller installed (start gate, verify timer, state `COLLECT_ONLY`). Before 15:08 KST it ran the old start behaviour (owner-approved rollback at about 13:57 KST). The release of `66cffaea3` is the current build until the release of `dfb75c16e` (run 43807184375, dispatched 13:57 KST, about 40 minutes) finishes. The controller files, the install manifest and the state file are kept at `/opt/nusa-control` and `/var/lib/nusa-control` (state `STOPPED`); the controller units, drop-ins and mode file are removed.
 
 ## What happened
 
@@ -20,7 +20,7 @@ Observed: `2026-11-16` (Asia/Seoul), about 14:10 KST (05:10 UTC). Everything bel
 1. Read-only: watch release run 43807184375 (`actions_get`/`actions_list`); after success run `oracle-host-diagnose.yml`.
 2. Owner terminal, read-only preflight: `sudo bash -c 'f=/opt/nusa/releases/dfb75c16e5c77aadcfc6ec0c088837418d736047/deploy/control/install.sh; echo "494cce37e71ca0edc0190e805f659a748a923aee3154329679e4e3a046eb469d  $f" | sha256sum -c - && bash "$f" dfb75c16e5c77aadcfc6ec0c088837418d736047 a362acb9db97e3dfab92a265f907aabb6c10993e3fda9829fc95db2c20a23065 --after-rollback'`.
 3. Only with a fresh approval: the same line with `--apply --after-rollback`; the collect step takes up to 20 minutes, the owner must keep the window open and send the output. If it fails, read `diag` from the printed `START_CEILING` detail; do not roll back without approval.
-4. After a verified install: replace the stale daily host-check scheduled task (`trig_01EsThfZSo7b3Qog4fDVGb19`, still says "service STOPPED on purpose") with a check for COLLECT_ONLY with the controller (state, `runtime.ok`, `NRestarts`, candle gaps).
+4. DONE: the daily host-check scheduled task (`trig_01EsThfZSo7b3Qog4fDVGb19`, 09:27 KST) now expects COLLECT_ONLY with the controller. NEW next steps: read the first daily check on 2026-11-17; Stage B stays blocked (permit producer + durable store, a qualified candidate, a release, a fresh written owner approval).
 
 ## Open items and owner-only decisions
 
@@ -33,4 +33,5 @@ Observed: `2026-11-16` (Asia/Seoul), about 14:10 KST (05:10 UTC). Everything bel
 
 - The exact failure reason of the second real-host collect, and that the HTTP/1.0 fix passes `collect` on the real host (sandbox and CI only).
 - The state of the release run in flight and of the host after it.
+- That the service stays up over the next hours: only the install-time verification was seen; the diagnose read right after the install (06:09 UTC) was not parsed for the service state.
 - Whether the `actual-paper-runtime` CI job (live public market data) is flaky: it failed once on #3156 and passed on the single re-run; the first failure was not examined.
