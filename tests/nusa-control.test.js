@@ -55,7 +55,7 @@ function world(opts = {}) {
   const fsx = { ...fs, ...fsOverrides };
   w.ctl = makeController({
     fs: fsx, systemctl,
-    identifiedHealth: async () => ({ body: body(), ownerPids: w.listener === "none" ? [] : [4242] }),
+    identifiedHealth: opts.identifiedHealth ?? (async () => ({ body: body(), ownerPids: w.listener === "none" ? [] : [4242] })),
     cgroupOf: () => (w.listener === "nusa" ? "0::/system.slice/nusa.service" : "0::/user.slice/user-1000.slice/session-1.scope"),
     unitActiveAgeMs: () => w.ageMs,
     selfIdentity: () => ({ pid: 4001, ident: "t1" }),
@@ -384,10 +384,129 @@ test("serverSideInodes needs the exact address AND port pair: same ports with ot
   assert.equal(procAddress("0100007F"), "127.0.0.1");
 });
 
+test("a connection the server has not accept()ed yet (kernel inode 0) is not an owner: the table row is skipped", () => {
+  const head = "  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode";
+  const row = (local, remote, inode) => `   0: ${local} ${remote} 01 00000000:00000000 00:00000000 00000000  1000        0 ${inode}`;
+  const tcp = [head, row("0100007F:A0C3", "0100007F:D431", 0)].join("\n");
+  const want = { serverAddress: "127.0.0.1", serverPort: 0xa0c3, clientAddress: "127.0.0.1", clientPort: 0xd431 };
+  assert.deepEqual(serverSideInodes((f) => (f.endsWith("tcp6") ? head : tcp), want), [], "an unaccepted connection has no owner process yet");
+  const accepted = [head, row("0100007F:A0C3", "0100007F:D431", 777)].join("\n");
+  assert.deepEqual(serverSideInodes((f) => (f.endsWith("tcp6") ? head : accepted), want), ["777"]);
+});
+
+test("REAL-HOST REGRESSION (first collect on the host failed with SENDER_UNKNOWN): a server that accepts late, because its event loop is busy at start-up, is still identified", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const { spawn } = require("node:child_process");
+  // The child opens its listener and then blocks its event loop for 800 ms: the kernel completes the handshake into the
+  // accept backlog (inode 0) and the child cannot accept until it unblocks, exactly like a runtime that is busy starting.
+  const script = `const http=require("node:http");const s=http.createServer((q,r)=>{const b='{"runtime":{"x":true}}';r.writeHead(200,{"content-type":"application/json","content-length":String(b.length)});r.end(b);});s.listen(0,"127.0.0.1",()=>{process.stdout.write(String(s.address().port)+"\\n");const t=Date.now();while(Date.now()-t<800){}});`;
+  const child = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "inherit"] });
+  try {
+    const port = await new Promise((resolve, reject) => { child.stdout.once("data", (d) => resolve(Number(String(d).trim()))); child.once("error", reject); });
+    const r = await hostIdentifiedHealth(port);
+    assert.ok(r.ownerPids.includes(child.pid), `the late-accepting server is found: ${JSON.stringify(r.ownerPids)} ${JSON.stringify(r.diag)}`);
+    assert.ok(r.diag.attempts > 1 && r.diag.waitedMs >= 100, `the controller waited for the accept: ${JSON.stringify(r.diag)}`);
+    assert.equal(r.body.runtime.x, true, "and the answer is read afterwards");
+  } finally { child.kill("SIGKILL"); }
+});
+
+test("a peer that is not identified within the budget never receives the request (the server sees none), and the sender is unknown", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const { spawn } = require("node:child_process");
+  // The child accepts only after about 1.5 s and prints REQUEST if it ever reads a request; after unblocking it keeps running.
+  const script = `const http=require("node:http");const s=http.createServer((q,r)=>{process.stdout.write("REQUEST\\n");const b='{"runtime":{"x":true}}';r.writeHead(200,{"content-length":String(b.length)});r.end(b);});s.listen(0,"127.0.0.1",()=>{process.stdout.write(String(s.address().port)+"\\n");const t=Date.now();while(Date.now()-t<1500){}});`;
+  const child = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "inherit"] });
+  let out = "";
+  child.stdout.on("data", (d) => { out += String(d); });
+  try {
+    const port = await new Promise((resolve) => { const t = setInterval(() => { const m = /^(\d+)\n/.exec(out); if (m) { clearInterval(t); resolve(Number(m[1])); } }, 10); });
+    const r = await hostIdentifiedHealth(port, { identifyBudgetMs: 300, timeoutMs: 4000 });
+    assert.deepEqual(r.ownerPids, [], JSON.stringify(r.diag));
+    assert.equal(r.body, null);
+    assert.equal(r.diag.requestSent, false);
+    assert.ok(r.diag.waitedMs >= 300 && r.diag.waitedMs < 1400 && r.diag.holders === 0, JSON.stringify(r.diag));
+    await new Promise((res) => setTimeout(res, 1800));                      // the server is unblocked and could have read a request by now
+    assert.doesNotMatch(out, /REQUEST/, "the unidentified peer never received the health request");
+  } finally { child.kill("SIGKILL"); }
+});
+
+test("the identification diagnostics reach the final collect failure, for an unknown sender and for a connection error alike", posixOnly, async () => {
+  const diag = { attempts: 7, waitedMs: 3000, inodes: [], holders: 0, tableErrors: 0, tableError: null, requestSent: false };
+  const a = world({ identifiedHealth: async () => ({ body: null, ownerPids: [], diag }) });
+  await seed(a);
+  const ra = await a.ctl.collect();
+  assert.equal(ra.code, "START_CEILING");
+  assert.match(ra.detail, /SENDER_UNKNOWN/); assert.match(ra.detail, /"attempts":7/); assert.match(ra.detail, /"waitedMs":3000/); assert.match(ra.detail, /"requestSent":false/);
+  const b = world({ identifiedHealth: async () => { throw Object.assign(new Error("health timeout"), { diag: { ...diag, attempts: 2, tableErrors: 4, tableError: "EACCES" } }); } });
+  await seed(b);
+  const rb = await b.ctl.collect();
+  assert.equal(rb.code, "START_CEILING");
+  assert.match(rb.detail, /health timeout/); assert.match(rb.detail, /"tableErrors":4/); assert.match(rb.detail, /EACCES/);
+  assert.ok(allStopped(a) && allStopped(b));
+});
+
+test("the diagnostics also survive a response that is not a valid health answer (wrong status, bad JSON, wrong build or mode)", posixOnly, async () => {
+  const base = { attempts: 1, waitedMs: 5, inodes: ["9"], holders: 1, tableErrors: 0, tableError: null, requestSent: true, bodyParsed: false, responseBytes: 12 };
+  for (const [label, answer, expected] of [
+    ["status 500", { body: null, ownerPids: [4242], diag: { ...base, responseStatus: 500 } }, /"responseStatus":500/],
+    ["status 200 with bad JSON", { body: null, ownerPids: [4242], diag: { ...base, responseStatus: 200 } }, /"responseStatus":200/],
+  ]) {
+    const w = world({ identifiedHealth: async () => answer }); w.listener = "nusa"; await seed(w);
+    const r = await w.ctl.collect();
+    assert.equal(r.code, "START_CEILING", label); assert.match(r.detail, /HEALTH_UNAVAILABLE/, label); assert.match(r.detail, expected, label); assert.match(r.detail, /"requestSent":true/, label);
+    assert.ok(allStopped(w), label);
+  }
+  // wrong build / wrong mode end the attempt at once and keep the record too
+  for (const [label, body, code] of [["wrong build", { runtime: { sourceCommitSha: "f".repeat(40), runMode: "COLLECT_ONLY" } }, /BUILD_MISMATCH/], ["wrong mode", { runtime: { sourceCommitSha: SHA, runMode: "PAPER_ORDERS" } }, /MODE_MISMATCH/]]) {
+    const w = world({ identifiedHealth: async () => ({ body, ownerPids: [4242], diag: { ...base, responseStatus: 200, bodyParsed: true } }) }); w.listener = "nusa"; await seed(w);
+    const r = await w.ctl.collect();
+    assert.match(r.detail, code, label); assert.match(r.detail, /"responseStatus":200/, label); assert.ok(allStopped(w), label);
+  }
+});
+
+test("the real client records the response status and whether the body parsed", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const http = require("node:http");
+  for (const [label, status, payload, parsed] of [["500", 500, "boom", false], ["200 bad json", 200, "not json", false], ["200 ok", 200, '{"runtime":{"x":1}}', true], ["200 multi-byte", 200, '{"runtime":{"x":"가나다"}}', true]]) {
+    const server = http.createServer((q, r) => { r.writeHead(status, { "content-length": String(Buffer.byteLength(payload)) }); r.end(payload); });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try {
+      const r = await hostIdentifiedHealth(server.address().port);
+      assert.ok(r.ownerPids.includes(process.pid), label);
+      assert.equal(r.diag.responseStatus, status, label); assert.equal(r.diag.bodyParsed, parsed, label); assert.equal(r.diag.requestSent, true, label);
+      assert.ok(r.diag.responseBytes > Buffer.byteLength(payload), `${label}: bytes on the wire, headers included`);
+    } finally { server.close(); }
+  }
+});
+
+test("responseBytes counts bytes on the wire, not characters", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const http = require("node:http");
+  const measure = async (payload) => {
+    const server = http.createServer((q, r) => { r.sendDate = false; r.writeHead(200, { "content-length": String(Buffer.byteLength(payload)) }); r.end(payload); });
+    await new Promise((r) => server.listen(0, "127.0.0.1", r));
+    try { return (await hostIdentifiedHealth(server.address().port)).diag.responseBytes; } finally { server.close(); }
+  };
+  const ascii = '{"runtime":{"x":"abc"}}';
+  const korean = '{"runtime":{"x":"가나다"}}';                 // same number of characters, 6 more bytes
+  assert.equal(ascii.length, korean.length);
+  assert.equal(await measure(korean) - await measure(ascii), Buffer.byteLength(korean) - Buffer.byteLength(ascii));
+});
+
+test("a /proc table that cannot be read is told apart from 'no such socket' in the diagnostics", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const http = require("node:http");
+  const server = http.createServer((q, r) => { r.writeHead(200, { "content-length": "2" }); r.end("{}"); });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const r = await hostIdentifiedHealth(server.address().port, { identifyBudgetMs: 200, readTable: () => { throw Object.assign(new Error("denied"), { code: "EACCES" }); } });
+    assert.deepEqual(r.ownerPids, []);
+    assert.ok(r.diag.tableErrors >= 2 && r.diag.tableError === "EACCES", JSON.stringify(r.diag));
+    assert.equal(r.diag.requestSent, false, "an unidentified peer gets no request");
+    const none = await hostIdentifiedHealth(server.address().port, { identifyBudgetMs: 100, readTable: () => "  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n" });
+    assert.equal(none.diag.tableErrors, 0, "no such socket is not a read error"); assert.equal(none.diag.requestSent, false);
+  } finally { server.close(); }
+});
+
 test("an ambiguous sender is unknown: two matching server-side sockets would not be accepted (unique inode required)", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
   assert.match(src, /inode = inodes\.length === 1 \? inodes\[0\] : null;/);
-  assert.match(src, /BEFORE the request was sent/, "the holders are read while the connection is open, before the request");
+  assert.match(src, /BEFORE\s*\n?\s*\/\/ the request/, "the holders are read while the connection is open, before the request");
 });
 
 test("the sudo entry point checks the lock directory first and the OPEN lock file descriptor before flock", () => {

@@ -31,7 +31,8 @@ function world(opts = {}) {
   mk(`opt/nusa/releases/${SHA}/deploy/control/dropins`);
   const src = path.join(R, "opt/nusa/releases", SHA, "deploy/control");
   const log = path.join(R, "calls.log");
-  const stubJs = `// stub controller ${opts.tag || ""}\n`;
+  // the REAL controller module (its validateState is used by --after-rollback); only the shell entry point is a stub
+  const stubJs = fs.readFileSync(path.join(root, "deploy/control/nusa-control.js"), "utf8") + `\n// test copy ${opts.tag || ""}\n`;
   fs.writeFileSync(path.join(src, "nusa-control.js"), stubJs);
   fs.writeFileSync(path.join(src, "nusa-control.sh"), `#!/usr/bin/env bash\necho "controller $*" >> ${JSON.stringify(log)}\n${opts.failVerb ? `[ "$1" = ${JSON.stringify(opts.failVerb)} ] && exit 1\n` : ""}exit 0\n`);
   for (const f of ["nusa-control-reconcile.service", "nusa-control-verify.service", "nusa-control-verify.timer"]) fs.copyFileSync(path.join(root, "deploy/control", f), path.join(src, f));
@@ -63,10 +64,16 @@ function world(opts = {}) {
   if (opts.stateFile) { mk("var/lib/nusa-control", 0o700); fs.writeFileSync(path.join(R, "var/lib/nusa-control/state.json"), "{}"); }
   if (opts.unsafe) fs.chmodSync(path.join(R, opts.unsafe), 0o777);
   if (opts.notActive) { fs.rmSync(path.join(R, "opt/nusa/current")); fs.mkdirSync(path.join(R, "opt/nusa/releases", "f".repeat(40)), { recursive: true }); fs.symlinkSync(path.join(R, "opt/nusa/releases", "f".repeat(40)), path.join(R, "opt/nusa/current")); }
+  const counterDir = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-install-counters-"));
+  const wrap = (name, envVar, mode) => fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\nc="${counterDir}/${name}"; n=$(( $(cat "$c" 2>/dev/null || echo 0) + 1 )); echo $n > "$c"\ncase ",\${${envVar}:-}," in *",$n,"*) ${mode === "noop" ? "exit 0" : "exit 1"};; esac\nexec /usr/bin/${name} "$@"\n`, { mode: 0o755 });
+  if (opts.countCommands && !opts.tamperAt) { wrap("mv", "MV_FAIL_AT", "fail"); wrap("install", "INSTALL_FAIL_AT", "fail"); }
+  if (opts.mvNoop) wrap("mv", "MV_NOOP_AT", "noop");
+  const resetCounters = () => { for (const n of ["mv", "install"]) fs.rmSync(path.join(counterDir, n), { force: true }); };
+  const runEnv = (extra, ...args) => { resetCounters(); return spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, ...extra, NUSA_INSTALL_ROOT: R, NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree", PATH: `${bin}:${process.env.PATH}` } }); };
   const run = (...args) => spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, NUSA_INSTALL_ROOT: R, ...(opts.noTestFlag ? {} : { NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree" }), PATH: `${bin}:${process.env.PATH}` } });
   const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n") : []);
   const snapshot = () => { const out = []; const walk = (d) => { for (const n of fs.readdirSync(d).sort()) { const p = path.join(d, n); const st = fs.lstatSync(p); out.push(`${p}:${st.mode}:${st.isFile() ? sha256(fs.readFileSync(p)) : ""}`); if (st.isDirectory()) walk(p); } }; walk(R); return out.filter((l) => !l.includes("calls.log")).join("\n"); };
-  const w = { R, src, run, calls, snapshot };
+  const w = { R, src, run, runEnv, calls, snapshot };
   Object.defineProperty(w, "hash", { get: () => manifestHash(src) });
   return w;
 }
@@ -140,6 +147,223 @@ test("the real host's env file repeats the OFF line twice: that passes (every me
   const w = world({ env: "NUSA_PAPER_ORDER_PATH=OFF\nNUSA_CLOUD_PORT=1\nNUSA_PAPER_ORDER_PATH=OFF\n" });
   const r = w.run(w.hash); assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.equal(w.run(w.hash, "--apply").status, 0); assert.equal(w.run("--rollback").status, 0);
+});
+
+const STOPPED_STATE = { schemaVersion: 1, version: 3, desired: "STOPPED", active: "e".repeat(40), adopted: true, proven: [], attempt: null, grant: null, intent: null };
+function afterRollbackWorld(opts = {}) {
+  const w = world(opts);
+  assert.equal(w.run(w.hash, "--apply").status, 0);
+  assert.equal(w.run("--rollback").status, 0);
+  fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify(opts.state ?? STOPPED_STATE), { mode: 0o600 });
+  // The release being re-installed carries a NEWER controller than the leftovers on the host (the real case: a fixed controller).
+  if (opts.newerController !== false) fs.appendFileSync(path.join(w.src, "nusa-control.js"), "\n// newer controller in the new release\n");
+  return w;
+}
+
+test("--after-rollback installs again after a rollback: the leftovers are moved aside (never deleted) and a new manifest and anchor are written", posixOnly, () => {
+  const w = afterRollbackWorld();
+  // without the flag the leftovers are refused
+  const plain = w.run(w.hash);
+  assert.notEqual(plain.status, 0); assert.match(plain.stdout, /FAIL  no controller state file exists yet/);
+  const pre = w.run(w.hash, "--after-rollback");
+  assert.equal(pre.status, 0, pre.stdout + pre.stderr);
+  assert.match(pre.stdout, /PASS  only the leftovers of a rollback/);
+  const before = w.snapshot();
+  assert.equal(w.run(w.hash, "--after-rollback").status, 0); assert.equal(w.snapshot(), before, "preflight with the flag is read-only too");
+  const stateDir = path.join(w.R, "var/lib/nusa-control");
+  const oldManifest = fs.readFileSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST"), "utf8");
+  const r = w.run(w.hash, "--apply", "--after-rollback");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /DONE  controller installed/);
+  const names = fs.readdirSync(stateDir);
+  assert.ok(names.some((n) => /^state\.json\.rolled-back-\d{8}T\d{6}Z-\d+$/.test(n)), `the old state is kept: ${names}`);
+  assert.ok(names.some((n) => /^install-manifest\.sha256\.rolled-back-/.test(n)), "the old anchor is kept");
+  assert.equal(names.includes("state.json"), false, "no stale state is left for the new init");
+  const aside = fs.readdirSync(path.join(w.R, "opt/nusa-control")).find((n) => /^INSTALL-MANIFEST\.rolled-back-/.test(n));
+  assert.equal(fs.readFileSync(path.join(w.R, "opt/nusa-control", aside), "utf8"), oldManifest);
+  assert.ok(names.includes("install-manifest.sha256"), "a new anchor");
+  const calls = w.calls().filter((c) => /controller (init|collect|status)/.test(c));
+  assert.deepEqual(calls.slice(-3), [`controller init ${SHA}`, "controller collect", "controller status"]);
+  // and the new install can be rolled back again
+  assert.equal(w.run("--rollback").status, 0);
+});
+
+test("re-install with a NEWER controller than the leftovers: every failure point either puts the old leftovers back exactly or can be rolled back", posixOnly, () => {
+  const sweep = (label, envName, max) => {
+    let reachedSuccess = false; let restored = 0; let rolledBack = 0;
+    for (let n = 1; n <= max; n += 1) {
+      const w = afterRollbackWorld({ countCommands: true });
+      const oldJs = fs.readFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "utf8");
+      assert.notEqual(oldJs, fs.readFileSync(path.join(w.src, "nusa-control.js"), "utf8"), "the leftover controller really differs from the new one");
+      const before = w.snapshot();
+      const r = w.runEnv({ [envName]: String(n) }, w.hash, "--apply", "--after-rollback");
+      if (r.status === 0) { reachedSuccess = true; break; }
+      if (w.snapshot() === before) {
+        restored += 1;
+        assert.equal(w.run(w.hash, "--after-rollback").status, 0, `${label} ${n}: the old leftovers are intact and the command can be run again`);
+      } else {
+        rolledBack += 1;
+        const rb = w.run("--rollback");
+        assert.equal(rb.status, 0, `${label} ${n}: failed after the swap, rollback must work: ${rb.stdout}${rb.stderr}`);
+        for (const f of ["etc/nusa/run-mode.env", "etc/systemd/system/nusa-control-reconcile.service", "etc/systemd/system/nusa.service.d/20-run-mode.conf"]) assert.equal(fs.existsSync(path.join(w.R, f)), false, `${label} ${n}: ${f}`);
+        assert.equal(fs.readFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "utf8").includes("newer controller"), true, `${label} ${n}: the swapped-in controller matches the new manifest`);
+      }
+    }
+    assert.ok(reachedSuccess, `${label}: the sweep reached a successful run`);
+    return { restored, rolledBack };
+  };
+  const mv = sweep("mv", "MV_FAIL_AT", 20);
+  const inst = sweep("install", "INSTALL_FAIL_AT", 40);
+  assert.ok(mv.restored > 0 && inst.restored > 0, "failures before the swap restore the old leftovers");
+  assert.ok(inst.rolledBack > 0, "failures after the swap are rolled back");
+});
+
+test("a restore that fails while undoing a failed swap is never reported as 'put back': RECOVERY_REQUIRED, exit 3, every moved and prepared file kept", posixOnly, () => {
+  // Fail one forward move k, and one later move j (which is then a restore inside undo). Sweep the pairs.
+  let recoveryCases = 0; let cleanCases = 0; const recoveryByK = new Map();
+  // --after-rollback does 9 forward moves (state aside; then manifest, anchor, controller js and sh: each moved aside and placed),
+  // so k covers 1..9, and a restore can be failed at any of up to 9 undo moves after it.
+  const FORWARD_MOVES = 9;
+  {
+    const w = afterRollbackWorld({ countCommands: true });
+    assert.equal(w.runEnv({ MV_FAIL_AT: String(FORWARD_MOVES + 1) }, w.hash, "--apply", "--after-rollback").status, 0, "there are exactly 9 forward moves: failing a 10th changes nothing");
+    const w2 = afterRollbackWorld({ countCommands: true });
+    assert.notEqual(w2.runEnv({ MV_FAIL_AT: String(FORWARD_MOVES) }, w2.hash, "--apply", "--after-rollback").status, 0, "and failing the 9th does fail the install");
+  }
+  for (let k = 1; k <= FORWARD_MOVES; k += 1) {
+    for (let j = k + 1; j <= k + FORWARD_MOVES; j += 1) {
+      const w = afterRollbackWorld({ countCommands: true });
+      const before = w.snapshot();
+      const rd = (d, n) => fs.readFileSync(path.join(w.R, d, n));
+      const old = { state: sha256(rd("var/lib/nusa-control", "state.json")), manifest: sha256(rd("opt/nusa-control", "INSTALL-MANIFEST")), anchor: sha256(rd("var/lib/nusa-control", "install-manifest.sha256")), js: sha256(rd("opt/nusa-control", "nusa-control.js")), sh: sha256(rd("opt/nusa-control", "nusa-control.sh")),
+        manifestText: rd("opt/nusa-control", "INSTALL-MANIFEST").toString("utf8"), anchorText: rd("var/lib/nusa-control", "install-manifest.sha256").toString("utf8") };
+      const r = w.runEnv({ MV_FAIL_AT: `${k},${j}` }, w.hash, "--apply", "--after-rollback");
+      const out = r.stdout + r.stderr;
+      if (r.status === 0) continue;
+      if (/RECOVERY_REQUIRED/.test(out)) {
+        recoveryCases += 1; recoveryByK.set(k, (recoveryByK.get(k) ?? 0) + 1);
+        assert.equal(r.status, 3, `k=${k} j=${j}`);
+        assert.doesNotMatch(out, /everything was put back/, `k=${k} j=${j}: never claimed`);
+        assert.match(out, /should be at|should not exist/, `k=${k} j=${j}: says what is left where`);
+        const listing = (d) => (fs.existsSync(path.join(w.R, d)) ? fs.readdirSync(path.join(w.R, d)) : []);
+        const all = [...listing("var/lib/nusa-control"), ...listing("opt/nusa-control")];
+        // BYTE preservation: every old leftover and every prepared new file still exists under SOME name, none was deleted.
+        const present = new Set(); for (const d of ["var/lib/nusa-control", "opt/nusa-control"]) for (const n of listing(d)) present.add(sha256(fs.readFileSync(path.join(w.R, d, n))));
+        for (const [label, h] of Object.entries(old).filter(([l]) => !/Text$/.test(l))) assert.ok(present.has(h), `k=${k} j=${j}: the old ${label} survives byte for byte`);
+        for (const [label, f] of [["new nusa-control.js", "nusa-control.js"], ["new nusa-control.sh", "nusa-control.sh"]]) assert.ok(present.has(sha256(fs.readFileSync(path.join(w.src, f)))), `k=${k} j=${j}: the prepared ${label} survives byte for byte`);
+        const manifests = all.filter((n) => /^INSTALL-MANIFEST/.test(n)).map((n) => fs.readFileSync(path.join(w.R, "opt/nusa-control", n), "utf8"));
+        assert.ok(manifests.some((m) => m !== old.manifestText), `k=${k} j=${j}: the new manifest survives`);
+        const anchors = all.filter((n) => /^install-manifest\.sha256/.test(n)).map((n) => fs.readFileSync(path.join(w.R, "var/lib/nusa-control", n), "utf8"));
+        assert.ok(anchors.some((a) => a !== old.anchorText), `k=${k} j=${j}: the new anchor survives`);
+        assert.ok(all.some((n) => /\.rolled-back-/.test(n)), `k=${k} j=${j}: the moved files are kept: ${all}`);
+        assert.ok(all.some((n) => /\.new$/.test(n)), `k=${k} j=${j}: the prepared files are kept: ${all}`);
+        assert.equal(fs.existsSync(path.join(w.R, "etc/nusa/run-mode.env")), false, `k=${k} j=${j}: nothing was installed after the swap`);
+      } else if (/everything was put back/.test(out)) {
+        // Any failure that claims everything was put back must really have put everything back.
+        cleanCases += 1; assert.equal(w.snapshot(), before, `k=${k} j=${j}: 'put back' is true`);
+      }
+    }
+  }
+  assert.ok(recoveryCases > 0, "the sweep hit restores that failed");
+  assert.ok(cleanCases > 0, "and failures that were cleanly put back");
+  for (let k = 2; k <= FORWARD_MOVES; k += 1) assert.ok((recoveryByK.get(k) ?? 0) > 0, `forward move ${k} was covered by at least one failing restore (RECOVERY_REQUIRED)`);
+});
+
+test("--after-rollback refuses anything that is not exactly a rollback leftover, and changes nothing", posixOnly, () => {
+  const damage = {
+    "state says COLLECT_ONLY": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, desired: "COLLECT_ONLY" })),
+    "state has an attempt": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, attempt: { sha: "x", count: 1 } })),
+    "state has an intent": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, intent: { verb: "collect" } })),
+    "state has a grant": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, grant: { sha: "x" } })),
+    "state is not JSON": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), "not json"),
+    "no state file": (w) => fs.rmSync(path.join(w.R, "var/lib/nusa-control/state.json")),
+    "state is a symlink": (w) => { const f = path.join(w.R, "var/lib/nusa-control/state.json"); fs.renameSync(f, path.join(w.R, "real-state.json")); fs.symlinkSync(path.join(w.R, "real-state.json"), f); },
+    "a controller unit is still installed": (w) => fs.writeFileSync(path.join(w.R, "etc/systemd/system/nusa-control-verify.timer"), "[Timer]\n"),
+    "a drop-in is still installed": (w) => { fs.mkdirSync(path.join(w.R, "etc/systemd/system/nusa.service.d"), { recursive: true }); fs.writeFileSync(path.join(w.R, "etc/systemd/system/nusa.service.d/20-run-mode.conf"), "[Service]\n"); },
+    "the mode file is still there": (w) => fs.writeFileSync(path.join(w.R, "etc/nusa/run-mode.env"), "NUSA_RUN_MODE=COLLECT_ONLY\n"),
+    "the anchor does not match the manifest": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/install-manifest.sha256"), "0".repeat(64) + "\n", { mode: 0o600 }),
+    "the manifest was edited": (w) => fs.appendFileSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST"), "x\n"),
+    "the controller script was changed": (w) => fs.appendFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "//x\n"),
+    "the manifest is missing": (w) => fs.rmSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST")),
+  };
+  for (const [label, fn] of Object.entries(damage)) {
+    const w = afterRollbackWorld(); fn(w);
+    const before = w.snapshot(); const callsBefore = w.calls().length;
+    const pre = w.run(w.hash, "--after-rollback");
+    assert.notEqual(pre.status, 0, label); assert.match(pre.stdout, /FAIL  only the leftovers of a rollback/, label);
+    const apply = w.run(w.hash, "--apply", "--after-rollback");
+    assert.notEqual(apply.status, 0, `${label}: apply refuses`); assert.match(apply.stderr + apply.stdout, /nothing was changed/, label);
+    assert.equal(w.snapshot(), before, `${label}: nothing changed`);
+    assert.equal(w.calls().filter((c) => !/is-active|^systemctl show/.test(c)).length, w.calls().slice(0, callsBefore).filter((c) => !/is-active|^systemctl show/.test(c)).length, `${label}: no new mutation`);
+  }
+  // on a fresh host (no leftovers) the flag is refused too
+  const fresh = world(); const r = fresh.run(fresh.hash, "--after-rollback");
+  assert.notEqual(r.status, 0); assert.match(r.stdout, /FAIL  only the leftovers of a rollback/);
+});
+
+test("--after-rollback validates the whole state with the controller's own validator: schema, version, active, adopted, proven, unknown fields", posixOnly, () => {
+  const bad = {
+    "wrong schema version": { ...STOPPED_STATE, schemaVersion: 2 },
+    "version 0": { ...STOPPED_STATE, version: 0 },
+    "version not an integer": { ...STOPPED_STATE, version: "3" },
+    "active is not a commit sha": { ...STOPPED_STATE, active: "not-a-sha" },
+    "adopted is not a boolean": { ...STOPPED_STATE, adopted: "yes" },
+    "proven entries are malformed": { ...STOPPED_STATE, proven: [{ sha: "x" }] },
+    "an unknown field": { ...STOPPED_STATE, extra: 1 },
+    "desired is not a known mode": { ...STOPPED_STATE, desired: "PAPER_ORDERS" },
+    "missing fields": { desired: "STOPPED", attempt: null, intent: null, grant: null },
+    "an array": [],
+  };
+  for (const [label, state] of Object.entries(bad)) {
+    const w = afterRollbackWorld({ state });
+    const before = w.snapshot();
+    const pre = w.run(w.hash, "--after-rollback");
+    assert.notEqual(pre.status, 0, label); assert.match(pre.stdout, /FAIL  only the leftovers of a rollback/, label);
+    assert.notEqual(w.run(w.hash, "--apply", "--after-rollback").status, 0, label);
+    assert.equal(w.snapshot(), before, `${label}: nothing changed`);
+  }
+});
+
+test("re-install is safe at every failure point: a failing or silently skipped move puts everything back, and a failing install can always be rolled back", posixOnly, () => {
+  // (1) every move of the set-aside / swap sequence: 3 moves aside and 2 renames in
+  for (const n of [1, 2, 3, 4, 5]) {
+    for (const mode of ["fail", "noop"]) {
+      const w = afterRollbackWorld(mode === "fail" ? { countCommands: true } : { mvNoop: true });
+      const before = w.snapshot();
+      const r = w.runEnv(mode === "fail" ? { MV_FAIL_AT: String(n) } : { MV_NOOP_AT: String(n) }, w.hash, "--apply", "--after-rollback");
+      assert.notEqual(r.status, 0, `move ${n} ${mode}`);
+      assert.match(r.stderr + r.stdout, /everything was put back|STOP/, `move ${n} ${mode}`);
+      assert.equal(w.snapshot(), before, `move ${n} ${mode}: the old leftovers are exactly as before and no new file remains`);
+      assert.equal(w.run(w.hash, "--after-rollback").status, 0, `move ${n} ${mode}: it can simply be run again`);
+    }
+  }
+  // the same moves on a fresh install leave nothing installed
+  for (const n of [1, 2]) {
+    const w = world({ countCommands: true });
+    const r = w.runEnv({ MV_FAIL_AT: String(n) }, w.hash, "--apply");
+    assert.notEqual(r.status, 0, `fresh move ${n}`);
+    assert.equal(fs.existsSync(path.join(w.R, "etc/nusa/run-mode.env")), false);
+    assert.equal(fs.existsSync(path.join(w.R, "etc/systemd/system/nusa-control-reconcile.service")), false);
+    assert.deepEqual(fs.readdirSync(path.join(w.R, "var/lib/nusa-control")), [], "no manifest, anchor or temp file left in the state directory");
+    assert.deepEqual(fs.readdirSync(path.join(w.R, "opt/nusa-control")), [], "no manifest or temp file left");
+  }
+  // (2) a failing install(1) at ANY point after the manifest was written: rollback works (files present are checked, missing ones are fine)
+  let reachedSuccess = false;
+  for (let n = 1; n <= 40 && !reachedSuccess; n += 1) {
+    const w = world({ countCommands: true });
+    const r = w.runEnv({ INSTALL_FAIL_AT: String(n) }, w.hash, "--apply");
+    if (r.status === 0) { reachedSuccess = true; break; }
+    const manifestWritten = fs.existsSync(path.join(w.R, "opt/nusa-control/INSTALL-MANIFEST"));
+    const rb = w.run("--rollback");
+    if (manifestWritten) {
+      assert.equal(rb.status, 0, `install call ${n} failed after the manifest was written, rollback must work: ${rb.stdout}${rb.stderr}`);
+      for (const f of ["etc/nusa/run-mode.env", "etc/systemd/system/nusa-control-reconcile.service", "etc/systemd/system/nusa-control-verify.timer", "etc/systemd/system/nusa.service.d/20-run-mode.conf"]) assert.equal(fs.existsSync(path.join(w.R, f)), false, `call ${n}: ${f} removed`);
+    } else {
+      assert.notEqual(rb.status, 0, `call ${n}: before the manifest exists a rollback is refused and nothing but empty directories was created`);
+      assert.equal(fs.existsSync(path.join(w.R, "etc/nusa/run-mode.env")), false);
+    }
+  }
+  assert.ok(reachedSuccess, "the sweep reached a run in which no install call was failed");
 });
 
 test("the test root is refused unless the test flag is set (a stray variable cannot redirect a root install)", posixOnly, () => {

@@ -4,6 +4,7 @@
 #   sudo bash install.sh <full-commit-sha> <manifest-sha256>            preflight only: READ-ONLY, changes nothing
 #   sudo bash install.sh <full-commit-sha> <manifest-sha256> --apply    install, then init and collect
 #   sudo bash install.sh <full-commit-sha> --rollback                    remove what this script installed, restore the old start
+#   ... <sha> <manifest-sha256> [--apply] --after-rollback               install again after a rollback of this script (see below)
 #
 # The files come from the STAGED RELEASE of that commit (/opt/nusa/releases/<sha>/deploy/control). They are first copied into a
 # root-only private directory; the manifest hash given on the command line (printed in the reviewed pull request, it covers
@@ -16,7 +17,8 @@
 set -euo pipefail
 
 SHA="${1:-}"; HASH_ARG="${2:-}"; MODE="preflight"
-for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollback";; esac; done
+AFTER=0
+for a in "$@"; do case "$a" in --apply) MODE="apply";; --rollback) MODE="rollback";; --after-rollback) AFTER=1;; esac; done
 # NUSA_INSTALL_ROOT lets the tests run the whole script against a temporary directory tree. It is refused unless the test flag is
 # also set, so a stray variable can never redirect a root install on the host; on the host the PATH is fixed.
 R="${NUSA_INSTALL_ROOT:-}"
@@ -126,9 +128,104 @@ managed_files_sound() {
   done
   for f in $(managed_files) opt/nusa-control/INSTALL-MANIFEST; do
     p="$R/$f"
+    # not installed yet (or already removed): nothing to check; a rollback is allowed at every failure point
+    if [ ! -e "$p" ] && [ ! -L "$p" ]; then continue; fi
     [ -f "$p" ] && [ ! -L "$p" ] || return 1
     owner="$(stat -c '%u' -- "$p")"; mode="$(stat -c '%a' -- "$p")"
     { [ -n "$R" ] || [ "$owner" = 0 ]; } && [ $(( 8#$mode & 8#022 )) -eq 0 ] || return 1
+  done
+}
+
+S=""   # the verified private copy (set by apply)
+# SHA-256 of what apply installs at a path relative to the root, from the verified private copy (or the literal mode file).
+expected_hash() {
+  case "$1" in
+    etc/nusa/run-mode.env) printf 'NUSA_RUN_MODE=COLLECT_ONLY\n' | sha256sum | cut -d' ' -f1 ;;
+    opt/nusa-control/nusa-control.js) sha256sum -- "$S/nusa-control.js" | cut -d' ' -f1 ;;
+    opt/nusa-control/nusa-control.sh) sha256sum -- "$S/nusa-control.sh" | cut -d' ' -f1 ;;
+    etc/systemd/system/*.d/*) sha256sum -- "$S/dropins/${1#etc/systemd/system/}" | cut -d' ' -f1 ;;
+    etc/systemd/system/*) sha256sum -- "$S/${1##*/}" | cut -d' ' -f1 ;;
+    *) return 1 ;;
+  esac
+}
+# Every managed file that exists must match the manifest; a file that does not exist (not installed yet, or already removed)
+# is fine, because a rollback is allowed at every failure point of an install.
+verify_manifest_files() {
+  local h p
+  while read -r h p; do
+    [[ "$h" =~ ^[0-9a-f]{64}$ ]] && [ -n "$p" ] || return 1
+    if [ -e "$R/$p" ] || [ -L "$R/$p" ]; then
+      [ -f "$R/$p" ] && [ ! -L "$R/$p" ] || return 1
+      [ "$(sha256sum -- "$R/$p" | cut -d' ' -f1)" = "$h" ] || return 1
+    fi
+  done < "$MANIFEST_FILE"
+}
+# Everything that must change together is prepared as *.new files next to its target and then swapped in by renames: the
+# controller files and the manifest with its anchor. With --after-rollback the old state, and any old file that is replaced,
+# are moved aside first (*.rolled-back-<UTC>-<pid>: never deleted, collision-proof). If ANY step fails every step is undone and
+# the old leftovers are exactly as they were; once it succeeds the manifest matches the controller files that are in place, so a
+# rollback works at every later failure point.
+swap_in_install_set() {
+  local stamp state="$R/var/lib/nusa-control/state.json" undo_list=() item t
+  RECOVERY_FAILED=()
+  local new_files=("$MANIFEST_FILE" "$MANIFEST_ANCHOR" "$R/opt/nusa-control/nusa-control.js" "$R/opt/nusa-control/nusa-control.sh")
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  undo() {   # returns 1 when everything was put back, 2 when a restore failed (RECOVERY_FAILED lists what is left where)
+    local i kind rest x y
+    for (( i=${#undo_list[@]}-1; i>=0; i-- )); do
+      item="${undo_list[$i]}"; kind="${item%%|*}"; rest="${item#*|}"; x="${rest%%|*}"; y="${rest#*|}"
+      case "$kind" in
+        M) if ! mv -n -- "$y" "$x" || [ ! -e "$x" ] || [ -e "$y" ]; then RECOVERY_FAILED+=("$y should be at $x"); fi ;;
+        # A file that was already renamed into place is renamed back to its *.new name (the reverse of the rename-in), never
+        # deleted: if a later restore fails, the bytes the owner needs for the recovery are all still there.
+        P) if ! mv -n -- "$x" "$x.new" || [ -e "$x" ] || [ ! -e "$x.new" ]; then RECOVERY_FAILED+=("$x should be back at $x.new"); fi ;;
+      esac
+    done
+    if [ "${#RECOVERY_FAILED[@]}" -gt 0 ]; then KEEP_NEW=1; return 2; fi
+    for t in "${new_files[@]}"; do rm -f -- "$t.new"; done
+    return 1
+  }
+  aside() {   # move $1 to its collision-proof name when it exists; the source must really be gone afterwards
+    local src="$1" dst="$1.rolled-back-$stamp"
+    if [ ! -e "$src" ] && [ ! -L "$src" ]; then return 0; fi
+    if [ -e "$dst" ] || [ -L "$dst" ]; then return 1; fi
+    mv -n -- "$src" "$dst" || true
+    # Record the move only when it really happened; a move that did nothing (mv -n can skip silently) needs no restore.
+    if [ ! -e "$src" ] && [ -e "$dst" ]; then undo_list+=("M|$src|$dst"); return 0; fi
+    if [ -e "$src" ] && [ ! -e "$dst" ]; then return 1; fi
+    undo_list+=("M|$src|$dst"); return 1     # anything else is inconsistent: let undo try and report it
+  }
+  place() {   # rename $1.new into place; the .new must really be gone afterwards
+    mv -n -- "$1.new" "$1" || true
+    if [ ! -e "$1.new" ] && [ -e "$1" ]; then undo_list+=("P|$1|"); return 0; fi
+    if [ -e "$1.new" ] && [ ! -e "$1" ]; then return 1; fi
+    undo_list+=("P|$1|"); return 1
+  }
+  if [ "$AFTER" = 1 ]; then aside "$state" || { undo; return $?; }; fi
+  for t in "${new_files[@]}"; do
+    if [ -e "$t" ] || [ -L "$t" ]; then aside "$t" || { undo; return $?; }; fi
+    place "$t" || { undo; return $?; }
+  done
+}
+
+# After a rollback of this script the controller files, the install manifest, its anchor and the state file are kept for
+# inspection, so a plain install refuses. --after-rollback accepts exactly that leftover and nothing else: the state says
+# STOPPED with no attempt, intent or grant; the manifest matches its anchor; the two controller files are the recorded ones;
+# no unit, drop-in or mode file of the controller is installed any more. The leftovers are moved aside (never deleted).
+rolled_back_leftovers_ok() {
+  local state="$R/var/lib/nusa-control/state.json" f
+  [ -f "$state" ] && [ ! -L "$state" ] || return 1
+  [ -f "$MANIFEST_FILE" ] && [ ! -L "$MANIFEST_FILE" ] && [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] || return 1
+  [ "$(sha256sum -- "$MANIFEST_FILE" | cut -d' ' -f1)" = "$(cat -- "$MANIFEST_ANCHOR")" ] || return 1
+  for f in opt/nusa-control/nusa-control.js opt/nusa-control/nusa-control.sh; do
+    [ -f "$R/$f" ] && [ ! -L "$R/$f" ] || return 1
+    grep -qF "$(sha256sum -- "$R/$f" | cut -d' ' -f1)  $f" "$MANIFEST_FILE" || return 1
+  done
+  # The state must be a VALID controller state (the controller's own validator: schema, version, active, adopted, proven, no
+  # unknown field, no attempt, no grant), STOPPED, with no pending intent. The controller file was verified against the manifest above.
+  node -e 'const fs=require("fs"); const c=require(process.argv[1]); const s=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); c.validateState(s); process.exit(s.desired==="STOPPED" && s.intent===null ? 0 : 1)' "$R/opt/nusa-control/nusa-control.js" "$state" || return 1
+  for f in $(managed_files); do
+    case "$f" in opt/nusa-control/*) ;; *) [ ! -e "$R/$f" ] && [ ! -L "$R/$f" ] || return 1 ;; esac
   done
 }
 
@@ -151,8 +248,12 @@ preflight() {
   check "nusa.service is active" sysctl is-active --quiet nusa.service
   local health; health="$(curl -fsS -m 6 http://127.0.0.1:41731/health 2>/dev/null || true)"
   check "/health is valid JSON from the commit $SHA in mode COLLECT_ONLY (the new runtime is running)" node -e 'const h=JSON.parse(process.argv[1]).runtime; process.exit(h && h.sourceCommitSha===process.argv[2] && h.runMode==="COLLECT_ONLY" ? 0 : 1)' "$health" "$SHA"
-  check "no controller state file exists yet" test ! -e "$R/var/lib/nusa-control/state.json"
-  check "the controller is not installed yet" test ! -e "$R/opt/nusa-control/nusa-control.js"
+  if [ "$AFTER" = 1 ]; then
+    check "only the leftovers of a rollback of this script exist (state STOPPED without attempt, intent or grant; manifest matches its anchor; controller files as recorded; no unit, drop-in or mode file installed)" rolled_back_leftovers_ok
+  else
+    check "no controller state file exists yet" test ! -e "$R/var/lib/nusa-control/state.json"
+    check "the controller is not installed yet" test ! -e "$R/opt/nusa-control/nusa-control.js"
+  fi
   echo "== preflight result: $fails failure(s)"
 }
 
@@ -163,31 +264,45 @@ apply() {
   CURRENT="private copy"; step "$CURRENT"
   # Copy once into a root-only directory, verify THAT copy, install only from it: later changes to the release tree cannot matter.
   stage="$(mktemp -d "$R/var/lib/.nusa-install.XXXXXX")"
-  trap 'rm -rf -- "$stage"' EXIT
+  KEEP_NEW=0
+  trap 'rm -rf -- "$stage"; [ "$KEEP_NEW" = 1 ] || rm -f -- "$MANIFEST_FILE.new" "$MANIFEST_ANCHOR.new" "$R/opt/nusa-control/nusa-control.js.new" "$R/opt/nusa-control/nusa-control.sh.new"' EXIT
   chmod 0700 "$stage"
   cp -a --no-dereference -- "$SRC/." "$stage/"
   no_symlinks_in "$stage" || die "the private copy contains a symlink"
   [ "$(manifest_hash "$stage")" = "$HASH_ARG" ] || die "the private copy does not match the reviewed manifest hash"
-  local S="$stage"
+  S="$stage"
+  local u c f
+  CURRENT="state directory and controller directory"; step "$CURRENT"
+  install "${OWN[@]}" -d -m 0700 "$R/var/lib/nusa-control"
+  install "${OWN[@]}" -d -m 0755 "$R/opt/nusa-control"
+  CURRENT="controller files and install manifest"; step "$CURRENT"
+  # The manifest records the verified private copy. It and the controller files are prepared as *.new and swapped in together
+  # (see swap_in_install_set), so the manifest always matches the controller files in place and a rollback works from here on.
+  for f in $(managed_files); do printf '%s  %s\n' "$(expected_hash "$f")" "$f"; done > "$stage/manifest.out"
+  install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE.new"
+  sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR.new"
+  install "${OWN[@]}" -m 0755 "$S/nusa-control.js" "$R/opt/nusa-control/nusa-control.js.new"
+  install "${OWN[@]}" -m 0755 "$S/nusa-control.sh" "$R/opt/nusa-control/nusa-control.sh.new"
+  local rc=0
+  swap_in_install_set || rc=$?
+  if [ "$rc" = 2 ]; then
+    trap - ERR
+    {
+      echo "RECOVERY_REQUIRED  the swap failed AND putting the old files back failed. Nothing orders (orders are OFF); the old units are unchanged."
+      printf '  %s\n' "${RECOVERY_FAILED[@]}"
+      echo "  Every moved file is kept (*.rolled-back-*), and the prepared *.new files are kept. Do NOT run --apply or --rollback now; send this output."
+    } >&2
+    exit 3
+  fi
+  [ "$rc" = 0 ] || die "could not swap in the controller files and the manifest; everything was put back and nothing else was changed"
   CURRENT="mode file"; step "$CURRENT"
   install "${OWN[@]}" -m 0644 /dev/stdin "$R/etc/nusa/run-mode.env" <<<"NUSA_RUN_MODE=COLLECT_ONLY"
-  CURRENT="state directory"; step "$CURRENT"
-  install "${OWN[@]}" -d -m 0700 "$R/var/lib/nusa-control"
-  CURRENT="controller files"; step "$CURRENT"
-  install "${OWN[@]}" -d -m 0755 "$R/opt/nusa-control"
-  install "${OWN[@]}" -m 0755 "$S/nusa-control.js" "$R/opt/nusa-control/nusa-control.js"
-  install "${OWN[@]}" -m 0755 "$S/nusa-control.sh" "$R/opt/nusa-control/nusa-control.sh"
   CURRENT="units and drop-ins"; step "$CURRENT"
-  local u c
   for u in $UNITS_TOP; do install "${OWN[@]}" -m 0644 "$S/$u" "$R/etc/systemd/system/$u"; done
   for u in $DROPIN_UNITS; do
     install "${OWN[@]}" -d -m 0755 "$R/etc/systemd/system/$u.d"
     for c in "$S"/dropins/"$u".d/*.conf; do install "${OWN[@]}" -m 0644 "$c" "$R/etc/systemd/system/$u.d/$(basename "$c")"; done
   done
-  CURRENT="install manifest"; step "$CURRENT"
-  ( cd "${R:-/}" && managed_files | xargs sha256sum ) > "$stage/manifest.out"
-  install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE"
-  sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR"
   sysctl daemon-reload
   CURRENT="enable the gate and the periodic verify"; step "$CURRENT"
   sysctl enable nusa-control-reconcile.service nusa-control-verify.timer
@@ -209,7 +324,7 @@ rollback() {
   [ -f "$MANIFEST_FILE" ] && [ ! -L "$MANIFEST_FILE" ] || die "no install manifest at $MANIFEST_FILE; refusing to roll back (nothing was changed)"
   [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] && [ "$(sha256sum -- "$MANIFEST_FILE" | cut -d' ' -f1)" = "$(cat -- "$MANIFEST_ANCHOR")" ] || die "the install manifest does not match its anchor in the state directory; refusing to roll back (nothing was changed)"
   managed_files_sound || die "a managed file is missing, is a link, or has unsafe owner or mode; refusing to roll back (nothing was changed)"
-  ( cd "${R:-/}" && sha256sum --check --strict --quiet "$MANIFEST_FILE" ) >/dev/null 2>&1 || die "a managed file differs from the install manifest; refusing to roll back (nothing was changed)"
+  verify_manifest_files || die "a managed file differs from the install manifest; refusing to roll back (nothing was changed)"
   orders_off_everywhere || die "orders are not OFF from every environment source; refusing to roll back (nothing was changed)"
   sysctl disable --now nusa-control-verify.timer 2>/dev/null || true
   sysctl disable nusa-control-reconcile.service 2>/dev/null || true
