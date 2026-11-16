@@ -18,13 +18,13 @@ One row per gate of `tradePermissionEngine.evaluateTradePermission`. "Status" is
 | 2 | FRESHNESS | age = `generatedAt` minus the OLDER of `sourceGeneratedAt` and `probability.generatedAt` | the producer must set `sourceGeneratedAt` to the oldest input it used (every market-state signal, feature and quote), not the newest | missing; binding rule defined here |
 | 3 | REGIME_COMPATIBILITY | `regime` in `policy.compatibleRegimes` | `marketStateEngine.createMarketState().regime` | needs all 8 required signals |
 | 4 | PROBABILITY | `probability.calibratedProbability` and `abstain` | `probabilityEngine.estimateProbability` | abstains without enough labelled samples (`INSUFFICIENT_CALIBRATION_SAMPLES`); the sample type does not itself bind a sample to a model, market and outcome definition, so the producer must filter and prove that |
-| 5 | EXPECTED_VALUE | `netExpectedValue` | none | missing: needs a cost model tied to the same outcome definition |
+| 5 | EXPECTED_VALUE | `netExpectedValue` | none found on the canonical permission path of main | missing there: needs a cost model tied to the same outcome definition (another module may hold one; that is part of the inventory) |
 | 6 | REWARD_TO_RISK | `expectedReward / expectedLoss` | none | missing |
 | 7 | LIQUIDITY | `liquidityScore` | market state `liquidityScore` | derivable once the signals exist |
 | 8 | CAPACITY | `capacityUsd` | none | missing: needs a stated rule (for example depth within a slippage budget) |
 | 9 | SLIPPAGE | `estimatedSlippageBps` | none usable | missing: see 2.1 |
 | 10 | UNCERTAINTY | `probability.uncertainty` | `probabilityEngine` | follows gate 4 |
-| 11 | MODEL_AGREEMENT | dispersion of `modelProbabilities` (fewer than 2 models gives 1) | one model only | missing: at least two independent models; the real limit is `policy.maximumModelDispersion`, which is set by the reviewed policy file |
+| 11 | MODEL_AGREEMENT | dispersion of `modelProbabilities`, a plain array of probabilities with no model identity (fewer than 2 entries gives dispersion 1) | not established from code | the engine cannot tell whether the entries come from independent models, so the producer must supply, and the evidence must name, the independent models; whether a single entry is rejected depends on `policy.maximumModelDispersion` being below 1, which is a policy value not fixed anywhere on main |
 | 12 | RISK_BUDGET | `riskBudgetUsage` | canonical risk gate state | read-only snapshot at decision time |
 | 13 | KILL_SWITCH | `killSwitchActive` | runtime flag | read-only |
 | 14 | GOVERNANCE | `governanceApproved` | open item (Coordinator removal, S1) | see section 5, decision 3 |
@@ -40,6 +40,11 @@ One row per gate of `tradePermissionEngine.evaluateTradePermission`. "Status" is
 Claimed from code: the engines behave as described above. NOT claimed from code: that no current candidate has enough labelled samples, or that only one model exists. Those are runtime facts and need an inventory (list of models, calibration samples per model, market and outcome definition) before the conclusion below is used for planning.
 
 Conditional conclusion: if the inventory confirms no calibrated samples, no net-EV model and a single model, an honest producer rejects every intent (`PROBABILITY`, `EXPECTED_VALUE`, `MODEL_AGREEMENT` fail) and Stage B needs a candidate that has passed research first. No gate may be relaxed to avoid that.
+
+### 2.3 Policy source and freshness scope
+
+- Policy source: the engine takes `TradePermissionPolicy` as an input and main has no approved policy file; the guard's default authority carries a placeholder `UNAVAILABLE_POLICY` that rejects everything. The reviewed policy file and its thresholds are NOT yet decided; this document only requires that, once chosen, the file is reviewed, versioned and read by the authority (section 4). It points at no existing file.
+- Freshness scope: the engine's age check covers only `sourceGeneratedAt` and `probability.generatedAt`. The producer's rule is: `sourceGeneratedAt` is the OLDEST observation time of everything that fed the probability and market state. Time-sensitive inputs that are not part of that age (risk budget usage, kill switch, governance approval) are NOT covered by it; the producer must read each at decision time, write the observation time into the evidence, and refuse to produce a permit when a read is older than a limit fixed in the policy. In addition the boundary rechecks the permit right before the simulator (PR #3150), and a PERMIT is short-lived (`permissionTtlMs`).
 
 ## 3. The durable store (what `isLatest` and `evidenceExists` read)
 
