@@ -1,0 +1,24 @@
+id: WO-OPS-20261116-C1-HEALTH-HTTP10
+title: "Controller: read the runtime /health answer even when it is sent chunked (second real-host collect failure)"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/health-chunked-fix
+owner_decision: "2026-11-16: the owner approved the new release of the fixed controller (66cffaea3) and the install with --apply --after-rollback. The install ran up to collect; the runtime answered /health with 200 every 5 s but the start never verified; the controller safe-stopped everything at the 20-minute ceiling (state STOPPED, orders OFF, controller installed, units installed)."
+objective: "Make the controller parse the real runtime's /health answer."
+evidence: "Host evidence (read-only host diagnose 2026-11-16 04:25 UTC): nusa.service ran from 04:01:27, the journal shows cloud.http.health responseStatus 200 every 5 s (the controller's poll interval) until the service was stopped at the ceiling; status showed SENDER_UNKNOWN only after the stop (connection refused, expected). The sender was therefore identified and answered. Cause (reproduced in the sandbox with a server written like apps/cloud/src/server.ts: writeHead then end without content-length): Node answers such a request with Transfer-Encoding: chunked, and hostIdentifiedHealth deliberately parses only a non-chunked 200 answer, so the body stayed null and the check reported HEALTH_UNAVAILABLE (a 'no answer yet') until the ceiling. All earlier tests used servers that set content-length by hand, which is why they never saw it. NOT measured on the host: the exact failure reason of the real collect (the terminal output was lost)."
+change:
+  - "deploy/control/nusa-control.js: the controller's request is HTTP/1.0 (still Connection: close). A server must not use chunked encoding for an HTTP/1.0 request, so the answer is close-delimited and parsed. The chunked rejection stays (a chunked answer is still never accepted)."
+  - "tests/nusa-control.test.js (48): new test with a real http server that sends no content-length (the runtime's way); it fails on the previous code and passes now."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. Identification of the sender, the cgroup, build and mode checks are unchanged. No release or host action by this change; a new release and a new owner approval are needed before the fixed controller can run on the host."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control.test.js tests/nusa-control-install.test.js pass on Linux; AIPOS validators pass."
+unverified: "Fixed against a sandbox server that mimics the runtime's response style, not against the real runtime. Whether the real runtime really sends chunked answers is inferred from server.ts (no content-length header is set there) and the host journal (200 answers without verification). If collect fails again the diag field in the status output shows why."
+acceptance:
+  - "Non-author review; exact-head CI; a new release only with the owner's approval; then --after-rollback preflight and a fresh owner approval before --apply."

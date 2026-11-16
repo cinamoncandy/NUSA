@@ -476,6 +476,20 @@ test("the real client records the response status and whether the body parsed", 
   }
 });
 
+test("a runtime that sends no content-length (like apps/cloud/src/server.ts: writeHead then end) is still read: the request is HTTP/1.0 so the answer is never chunked", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const http = require("node:http");
+  // Real-host failure (2026-11-16): the runtime answered 200 every 5 s, but a chunked answer was never parsed, so the start never verified.
+  const server = http.createServer((q, r) => { r.writeHead(200, { "content-type": "application/json" }); r.end('{"runtime":{"sourceCommitSha":"abc","runMode":"COLLECT_ONLY"}}'); });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const r = await hostIdentifiedHealth(server.address().port);
+    assert.ok(r.ownerPids.includes(process.pid));
+    assert.equal(r.diag.responseStatus, 200);
+    assert.equal(r.diag.bodyParsed, true, "an answer without content-length must be parsed");
+    assert.equal(r.body.runtime.runMode, "COLLECT_ONLY");
+  } finally { server.close(); }
+});
+
 test("responseBytes counts bytes on the wire, not characters", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
   const http = require("node:http");
   const measure = async (payload) => {
