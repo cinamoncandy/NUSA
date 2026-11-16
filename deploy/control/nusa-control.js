@@ -484,7 +484,7 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000, iden
         // the request). An unidentified peer never receives it: the connection is closed and the sender is unknown.
         if (pids.length === 0) { clearTimeout(timer); socket.destroy(); resolve({ body: null, ownerPids: [], diag }); return; }
         diag.requestSent = true;
-        socket.write(`GET /health HTTP/1.1\r\nHost: ${host}:${port}\r\nConnection: close\r\n\r\n`);
+        socket.write(`GET /health HTTP/1.0\r\nHost: ${host}:${port}\r\nConnection: close\r\n\r\n`);
       };
       identify();
     });
