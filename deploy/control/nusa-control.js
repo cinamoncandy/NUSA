@@ -26,6 +26,13 @@ const DEFAULTS = Object.freeze({
   checkAncestors: true,
   startCeilingMs: 20 * 60 * 1000,
   pollMs: 5000,
+  // The periodic verify tolerates a runtime that is busy for a moment (a long synchronous research job can keep /health from
+  // answering for about 15 s): "no answer" is asked again this many times, this far apart, before the runtime is stopped. A WRONG answer
+  // (other build, other mode, foreign sender) is never retried and stops at once. The whole verify holds the controller lock, and an
+  // emergency `stop` waits for that lock (nusa-control.sh, 90 s): the worst case of the retries must stay far below that wait
+  // (2 x 8 s of sleeping plus 3 probes of at most 5 s each is about 31 s).
+  verifyNoAnswerAttempts: 3,
+  verifyNoAnswerRetryMs: 8_000,
 });
 
 class ControlError extends Error {
@@ -374,7 +381,13 @@ function makeController(deps) {
       if (s.intent !== null && collectInFlight(s.intent) && s.active === currentSha()) return { ok: true, code: "COLLECT_IN_PROGRESS", verified: false };
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
-      const v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
+      let v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
+      for (let n = 1; !v.ok && !isWrongAnswer(v) && n < cfg.verifyNoAnswerAttempts; n += 1) {
+        await sleep(cfg.verifyNoAnswerRetryMs);
+        // The runtime may have died while we waited: that is a stop now, not another probe.
+        if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
+        v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
+      }
       if (v.ok) return { ok: true, code: "COLLECT_ONLY_VERIFIED" };
       // A wrong answer stops at once. No answer yet is tolerated only while the unit is younger than the start ceiling.
       // Only "no answer yet" (HEALTH_UNAVAILABLE, SENDER_UNKNOWN) can be a start in progress. Any answer that arrives from a
@@ -531,5 +544,5 @@ async function main(argv) {
   return out.ok ? 0 : 1;
 }
 
-module.exports = { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
+module.exports = { DEFAULTS, makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
 if (require.main === module) main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { process.stdout.write(`${JSON.stringify({ ok: false, code: "INTERNAL", detail: String(e && e.message) })}\n`); process.exit(70); });
