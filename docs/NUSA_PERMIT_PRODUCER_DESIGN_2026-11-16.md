@@ -62,6 +62,16 @@ Conditional conclusion: if the inventory confirms no calibrated samples, no net-
 | 3 | Where does governance approval come from after the Coordinator is gone (S1)? | A reviewed file in the repository is the record, but a file alone grants no authority. Before it is used the owner must fix: who may approve (the approving identity), how an approval is revoked and how fast the producer sees it (it must be read at decision time, with a freshness limit, and absent or unreadable means not approved), and when a policy or model version is retired (an old permit never validates under a retired version). |
 | 4 | Order of work | (a) store and adapter with tests (no production wiring), (b) producer for the gates that have honest data, (c) wire the adapter in a release with orders still OFF so the rejections show up as evidence, (d) only then Stage B with a fresh written owner approval. |
 
+### 5.1 Owner decisions recorded (2026-11-16)
+
+The owner answered in chat (Korean, translated): "B" for the parked store PR (#3152 closed, branch kept) and "I will take the recommended side for the others; I approve the rest". This is recorded as follows, and nothing more is inferred from it:
+
+- Decision 1: ACCEPTED as recommended. PERMIT means the statistical permit (calibrated probability, positive net expected value, model agreement). Weakening it needs a new written rule.
+- Decision 2: ACCEPTED as recommended. No producer is built before a candidate qualifies (strategy review C7 and the 2026-12-13 forward-test verdict).
+- Decision 3: the recommendation (a reviewed file as the record, never authority by itself) is ACCEPTED in principle. The three specifics are STILL OPEN because a blanket "yes" does not name them: who the approving identity is, how an approval is revoked and how fast the producer sees it, and when a policy or model version is retired. Until the owner names them, governance stays "not approved" and no producer may read a governance file.
+- Decision 4: ACCEPTED as the order of work, with one change already made: the store and adapter (step a) are parked (#3152) and come back together with their first real caller, because the reachability gate refuses an unwired module.
+- NOT covered by this approval: Stage B (orders ON). It still needs a qualified candidate, a permit producer with a durable store, a release and a fresh written owner approval that names Stage B. PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY` and Release=HOLD are unchanged.
+
 ## 6. What is not done
 
 No code. No store is created, nothing is wired in the runtime, no release, no host change, orders stay OFF. Each step above is a separate draft PR with an independent review.
