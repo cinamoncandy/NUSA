@@ -1,0 +1,24 @@
+id: WO-OPS-20261116-C4-SUDO-HANDOVER
+title: "Host: read-only sudo audit of the release runner, and a sudoers hand-over that only ADDS the controller's fixed verbs"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/c4-sudo-handover
+owner_decision: "2026-11-16: the owner chose independent development and answered 'do it all'. Scripts only: nothing runs on the host, and no sudoers line is changed, before the owner's per-step approval (audit first, then the hand-over)."
+objective: "Design v5 C3 still has unknown host facts (the runner's sudo rights). Design C4 section 4 needs the runner to call the controller's fixed verbs. Provide a read-only audit and an exact, reversible hand-over."
+change:
+  - "deploy/control/sudo-audit.sh [runner-user]: READ-ONLY. Prints the account and groups, `sudo -l -U`, every sudoers file without comments, and the owners and modes of the helper and the controller; WARN lines for dangerous groups, ALL rules, wildcards, loose files, writable controller files. Not an access audit of the host."
+  - "deploy/control/sudo-handover.sh <runner-user> [--apply|--remove]: preflight (visudo -cf on a candidate in the temp directory, checks the controller file, the include line and the directory) prints the exact rule: Cmnd_Alias NUSA_CONTROL = status, stop, collect, and release with a 40-character hex argument written as forty bracket classes (no star). --apply writes /etc/sudoers.d/90-nusa-control (0440) beside the target, checks it with visudo, renames it into place and checks the whole configuration (removing it again on failure); idempotent; never overwrites a different file; never touches any existing sudoers line. --remove deletes only its own file."
+  - "tests/nusa-control-sudo.test.js (8) and the Linux controller job runs it."
+not_changed:
+  - "No existing sudoers rule is revoked: revoking the helper's activate is a separate owner-approved step after the audit output is read. No risk limit, threshold, capital, order switch or authority. No host change by this PR."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control-sudo.test.js (8 pass); platform-independent test validator; AIPOS yaml."
+unverified: "Run against a temporary tree with stub visudo, id, sudo and systemctl. The real `sudo -l -U`, the real sudoers include layout and visudo on the host are not exercised. The scripts are part of the controller manifest directory, so the manifest hash changes; the owner checks their sha256 like install.sh."
+acceptance:
+  - "Non-author review (/grill-me); exact-head CI; the audit is run first and its output read before any hand-over; each host step needs the owner's approval."

@@ -13,6 +13,7 @@ on:
       - "tests/nusa-control.test.js"
       - "tests/nusa-control-install.test.js"
       - "tests/nusa-control-release.test.js"
+      - "tests/nusa-control-sudo.test.js"
       - ".github/workflows/linux-host-control-tests.yml"
   push:
     branches: [main]
@@ -22,6 +23,7 @@ on:
       - "tests/nusa-control.test.js"
       - "tests/nusa-control-install.test.js"
       - "tests/nusa-control-release.test.js"
+      - "tests/nusa-control-sudo.test.js"
       - ".github/workflows/linux-host-control-tests.yml"
 
 concurrency:
@@ -46,7 +48,7 @@ jobs:
       - name: Controller and installer tests on Linux (none may be skipped)
         run: |
           set -euo pipefail
-          out="$(node --test --test-reporter=spec tests/nusa-control.test.js tests/nusa-control-install.test.js tests/nusa-control-release.test.js 2>&1 | tee /dev/stderr)"
+          out="$(node --test --test-reporter=spec tests/nusa-control.test.js tests/nusa-control-install.test.js tests/nusa-control-release.test.js tests/nusa-control-sudo.test.js 2>&1 | tee /dev/stderr)"
           printf '%s\n' "$out" | grep -E '^ℹ (tests|pass|fail|skipped)' || true
           if printf '%s\n' "$out" | grep -Eq '^ℹ fail [1-9]'; then echo "::error::a controller or installer test failed"; exit 1; fi
           if printf '%s\n' "$out" | grep -Eq '^ℹ skipped [1-9]'; then echo "::error::a controller or installer test was skipped on Linux; these tests must run here"; exit 1; fi
