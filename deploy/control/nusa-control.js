@@ -17,10 +17,17 @@ const UNITS = Object.freeze(["nusa-research.timer", "nusa.service", "nusa-resear
 const BOOT_UNITS = Object.freeze(["nusa-research.timer", "nusa.service"]); // units that start by themselves when enabled
 const RUNTIME_UNIT = "nusa.service";
 const SHA = /^[0-9a-f]{40}$/;
+const RELEASE_PHASES = Object.freeze(["PREPARED", "UNITS_STOPPED", "SWAPPING", "SWAPPED", "STARTING_NEW", "ROLLING_BACK", "STARTING_OLD"]);
+const RELEASE_OUTCOMES = Object.freeze(["DEPLOYED", "ROLLED_BACK", "STOPPED_SAFE", "REFUSED", "SUPERSEDED"]);
 const DEFAULTS = Object.freeze({
   stateDir: "/var/lib/nusa-control",
   modeFile: "/etc/nusa/run-mode.env",
   currentLink: "/opt/nusa/current",
+  releasesDir: "/opt/nusa/releases",
+  // Volatile directory (tmpfs): the stop marker and the single-use start grant live here, so a reboot erases both and the durable
+  // state file alone decides what may start after a boot.
+  runDir: "/run/nusa-control",
+  grantTtlMs: 60_000,
   healthPort: 41731,
   expectedUid: 0,
   checkAncestors: true,
@@ -98,8 +105,13 @@ function validateState(s) {
   if (s.desired === "PAPER_ORDERS") fail("PAPER_ORDERS is not available in this version");
   if (s.intent !== null) {
     const i = s.intent;
-    if (!(i && ["stop", "collect"].includes(i.verb) && Number.isSafeInteger(i.version) && Number.isSafeInteger(i.at))) fail("intent");
+    if (!(i && ["stop", "collect", "release"].includes(i.verb) && Number.isSafeInteger(i.version) && Number.isSafeInteger(i.at))) fail("intent");
     if (i.verb === "collect" && !(i.owner && Number.isSafeInteger(i.owner.pid) && typeof i.owner.ident === "string" && i.owner.ident.length > 0 && typeof i.owner.bootId === "string" && i.owner.bootId.length > 0 && Number.isSafeInteger(i.owner.atMono))) fail("collect intent needs an owner (pid, ident, bootId, atMono)");
+    if (i.verb === "release") {
+      const owner = i.owner;
+      if (!(typeof i.runId === "string" && /^[0-9a-f]{32}$/.test(i.runId) && SHA.test(i.from) && SHA.test(i.to) && i.from !== i.to && RELEASE_PHASES.includes(i.phase))) fail("release intent needs runId, from, to and a known phase");
+      if (!(owner && Number.isSafeInteger(owner.pid) && typeof owner.ident === "string" && owner.ident.length > 0 && typeof owner.bootId === "string" && owner.bootId.length > 0 && Number.isSafeInteger(owner.atMono))) fail("release intent needs an owner (pid, ident, bootId, atMono)");
+    }
   }
   return s;
 }
@@ -251,16 +263,108 @@ function makeController(deps) {
   };
   const stoppedResult = (code, extra = {}) => { const problems = stopAll(sys); return { ok: false, code, stopped: problems.length === 0, problems, ...extra }; };
 
+  // ---- volatile control files: the stop marker and the single-use start grant (design C4 sections 3.1 and 3.4) ----------
+  const markerFile = path.join(cfg.runDir, "stop-requested");
+  const grantFile = path.join(cfg.runDir, "start-grant");
+  const unlinkQuiet = (f) => { try { fsx.unlinkSync(f); } catch { /* best effort */ } };
+  const peek = (file) => { try { return { exists: true, text: readNoFollow(fsx, file) }; } catch (e) { if (e.code === "ENOENT" || e.code === "ENOTDIR") return { exists: false }; return { exists: true, text: null }; } };
+  // An unreadable or unsafe marker still counts as a marker (fail closed).
+  const markerState = () => { const m = peek(markerFile); if (!m.exists) return { present: false, rec: null }; let rec = null; try { rec = JSON.parse(m.text); } catch { rec = null; } return { present: true, rec }; };
+  const markerLive = (rec) => { try { return !!(rec && Number.isSafeInteger(rec.pid) && typeof rec.ident === "string" && deps.processIdentity(rec.pid) === rec.ident); } catch { return false; } };
+  const exclusiveWrite = (file, obj) => {
+    assertSafeDir(fsx, cfg.runDir, cfg.expectedUid, { exactMode: 0o700 });
+    const fd = fsx.openSync(file, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_NOFOLLOW, 0o600);
+    try { fsx.writeSync(fd, `${JSON.stringify(obj)}\n`); fsx.fsyncSync(fd); } finally { fsx.closeSync(fd); }
+  };
+  // `stop` creates the marker first (O_EXCL; an existing marker is joined, never replaced).
+  const createMarker = () => {
+    try { const me = deps.selfIdentity(); exclusiveWrite(markerFile, { pid: me.pid, ident: me.ident, createdAt: now() }); return true; } catch (e) { return e.code === "EEXIST"; }
+  };
+  const writeGrant = (intent, phase, sha) => {
+    unlinkQuiet(grantFile);
+    const me = deps.selfIdentity();
+    const at = monotonic();
+    exclusiveWrite(grantFile, { runId: intent.runId, phase, sha, pid: me.pid, ident: me.ident, bootId: deps.bootId(), atMono: at, expiresAtMono: at + cfg.grantTtlMs });
+  };
+  // The gate's check of a release start: every condition must hold, and the grant is consumed (deleted) when it permits.
+  const takeGrant = (s) => {
+    const g = peek(grantFile);
+    if (!g.exists) return { ok: false, why: "NO_GRANT" };
+    const no = (why) => ({ ok: false, why });
+    let rec;
+    try { rec = JSON.parse(g.text); } catch { unlinkQuiet(grantFile); return no("GRANT_UNREADABLE"); }
+    const i = s.intent;
+    if (!rec || typeof rec !== "object" || !i || i.verb !== "release") return no("NO_RELEASE_INTENT");
+    if (rec.runId !== i.runId) return no("WRONG_RUN");
+    if (!["STARTING_NEW", "STARTING_OLD"].includes(i.phase) || rec.phase !== i.phase) return no("WRONG_PHASE");
+    const expected = i.phase === "STARTING_NEW" ? i.to : i.from;
+    if (rec.sha !== expected || rec.sha !== currentSha() || rec.sha !== s.active) return no("WRONG_BUILD");
+    try { if (rec.bootId !== deps.bootId()) return no("OTHER_BOOT"); } catch { return no("OTHER_BOOT"); }
+    const at = monotonic();
+    if (!(Number.isFinite(rec.atMono) && Number.isFinite(rec.expiresAtMono) && at >= rec.atMono && at <= rec.expiresAtMono)) return no("EXPIRED");
+    if (!(rec.pid === i.owner.pid && rec.ident === i.owner.ident)) return no("WRONG_OWNER");
+    let alive = false; let isRelease = false; let holdsLock = false;
+    try { alive = deps.processIdentity(rec.pid) === rec.ident; } catch { alive = false; }
+    try { isRelease = !!(deps.cmdlineIsRelease && deps.cmdlineIsRelease(rec.pid)); } catch { isRelease = false; }
+    try { holdsLock = !!(deps.lockHeldBy && deps.lockHeldBy(rec.pid)); } catch { holdsLock = false; }
+    if (!alive) return no("OWNER_GONE");
+    if (!isRelease) return no("OWNER_NOT_RELEASE");
+    if (!holdsLock) return no("OWNER_NOT_HOLDING_LOCK");
+    try { fsx.unlinkSync(grantFile); } catch { return no("GRANT_NOT_CONSUMED"); }
+    return { ok: true };
+  };
+  const swapLink = (sha) => {
+    const dest = path.join(cfg.releasesDir, sha);
+    const st = fsx.lstatSync(dest);
+    if (st.isSymbolicLink() || !st.isDirectory()) throw new ControlError("RELEASE_NOT_STAGED", dest);
+    const tmp = `${cfg.currentLink}.tmp-${process.pid}-${Math.random().toString(36).slice(2)}`;
+    fsx.symlinkSync(dest, tmp);
+    try { fsx.renameSync(tmp, cfg.currentLink); } catch (e) { try { fsx.unlinkSync(tmp); } catch { /* best effort */ } throw e; }
+  };
+
+  // Recovery of a release intent whose process is gone (design C4 section 3.2). Called only with the controller lock held, so no
+  // live release can exist. It never moves forward and never starts anything: it ends STOPPED on the previous build, or STOPPED
+  // with the link untouched and active=null when the facts match no allowed combination.
+  const recoverRelease = () => {
+    const r = store.read();
+    if (!r.ok || !r.state.intent || r.state.intent.verb !== "release") return { recovered: false };
+    const s = r.state; const i = s.intent; const link = currentSha();
+    const problems = stopAll(sys);
+    if (problems.length > 0) return { recovered: true, ok: false, code: "STOPPED_UNCONFIRMED", problems };
+    const both = (a, b) => (link === a || link === b);
+    let combo;
+    switch (i.phase) {
+      case "PREPARED": case "UNITS_STOPPED": case "STARTING_OLD": combo = link === i.from && s.active === i.from; break;
+      case "SWAPPING": combo = both(i.from, i.to) && s.active === i.from; break;
+      // From SWAPPED on, link and record may each be either of the two known builds (a crash between the two writes of this very
+      // recovery leaves exactly such a pair, and running the recovery again must reach the same end).
+      case "SWAPPED": case "STARTING_NEW": case "ROLLING_BACK": combo = both(i.from, i.to) && (s.active === i.from || s.active === i.to); break;
+      default: combo = false;
+    }
+    try {
+      unlinkQuiet(grantFile);
+      if (!combo) {
+        store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", active: null, intent: null });
+        return { recovered: true, ok: true, code: "RECOVERY_UNKNOWN", detail: `phase ${i.phase} link ${link} active ${s.active}; the link was left untouched` };
+      }
+      if (link !== i.from) swapLink(i.from);
+      store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", active: i.from, intent: null });
+      return { recovered: true, ok: true, code: "RECOVERED_STOPPED" };
+    } catch (e) { return { recovered: true, ok: false, code: "RECOVERY_FAILED", detail: String(e.code || e.message).slice(0, 120) }; }
+  };
+
   const status = async () => {
     const r = store.read();
     const units = Object.fromEntries(UNITS.map((u) => [u, unitState(sys, u)]));
     const runtime = r.ok && r.state.active ? await verifyRuntime(deps, cfg, r.state.active, "COLLECT_ONLY") : null;
-    return { ok: true, state: r.ok ? r.state : null, stateProblem: r.ok ? null : r.reason, current: currentSha(), units, runtime };
+    return { ok: true, state: r.ok ? r.state : null, stateProblem: r.ok ? null : r.reason, current: currentSha(), units, runtime, stopMarker: markerState().present };
   };
 
   // stop never depends on the state file: it records a "stop" intent first when it can (so a concurrent gate sees a command in
   // progress), always stops the units, and records STOPPED afterwards if it can.
   const stop = async () => {
+    const markerCreated = createMarker();
+    recoverRelease(); // repairs link and record of an interrupted release; the stop below goes on whatever it says
     let r = store.read();
     if (r.ok) { try { store.write(r.state.version, { ...r.state, version: r.state.version + 1, intent: { verb: "stop", version: r.state.version + 1, at: now() } }); } catch { /* the stop goes on without the marker */ } }
     const problems = stopAll(sys);
@@ -271,16 +375,28 @@ function makeController(deps) {
       try { store.write(r.state.version, { ...r.state, version: r.state.version + 1, desired: "STOPPED", intent: null }); stateRecorded = true; } catch (e) { stateProblem = e.code || "STATE_WRITE_FAILED"; }
     } else stateProblem = r.reason;
     if (problems.length > 0) return { ok: false, code: "STOP_NOT_CONFIRMED", problems, stateRecorded, stateProblem };
+    // State first, marker second: a crash between the two leaves a marker with a STOPPED record, which is harmless.
+    if (stateRecorded && markerCreated) unlinkQuiet(markerFile);
     return { ok: stateRecorded, code: stateRecorded ? "STOPPED" : "STOPPED_STATE_NOT_RECORDED", stateRecorded, stateProblem };
   };
 
   const collect = async () => {
-    const r = store.read();
     // A refused collect changes nothing when the host is already stopped; if owned units are running in a state the
     // controller cannot vouch for (invalid record, other build, unproven build), it stops them instead of leaving them.
     const refuse = (code, detail) => (anyOwnedUnitRunning() ? stoppedResult(code, { detail }) : { ok: false, code, detail });
-    if (!r.ok) return refuse(r.reason, "only status and stop are allowed while the state file is not valid");
-    const s = r.state;
+    const rec = recoverRelease();
+    if (rec.recovered && !rec.ok) return { ok: false, code: rec.code, problems: rec.problems, detail: rec.detail };
+    // An explicit collect by the owner may clear a LEFTOVER stop marker, only when no live process matches it and the record says STOPPED.
+    const mk = markerState();
+    if (mk.present) {
+      if (markerLive(mk.rec)) return refuse("STOP_IN_PROGRESS");
+      const rs = store.read();
+      if (!(rs.ok && rs.state.desired === "STOPPED" && rs.state.intent === null)) return refuse("STOP_MARKER_STATE_NOT_STOPPED", "run stop first; a leftover marker is only cleared when the record says STOPPED");
+      unlinkQuiet(markerFile);
+    }
+    const r2 = store.read();
+    if (!r2.ok) return refuse(r2.reason, "only status and stop are allowed while the state file is not valid");
+    const s = r2.state;
     const cur = currentSha();
     if (!s.active || cur !== s.active) return refuse("ACTIVE_MISMATCH", `state active=${s.active} current=${cur}`);
     if (!s.adopted && !s.proven.some((p) => p.sha === s.active)) return refuse("ACTIVE_NOT_PROVEN");
@@ -334,9 +450,10 @@ function makeController(deps) {
   // build, and either desired COLLECT_ONLY with nothing pending, or a collect that is verifiably in flight (its owner process
   // is alive, same start time, same boot, intent still fresh). Everything else FAILS the gate, so systemd fails the runtime
   // start jobs. With { readonly: true } (the controller lock is held by another command) it never writes or stops anything.
-  const reconcile = async ({ readonly = false } = {}) => {
+  const reconcileSync = ({ readonly = false } = {}) => {
     try {
       const quarantined = readonly ? 0 : store.quarantineTemps();
+      if (!readonly) recoverRelease(); // a dead release is settled to STOPPED before any gate decision
       const deny = (code, extra = {}) => {
         if (readonly) return { ok: false, code, readonly: true, ...extra };
         const problems = gateStop();
@@ -345,6 +462,14 @@ function makeController(deps) {
       const r = store.read();
       if (!r.ok) return deny(`GATE_DENIED:${r.reason}`);
       const s = r.state;
+      // A stop marker denies every start, even one with a valid grant: the file's existence is the atomic authority (design C4 3.4).
+      if (markerState().present) return deny("GATE_DENIED:STOP_REQUESTED");
+      // A release intent is never a settled or collect state: only a valid single-use grant from the live release verb permits.
+      if (s.intent !== null && s.intent.verb === "release") {
+        const g = takeGrant(s);
+        if (!g.ok) return deny(`GATE_DENIED:RELEASE_${g.why}`);
+        return { ok: true, code: "START_PERMITTED_RELEASE_PHASE", phase: s.intent.phase, quarantined };
+      }
       const resolveStopped = (out) => { if (!readonly && out.stopped && (s.desired !== "STOPPED" || s.intent !== null)) { try { store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", intent: null }); } catch { out.stateRecorded = false; } } return out; };
       if (s.active !== currentSha()) return resolveStopped(deny("GATE_DENIED:MISMATCH"));
       const inFlight = collectInFlight(s.intent);
@@ -364,6 +489,7 @@ function makeController(deps) {
       return { ok: false, code: `GATE_DENIED:${e.code || "ERROR"}`, detail: e.message, stopped: problems.length === 0, problems };
     }
   };
+  const reconcile = async (o) => reconcileSync(o);
 
   // Post-start and periodic check: the recorded desired state must match reality (units, listener identity, build, mode).
   const verify = async ({ readonly = false } = {}) => {
@@ -371,9 +497,12 @@ function makeController(deps) {
     // The result says plainly that NOTHING was verified; the next timer run verifies again once the command has finished.
     if (readonly) return { ok: true, verified: false, skipped: true, code: "VERIFY_SKIPPED_CONTROLLER_COMMAND_RUNNING" };
     try {
+      const rr = recoverRelease();
+      if (rr.recovered) return rr.ok ? { ok: false, code: "VERIFY_STOPPED:RELEASE_INTERRUPTED", recovery: rr.code, stopped: true } : stoppedResult(`VERIFY_STOPPED:${rr.code}`);
       const r = store.read();
       if (!r.ok) return stoppedResult(`VERIFY_STOPPED:${r.reason}`);
       const s = r.state;
+      if (markerState().present && s.desired !== "STOPPED") return stoppedResult("VERIFY_STOPPED:STOP_REQUESTED");
       if (s.desired === "STOPPED") {
         const bad = UNITS.filter((u) => { const st = unitState(sys, u); return st.active !== "inactive" || (BOOT_UNITS.includes(u) && st.enabled !== "disabled"); });
         return bad.length === 0 ? { ok: true, code: "STOPPED_VERIFIED" } : stoppedResult("VERIFY_STOPPED:UNIT_RUNNING_OR_ENABLED_WHILE_STOPPED", { units: bad });
@@ -402,11 +531,137 @@ function makeController(deps) {
     }
   };
 
+  // ---- release <sha> (design C4): one verb changes the build, the unit state and the record together ---------------------
+  // Outcomes: DEPLOYED (new build verified), ROLLED_BACK (previous proven build verified), STOPPED_SAFE (nothing verified, every unit
+  // stopped), REFUSED (a precondition failed, nothing changed), SUPERSEDED (decided by the workflow before the host is touched),
+  // plus STOPPED_UNCONFIRMED (a unit would not stop: never a success). Only DEPLOYED has ok=true. It never sets PAPER_ORDERS.
+  const releaseResult = (outcome, extra = {}) => ({ ok: outcome === "DEPLOYED", code: outcome, outcome, ...extra });
+  const release = async (sha) => {
+    const refuse = (reason, detail) => releaseResult("REFUSED", { reason, ...(detail ? { detail } : {}) });
+    if (!SHA.test(String(sha))) return refuse("BAD_SHA");
+    const rec = recoverRelease();
+    if (rec.recovered && !rec.ok) return releaseResult("STOPPED_UNCONFIRMED", { reason: rec.code, problems: rec.problems });
+    if (markerState().present) return refuse("STOP_REQUESTED");
+    const r0 = store.read();
+    if (!r0.ok) return refuse(r0.reason);
+    let cur = r0.state;
+    if (cur.intent !== null) return refuse("INTENT_PENDING");
+    if (!cur.active) return refuse("NO_ACTIVE_BUILD");
+    if (currentSha() !== cur.active) return refuse("ACTIVE_MISMATCH");
+    if (cur.active === sha) return refuse("SAME_BUILD");
+    if (!cur.adopted && !cur.proven.some((p) => p.sha === cur.active)) return refuse("ROLLBACK_TARGET_NOT_PROVEN");
+    try { const st = fsx.lstatSync(path.join(cfg.releasesDir, sha)); if (st.isSymbolicLink() || !st.isDirectory()) return refuse("RELEASE_NOT_STAGED"); } catch { return refuse("RELEASE_NOT_STAGED"); }
+    const ordersOffNow = async () => { try { return !!(deps.ordersOff && (await deps.ordersOff())); } catch { return false; } };
+    if (!(await ordersOffNow())) return refuse("ORDERS_NOT_OFF");
+    if (cur.desired === "COLLECT_ONLY") {
+      const v = await verifyRuntime(deps, cfg, cur.active, "COLLECT_ONLY");
+      if (!v.ok) return refuse("RUNTIME_NOT_VERIFIED", v.reason);
+    } else if (anyOwnedUnitRunning()) return refuse("UNITS_RUNNING_WHILE_STOPPED");
+    const from = cur.active; const to = sha;
+    const me = deps.selfIdentity();
+    const runId = (deps.randomId || (() => require("node:crypto").randomBytes(16).toString("hex")))();
+    const owner = { pid: me.pid, ident: me.ident, bootId: deps.bootId(), atMono: monotonic() };
+    const setPhase = (phase, patch = {}) => { cur = store.write(cur.version, { ...cur, ...patch, version: cur.version + 1, intent: { verb: "release", version: cur.version + 1, at: now(), runId, from, to, phase, owner } }); };
+    const finish = (patch) => { cur = store.write(cur.version, { ...cur, ...patch, version: cur.version + 1, intent: null }); };
+    try { setPhase("PREPARED"); } catch (e) { return refuse(e.code || "STATE_WRITE_FAILED", "no unit was touched"); }
+    // Back to a verified stop: units stopped, link and record back on the previous build, intent cleared.
+    const settleStopped = (why) => {
+      const problems = stopAll(sys);
+      if (problems.length > 0) return releaseResult("STOPPED_UNCONFIRMED", { reason: why, problems });
+      try {
+        if (currentSha() !== from) swapLink(from);
+        finish({ desired: "STOPPED", active: from });
+        return releaseResult("STOPPED_SAFE", { reason: why });
+      } catch (e) { return releaseResult("STOPPED_SAFE", { reason: why, stateRecorded: false, detail: "recovery settles the record on the next command" }); }
+    };
+    const guard = async () => (markerState().present ? "STOP_REQUESTED" : (await ordersOffNow()) ? null : "ORDERS_NOT_OFF");
+    const startAndVerify = async (phase, build) => {
+      try {
+        modeWrite();
+        writeGrant(cur.intent, phase, build);
+        for (const unit of BOOT_UNITS) if (sys(["enable", unit]) !== 0) throw new ControlError("ENABLE_FAILED", unit);
+        if (sys(["restart", RUNTIME_UNIT]) !== 0) throw new ControlError("START_FAILED", RUNTIME_UNIT);
+        // The research timer has its own gate check: one grant is one start, so it gets its own grant (same run, same phase).
+        writeGrant(cur.intent, phase, build);
+        if (sys(["start", "nusa-research.timer"]) !== 0) throw new ControlError("START_FAILED", "nusa-research.timer");
+        const deadline = monotonic() + cfg.startCeilingMs;
+        let last = null;
+        while (monotonic() < deadline) {
+          if (markerState().present) return { ok: false, reason: "STOP_REQUESTED" };
+          last = await verifyRuntime(deps, cfg, build, "COLLECT_ONLY");
+          if (last.ok) return { ok: true };
+          if (isWrongAnswer(last)) return { ok: false, reason: last.reason };
+          await sleep(cfg.pollMs);
+        }
+        return { ok: false, reason: "START_CEILING" };
+      } catch (e) { return { ok: false, reason: e.code || "START_FAILED" }; } finally { unlinkQuiet(grantFile); }
+    };
+    const settleRunning = (outcome, patch, extra = {}) => {
+      finish({ desired: "COLLECT_ONLY", ...patch });
+      return releaseResult(outcome, extra);
+    };
+    try {
+      let g = await guard(); if (g) return settleStopped(g);
+      const problems = stopAll(sys);
+      if (problems.length > 0) return releaseResult("STOPPED_UNCONFIRMED", { reason: "STOP_NOT_CONFIRMED", problems });
+      setPhase("UNITS_STOPPED", { desired: "STOPPED" });
+      g = await guard(); if (g) return settleStopped(g);
+      setPhase("SWAPPING"); swapLink(to); setPhase("SWAPPED", { active: to });
+      g = await guard(); if (g) return settleStopped(g);
+      setPhase("STARTING_NEW");
+      const started = await startAndVerify("STARTING_NEW", to);
+      if (started.ok) {
+        const proven = cur.proven.some((p) => p.sha === to) ? cur.proven : [...cur.proven, { sha: to, evidence: `RELEASE_VERIFIED:${runId}` }];
+        return settleRunning("DEPLOYED", { proven });
+      }
+      // The new build failed: roll back to the previous proven build, unless a stop was requested (then stop, no start).
+      if (started.reason === "STOP_REQUESTED" || markerState().present) return settleStopped("STOP_REQUESTED");
+      const down = stopAll(sys);
+      if (down.length > 0) return releaseResult("STOPPED_UNCONFIRMED", { reason: started.reason, problems: down });
+      g = await guard(); if (g) return settleStopped(g);
+      setPhase("ROLLING_BACK"); swapLink(from); setPhase("STARTING_OLD", { active: from });
+      const back = await startAndVerify("STARTING_OLD", from);
+      if (back.ok) return settleRunning("ROLLED_BACK", {}, { reason: started.reason });
+      return settleStopped(`ROLLBACK_FAILED:${back.reason}`);
+    } catch (e) { return settleStopped(e.code || "RELEASE_ERROR"); }
+  };
+
   const refuse = async (verb) => ({ ok: false, code: "NOT_AVAILABLE", detail: `${verb} is not available in this version` });
-  return { status, stop, collect, init, reconcile, verify, release: () => refuse("release"), "grant-orders": () => refuse("grant-orders") };
+  return { status, stop, collect, init, reconcile, reconcileSync, verify, release, "grant-orders": () => refuse("grant-orders") };
 }
 
 // ---- host implementations of the injected effects ---------------------------------------------------------------
+// True when the process holds a lock on the controller lock file (the inode appears in /proc/locks with that pid).
+function lockHeldBy(pid, lockFile, readLocks = () => fs.readFileSync("/proc/locks", "utf8"), statIno = (f) => fs.statSync(f).ino) {
+  const ino = statIno(lockFile);
+  return readLocks().split("\n").some((line) => { const f = line.trim().split(/\s+/); return f[1] === "FLOCK" && f[2] === "ADVISORY" && f[3] === "WRITE" && f[4] === String(pid) && /^[0-9a-f]+:[0-9a-f]+:\d+$/.test(f[5] || "") && f[5].split(":")[2] === String(ino); });
+}
+// Port of install.sh orders_off_everywhere: fail closed, every query must succeed and make sense.
+function ordersOffEverywhere({ root = "", read = (f) => fs.readFileSync(f, "utf8"), show = (a) => { const r = spawnSync("systemctl", ["show", "nusa.service", ...a], { encoding: "utf8", timeout: 10_000 }); if (r.status !== 0) throw new Error("systemctl show failed"); return String(r.stdout).trim(); }, lstat = (f) => fs.lstatSync(f), list = (d) => fs.readdirSync(d) } = {}) {
+  try {
+    const envFile = `${root}/etc/nusa/cloud-runtime.env`;
+    const lines = read(envFile).split("\n");
+    const mentions = lines.filter((l) => l.includes("NUSA_PAPER_ORDER_PATH"));
+    if (mentions.length < 1 || !mentions.every((l) => l === "NUSA_PAPER_ORDER_PATH=OFF")) return false;
+    if (show(["-p", "Id", "--value"]) !== "nusa.service") return false;
+    if (show(["-p", "Environment", "--value"]).includes("NUSA_PAPER_ORDER_PATH")) return false;
+    let sawRuntime = false;
+    for (const part of show(["-p", "EnvironmentFiles", "--value"]).replace(/\s*\(ignore_errors=([a-z]*)\)\s*/g, " $1\n").split("\n")) {
+      if (part.trim() === "") continue;
+      const [f, flag, extra] = part.trim().split(/\s+/);
+      if (extra !== undefined || !flag) return false;
+      if (f === envFile) { if (flag !== "no") return false; sawRuntime = true; } else if (f === `${root}/etc/nusa/run-mode.env`) { if (flag !== "no") return false; } else return false;
+    }
+    if (!sawRuntime) return false;
+    const unitDir = `${root}/etc/systemd/system`;
+    const files = [`${unitDir}/nusa.service`];
+    try { for (const n of list(`${unitDir}/nusa.service.d`)) files.push(`${unitDir}/nusa.service.d/${n}`); } catch (e) { if (e.code !== "ENOENT") return false; }
+    for (const f of files) { if (!lstat(f).isFile()) return false; if (read(f).split("\n").some((l) => /^\s*Environment=.*NUSA_PAPER_ORDER_PATH/.test(l))) return false; }
+    try { if (read(`${root}/etc/nusa/run-mode.env`).trim() !== "NUSA_RUN_MODE=COLLECT_ONLY") return false; } catch (e) { if (e.code !== "ENOENT") return false; }
+    return true;
+  } catch { return false; }
+}
+
 // Canonical text of an address as written in /proc/net/tcp (4 hex bytes, little-endian) and /proc/net/tcp6 (four 32-bit
 // little-endian words). IPv4-mapped IPv6 addresses (::ffff:a.b.c.d) are folded to plain IPv4 so both tables compare.
 function procAddress(hex) {
@@ -535,7 +790,10 @@ async function main(argv) {
   const ctl = makeController({ systemctl: sys, identifiedHealth: hostIdentifiedHealth, unitActiveAgeMs,
     selfIdentity: () => ({ pid: process.pid, ident: startTicks(process.pid) }),
     processIdentity: (pid) => { try { return startTicks(pid); } catch { return null; } },
-    bootId: () => fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(), cgroupOf: (pid) => fs.readFileSync(`/proc/${pid}/cgroup`, "utf8") });
+    bootId: () => fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(), cgroupOf: (pid) => fs.readFileSync(`/proc/${pid}/cgroup`, "utf8"),
+    cmdlineIsRelease: (pid) => { const a = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0"); return a.some((x) => x.endsWith("nusa-control.js")) && a.includes("release"); },
+    lockHeldBy: (pid) => lockHeldBy(pid, path.join(DEFAULTS.runDir, "lock")),
+    ordersOff: () => ordersOffEverywhere() });
   const known = ["status", "stop", "collect", "init", "reconcile", "verify", "release", "grant-orders"];
   if (!known.includes(verb)) { process.stdout.write(`${JSON.stringify({ ok: false, code: "UNKNOWN_VERB", known })}\n`); return 64; }
   const readonly = args.includes("--readonly");
@@ -544,5 +802,5 @@ async function main(argv) {
   return out.ok ? 0 : 1;
 }
 
-module.exports = { DEFAULTS, makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
+module.exports = { lockHeldBy, ordersOffEverywhere, RELEASE_PHASES, RELEASE_OUTCOMES, DEFAULTS, makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
 if (require.main === module) main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { process.stdout.write(`${JSON.stringify({ ok: false, code: "INTERNAL", detail: String(e && e.message) })}\n`); process.exit(70); });

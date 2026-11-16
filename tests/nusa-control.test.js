@@ -19,6 +19,7 @@ function world(opts = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "nusa-control-"));
   const stateDir = path.join(base, "state"); fs.mkdirSync(stateDir); fs.chmodSync(stateDir, 0o700);
   const etc = path.join(base, "etc"); fs.mkdirSync(etc); fs.chmodSync(etc, 0o755);
+  const runDir = path.join(base, "run"); fs.mkdirSync(runDir); fs.chmodSync(runDir, 0o700);
   for (const sha of [SHA, OTHER]) fs.mkdirSync(path.join(base, "releases", sha), { recursive: true });
   const currentLink = path.join(base, "current");
   fs.symlinkSync(path.join(base, "releases", SHA), currentLink);
@@ -64,7 +65,7 @@ function world(opts = {}) {
     now: () => (opts.wallBackwards ? (wall -= 10_000) : wall),
     monotonic: () => mono,
     sleep: async (ms) => { mono += ms; wall += ms; (w.slept ||= []).push(ms); },
-    config: { stateDir, modeFile: w.modeFile, currentLink, startCeilingMs: 60_000, pollMs: 5_000, expectedUid: UID, checkAncestors: false },
+    config: { stateDir, runDir, releasesDir: path.join(base, "releases"), modeFile: w.modeFile, currentLink, startCeilingMs: 60_000, pollMs: 5_000, expectedUid: UID, checkAncestors: false },
   });
   w.store = stateStore(fs, stateDir, UID);
   w.setLink = (sha) => { fs.rmSync(currentLink); fs.symlinkSync(path.join(base, "releases", sha), currentLink); };
@@ -272,9 +273,8 @@ test("the state schema refuses PAPER_ORDERS, a grant, an attempt, unknown fields
   }
 });
 
-test("release and grant-orders are not available in this version", posixOnly, async () => {
+test("grant-orders is not available in this version (release has its own test file)", posixOnly, async () => {
   const w = world();
-  assert.equal((await w.ctl.release(SHA)).code, "NOT_AVAILABLE");
   assert.equal((await w.ctl["grant-orders"](SHA)).code, "NOT_AVAILABLE");
   assert.equal(w.calls.length, 0);
 });
@@ -337,7 +337,7 @@ test("the verify retries are bounded below the wait of an emergency stop, which 
   const sh = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.sh"), "utf8");
   const probe = Number(/timeoutMs = (\d+)/.exec(src)[1]);            // the real per-probe timeout of hostIdentifiedHealth
   const worst = (DEFAULTS.verifyNoAnswerAttempts - 1) * DEFAULTS.verifyNoAnswerRetryMs + DEFAULTS.verifyNoAnswerAttempts * probe;
-  const stopWait = Number(/stop\) flock -w (\d+) 9/.exec(sh)[1]) * 1000;
+  const stopWait = Number(/if ! flock -w (\d+) 9; then/.exec(sh.slice(sh.indexOf("stop)")))[1]) * 1000;
   assert.ok(stopWait >= 2 * worst, `an emergency stop waits ${stopWait} ms for the lock; verify can hold it for at most ${worst} ms`);
   assert.match(sh, /reconcile\|verify\)\s+if ! flock -n 9/, "verify and reconcile still never wait for another command");
 });

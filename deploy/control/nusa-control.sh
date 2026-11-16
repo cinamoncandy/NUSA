@@ -19,7 +19,19 @@ case "${1:-}" in
   reconcile|verify)
     if ! flock -n 9; then exec /usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa-control/nusa-control.js "$@" --readonly; fi ;;
   # An emergency stop waits longer than a periodic verify can hold the lock (its retries are bounded, see nusa-control.js).
-  stop) flock -w 90 9 || fail LOCK_BUSY ;;
+  # The stop marker is created BEFORE waiting for the lock (design C4 3.4): from then on the start gate denies every start. The marker names
+  # this process (pid and start time) so a leftover one can be told from a live stop; it is exclusive (noclobber) and root-only.
+  # If the lock is still not free after 90 s, the units are stopped directly (stopping is always safe) and the marker stays.
+  stop)
+    ident="$(sed -E 's/^.*\) //' "/proc/$$/stat" | cut -d' ' -f20)"
+    ( set -o noclobber; printf '{"pid":%s,"ident":"%s","createdAt":%s}\n' "$$" "$ident" "$(date +%s%3N)" > "${LOCK_DIR}/stop-requested" ) 2>/dev/null || true
+    if ! flock -w 90 9; then
+      for unit in nusa-research.timer nusa.service nusa-research.service; do
+        systemctl disable "$unit" >/dev/null 2>&1 || true
+        systemctl stop "$unit" >/dev/null 2>&1 || true
+      done
+      printf '{"ok":false,"code":"STOP_UNLOCKED"}\n'; exit 75
+    fi ;;
   *) flock -w 30 9 || fail LOCK_BUSY ;;
 esac
 exec /usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa-control/nusa-control.js "$@"
