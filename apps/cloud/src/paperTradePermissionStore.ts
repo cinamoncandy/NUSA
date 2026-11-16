@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
-import type { PaperTradePermissionAuthority, PaperTradePermissionQuery, PaperTradePermissionRecord } from "../paperTradePermissionGuard";
-import type { TradePermissionPolicy } from "../tradePermissionEngine";
+import type { PaperTradePermissionAuthority, PaperTradePermissionQuery, PaperTradePermissionRecord } from "./paperTradePermissionGuard";
+import type { TradePermissionPolicy } from "./tradePermissionEngine";
 
 /**
  * Durable, append-only canonical permit store (design: docs/NUSA_PERMIT_PRODUCER_DESIGN_2026-11-16.md, section 3).
  *
- * NOT WIRED into the runtime. Nothing in production imports this file (it lives in its own folder because the cloud
- * reachability baseline governs top-level modules, and this one is intentionally unreached until the wiring step; the
- * baseline is not changed); a producer and the production wiring are later,
+ * NOT WIRED into the runtime. Nothing in production imports this file yet, so the cloud reachability gate
+ * (tests/cloud-unreached-baseline.test.js) correctly reports it as unreached and this change cannot merge until a
+ * reviewed step wires it in (the gate and its baseline are not changed and the file is not hidden from the gate). A producer and the production wiring are later,
  * separately reviewed steps. The store is the trusted state behind `PaperTradePermissionAuthority.isLatest` and
  * `evidenceExists`: `isLatest` is true only for the highest-sequence record of an intent, so a newer REJECT supersedes an
  * older PERMIT and an older record can never be replayed, across restarts.

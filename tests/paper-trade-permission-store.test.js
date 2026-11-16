@@ -8,7 +8,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { SqliteDatabase } = require("../dist/packages/storage/src/index.js");
 const { DatabaseSync } = require("node:sqlite");
-const { PaperTradePermissionStoreWriter, PaperTradePermissionStoreReader, permitSha256, evidenceReferenceFor } = require("../dist/apps/cloud/src/permits/paperTradePermissionStore.js");
+const { PaperTradePermissionStoreWriter, PaperTradePermissionStoreReader, permitSha256, evidenceReferenceFor } = require("../dist/apps/cloud/src/paperTradePermissionStore.js");
 const { refusePaperTradePermission } = require("../dist/apps/cloud/src/paperTradePermissionGuard.js");
 const kit = require("../dist/apps/cloud/src/testing/paperTradePermissionTestKit.js");
 
@@ -185,15 +185,15 @@ test("survives a restart: a new reader on the reopened file still refuses the ol
 
 test("source: the reader only reads, the boundary and the runtime never import the store, nothing in production wires it", () => {
   const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8").replace(/\r\n/g, "\n");
-  const store = read("apps/cloud/src/permits/paperTradePermissionStore.ts");
+  const store = read("apps/cloud/src/paperTradePermissionStore.ts");
   const reader = store.slice(store.indexOf("export class PaperTradePermissionStoreReader"));
   assert.doesNotMatch(reader, /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)\b|\.exec\(|\.run\(/, "the reader issues SELECT statements only");
   assert.match(reader, /handle: PermitStoreReadHandle/);
   for (const file of ["apps/cloud/src/cloudPaperExecutionBoundary.ts", "apps/cloud/src/paperTradePermissionGuard.ts", "apps/cloud/src/runtime.ts", "apps/cloud/src/closedLearningProductionRuntime.ts"]) {
-    assert.doesNotMatch(read(file), /paperTradePermissionStore|\/permits\//, `${file} does not import the store`);
+    assert.doesNotMatch(read(file), /paperTradePermissionStore/, `${file} does not import the store`);
   }
   const offenders = [];
-  const walk = (dir) => { for (const n of fs.readdirSync(dir)) { const p = path.join(dir, n); if (fs.statSync(p).isDirectory()) { if (n !== "node_modules" && n !== "testing" && n !== "permits") walk(p); } else if (/\.ts$/.test(n) && !/\.test\.ts$/.test(n) && n !== "paperTradePermissionStore.ts" && fs.readFileSync(p, "utf8").includes("paperTradePermissionStore")) offenders.push(p); } };
+  const walk = (dir) => { for (const n of fs.readdirSync(dir)) { const p = path.join(dir, n); if (fs.statSync(p).isDirectory()) { if (n !== "node_modules" && n !== "testing") walk(p); } else if (/\.ts$/.test(n) && !/\.test\.ts$/.test(n) && n !== "paperTradePermissionStore.ts" && fs.readFileSync(p, "utf8").includes("paperTradePermissionStore")) offenders.push(p); } };
   walk(path.join(__dirname, "..", "apps"));
   assert.deepEqual(offenders, [], "no production source imports the permit store yet");
 });
