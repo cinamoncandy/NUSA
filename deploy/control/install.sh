@@ -176,7 +176,9 @@ swap_in_install_set() {
       item="${undo_list[$i]}"; kind="${item%%|*}"; rest="${item#*|}"; x="${rest%%|*}"; y="${rest#*|}"
       case "$kind" in
         M) if ! mv -n -- "$y" "$x" || [ ! -e "$x" ] || [ -e "$y" ]; then RECOVERY_FAILED+=("$y should be at $x"); fi ;;
-        P) rm -f -- "$x"; if [ -e "$x" ] || [ -L "$x" ]; then RECOVERY_FAILED+=("$x should not exist"); fi ;;
+        # A file that was already renamed into place is renamed back to its *.new name (the reverse of the rename-in), never
+        # deleted: if a later restore fails, the bytes the owner needs for the recovery are all still there.
+        P) if ! mv -n -- "$x" "$x.new" || [ -e "$x" ] || [ ! -e "$x.new" ]; then RECOVERY_FAILED+=("$x should be back at $x.new"); fi ;;
       esac
     done
     if [ "${#RECOVERY_FAILED[@]}" -gt 0 ]; then KEEP_NEW=1; return 2; fi

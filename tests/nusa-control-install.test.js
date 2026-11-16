@@ -225,6 +225,9 @@ test("a restore that fails while undoing a failed swap is never reported as 'put
     for (let j = k + 1; j <= k + 6; j += 1) {
       const w = afterRollbackWorld({ countCommands: true });
       const before = w.snapshot();
+      const rd = (d, n) => fs.readFileSync(path.join(w.R, d, n));
+      const old = { state: sha256(rd("var/lib/nusa-control", "state.json")), manifest: sha256(rd("opt/nusa-control", "INSTALL-MANIFEST")), anchor: sha256(rd("var/lib/nusa-control", "install-manifest.sha256")), js: sha256(rd("opt/nusa-control", "nusa-control.js")), sh: sha256(rd("opt/nusa-control", "nusa-control.sh")),
+        manifestText: rd("opt/nusa-control", "INSTALL-MANIFEST").toString("utf8"), anchorText: rd("var/lib/nusa-control", "install-manifest.sha256").toString("utf8") };
       const r = w.runEnv({ MV_FAIL_AT: `${k},${j}` }, w.hash, "--apply", "--after-rollback");
       const out = r.stdout + r.stderr;
       if (r.status === 0) continue;
@@ -235,6 +238,14 @@ test("a restore that fails while undoing a failed swap is never reported as 'put
         assert.match(out, /should be at|should not exist/, `k=${k} j=${j}: says what is left where`);
         const listing = (d) => (fs.existsSync(path.join(w.R, d)) ? fs.readdirSync(path.join(w.R, d)) : []);
         const all = [...listing("var/lib/nusa-control"), ...listing("opt/nusa-control")];
+        // BYTE preservation: every old leftover and every prepared new file still exists under SOME name, none was deleted.
+        const present = new Set(); for (const d of ["var/lib/nusa-control", "opt/nusa-control"]) for (const n of listing(d)) present.add(sha256(fs.readFileSync(path.join(w.R, d, n))));
+        for (const [label, h] of Object.entries(old).filter(([l]) => !/Text$/.test(l))) assert.ok(present.has(h), `k=${k} j=${j}: the old ${label} survives byte for byte`);
+        for (const [label, f] of [["new nusa-control.js", "nusa-control.js"], ["new nusa-control.sh", "nusa-control.sh"]]) assert.ok(present.has(sha256(fs.readFileSync(path.join(w.src, f)))), `k=${k} j=${j}: the prepared ${label} survives byte for byte`);
+        const manifests = all.filter((n) => /^INSTALL-MANIFEST/.test(n)).map((n) => fs.readFileSync(path.join(w.R, "opt/nusa-control", n), "utf8"));
+        assert.ok(manifests.some((m) => m !== old.manifestText), `k=${k} j=${j}: the new manifest survives`);
+        const anchors = all.filter((n) => /^install-manifest\.sha256/.test(n)).map((n) => fs.readFileSync(path.join(w.R, "var/lib/nusa-control", n), "utf8"));
+        assert.ok(anchors.some((a) => a !== old.anchorText), `k=${k} j=${j}: the new anchor survives`);
         assert.ok(all.some((n) => /\.rolled-back-/.test(n)), `k=${k} j=${j}: the moved files are kept: ${all}`);
         assert.ok(all.some((n) => /\.new$/.test(n)), `k=${k} j=${j}: the prepared files are kept: ${all}`);
         assert.equal(fs.existsSync(path.join(w.R, "etc/nusa/run-mode.env")), false, `k=${k} j=${j}: nothing was installed after the swap`);
