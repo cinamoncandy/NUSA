@@ -220,9 +220,18 @@ test("re-install with a NEWER controller than the leftovers: every failure point
 
 test("a restore that fails while undoing a failed swap is never reported as 'put back': RECOVERY_REQUIRED, exit 3, every moved and prepared file kept", posixOnly, () => {
   // Fail one forward move k, and one later move j (which is then a restore inside undo). Sweep the pairs.
-  let recoveryCases = 0; let cleanCases = 0;
-  for (let k = 1; k <= 7; k += 1) {
-    for (let j = k + 1; j <= k + 6; j += 1) {
+  let recoveryCases = 0; let cleanCases = 0; const recoveryByK = new Map();
+  // --after-rollback does 9 forward moves (state aside; then manifest, anchor, controller js and sh: each moved aside and placed),
+  // so k covers 1..9, and a restore can be failed at any of up to 9 undo moves after it.
+  const FORWARD_MOVES = 9;
+  {
+    const w = afterRollbackWorld({ countCommands: true });
+    assert.equal(w.runEnv({ MV_FAIL_AT: String(FORWARD_MOVES + 1) }, w.hash, "--apply", "--after-rollback").status, 0, "there are exactly 9 forward moves: failing a 10th changes nothing");
+    const w2 = afterRollbackWorld({ countCommands: true });
+    assert.notEqual(w2.runEnv({ MV_FAIL_AT: String(FORWARD_MOVES) }, w2.hash, "--apply", "--after-rollback").status, 0, "and failing the 9th does fail the install");
+  }
+  for (let k = 1; k <= FORWARD_MOVES; k += 1) {
+    for (let j = k + 1; j <= k + FORWARD_MOVES; j += 1) {
       const w = afterRollbackWorld({ countCommands: true });
       const before = w.snapshot();
       const rd = (d, n) => fs.readFileSync(path.join(w.R, d, n));
@@ -232,7 +241,7 @@ test("a restore that fails while undoing a failed swap is never reported as 'put
       const out = r.stdout + r.stderr;
       if (r.status === 0) continue;
       if (/RECOVERY_REQUIRED/.test(out)) {
-        recoveryCases += 1;
+        recoveryCases += 1; recoveryByK.set(k, (recoveryByK.get(k) ?? 0) + 1);
         assert.equal(r.status, 3, `k=${k} j=${j}`);
         assert.doesNotMatch(out, /everything was put back/, `k=${k} j=${j}: never claimed`);
         assert.match(out, /should be at|should not exist/, `k=${k} j=${j}: says what is left where`);
@@ -257,6 +266,7 @@ test("a restore that fails while undoing a failed swap is never reported as 'put
   }
   assert.ok(recoveryCases > 0, "the sweep hit restores that failed");
   assert.ok(cleanCases > 0, "and failures that were cleanly put back");
+  for (let k = 2; k <= FORWARD_MOVES; k += 1) assert.ok((recoveryByK.get(k) ?? 0) > 0, `forward move ${k} was covered by at least one failing restore (RECOVERY_REQUIRED)`);
 });
 
 test("--after-rollback refuses anything that is not exactly a rollback leftover, and changes nothing", posixOnly, () => {
