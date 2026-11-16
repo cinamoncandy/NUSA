@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
-import type { PaperTradePermissionAuthority, PaperTradePermissionQuery, PaperTradePermissionRecord } from "./paperTradePermissionGuard";
-import type { TradePermissionPolicy } from "./tradePermissionEngine";
+import type { PaperTradePermissionAuthority, PaperTradePermissionQuery, PaperTradePermissionRecord } from "../paperTradePermissionGuard";
+import type { TradePermissionPolicy } from "../tradePermissionEngine";
 
 /**
  * Durable, append-only canonical permit store (design: docs/NUSA_PERMIT_PRODUCER_DESIGN_2026-11-16.md, section 3).
  *
- * NOT WIRED into the runtime. Nothing in production imports this file; a producer and the production wiring are later,
+ * NOT WIRED into the runtime. Nothing in production imports this file (it lives in its own folder because the cloud
+ * reachability baseline governs top-level modules, and this one is intentionally unreached until the wiring step; the
+ * baseline is not changed); a producer and the production wiring are later,
  * separately reviewed steps. The store is the trusted state behind `PaperTradePermissionAuthority.isLatest` and
  * `evidenceExists`: `isLatest` is true only for the highest-sequence record of an intent, so a newer REJECT supersedes an
  * older PERMIT and an older record can never be replayed, across restarts.
@@ -27,14 +29,19 @@ export interface PermitStoreReadHandle {
   prepare(sql: string): { get(...args: unknown[]): unknown; all(...args: unknown[]): unknown[] };
 }
 
+/**
+ * Evidence is stored WITH its content and is content-addressed: its reference must be `sha256:<hex of the content>`, so a
+ * reference can never be an arbitrary label and the store recomputes the hash on write and on read.
+ */
 export interface PermitEvidenceItem {
   readonly reference: string;
   readonly kind: string;
   readonly source: string;
   readonly observedAt: string;
-  /** SHA-256 (hex) of the evidence content held by the producer. */
-  readonly contentSha256: string;
+  readonly content: string;
 }
+
+export const evidenceReferenceFor = (content: string): string => `sha256:${createHash("sha256").update(content).digest("hex")}`;
 
 export const PERMIT_STORE_SCHEMA = `
 CREATE TABLE IF NOT EXISTS trade_permission_records (
@@ -57,6 +64,7 @@ CREATE TABLE IF NOT EXISTS trade_permission_evidence (
   kind TEXT NOT NULL CHECK(length(kind) > 0),
   source TEXT NOT NULL CHECK(length(source) > 0),
   observed_at TEXT NOT NULL CHECK(length(observed_at) > 0),
+  content TEXT NOT NULL,
   content_sha256 TEXT NOT NULL CHECK(length(content_sha256) = 64),
   PRIMARY KEY (decision_id, reference)
 );
@@ -66,7 +74,6 @@ CREATE TRIGGER IF NOT EXISTS trade_permission_evidence_no_update BEFORE UPDATE O
 CREATE TRIGGER IF NOT EXISTS trade_permission_evidence_no_delete BEFORE DELETE ON trade_permission_evidence BEGIN SELECT RAISE(ABORT, 'trade_permission_evidence is append-only'); END;
 `;
 
-const SHA256_HEX = /^[0-9a-f]{64}$/;
 export const permitSha256 = (permit: unknown): string => createHash("sha256").update(JSON.stringify(permit)).digest("hex");
 
 export class PaperTradePermissionStoreWriter {
@@ -88,18 +95,28 @@ export class PaperTradePermissionStoreWriter {
     if (typeof createdAt !== "string" || createdAt.trim() === "" || !Number.isFinite(Date.parse(createdAt))) throw new Error("createdAt must be an ISO timestamp");
     const references = [...permit.evidenceReferences];
     if (references.length === 0 || new Set(references).size !== references.length) throw new Error("a permit record needs unique evidence references");
-    for (const item of evidence) if (!SHA256_HEX.test(item.contentSha256)) throw new Error(`evidence ${item.reference} needs a SHA-256 content hash`);
+    for (const item of evidence) {
+      if (typeof item.content !== "string" || item.content === "") throw new Error(`evidence ${item.reference} needs its content`);
+      if (item.reference !== evidenceReferenceFor(item.content)) throw new Error(`evidence reference ${item.reference} is not the hash of its content`);
+    }
     return this.db.transaction(() => {
+      // Replay: a record must be strictly newer than the latest one of the intent, so an old PERMIT can never be re-appended
+      // above a newer REJECT (and the same permit can never be appended twice).
+      const latest = this.db.connection.prepare("SELECT permit_json FROM trade_permission_records WHERE decision_id = ? ORDER BY sequence DESC LIMIT 1").get(permit.decisionId) as { permit_json?: unknown } | undefined;
+      const newTime = Date.parse(permit.generatedAt);
+      if (!Number.isFinite(newTime)) throw new Error("permit generatedAt must be an ISO timestamp");
+      if (latest != null) {
+        const latestTime = Date.parse((JSON.parse(String(latest.permit_json)) as { generatedAt: string }).generatedAt);
+        if (!(newTime > latestTime)) throw new Error("a record must be strictly newer than the latest record of the intent");
+      }
       const selectEvidence = this.db.connection.prepare("SELECT content_sha256 FROM trade_permission_evidence WHERE decision_id = ? AND reference = ?");
-      const insertEvidence = this.db.connection.prepare("INSERT INTO trade_permission_evidence(decision_id, reference, kind, source, observed_at, content_sha256) VALUES(?,?,?,?,?,?)");
+      const insertEvidence = this.db.connection.prepare("INSERT INTO trade_permission_evidence(decision_id, reference, kind, source, observed_at, content, content_sha256) VALUES(?,?,?,?,?,?,?)");
       for (const reference of references) {
         const supplied = evidence.find((item) => item.reference === reference);
         const stored = selectEvidence.get(permit.decisionId, reference) as { content_sha256?: unknown } | undefined;
         if (supplied == null && stored == null) throw new Error(`evidence ${reference} is not in the store and was not supplied`);
-        if (supplied != null && stored != null) {
-          if (String(stored.content_sha256) !== supplied.contentSha256) throw new Error(`evidence ${reference} already exists with different content`);
-        } else if (supplied != null) {
-          insertEvidence.run(permit.decisionId, supplied.reference, supplied.kind, supplied.source, supplied.observedAt, supplied.contentSha256);
+        if (supplied != null && stored == null) {
+          insertEvidence.run(permit.decisionId, supplied.reference, supplied.kind, supplied.source, supplied.observedAt, supplied.content, createHash("sha256").update(supplied.content).digest("hex"));
         }
       }
       const result = this.db.connection.prepare(
@@ -116,6 +133,7 @@ interface RecordRow {
   readonly market: string;
   readonly policy_version: string;
   readonly model_version: string;
+  readonly decision: string;
   readonly permit_json: string;
   readonly input_json: string;
   readonly permit_sha256: string;
@@ -132,7 +150,7 @@ export class PaperTradePermissionStoreReader implements PaperTradePermissionAuth
 
   private latestRow(decisionId: string): RecordRow | undefined {
     return this.handle.prepare(
-      "SELECT sequence, strategy_id, market, policy_version, model_version, permit_json, input_json, permit_sha256 FROM trade_permission_records WHERE decision_id = ? ORDER BY sequence DESC LIMIT 1"
+      "SELECT sequence, strategy_id, market, policy_version, model_version, decision, permit_json, input_json, permit_sha256 FROM trade_permission_records WHERE decision_id = ? ORDER BY sequence DESC LIMIT 1"
     ).get(decisionId) as RecordRow | undefined;
   }
 
@@ -143,7 +161,7 @@ export class PaperTradePermissionStoreReader implements PaperTradePermissionAuth
     if (createHash("sha256").update(row.permit_json).digest("hex") !== row.permit_sha256) throw new Error("stored permit does not match its hash");
     const permit = JSON.parse(row.permit_json);
     const input = JSON.parse(row.input_json);
-    if (permit.strategyId !== row.strategy_id || permit.market !== row.market || permit.policyVersion !== row.policy_version || permit.probabilityModelVersion !== row.model_version) {
+    if (permit.strategyId !== row.strategy_id || permit.market !== row.market || permit.policyVersion !== row.policy_version || permit.probabilityModelVersion !== row.model_version || permit.decision !== row.decision) {
       throw new Error("stored permit does not match its row");
     }
     return { permit, input };
@@ -151,8 +169,13 @@ export class PaperTradePermissionStoreReader implements PaperTradePermissionAuth
 
   public evidenceExists(references: readonly string[], query: PaperTradePermissionQuery): boolean {
     if (!Array.isArray(references) || references.length === 0) return false;
-    const select = this.handle.prepare("SELECT 1 AS present FROM trade_permission_evidence WHERE decision_id = ? AND reference = ?");
-    return references.every((reference) => select.get(query.decisionId, reference) != null);
+    const select = this.handle.prepare("SELECT content, content_sha256 FROM trade_permission_evidence WHERE decision_id = ? AND reference = ?");
+    return references.every((reference) => {
+      const row = select.get(query.decisionId, reference) as { content?: unknown; content_sha256?: unknown } | undefined;
+      if (row == null || typeof row.content !== "string") return false;
+      // The stored content must still hash to its address and to its recorded hash; a damaged or edited item is not evidence.
+      return reference === evidenceReferenceFor(row.content) && String(row.content_sha256) === createHash("sha256").update(row.content).digest("hex");
+    });
   }
 
   public isLatest(record: PaperTradePermissionRecord, query: PaperTradePermissionQuery): boolean {
