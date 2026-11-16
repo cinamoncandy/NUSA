@@ -60,3 +60,10 @@ test("the command-line text names the result and states NOT DEPLOYED for every n
   const moved = main({ SOURCE_SHA: S, BACKUP_JOB: "success", RELEASE_JOB: "success", DEPLOYMENT_RESULT: "SKIPPED_MAIN_MOVED", HEALTH_SHA: "" });
   assert.match(moved.text, /NOT DEPLOYED: SUPERSEDED \(PROTECTED_MAIN_MOVED\)/);
 });
+
+test("stage_only is reported as STAGED_ONLY: never a deployment, and the run does not fail", () => {
+  const v = decide({ ...ok, deploymentResult: "STAGED_ONLY", healthSha: T });
+  assert.deepEqual([v.deployed, v.result], [false, "STAGED_ONLY"]);
+  assert.match(main({ SOURCE_SHA: S, BACKUP_JOB: "success", RELEASE_JOB: "success", DEPLOYMENT_RESULT: "STAGED_ONLY", HEALTH_SHA: "" }).text, /NOT DEPLOYED: STAGED_ONLY/);
+  assert.equal(decide({ ...ok, deploymentResult: "STAGED_ONLY", releaseJob: "failure" }).result, "FAILED", "a staged-only receipt from a failed job is a failure");
+});

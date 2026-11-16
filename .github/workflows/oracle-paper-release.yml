@@ -16,6 +16,19 @@ on:
         description: Full 40-character commit SHA to release. Must be current protected main.
         required: true
         type: string
+      stage_only:
+        description: Stop after staging the release directory (no preflight, no activation). Used to stage a release for the owner's in-place controller upgrade (install.sh --upgrade-controller).
+        required: false
+        default: false
+        type: boolean
+      activation:
+        description: "helper = the reviewed host helper activates (default, unchanged). controller = the host controller release verb (needs the controller that has the release verb and its runner rule)."
+        required: false
+        default: helper
+        type: choice
+        options:
+          - helper
+          - controller
 
 permissions:
   contents: read
@@ -179,6 +192,7 @@ jobs:
     # The final verdict job reads this receipt; it never trusts the job conclusion alone (a superseded run ends "success").
     outputs:
       deploymentResult: ${{ steps.record.outputs.deploymentResult }}
+      controllerOutcome: ${{ steps.record.outputs.controllerOutcome }}
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa
@@ -233,11 +247,11 @@ jobs:
         run: sudo "$STEP" stage "$SOURCE_SHA" "$RELEASE_TREE"
 
       - name: Preflight host and security contract
-        if: steps.source_fresh.outputs.fresh == 'true'
+        if: steps.source_fresh.outputs.fresh == 'true' && !inputs.stage_only
         run: sudo "$STEP" preflight "$SOURCE_SHA"
 
       - name: Recheck exact protected main immediately before activation
-        if: steps.source_fresh.outputs.fresh == 'true'
+        if: steps.source_fresh.outputs.fresh == 'true' && !inputs.stage_only
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -248,9 +262,22 @@ jobs:
             exit 1
           }
 
-      - name: Atomically activate exact release and prove both runtimes
-        if: steps.source_fresh.outputs.fresh == 'true'
+      - name: Atomically activate exact release and prove both runtimes (helper)
+        if: steps.source_fresh.outputs.fresh == 'true' && !inputs.stage_only && inputs.activation == 'helper'
         run: sudo "$STEP" activate "$SOURCE_SHA"
+
+      # The controller runs the same reviewed helper as a child under its own start gate, verifies the runtime itself and
+      # records the build; its one-line result is the outcome (only DEPLOYED is a deployment; the verdict job checks it again).
+      - name: Release through the host controller
+        id: controller
+        if: steps.source_fresh.outputs.fresh == 'true' && !inputs.stage_only && inputs.activation == 'controller'
+        run: |
+          set -uo pipefail
+          OUT="$(sudo /opt/nusa-control/nusa-control.sh release "$SOURCE_SHA")"; RC=$?
+          printf '%s\n' "$OUT"
+          OUTCOME="$(printf '%s\n' "$OUT" | tail -n 1 | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);process.stdout.write(typeof o.outcome==="string"&&/^[A-Z_]{3,30}$/.test(o.outcome)?o.outcome:"")}catch{}})')"
+          echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
+          if [ "$OUTCOME" != DEPLOYED ] || [ "$RC" != 0 ]; then echo "::error::controller release outcome: ${OUTCOME:-none} (exit $RC)"; exit 1; fi
 
       - name: Record deployed identity and fail-closed authority
         id: record
@@ -258,6 +285,8 @@ jobs:
         env:
           SOURCE_FRESH: ${{ steps.source_fresh.outputs.fresh }}
           JOB_STATUS: ${{ job.status }}
+          STAGE_ONLY: ${{ inputs.stage_only }}
+          CONTROLLER_OUTCOME: ${{ steps.controller.outputs.outcome }}
         run: |
           set -euo pipefail
           CURRENT_RELEASE="$(readlink -f "$NUSA_DEPLOY_ROOT/current" || echo UNKNOWN)"
@@ -267,6 +296,8 @@ jobs:
             RESULT=SKIPPED_MAIN_MOVED
           elif [ "$JOB_STATUS" != "success" ]; then
             RESULT=FAILED
+          elif [ "$STAGE_ONLY" = "true" ]; then
+            RESULT=STAGED_ONLY
           elif [ "$(basename "$CURRENT_RELEASE")" = "$SOURCE_SHA" ]; then
             RESULT=DEPLOYED
           else
@@ -274,6 +305,7 @@ jobs:
           fi
           echo "deploymentResult=$RESULT"
           echo "deploymentResult=$RESULT" >> "$GITHUB_OUTPUT"
+          echo "controllerOutcome=$CONTROLLER_OUTCOME" >> "$GITHUB_OUTPUT"
           echo "::notice::deploymentResult=$RESULT source=$SOURCE_SHA"
           printf '### Oracle PAPER release\n\n| deploymentResult | requestedSource | currentRelease |\n| --- | --- | --- |\n| %s | %s | %s |\n' "$RESULT" "$SOURCE_SHA" "$CURRENT_RELEASE" >> "$GITHUB_STEP_SUMMARY"
           if [ "$RESULT" = "FAILED_ACTIVATION_IDENTITY" ]; then echo "::error::activation reported success but current does not resolve to $SOURCE_SHA"; exit 1; fi
@@ -294,6 +326,7 @@ jobs:
       BACKUP_JOB: ${{ needs.backup.result }}
       RELEASE_JOB: ${{ needs.release.result }}
       DEPLOYMENT_RESULT: ${{ needs.release.outputs.deploymentResult }}
+      CONTROLLER_OUTCOME: ${{ needs.release.outputs.controllerOutcome }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
