@@ -128,10 +128,59 @@ managed_files_sound() {
   done
   for f in $(managed_files) opt/nusa-control/INSTALL-MANIFEST; do
     p="$R/$f"
+    # not installed yet (or already removed): nothing to check; a rollback is allowed at every failure point
+    if [ ! -e "$p" ] && [ ! -L "$p" ]; then continue; fi
     [ -f "$p" ] && [ ! -L "$p" ] || return 1
     owner="$(stat -c '%u' -- "$p")"; mode="$(stat -c '%a' -- "$p")"
     { [ -n "$R" ] || [ "$owner" = 0 ]; } && [ $(( 8#$mode & 8#022 )) -eq 0 ] || return 1
   done
+}
+
+S=""   # the verified private copy (set by apply)
+# SHA-256 of what apply installs at a path relative to the root, from the verified private copy (or the literal mode file).
+expected_hash() {
+  case "$1" in
+    etc/nusa/run-mode.env) printf 'NUSA_RUN_MODE=COLLECT_ONLY\n' | sha256sum | cut -d' ' -f1 ;;
+    opt/nusa-control/nusa-control.js) sha256sum -- "$S/nusa-control.js" | cut -d' ' -f1 ;;
+    opt/nusa-control/nusa-control.sh) sha256sum -- "$S/nusa-control.sh" | cut -d' ' -f1 ;;
+    etc/systemd/system/*.d/*) sha256sum -- "$S/dropins/${1#etc/systemd/system/}" | cut -d' ' -f1 ;;
+    etc/systemd/system/*) sha256sum -- "$S/${1##*/}" | cut -d' ' -f1 ;;
+    *) return 1 ;;
+  esac
+}
+# Every managed file that exists must match the manifest; a file that does not exist (not installed yet, or already removed)
+# is fine, because a rollback is allowed at every failure point of an install.
+verify_manifest_files() {
+  local h p
+  while read -r h p; do
+    [[ "$h" =~ ^[0-9a-f]{64}$ ]] && [ -n "$p" ] || return 1
+    if [ -e "$R/$p" ] || [ -L "$R/$p" ]; then
+      [ -f "$R/$p" ] && [ ! -L "$R/$p" ] || return 1
+      [ "$(sha256sum -- "$R/$p" | cut -d' ' -f1)" = "$h" ] || return 1
+    fi
+  done < "$MANIFEST_FILE"
+}
+# Write the new manifest and anchor next to the old ones (as *.new) and swap them in; with --after-rollback the old state,
+# manifest and anchor are moved aside first (never deleted, collision-proof names) and every step is undone if one fails.
+swap_in_manifest() {
+  local stamp state="$R/var/lib/nusa-control/state.json" t pair moved=()
+  undo() { for pair in "${moved[@]}"; do mv -n -- "${pair#*|}" "${pair%%|*}" || true; done; rm -f -- "$MANIFEST_FILE.new" "$MANIFEST_ANCHOR.new"; }
+  if [ "$AFTER" = 1 ]; then
+    stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+    for t in "$state.rolled-back-$stamp" "$MANIFEST_FILE.rolled-back-$stamp" "$MANIFEST_ANCHOR.rolled-back-$stamp"; do
+      if [ -e "$t" ] || [ -L "$t" ]; then undo; return 1; fi
+    done
+    for pair in "$state|$state.rolled-back-$stamp" "$MANIFEST_FILE|$MANIFEST_FILE.rolled-back-$stamp" "$MANIFEST_ANCHOR|$MANIFEST_ANCHOR.rolled-back-$stamp"; do
+      mv -n -- "${pair%%|*}" "${pair#*|}" || { undo; return 1; }
+      moved+=("$pair")
+      # mv -n skips silently when the target exists: the source must really be gone and the target really be there.
+      if [ -e "${pair%%|*}" ] || [ ! -e "${pair#*|}" ]; then undo; return 1; fi
+    done
+  fi
+  mv -n -- "$MANIFEST_FILE.new" "$MANIFEST_FILE" || { undo; return 1; }
+  if [ -e "$MANIFEST_FILE.new" ]; then undo; return 1; fi
+  mv -n -- "$MANIFEST_ANCHOR.new" "$MANIFEST_ANCHOR" || { rm -f -- "$MANIFEST_FILE"; undo; return 1; }
+  if [ -e "$MANIFEST_ANCHOR.new" ]; then rm -f -- "$MANIFEST_FILE"; undo; return 1; fi
 }
 
 # After a rollback of this script the controller files, the install manifest, its anchor and the state file are kept for
@@ -141,13 +190,15 @@ managed_files_sound() {
 rolled_back_leftovers_ok() {
   local state="$R/var/lib/nusa-control/state.json" f
   [ -f "$state" ] && [ ! -L "$state" ] || return 1
-  node -e 'const s=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")); process.exit(s.desired==="STOPPED" && s.attempt===null && s.intent===null && s.grant===null ? 0 : 1)' "$state" || return 1
   [ -f "$MANIFEST_FILE" ] && [ ! -L "$MANIFEST_FILE" ] && [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] || return 1
   [ "$(sha256sum -- "$MANIFEST_FILE" | cut -d' ' -f1)" = "$(cat -- "$MANIFEST_ANCHOR")" ] || return 1
   for f in opt/nusa-control/nusa-control.js opt/nusa-control/nusa-control.sh; do
     [ -f "$R/$f" ] && [ ! -L "$R/$f" ] || return 1
     grep -qF "$(sha256sum -- "$R/$f" | cut -d' ' -f1)  $f" "$MANIFEST_FILE" || return 1
   done
+  # The state must be a VALID controller state (the controller's own validator: schema, version, active, adopted, proven, no
+  # unknown field, no attempt, no grant), STOPPED, with no pending intent. The controller file was verified against the manifest above.
+  node -e 'const fs=require("fs"); const c=require(process.argv[1]); const s=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); c.validateState(s); process.exit(s.desired==="STOPPED" && s.intent===null ? 0 : 1)' "$R/opt/nusa-control/nusa-control.js" "$state" || return 1
   for f in $(managed_files); do
     case "$f" in opt/nusa-control/*) ;; *) [ ! -e "$R/$f" ] && [ ! -L "$R/$f" ] || return 1 ;; esac
   done
@@ -193,33 +244,28 @@ apply() {
   cp -a --no-dereference -- "$SRC/." "$stage/"
   no_symlinks_in "$stage" || die "the private copy contains a symlink"
   [ "$(manifest_hash "$stage")" = "$HASH_ARG" ] || die "the private copy does not match the reviewed manifest hash"
-  local S="$stage"
+  S="$stage"
+  local u c f
+  CURRENT="state directory and controller directory"; step "$CURRENT"
+  install "${OWN[@]}" -d -m 0700 "$R/var/lib/nusa-control"
+  install "${OWN[@]}" -d -m 0755 "$R/opt/nusa-control"
+  CURRENT="install manifest"; step "$CURRENT"
+  # Written FIRST, from the verified private copy: a rollback then works at every later failure point.
+  for f in $(managed_files); do printf '%s  %s\n' "$(expected_hash "$f")" "$f"; done > "$stage/manifest.out"
+  install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE.new"
+  sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR.new"
+  swap_in_manifest || die "could not set the old leftovers aside or write the manifest; everything was put back and nothing else was changed"
   CURRENT="mode file"; step "$CURRENT"
   install "${OWN[@]}" -m 0644 /dev/stdin "$R/etc/nusa/run-mode.env" <<<"NUSA_RUN_MODE=COLLECT_ONLY"
-  CURRENT="state directory"; step "$CURRENT"
-  install "${OWN[@]}" -d -m 0700 "$R/var/lib/nusa-control"
   CURRENT="controller files"; step "$CURRENT"
-  install "${OWN[@]}" -d -m 0755 "$R/opt/nusa-control"
   install "${OWN[@]}" -m 0755 "$S/nusa-control.js" "$R/opt/nusa-control/nusa-control.js"
   install "${OWN[@]}" -m 0755 "$S/nusa-control.sh" "$R/opt/nusa-control/nusa-control.sh"
   CURRENT="units and drop-ins"; step "$CURRENT"
-  local u c
   for u in $UNITS_TOP; do install "${OWN[@]}" -m 0644 "$S/$u" "$R/etc/systemd/system/$u"; done
   for u in $DROPIN_UNITS; do
     install "${OWN[@]}" -d -m 0755 "$R/etc/systemd/system/$u.d"
     for c in "$S"/dropins/"$u".d/*.conf; do install "${OWN[@]}" -m 0644 "$c" "$R/etc/systemd/system/$u.d/$(basename "$c")"; done
   done
-  CURRENT="install manifest"; step "$CURRENT"
-  if [ "$AFTER" = 1 ]; then
-    # Set the rolled-back leftovers aside (kept, never deleted) so the controller starts from a clean state again.
-    local stamp; stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-    mv -- "$R/var/lib/nusa-control/state.json" "$R/var/lib/nusa-control/state.json.rolled-back-$stamp"
-    mv -- "$MANIFEST_FILE" "$MANIFEST_FILE.rolled-back-$stamp"
-    mv -- "$MANIFEST_ANCHOR" "$MANIFEST_ANCHOR.rolled-back-$stamp"
-  fi
-  ( cd "${R:-/}" && managed_files | xargs sha256sum ) > "$stage/manifest.out"
-  install "${OWN[@]}" -m 0644 "$stage/manifest.out" "$MANIFEST_FILE"
-  sha256sum -- "$stage/manifest.out" | cut -d' ' -f1 | install "${OWN[@]}" -m 0600 /dev/stdin "$MANIFEST_ANCHOR"
   sysctl daemon-reload
   CURRENT="enable the gate and the periodic verify"; step "$CURRENT"
   sysctl enable nusa-control-reconcile.service nusa-control-verify.timer
@@ -241,7 +287,7 @@ rollback() {
   [ -f "$MANIFEST_FILE" ] && [ ! -L "$MANIFEST_FILE" ] || die "no install manifest at $MANIFEST_FILE; refusing to roll back (nothing was changed)"
   [ -f "$MANIFEST_ANCHOR" ] && [ ! -L "$MANIFEST_ANCHOR" ] && [ "$(sha256sum -- "$MANIFEST_FILE" | cut -d' ' -f1)" = "$(cat -- "$MANIFEST_ANCHOR")" ] || die "the install manifest does not match its anchor in the state directory; refusing to roll back (nothing was changed)"
   managed_files_sound || die "a managed file is missing, is a link, or has unsafe owner or mode; refusing to roll back (nothing was changed)"
-  ( cd "${R:-/}" && sha256sum --check --strict --quiet "$MANIFEST_FILE" ) >/dev/null 2>&1 || die "a managed file differs from the install manifest; refusing to roll back (nothing was changed)"
+  verify_manifest_files || die "a managed file differs from the install manifest; refusing to roll back (nothing was changed)"
   orders_off_everywhere || die "orders are not OFF from every environment source; refusing to roll back (nothing was changed)"
   sysctl disable --now nusa-control-verify.timer 2>/dev/null || true
   sysctl disable nusa-control-reconcile.service 2>/dev/null || true

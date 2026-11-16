@@ -176,9 +176,11 @@ function stopAll(sys) {
 // requires that process to be in the nusa.service cgroup, all while the connection is open and before the answer is read.
 // A stale or foreign process on the port, or a listener swapped between checks, can therefore never pass.
 async function verifyRuntime(deps, cfg, expectedSha, expectedMode) {
-  let r;
-  try { r = await deps.identifiedHealth(cfg.healthPort); } catch { r = null; }
-  if (!r || !Array.isArray(r.ownerPids) || r.ownerPids.length === 0) return { ok: false, reason: "SENDER_UNKNOWN", ...(r && r.diag ? { diag: r.diag } : {}) };
+  let r; let error = null;
+  try { r = await deps.identifiedHealth(cfg.healthPort); } catch (e) { r = null; error = e; }
+  // The diagnostics survive every failure path: the identification record, or the connection/response error with its record.
+  const diag = (r && r.diag) || (error && error.diag) || null;
+  if (!r || !Array.isArray(r.ownerPids) || r.ownerPids.length === 0) return { ok: false, reason: "SENDER_UNKNOWN", ...(diag ? { diag } : {}), ...(error ? { error: String(error.message || error).slice(0, 120) } : {}) };
   for (const pid of r.ownerPids) {
     let cg;
     try { cg = deps.cgroupOf(pid); } catch { cg = null; }
@@ -296,7 +298,7 @@ function makeController(deps) {
         if (isWrongAnswer(last)) throw new ControlError(last.reason, JSON.stringify(last));
         await sleep(cfg.pollMs);
       }
-      throw new ControlError("START_CEILING", `not verified within ${cfg.startCeilingMs} ms (last ${last && last.reason})`);
+      throw new ControlError("START_CEILING", `not verified within ${cfg.startCeilingMs} ms (last ${last ? JSON.stringify(last).slice(0, 600) : "none"})`);
     } catch (e) {
       const out = stoppedResult(e.code || "COLLECT_FAILED", { detail: e.message });
       // The intent stays recorded if this write fails; the boot reconcile or a later stop completes it as STOPPED.
@@ -453,16 +455,20 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000, iden
   const net = require("node:net");
   return new Promise((resolve, reject) => {
     const socket = net.connect({ host, port });
-    const timer = setTimeout(() => { socket.destroy(); reject(new Error("health timeout")); }, timeoutMs);
+    const diag = { attempts: 0, waitedMs: 0, inodes: [], holders: 0, tableErrors: 0, tableError: null, requestSent: false };
+    const fail = (e) => { clearTimeout(timer); try { socket.destroy(); } catch { /* already closed */ } e.diag = diag; reject(e); };
+    const timer = setTimeout(() => fail(new Error("health timeout")), timeoutMs);
     let ownerPids = null;
     const chunks = [];
-    const diag = { attempts: 0, waitedMs: 0, inodes: [], holders: 0 };
     socket.once("connect", () => {
-      const started = Date.now();
+      const t0 = process.hrtime.bigint();                                  // monotonic: a wall-clock change cannot stretch the budget
+      const elapsedMs = () => Number((process.hrtime.bigint() - t0) / 1_000_000n);
+      // A /proc read failure is recorded (and still treated as "no match"), so it can be told apart from "no such socket".
+      const tracked = (f) => { try { return readTable(f); } catch (e) { diag.tableErrors += 1; diag.tableError = String((e && e.code) || (e && e.message) || e).slice(0, 40); throw e; } };
       const identify = () => {
         let inodes = [];
-        try { inodes = serverSideInodes(readTable, { serverAddress: socket.remoteAddress, serverPort: port, clientAddress: socket.localAddress, clientPort: socket.localPort }); } catch { inodes = []; }
-        diag.attempts += 1; diag.waitedMs = Date.now() - started; diag.inodes = inodes.slice(0, 4);
+        try { inodes = serverSideInodes(tracked, { serverAddress: socket.remoteAddress, serverPort: port, clientAddress: socket.localAddress, clientPort: socket.localPort }); } catch { inodes = []; }
+        diag.attempts += 1; diag.waitedMs = elapsedMs(); diag.inodes = inodes.slice(0, 4);
         if (inodes.length > 1) return finish([]);                       // ambiguous: the sender is unknown
         if (inodes.length === 0 && diag.waitedMs < identifyBudgetMs) return void setTimeout(identify, pollMs);
         // Exactly one matching server-side socket, or the sender is unknown.
@@ -473,13 +479,16 @@ function hostIdentifiedHealth(port, { host = "127.0.0.1", timeoutMs = 5000, iden
       };
       const finish = (pids) => {
         ownerPids = pids; diag.holders = pids.length;
-        // The holders were read while the connection was open and BEFORE the request was sent.
+        // The request is ONLY sent to a sender that was identified (holders were read while the connection was open and BEFORE
+        // the request). An unidentified peer never receives it: the connection is closed and the sender is unknown.
+        if (pids.length === 0) { clearTimeout(timer); socket.destroy(); resolve({ body: null, ownerPids: [], diag }); return; }
+        diag.requestSent = true;
         socket.write(`GET /health HTTP/1.1\r\nHost: ${host}:${port}\r\nConnection: close\r\n\r\n`);
       };
       identify();
     });
     socket.on("data", (c) => chunks.push(c));
-    socket.on("error", (e) => { clearTimeout(timer); reject(e); });
+    socket.on("error", (e) => fail(e));
     socket.on("end", () => {
       clearTimeout(timer);
       const text = Buffer.concat(chunks).toString("utf8");

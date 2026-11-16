@@ -55,7 +55,7 @@ function world(opts = {}) {
   const fsx = { ...fs, ...fsOverrides };
   w.ctl = makeController({
     fs: fsx, systemctl,
-    identifiedHealth: async () => ({ body: body(), ownerPids: w.listener === "none" ? [] : [4242] }),
+    identifiedHealth: opts.identifiedHealth ?? (async () => ({ body: body(), ownerPids: w.listener === "none" ? [] : [4242] })),
     cgroupOf: () => (w.listener === "nusa" ? "0::/system.slice/nusa.service" : "0::/user.slice/user-1000.slice/session-1.scope"),
     unitActiveAgeMs: () => w.ageMs,
     selfIdentity: () => ({ pid: 4001, ident: "t1" }),
@@ -409,28 +409,58 @@ test("REAL-HOST REGRESSION (first collect on the host failed with SENDER_UNKNOWN
   } finally { child.kill("SIGKILL"); }
 });
 
-test("a server that never accepts within the identification budget is an unknown sender (fail closed), with diagnostics; the request is only sent after identification", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+test("a peer that is not identified within the budget never receives the request (the server sees none), and the sender is unknown", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
   const { spawn } = require("node:child_process");
-  const script = `const http=require("node:http");const s=http.createServer((q,r)=>{const b='{"runtime":{"x":true}}';r.writeHead(200,{"content-type":"application/json","content-length":String(b.length)});r.end(b);});s.listen(0,"127.0.0.1",()=>{process.stdout.write(String(s.address().port)+"\\n");const t=Date.now();while(Date.now()-t<1500){}});`;
+  // The child accepts only after about 1.5 s and prints REQUEST if it ever reads a request; after unblocking it keeps running.
+  const script = `const http=require("node:http");const s=http.createServer((q,r)=>{process.stdout.write("REQUEST\\n");const b='{"runtime":{"x":true}}';r.writeHead(200,{"content-length":String(b.length)});r.end(b);});s.listen(0,"127.0.0.1",()=>{process.stdout.write(String(s.address().port)+"\\n");const t=Date.now();while(Date.now()-t<1500){}});`;
   const child = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "inherit"] });
+  let out = "";
+  child.stdout.on("data", (d) => { out += String(d); });
   try {
-    const port = await new Promise((resolve) => child.stdout.once("data", (d) => resolve(Number(String(d).trim()))));
+    const port = await new Promise((resolve) => { const t = setInterval(() => { const m = /^(\d+)\n/.exec(out); if (m) { clearInterval(t); resolve(Number(m[1])); } }, 10); });
     const r = await hostIdentifiedHealth(port, { identifyBudgetMs: 300, timeoutMs: 4000 });
-    // The server only accepts after about 1.5 s: inside the 300 ms budget no owner may be claimed, whatever it answers later.
     assert.deepEqual(r.ownerPids, [], JSON.stringify(r.diag));
+    assert.equal(r.body, null);
+    assert.equal(r.diag.requestSent, false);
     assert.ok(r.diag.waitedMs >= 300 && r.diag.waitedMs < 1400 && r.diag.holders === 0, JSON.stringify(r.diag));
+    await new Promise((res) => setTimeout(res, 1800));                      // the server is unblocked and could have read a request by now
+    assert.doesNotMatch(out, /REQUEST/, "the unidentified peer never received the health request");
   } finally { child.kill("SIGKILL"); }
 });
 
-test("a failed identification reports its diagnostics (attempts, waited time, inodes) so the next real-host failure explains itself", () => {
-  const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
-  assert.match(src, /reason: "SENDER_UNKNOWN", \.\.\.\(r && r\.diag \? \{ diag: r\.diag \} : \{\}\)/);
+test("the identification diagnostics reach the final collect failure, for an unknown sender and for a connection error alike", posixOnly, async () => {
+  const diag = { attempts: 7, waitedMs: 3000, inodes: [], holders: 0, tableErrors: 0, tableError: null, requestSent: false };
+  const a = world({ identifiedHealth: async () => ({ body: null, ownerPids: [], diag }) });
+  await seed(a);
+  const ra = await a.ctl.collect();
+  assert.equal(ra.code, "START_CEILING");
+  assert.match(ra.detail, /SENDER_UNKNOWN/); assert.match(ra.detail, /"attempts":7/); assert.match(ra.detail, /"waitedMs":3000/); assert.match(ra.detail, /"requestSent":false/);
+  const b = world({ identifiedHealth: async () => { throw Object.assign(new Error("health timeout"), { diag: { ...diag, attempts: 2, tableErrors: 4, tableError: "EACCES" } }); } });
+  await seed(b);
+  const rb = await b.ctl.collect();
+  assert.equal(rb.code, "START_CEILING");
+  assert.match(rb.detail, /health timeout/); assert.match(rb.detail, /"tableErrors":4/); assert.match(rb.detail, /EACCES/);
+  assert.ok(allStopped(a) && allStopped(b));
+});
+
+test("a /proc table that cannot be read is told apart from 'no such socket' in the diagnostics", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
+  const http = require("node:http");
+  const server = http.createServer((q, r) => { r.writeHead(200, { "content-length": "2" }); r.end("{}"); });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const r = await hostIdentifiedHealth(server.address().port, { identifyBudgetMs: 200, readTable: () => { throw Object.assign(new Error("denied"), { code: "EACCES" }); } });
+    assert.deepEqual(r.ownerPids, []);
+    assert.ok(r.diag.tableErrors >= 2 && r.diag.tableError === "EACCES", JSON.stringify(r.diag));
+    assert.equal(r.diag.requestSent, false, "an unidentified peer gets no request");
+    const none = await hostIdentifiedHealth(server.address().port, { identifyBudgetMs: 100, readTable: () => "  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n" });
+    assert.equal(none.diag.tableErrors, 0, "no such socket is not a read error"); assert.equal(none.diag.requestSent, false);
+  } finally { server.close(); }
 });
 
 test("an ambiguous sender is unknown: two matching server-side sockets would not be accepted (unique inode required)", { skip: process.platform !== "linux" ? "needs /proc" : false }, async () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
   assert.match(src, /inode = inodes\.length === 1 \? inodes\[0\] : null;/);
-  assert.match(src, /BEFORE the request was sent/, "the holders are read while the connection is open, before the request");
+  assert.match(src, /BEFORE\s*\n?\s*\/\/ the request/, "the holders are read while the connection is open, before the request");
 });
 
 test("the sudo entry point checks the lock directory first and the OPEN lock file descriptor before flock", () => {
