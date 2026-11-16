@@ -1,0 +1,21 @@
+id: WO-OPS-20261116-LINUX-HOST-CONTROL-CI
+title: "CI: run the Linux-only host controller and installer tests on Linux"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/linux-host-control-tests
+objective: "The host controller (reads /proc) and its installer (bash) are Linux-only. The main CI runs on Windows, where those tests are skipped (the review of the controller fix found 34 of 43 controller tests and 13 of 14 installer tests skipped), so a change to them was never exercised by CI. Add a Linux job that runs them and fails if any is skipped."
+change:
+  - ".github/workflows/linux-host-control-tests.yml (new): on pull requests and pushes to main that touch deploy/control, deploy/oracle, the two test files or the workflow itself, run `node --test tests/nusa-control.test.js tests/nusa-control-install.test.js` on ubuntu-latest (Node 24, pinned actions, contents: read, persist-credentials: false). The job fails on any failed test AND on any skipped test, and requires at least one pass."
+not_changed:
+  - "No build, deploy, release, secret, host action or permission beyond contents: read. No test is changed. The existing CI is untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "Run locally on Linux: 51 tests pass, 0 skipped. validate-workflow-action-inputs, validate-workflow-action-pins and validate-workflow-authority-map pass; AIPOS, platform-independence and portability validators pass."
+unverified: "The job has not run on GitHub yet; its first run is on this pull request. Whether the repository wants this job as a required check is a separate decision."
+acceptance:
+  - "Non-author review of the workflow; the job passes on the exact head of this pull request."
