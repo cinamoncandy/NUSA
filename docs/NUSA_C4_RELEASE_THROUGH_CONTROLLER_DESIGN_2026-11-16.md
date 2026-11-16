@@ -1,6 +1,6 @@
 # C4 design: release through the controller (2026-11-16)
 
-Status: DESIGN for review and owner decisions. Nothing here changes code, the host or the order switch. Safety is unchanged:
+Status: DESIGN for review and owner decisions. Revised after the independent review of 2026-11-16 (REJECT: P0-1 state transitions, P0-2 crash recovery, P0-3 'main moved' outcome, P1 stop priority); sections 3.1 to 3.5 answer each finding. Nothing here changes code, the host or the order switch. Safety is unchanged:
 PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, orders OFF, Release=HOLD.
 
 ## 1. The problem, from 2026-11-16
@@ -35,6 +35,47 @@ New controller verb `release <sha>` (root, under the same lock as every verb; `s
    recorded. A failed release never leaves a half state and never starts anything that was not verified.
 6. The controller never sets `PAPER_ORDERS`; `grant-orders` stays "not available". A release changes the build only.
 
+### 3.1 State machine and the start gate (answers P0-1)
+
+The state file gets one intent kind next to `collect`: `RELEASE {from, to, phase, startedAt}` with `phase` in `PREPARED`, `UNITS_STOPPED`, `SWAPPING`, `SWAPPED`, `STARTING_NEW`, `ROLLING_BACK`, `STARTING_OLD`. Every phase change is one durable state write (write, fsync, rename, fsync the directory) BEFORE the step it announces.
+
+The start gate (`reconcile`, run by `Requires=` on the runtime units) permits a start only in exactly these cases and denies everything else:
+
+| State | The gate permits a start of the runtime units |
+| --- | --- |
+| `desired COLLECT_ONLY`, no intent, `active == current` | yes (normal) |
+| intent `RELEASE`, phase `STARTING_NEW`, `current == to` | yes, only while the release verb holds the lock |
+| intent `RELEASE`, phase `STARTING_OLD`, `current == from`, `from` is proven | yes, only while the release verb holds the lock |
+| any other RELEASE phase, or a RELEASE intent whose lock holder is gone | no (external or boot-time starts are refused) |
+| `desired STOPPED` | no |
+
+"Holds the lock" is checked, not assumed: the gate runs `flock -n` on the controller lock and a start is permitted for a RELEASE intent only when the lock is held by another process (the release verb). With no lock holder the intent is stale and recovery (3.2) runs instead of a start.
+
+### 3.2 Crash and failure recovery (answers P0-2)
+
+The symlink swap, `state.active` and the unit start are not one atomic operation, so the order makes every crash point decidable by comparing three facts: the intent phase, where `/opt/nusa/current` points, and `state.active`.
+
+| Phase when the process died | Recovery |
+| --- | --- |
+| `PREPARED`, `UNITS_STOPPED` | nothing was swapped: clear the intent, end STOPPED (or start the old build through `collect` if the owner runs it) |
+| `SWAPPING` (the link may or may not have moved) | read the link: if it equals `from`, as `PREPARED`; if it equals `to`, continue as `SWAPPED` |
+| `SWAPPED`, `STARTING_NEW` | the new build was never verified: move the link back to `from`, set `active = from`, phase `ROLLING_BACK`, then `STARTING_OLD` |
+| `ROLLING_BACK`, `STARTING_OLD` | finish the rollback to `from` if `from` is proven (a recorded proof from a verified start); otherwise end STOPPED |
+
+Recovery runs at the start of every controller command that takes the lock (so the next `release`, `collect`, `stop` or the periodic `reconcile` finishes or abandons a half release before anything else) and never starts anything that is not verified. If the link points at neither `from` nor `to`, or a proof is missing, the end state is STOPPED with the reason recorded; no step guesses. The rollback target must be a build with a recorded proof.
+
+### 3.3 Outcome contract (answers P0-3)
+
+`release` ends in exactly one of: `DEPLOYED` (new build verified), `ROLLED_BACK` (the previous proven build verified), `STOPPED_SAFE` (nothing verified, everything stopped, intent cleared), `REFUSED` (a precondition failed, nothing changed), `SUPERSEDED` (protected main moved before the host was touched, nothing changed). Only `DEPLOYED` is a release. The workflow's final step must read this one-line result: any other result is a visible non-DEPLOYED outcome (the job summary names it and the run is not reported as a deployment). Today's `oracle-paper-release.yml` ends its run with a SUCCESS conclusion when main moved (`deploymentResult=SKIPPED_MAIN_MOVED`, 2026-11-16 19:38 KST: stage and activate were skipped); the follow-up change makes that result a failing conclusion with the text "NOT DEPLOYED: protected main moved". Until then: nobody (agent or owner) reports a release as done from the run conclusion alone, only from `deploymentResult=DEPLOYED` and the host's reported build; and no PR is merged while a release runs.
+
+### 3.4 Emergency stop priority (answers P1)
+
+`stop` first creates the marker file `/run/nusa-control/stop-requested` (atomic, root only) and only then waits for the lock (90 s). The release verb checks the marker before every phase change, between probes and inside every wait; on the marker it takes the recovery path to STOPPED at once (no rollback start). Every wait inside `release` is at most one probe or one retry gap (about 13 s), so the lock is released well inside the 90 s of `stop`. The marker is removed by `stop` after the units are stopped and by recovery.
+
+### 3.5 Invariant enforcement and tests (answers the PAPER_ORDERS remark)
+
+Before every phase change the verb re-checks: orders OFF from every source, the mode file says `COLLECT_ONLY`, no unit or drop-in sets `NUSA_PAPER_ORDER_PATH`. A failure stops the release (`STOPPED_SAFE`). `PAPER_ORDERS` is not representable in the state, the mode file writer or any phase. The tests in section 5 inject a failure at every phase, a stale lock, a tampered order switch between phases and a `stop` during every phase.
+
 ## 4. What changes in the workflow and on the host
 
 - `oracle-paper-release.yml`: build and backup stay; the `activate` job calls `sudo nusa-control release <sha>` and reads its one-line JSON.
@@ -45,8 +86,10 @@ New controller verb `release <sha>` (root, under the same lock as every verb; `s
 
 ## 5. Tests the review should demand
 
-- A property test: a random crash or failure injected at every step of `release` ends in exactly one of: new build verified, previous build
-  verified, or STOPPED with the intent cleared; never a mixed state, never `PAPER_ORDERS`.
+- A property test: a random crash or failure injected at every phase of `release` (including both halves of the SWAPPING step) ends in exactly one of the outcomes of 3.3; never a mixed state, never `PAPER_ORDERS`; a stale RELEASE intent is recovered by the next controller command.
+- Gate tests: the table of 3.1 (a start is refused for every state not listed as permitted, and with no lock holder).
+- A `stop` issued during every phase wins within the 90 s lock wait.
+- A test for the outcome line the workflow reads (one JSON line, one of the five results).
 - The real `/health` of the cloud runtime (the new test of PR #3163) for the post-swap verification.
 - A test that `release` refuses with orders not OFF, with a pending intent, with an unstaged or malformed hash, and with the lock busy.
 - A rollback target test: only a build with a recorded proof is restored.
