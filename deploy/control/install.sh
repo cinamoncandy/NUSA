@@ -222,8 +222,9 @@ rolled_back_leftovers_ok() {
     grep -qF "$(sha256sum -- "$R/$f" | cut -d' ' -f1)  $f" "$MANIFEST_FILE" || return 1
   done
   # The state must be a VALID controller state (the controller's own validator: schema, version, active, adopted, proven, no
-  # unknown field, no attempt, no grant), STOPPED, with no pending intent. The controller file was verified against the manifest above.
-  node -e 'const fs=require("fs"); const c=require(process.argv[1]); const s=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); c.validateState(s); process.exit(s.desired==="STOPPED" && s.intent===null ? 0 : 1)' "$R/opt/nusa-control/nusa-control.js" "$state" || return 1
+  # unknown field, no attempt, no grant), STOPPED or COLLECT_ONLY (a rollback AFTER a verified install leaves COLLECT_ONLY: its units are
+  # removed and the next init stops everything and writes a fresh state), with no pending intent. The controller file was verified against the manifest above.
+  node -e 'const fs=require("fs"); const c=require(process.argv[1]); const s=JSON.parse(fs.readFileSync(process.argv[2],"utf8")); c.validateState(s); process.exit((s.desired==="STOPPED" || s.desired==="COLLECT_ONLY") && s.intent===null ? 0 : 1)' "$R/opt/nusa-control/nusa-control.js" "$state" || return 1
   for f in $(managed_files); do
     case "$f" in opt/nusa-control/*) ;; *) [ ! -e "$R/$f" ] && [ ! -L "$R/$f" ] || return 1 ;; esac
   done
@@ -246,8 +247,17 @@ preflight() {
   check "orders are OFF from every environment source (one NUSA_PAPER_ORDER_PATH=OFF line, nothing in the unit or drop-ins)" orders_off_everywhere
   check "no NUSA_RUN_MODE is set in the runtime environment file yet" bash -c "! grep -q '^NUSA_RUN_MODE=' '$R/etc/nusa/cloud-runtime.env'"
   check "nusa.service is active" sysctl is-active --quiet nusa.service
-  local health; health="$(curl -fsS -m 6 http://127.0.0.1:41731/health 2>/dev/null || true)"
-  check "/health is valid JSON from the commit $SHA in mode COLLECT_ONLY (the new runtime is running)" node -e 'const h=JSON.parse(process.argv[1]).runtime; process.exit(h && h.sourceCommitSha===process.argv[2] && h.runMode==="COLLECT_ONLY" ? 0 : 1)' "$health" "$SHA"
+  # A runtime that is busy for a few seconds (a synchronous research job) can miss one probe: ask up to 3 times, 5 s apart, read-only.
+  health_ok() {
+    local n health
+    for n in 1 2 3; do
+      health="$(curl -fsS -m 6 http://127.0.0.1:41731/health 2>/dev/null || true)"
+      node -e 'const h=JSON.parse(process.argv[1]).runtime; process.exit(h && h.sourceCommitSha===process.argv[2] && h.runMode==="COLLECT_ONLY" ? 0 : 1)' "$health" "$SHA" >/dev/null 2>&1 && return 0
+      [ "$n" = 3 ] || sleep "${NUSA_INSTALL_HEALTH_RETRY_SLEEP:-5}"
+    done
+    return 1
+  }
+  check "/health is valid JSON from the commit $SHA in mode COLLECT_ONLY (the new runtime is running)" health_ok
   if [ "$AFTER" = 1 ]; then
     check "only the leftovers of a rollback of this script exist (state STOPPED without attempt, intent or grant; manifest matches its anchor; controller files as recorded; no unit, drop-in or mode file installed)" rolled_back_leftovers_ok
   else
