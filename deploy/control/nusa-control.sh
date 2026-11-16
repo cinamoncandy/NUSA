@@ -18,6 +18,8 @@ exec 9>>"$LOCK_FILE" || fail LOCK_OPEN_FAILED
 case "${1:-}" in
   reconcile|verify)
     if ! flock -n 9; then exec /usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa-control/nusa-control.js "$@" --readonly; fi ;;
+  # An emergency stop waits longer than a periodic verify can hold the lock (its retries are bounded, see nusa-control.js).
+  stop) flock -w 90 9 || fail LOCK_BUSY ;;
   *) flock -w 30 9 || fail LOCK_BUSY ;;
 esac
 exec /usr/bin/env -u NODE_OPTIONS /usr/bin/node /opt/nusa-control/nusa-control.js "$@"

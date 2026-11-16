@@ -7,7 +7,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS } = require("../deploy/control/nusa-control.js");
+const { DEFAULTS, makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS } = require("../deploy/control/nusa-control.js");
 
 const SHA = "c".repeat(40);
 const OTHER = "d".repeat(40);
@@ -310,26 +310,50 @@ test("property: no sequence of verbs and faults reaches orders, loses the state,
 });
 
 test("verify asks again when the runtime is busy for a moment (real host 2026-11-16: a 14 s research job stopped a healthy runtime); a wrong answer is never retried", posixOnly, async () => {
-  // Old unit (past the start ceiling): one missing answer used to stop it. Now up to 4 probes, 20 s apart.
-  for (const answers of [[null], [null, null], [null, null, null]]) {
+  // Old unit (past the start ceiling): one missing answer used to stop it. Now up to 3 probes, 8 s apart.
+  for (const answers of [[null], [null, null]]) {
     const w = world({ healthAnswers: ["COLLECT_ONLY", ...answers, "COLLECT_ONLY"] }); await seed(w); await w.ctl.collect(); w.ageMs = 3_600_000;
     const r = await w.ctl.verify();
     assert.equal(r.code, "COLLECT_ONLY_VERIFIED", `${answers.length} missing answers then a good one`);
     assert.ok(!allStopped(w), "the runtime keeps running");
   }
-  // Four missing answers in a row is still a stop (fail closed).
-  const gone = world({ healthAnswers: ["COLLECT_ONLY", null, null, null, null, "COLLECT_ONLY"] }); await seed(gone); await gone.ctl.collect(); gone.ageMs = 3_600_000;
+  // Three missing answers in a row is still a stop (fail closed).
+  const gone = world({ healthAnswers: ["COLLECT_ONLY", null, null, null, "COLLECT_ONLY"] }); await seed(gone); await gone.ctl.collect(); gone.ageMs = 3_600_000;
   assert.match((await gone.ctl.verify()).code, /VERIFY_STOPPED/); assert.ok(allStopped(gone));
   // A wrong answer stops at once: the good answer queued behind it is never asked for.
   const wrong = world({ healthAnswers: ["COLLECT_ONLY", `COLLECT_ONLY@${OTHER}`, "COLLECT_ONLY"] }); await seed(wrong); await wrong.ctl.collect(); wrong.ageMs = 3_600_000;
   assert.match((await wrong.ctl.verify()).code, /BUILD_MISMATCH/); assert.ok(allStopped(wrong));
   const mode = world({ healthAnswers: ["COLLECT_ONLY", "PAPER_ORDERS", "COLLECT_ONLY"] }); await seed(mode); await mode.ctl.collect(); mode.ageMs = 3_600_000;
   assert.match((await mode.ctl.verify()).code, /MODE_MISMATCH/); assert.ok(allStopped(mode));
-  // The retries are spaced 20 s apart: 3 missing answers, then a good one, means 3 sleeps of 20 s.
-  const timed = world({ healthAnswers: ["COLLECT_ONLY", null, null, null, "COLLECT_ONLY"] }); await seed(timed); await timed.ctl.collect(); timed.ageMs = 3_600_000;
+  // The retries are spaced 8 s apart: 2 missing answers, then a good one, means 2 sleeps of 8 s.
+  const timed = world({ healthAnswers: ["COLLECT_ONLY", null, null, "COLLECT_ONLY"] }); await seed(timed); await timed.ctl.collect(); timed.ageMs = 3_600_000;
   timed.slept = [];
   assert.equal((await timed.ctl.verify()).code, "COLLECT_ONLY_VERIFIED");
-  assert.deepEqual(timed.slept, [20_000, 20_000, 20_000]);
+  assert.deepEqual(timed.slept, [8_000, 8_000]);
+});
+
+test("the verify retries are bounded below the wait of an emergency stop, which must not hit LOCK_BUSY while verify holds the lock", posixOnly, () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
+  const sh = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.sh"), "utf8");
+  const probe = Number(/timeoutMs = (\d+)/.exec(src)[1]);            // the real per-probe timeout of hostIdentifiedHealth
+  const worst = (DEFAULTS.verifyNoAnswerAttempts - 1) * DEFAULTS.verifyNoAnswerRetryMs + DEFAULTS.verifyNoAnswerAttempts * probe;
+  const stopWait = Number(/stop\) flock -w (\d+) 9/.exec(sh)[1]) * 1000;
+  assert.ok(stopWait >= 2 * worst, `an emergency stop waits ${stopWait} ms for the lock; verify can hold it for at most ${worst} ms`);
+  assert.match(sh, /reconcile\|verify\)\s+if ! flock -n 9/, "verify and reconcile still never wait for another command");
+});
+
+test("the runtime dying during the verify retries is a stop at once, not another probe", posixOnly, async () => {
+  let probes = 0; let w = null; let dieAt = Infinity;
+  w = world({ identifiedHealth: async () => {
+    probes += 1;
+    if (probes >= dieAt) { w.units["nusa.service"].active = false; return { body: null, ownerPids: [] }; }   // busy, then dead
+    return { body: { runtime: { runMode: "COLLECT_ONLY", sourceCommitSha: SHA } }, ownerPids: [4242] };
+  } });
+  await seed(w); await w.ctl.collect(); w.ageMs = 3_600_000;
+  probes = 0; dieAt = 1;                                              // the first verify probe gets no answer and the unit is gone
+  const r = await w.ctl.verify();
+  assert.match(r.code, /VERIFY_STOPPED:RUNTIME_NOT_ACTIVE/); assert.ok(allStopped(w));
+  assert.equal(probes, 1, "no second probe after the unit died");
 });
 
 test("verify tolerates a missing answer only while the unit is younger than the start ceiling; a wrong answer stops at once", posixOnly, async () => {

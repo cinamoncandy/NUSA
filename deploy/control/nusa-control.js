@@ -28,9 +28,11 @@ const DEFAULTS = Object.freeze({
   pollMs: 5000,
   // The periodic verify tolerates a runtime that is busy for a moment (a long synchronous research job can keep /health from
   // answering for about 15 s): "no answer" is asked again this many times, this far apart, before the runtime is stopped. A WRONG answer
-  // (other build, other mode, foreign sender) is never retried and stops at once.
-  verifyNoAnswerAttempts: 4,
-  verifyNoAnswerRetryMs: 20_000,
+  // (other build, other mode, foreign sender) is never retried and stops at once. The whole verify holds the controller lock, and an
+  // emergency `stop` waits for that lock (nusa-control.sh, 90 s): the worst case of the retries must stay far below that wait
+  // (2 x 8 s of sleeping plus 3 probes of at most 5 s each is about 31 s).
+  verifyNoAnswerAttempts: 3,
+  verifyNoAnswerRetryMs: 8_000,
 });
 
 class ControlError extends Error {
@@ -382,6 +384,8 @@ function makeController(deps) {
       let v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
       for (let n = 1; !v.ok && !isWrongAnswer(v) && n < cfg.verifyNoAnswerAttempts; n += 1) {
         await sleep(cfg.verifyNoAnswerRetryMs);
+        // The runtime may have died while we waited: that is a stop now, not another probe.
+        if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
         v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
       }
       if (v.ok) return { ok: true, code: "COLLECT_ONLY_VERIFIED" };
@@ -540,5 +544,5 @@ async function main(argv) {
   return out.ok ? 0 : 1;
 }
 
-module.exports = { makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
+module.exports = { DEFAULTS, makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
 if (require.main === module) main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { process.stdout.write(`${JSON.stringify({ ok: false, code: "INTERNAL", detail: String(e && e.message) })}\n`); process.exit(70); });
