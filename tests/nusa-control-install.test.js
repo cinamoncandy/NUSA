@@ -56,7 +56,10 @@ function world(opts = {}) {
   if (opts.sedFail) fs.writeFileSync(path.join(bin, "sed"), `#!/usr/bin/env bash\ncase "$*" in *ignore_errors*) echo "${R}/etc/nusa/cloud-runtime.env no"; exit 3;; esac\nexec /usr/bin/sed "$@"\n`, { mode: 0o755 });
   if (opts.grepCountError) fs.writeFileSync(path.join(bin, "grep"), `#!/usr/bin/env bash\ncase "$1 $2" in ${opts.grepCountError === "exact" ? '"-cx NUSA_PAPER_ORDER_PATH=OFF"' : '"-c NUSA_PAPER_ORDER_PATH"'}) echo 2; exit 2;; esac\nexec /usr/bin/grep "$@"\n`, { mode: 0o755 });
   const health = opts.health ?? JSON.stringify({ runtime: { sourceCommitSha: SHA, runMode: "COLLECT_ONLY" } });
-  fs.writeFileSync(path.join(bin, "curl"), `#!/usr/bin/env bash\ncat <<'JSON'\n${health}\nJSON\n`, { mode: 0o755 });
+  const flaky = Number(opts.healthMissesFirst ?? 0);
+  fs.writeFileSync(path.join(bin, "curl"), flaky > 0
+    ? `#!/usr/bin/env bash\nc=${JSON.stringify(path.join(R, "curl-count"))}; n=$(( $(cat "$c" 2>/dev/null || echo 0) + 1 )); echo $n > "$c"\n[ "$n" -le ${flaky} ] && exit 28\ncat <<'JSON'\n${health}\nJSON\n`
+    : `#!/usr/bin/env bash\ncat <<'JSON'\n${health}\nJSON\n`, { mode: 0o755 });
   if (opts.symlinkInTree) fs.symlinkSync("/etc/passwd", path.join(src, "evil"));
   if (opts.extraFile) fs.writeFileSync(path.join(src, "extra.conf"), "x");
   if (opts.dropinDir) { fs.mkdirSync(path.join(R, "etc/systemd/system/nusa.service.d/sub"), { recursive: true }); }
@@ -69,8 +72,8 @@ function world(opts = {}) {
   if (opts.countCommands && !opts.tamperAt) { wrap("mv", "MV_FAIL_AT", "fail"); wrap("install", "INSTALL_FAIL_AT", "fail"); }
   if (opts.mvNoop) wrap("mv", "MV_NOOP_AT", "noop");
   const resetCounters = () => { for (const n of ["mv", "install"]) fs.rmSync(path.join(counterDir, n), { force: true }); };
-  const runEnv = (extra, ...args) => { resetCounters(); return spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, ...extra, NUSA_INSTALL_ROOT: R, NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree", PATH: `${bin}:${process.env.PATH}` } }); };
-  const run = (...args) => spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, NUSA_INSTALL_ROOT: R, ...(opts.noTestFlag ? {} : { NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree" }), PATH: `${bin}:${process.env.PATH}` } });
+  const runEnv = (extra, ...args) => { resetCounters(); return spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, ...extra, NUSA_INSTALL_HEALTH_RETRY_SLEEP: "0", NUSA_INSTALL_ROOT: R, NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree", PATH: `${bin}:${process.env.PATH}` } }); };
+  const run = (...args) => spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, NUSA_INSTALL_HEALTH_RETRY_SLEEP: "0", NUSA_INSTALL_ROOT: R, ...(opts.noTestFlag ? {} : { NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree" }), PATH: `${bin}:${process.env.PATH}` } });
   const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n") : []);
   const snapshot = () => { const out = []; const walk = (d) => { for (const n of fs.readdirSync(d).sort()) { const p = path.join(d, n); const st = fs.lstatSync(p); out.push(`${p}:${st.mode}:${st.isFile() ? sha256(fs.readFileSync(p)) : ""}`); if (st.isDirectory()) walk(p); } }; walk(R); return out.filter((l) => !l.includes("calls.log")).join("\n"); };
   const w = { R, src, run, runEnv, calls, snapshot };
@@ -269,9 +272,27 @@ test("a restore that fails while undoing a failed swap is never reported as 'put
   for (let k = 2; k <= FORWARD_MOVES; k += 1) assert.ok((recoveryByK.get(k) ?? 0) > 0, `forward move ${k} was covered by at least one failing restore (RECOVERY_REQUIRED)`);
 });
 
+test("--after-rollback also accepts the leftovers of a rollback AFTER a verified install (state COLLECT_ONLY, no intent); and a busy runtime that misses probes is asked again", posixOnly, () => {
+  // Real host 2026-11-16: install verified, then rollback; the state file still said COLLECT_ONLY and the re-install was refused.
+  const w = afterRollbackWorld({ state: { ...STOPPED_STATE, desired: "COLLECT_ONLY" } });
+  const pre = w.run(w.hash, "--after-rollback");
+  assert.equal(pre.status, 0, pre.stdout + pre.stderr); assert.match(pre.stdout, /PASS  only the leftovers of a rollback/);
+  const r = w.run(w.hash, "--apply", "--after-rollback");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  // COLLECT_ONLY with an intent, an attempt or a grant is still refused, and PAPER_ORDERS is not a state at all.
+  for (const bad of [{ intent: { verb: "collect" } }, { attempt: { sha: "x", count: 1 } }, { grant: { sha: "x" } }, { desired: "PAPER_ORDERS" }]) {
+    const v = afterRollbackWorld({ state: { ...STOPPED_STATE, desired: "COLLECT_ONLY", ...bad } });
+    const o = v.run(v.hash, "--after-rollback"); assert.notEqual(o.status, 0, JSON.stringify(bad)); assert.match(o.stdout, /FAIL  only the leftovers of a rollback/);
+  }
+  // A runtime that misses the first two probes (busy for a few seconds) passes on the third; three misses fail.
+  const busy = world({ healthMissesFirst: 2 });
+  const ok = busy.run(busy.hash); assert.equal(ok.status, 0, ok.stdout + ok.stderr); assert.match(ok.stdout, /PASS  \/health is valid JSON/);
+  const dead = world({ healthMissesFirst: 3 });
+  const no = dead.run(dead.hash); assert.notEqual(no.status, 0); assert.match(no.stdout, /FAIL  \/health is valid JSON/);
+});
+
 test("--after-rollback refuses anything that is not exactly a rollback leftover, and changes nothing", posixOnly, () => {
   const damage = {
-    "state says COLLECT_ONLY": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, desired: "COLLECT_ONLY" })),
     "state has an attempt": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, attempt: { sha: "x", count: 1 } })),
     "state has an intent": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, intent: { verb: "collect" } })),
     "state has a grant": (w) => fs.writeFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), JSON.stringify({ ...STOPPED_STATE, grant: { sha: "x" } })),
