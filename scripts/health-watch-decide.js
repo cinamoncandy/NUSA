@@ -5,6 +5,8 @@ const EXPECTED = new Set(["STOPPED", "RUNNING"]);
 const MAX_OBSERVATION_AGE_MS = 10 * 60 * 1000;
 const EXPECTED_MODES = new Set(["COLLECT_ONLY"]);
 const MAX_MARKET_EVENT_AGE_MS = 10 * 60 * 1000;
+// A runtime that started less than this long ago (a release or a restart) may not have seen a market event yet: that is a start, not a stall.
+const STARTUP_GRACE_MS = 15 * 60 * 1000;
 
 function classifyProbe(probe, nowMs) {
   if (probe === null || typeof probe !== "object") return { answering: false, reason: "NO_PROBE" };
@@ -28,7 +30,9 @@ function modeFacts(expectedRunMode, probe, nowMs) {
   if (runtime.runMode !== expectedRunMode) return { alert: "MODE_MISMATCH", reason: "RUN_MODE_NOT_EXPECTED" };
   if (runtime.orderPathReady !== false) return { alert: "ORDER_WHILE_NOT_GRANTED", reason: "ORDER_PATH_NOT_OFF" };
   if (!Number.isSafeInteger(runtime.paperOrderCount) || runtime.paperOrderCount !== 0) return { alert: "ORDER_WHILE_NOT_GRANTED", reason: "PAPER_ORDER_COUNT_NOT_ZERO" };
-  if (!Number.isFinite(runtime.lastMarketEventAt) || nowMs - runtime.lastMarketEventAt > MAX_MARKET_EVENT_AGE_MS || runtime.lastMarketEventAt - nowMs > 60_000) return { alert: "EVENTS_STALE", reason: "MARKET_EVENT_STALE_OR_MISSING" };
+  const eventsFresh = Number.isFinite(runtime.lastMarketEventAt) && nowMs - runtime.lastMarketEventAt <= MAX_MARKET_EVENT_AGE_MS && runtime.lastMarketEventAt - nowMs <= 60_000;
+  const justStarted = Number.isFinite(runtime.startedAt) && runtime.startedAt <= nowMs + 60_000 && nowMs - runtime.startedAt < STARTUP_GRACE_MS;
+  if (!eventsFresh && !justStarted) return { alert: "EVENTS_STALE", reason: "MARKET_EVENT_STALE_OR_MISSING" };
   return { alert: "NONE", reason: "MODE_FACTS_OK" };
 }
 
