@@ -225,3 +225,31 @@ test("coarse absence tolerance is limited to 15m/60m; a 5m dataset, a partly pro
   assert.throws(() => runM(make(null), 60 * M), /missing intervals/, "no proof refuses");
   assert.throws(() => runM(make("both"), 5 * M), /missing intervals|coverage is incomplete/, "5m is not widened");
 });
+
+test("manifest materialization reports its phase durations without changing the manifest or the stored rows", () => {
+  const dir = mkdtempSync(join(tmpdir(), "nusa-dataset-phases-"));
+  try {
+    const run = (name, withPhases) => {
+      const db = new SqliteDatabase(join(dir, `${name}.db`));
+      const candleStore = new SqliteResearchCandleStore(db); const store = new SqliteResearchDatasetManifestStore(db);
+      const M = 60_000; const rows = Array.from({ length: 12 }, (_, i) => ({ closeTimeMs: (i + 1) * M, open: 100 + i, high: 102 + i, low: 99 + i, close: 101 + i, volume: 5 + i }));
+      candleStore.appendWithMaterial("KRW-BTC", M, rows, { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: require("../dist/apps/cloud/src/researchCandleBackfill.js").UPBIT_CANDLE_SOURCE_FINGERPRINT, evidenceFingerprintSha256: "a".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+      const phases = [];
+      const manifest = materializeResearchDatasetManifest({ store, candleStore, market: "KRW-BTC", intervalMs: M, candles: candleStore.read("KRW-BTC", M, M, 12 * M), source: `upbit-1m-closed:KRW-BTC:${M}`, createdAt: "2026-11-17T00:00:00.000Z", sourceCommitSha: "b".repeat(40), ...(withPhases ? { onPhase: (phase, ms) => phases.push([phase, ms]) } : {}) });
+      const stored = store.read(manifest.datasetId);
+      db.close();
+      return { manifest, stored, phases };
+    };
+    const plain = run("plain", false); const observed = run("observed", true);
+    assert.deepEqual(observed.manifest, plain.manifest, "the manifest is identical with and without the observer");
+    assert.deepEqual(observed.stored, plain.stored);
+    assert.deepEqual(observed.phases.map(([p]) => p), ["validate_and_gaps", "read_source_candles", "derive_and_hash", "receipt_coverage", "persist"]);
+    assert.ok(observed.phases.every(([, ms]) => Number.isFinite(ms) && ms >= 0));
+    // an observer that throws never breaks the build
+    const db = new SqliteDatabase(join(dir, "thrower.db"));
+    const candleStore = new SqliteResearchCandleStore(db); const store = new SqliteResearchDatasetManifestStore(db);
+    candleStore.appendWithMaterial("KRW-BTC", 60_000, [{ closeTimeMs: 60_000, open: 1, high: 2, low: 1, close: 2, volume: 1 }], { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: require("../dist/apps/cloud/src/researchCandleBackfill.js").UPBIT_CANDLE_SOURCE_FINGERPRINT, evidenceFingerprintSha256: "a".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+    assert.doesNotThrow(() => materializeResearchDatasetManifest({ store, candleStore, market: "KRW-BTC", intervalMs: 60_000, candles: candleStore.read("KRW-BTC", 60_000, 60_000, 60_000), source: "upbit-1m-closed:KRW-BTC:60000", createdAt: "2026-11-17T00:00:00.000Z", sourceCommitSha: "b".repeat(40), onPhase: () => { throw new Error("observer failure"); } }));
+    db.close();
+  } finally { try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may release the SQLite handle after the test turn. */ } }
+});
