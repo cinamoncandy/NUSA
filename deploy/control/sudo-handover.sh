@@ -3,9 +3,16 @@
 # (design C4 section 4). It does NOT touch any existing sudoers line: revoking the helper's `activate` is a separate step the
 # owner takes after reading the output of sudo-audit.sh.
 #
-#   sudo bash sudo-handover.sh <runner-user>             read-only: prints the rule, checks it with visudo, changes nothing
+#   sudo bash sudo-handover.sh <runner-user>             prints the rule and checks it with visudo; changes nothing in the sudoers
+#                                                        configuration (it uses one temporary file outside /etc, removed on exit)
 #   sudo bash sudo-handover.sh <runner-user> --apply     writes /etc/sudoers.d/90-nusa-control after `visudo -cf` accepts it
 #   sudo bash sudo-handover.sh <runner-user> --remove    removes that file again (and checks the whole configuration)
+#   sudo bash sudo-handover.sh <runner-user> --check-exclusive   READ-ONLY: PASS only when the runner's EFFECTIVE sudo rights no longer
+#                                                        include the old helper's `activate` (or ALL, or a wildcard in its place)
+#
+# THE HAND-OVER IS NOT COMPLETE until --check-exclusive passes. Adding the controller rule alone leaves the old path open: the runner could
+# still call the helper's activate directly and bypass the controller's start gate. Removing that old line is a manual, owner-approved step
+# (visudo), taken after sudo-audit.sh was read; this script never edits an existing sudoers line.
 #
 # The rule is exact: status, stop, collect, and `release` with a 40-character lowercase hex argument (forty bracket classes, no `*`).
 # Nothing else. The runner can never grant orders: the controller has no such verb.
@@ -19,7 +26,7 @@ else
   [ "$(id -u)" = 0 ] || { echo "STOP  run as root (sudo bash $0 ...)" >&2; exit 1; }
 fi
 USER_ARG="${1:-}"; MODE="preflight"
-for a in "$@"; do case "$a" in --apply) MODE="apply";; --remove) MODE="remove";; esac; done
+for a in "$@"; do case "$a" in --apply) MODE="apply";; --remove) MODE="remove";; --check-exclusive) MODE="exclusive";; esac; done
 die() { printf 'STOP  %s\n' "$*" >&2; exit 1; }
 [[ "$USER_ARG" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || die "first argument must be the runner account name"
 [ "$USER_ARG" != root ] || die "the runner account must not be root"
@@ -35,7 +42,19 @@ RULE
 }
 check_all() { visudo -c >/dev/null; }
 
+# The effective policy as sudo itself reports it (sudo -l -U): the old helper verb `activate` must not be reachable, neither by name, nor
+# by a bare helper entry or a wildcard argument (which cover every verb), nor by an ALL rule.
+exclusive_ok() {
+  local out bad
+  out="$(sudo -n -l -U "$USER_ARG" 2>&1)" || { echo "FAIL  sudo -l -U could not be read; exclusivity is NOT proven"; return 1; }
+  bad="$(printf '%s\n' "$out" | tr ',' '\n' | grep -E 'NOPASSWD: *ALL|\(ALL(:ALL)?\) +ALL$|nusa-release-step( +\*| +activate|[[:space:]]*$)' || true)"
+  if [ -n "$bad" ]; then echo "FAIL  the runner can still reach the helper's activate (or everything):"; printf '    %s\n' "$bad"; return 1; fi
+  echo "PASS  the runner's effective sudo rights do not include the helper's activate, a bare helper entry, a wildcard verb or ALL"
+}
 case "$MODE" in
+  exclusive)
+    exclusive_ok && echo "HAND-OVER COMPLETE for $USER_ARG (the controller is the only way to activate)" || { echo "HAND-OVER NOT COMPLETE: remove the old rule with visudo (owner-approved), then run --check-exclusive again" >&2; exit 1; }
+    exit 0 ;;
   remove)
     [ -e "$FILE" ] || die "$FILE does not exist; nothing to remove"
     rm -f -- "$FILE"
@@ -71,4 +90,4 @@ visudo -cf "$tmp2" >/dev/null || die "the candidate in $DIR is not accepted by v
 mv -n -- "$tmp2" "$FILE"; tmp2=""
 if ! check_all; then rm -f -- "$FILE"; die "the whole configuration was not valid with the new file; the file was removed again"; fi
 echo "DONE  installed $FILE (mode 0440); the whole sudoers configuration is valid."
-echo "NEXT  (separate, owner-approved) after reading sudo-audit.sh: remove the runner's sudo line for the helper verb 'activate' only when the workflow uses activation=controller."
+if exclusive_ok; then echo "HAND-OVER COMPLETE for $USER_ARG"; else echo "HAND-OVER NOT COMPLETE: the old helper path is still open. Remove the runner's old sudo line for the helper (keep only stage, preflight, backup, prune) with visudo, owner-approved, then run --check-exclusive."; fi

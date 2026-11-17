@@ -129,3 +129,30 @@ test("neither script ever writes outside the sudoers file it owns, restarts a un
   const targets = [...code.matchAll(/\d?>>?\s*([^\s&|;)]+)/g)].map((m) => m[1]).filter((x) => !x.startsWith("&"));
   assert.ok(targets.every((x) => x === "/dev/null"), `the audit redirects output only to /dev/null, found: ${targets.filter((x) => x !== "/dev/null")}`);
 });
+
+test("--check-exclusive is read-only and passes only when the old helper activate is no longer reachable", posixOnly, () => {
+  const safe = "    (root) NOPASSWD: /opt/nusa/bin/nusa-release-step stage *, /opt/nusa/bin/nusa-release-step preflight *, /opt/nusa/bin/nusa-release-step backup, /opt/nusa/bin/nusa-release-step prune";
+  const ok = world({ sudoL: safe }); const before = ok.snapshot();
+  const r = ok.run(handover, "runner", "--check-exclusive");
+  assert.equal(r.status, 0, r.stdout + r.stderr); assert.match(r.stdout, /HAND-OVER COMPLETE/);
+  assert.equal(ok.snapshot(), before, "read-only");
+  const bad = {
+    "activate by name": "    (root) NOPASSWD: /opt/nusa/bin/nusa-release-step stage *, /opt/nusa/bin/nusa-release-step activate *",
+    "a bare helper entry (covers every verb)": "    (root) NOPASSWD: /opt/nusa/bin/nusa-release-step",
+    "a wildcard in place of the verb": "    (root) NOPASSWD: /opt/nusa/bin/nusa-release-step *",
+    "ALL": "    (ALL) NOPASSWD: ALL",
+  };
+  for (const [label, sudoL] of Object.entries(bad)) {
+    const w = world({ sudoL }); const rr = w.run(handover, "runner", "--check-exclusive");
+    assert.notEqual(rr.status, 0, label); assert.match(rr.stdout, /FAIL  the runner can still reach/, label); assert.match(rr.stderr, /HAND-OVER NOT COMPLETE/, label);
+  }
+});
+
+test("--apply says plainly whether the hand-over is complete: adding the controller rule alone never says complete while the old helper path is open", posixOnly, () => {
+  const open = world({ sudoL: "    (root) NOPASSWD: /opt/nusa/bin/nusa-release-step activate *" });
+  const r = open.run(handover, "runner", "--apply");
+  assert.equal(r.status, 0, r.stdout + r.stderr); assert.match(r.stdout, /HAND-OVER NOT COMPLETE/); assert.doesNotMatch(r.stdout, /HAND-OVER COMPLETE for/);
+  const closed = world({ sudoL: "    (root) NOPASSWD: /opt/nusa/bin/nusa-release-step stage *" });
+  const r2 = closed.run(handover, "runner", "--apply");
+  assert.match(r2.stdout, /HAND-OVER COMPLETE for runner/);
+});
