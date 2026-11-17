@@ -484,6 +484,16 @@ test("the host runtime needs no package besides ws: nothing the host units and r
   assert.deepEqual([...bare.entries()], [], "a host-reachable file imports a package the sealed release does not ship; add it to the seal in oracle-paper-release.yml");
 });
 
+test("the controller release step prints the controller's answer even when it refuses (the runner shell is bash -e)", () => {
+  const start = workflow.indexOf("- name: Release through the host controller");
+  assert.ok(start > 0, "controller release step not found");
+  const stepText = workflow.slice(start, workflow.indexOf("- name:", start + 10)).replaceAll("\r\n", "\n");
+  // Under `bash -e` a failing `OUT="$(...)"` ends the step before its output is printed; `set +e` keeps the refusal readable.
+  assert.match(stepText, /set \+e -uo pipefail/);
+  assert.ok(stepText.indexOf("set +e") < stepText.indexOf('OUT="$(sudo /opt/nusa-control/nusa-control.sh release'), "set +e must come before the controller call");
+  assert.match(stepText, /printf '%s\\n' "\$OUT"/);
+});
+
 test("the maintenance window opens before the backup, closes after it under always(), and never blocks the release", () => {
   const norm = workflow.replaceAll("\r\n", "\n");
   const begin = norm.indexOf("- name: Announce the backup to the controller");

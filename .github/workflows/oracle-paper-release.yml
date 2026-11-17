@@ -294,7 +294,7 @@ jobs:
         id: controller
         if: steps.source_fresh.outputs.fresh == 'true' && !inputs.stage_only && inputs.activation == 'controller'
         run: |
-          set -uo pipefail
+          set +e -uo pipefail   # the runner shell is `bash -e`: without this a controller refusal aborts the step before its output is printed
           OUT="$(sudo /opt/nusa-control/nusa-control.sh release "$SOURCE_SHA")"; RC=$?
           printf '%s\n' "$OUT"
           OUTCOME="$(printf '%s\n' "$OUT" | tail -n 1 | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const o=JSON.parse(s);process.stdout.write(typeof o.outcome==="string"&&/^[A-Z_]{3,30}$/.test(o.outcome)?o.outcome:"")}catch{}})')"
