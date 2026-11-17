@@ -250,8 +250,10 @@ test("every privileged action goes through the one wrapper command", () => {
     // controller's release verb. Anything else here is a new privilege and needs its own reviewed sudoers line.
     assert.match(call, /sudo\s+("\$STEP"|\/opt\/nusa-control\/nusa-control\.sh)/, `sudoers must grant only the helper and the controller, found: ${call}`);
   }
-  const controllerCalls = workflow.match(/sudo \/opt\/nusa-control\/nusa-control\.sh [^\n]*/g) ?? [];
-  assert.deepEqual(controllerCalls.map((c) => c.replace(/\)".*$/, "").trim()).sort(), ['sudo /opt/nusa-control/nusa-control.sh release "$SOURCE_SHA"', "sudo /opt/nusa-control/nusa-control.sh status"].sort(), "the only controller verbs the runner may call are release <sha> and status");
+  // Line endings differ between checkouts (CRLF on Windows), so the verbs are read with a pattern that does not depend on where the line ends.
+  const controllerVerbs = [...workflow.matchAll(/sudo \/opt\/nusa-control\/nusa-control\.sh (release "\$SOURCE_SHA"|status)(?=[)"\s])/g)].map((m) => m[1]).sort();
+  assert.deepEqual(controllerVerbs, ['release "$SOURCE_SHA"', "status"], "the only controller verbs the runner may call are release <sha> and status");
+  assert.equal((workflow.match(/sudo \/opt\/nusa-control\/nusa-control\.sh/g) ?? []).length, 2, "no other sudo call of the controller exists");
   assert.match(workflow, /STEP: \/opt\/nusa\/bin\/nusa-release-step/);
 });
 
