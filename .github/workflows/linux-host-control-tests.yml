@@ -5,6 +5,9 @@ name: Linux Host Control Tests
 # server is needed by tests/nusa-control-real-health.test.js), deploys nothing and touches no secret.
 
 on:
+  # Manual run on any branch (Actions, "Run workflow", choose the branch): lets a draft PR that stacks on another branch get its Linux evidence
+  # at its exact head without being marked ready. It reads the repository and deploys nothing.
+  workflow_dispatch:
   pull_request:
     branches: [main]
     paths:
