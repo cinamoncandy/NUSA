@@ -1,8 +1,8 @@
 name: Linux Host Control Tests
 
 # The host controller and its installer are Linux-only (they read /proc and run bash). The main CI runs on Windows, where these
-# tests are skipped, so a change to them was never exercised by CI. This job runs them for real on Linux. It builds nothing,
-# deploys nothing and touches no secret.
+# tests are skipped, so a change to them was never exercised by CI. This job runs them for real on Linux. It compiles the cloud runtime (the real /health
+# server is needed by tests/nusa-control-real-health.test.js), deploys nothing and touches no secret.
 
 on:
   pull_request:
@@ -14,6 +14,9 @@ on:
       - "tests/nusa-control-install.test.js"
       - "tests/nusa-control-release.test.js"
       - "tests/nusa-control-sudo.test.js"
+      - "tests/nusa-control-real-health.test.js"
+      - "apps/cloud/src/server.ts"
+      - "apps/cloud/src/mobileDashboardHttp.ts"
       - ".github/workflows/linux-host-control-tests.yml"
   push:
     branches: [main]
@@ -24,6 +27,9 @@ on:
       - "tests/nusa-control-install.test.js"
       - "tests/nusa-control-release.test.js"
       - "tests/nusa-control-sudo.test.js"
+      - "tests/nusa-control-real-health.test.js"
+      - "apps/cloud/src/server.ts"
+      - "apps/cloud/src/mobileDashboardHttp.ts"
       - ".github/workflows/linux-host-control-tests.yml"
 
 concurrency:
@@ -42,13 +48,21 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Enable pnpm via Corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@11.7.0 --activate
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
+      - name: Install locked dependencies and compile the cloud runtime
+        run: |
+          pnpm install --frozen-lockfile
+          npx tsc -p tsconfig.json
       - name: Controller and installer tests on Linux (none may be skipped)
         run: |
           set -euo pipefail
-          out="$(node --test --test-reporter=spec tests/nusa-control.test.js tests/nusa-control-install.test.js tests/nusa-control-release.test.js tests/nusa-control-sudo.test.js 2>&1 | tee /dev/stderr)"
+          out="$(node --test --test-reporter=spec tests/nusa-control.test.js tests/nusa-control-install.test.js tests/nusa-control-real-health.test.js tests/nusa-control-release.test.js tests/nusa-control-sudo.test.js 2>&1 | tee /dev/stderr)"
           printf '%s\n' "$out" | grep -E '^ℹ (tests|pass|fail|skipped)' || true
           if printf '%s\n' "$out" | grep -Eq '^ℹ fail [1-9]'; then echo "::error::a controller or installer test failed"; exit 1; fi
           if printf '%s\n' "$out" | grep -Eq '^ℹ skipped [1-9]'; then echo "::error::a controller or installer test was skipped on Linux; these tests must run here"; exit 1; fi
