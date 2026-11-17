@@ -1,0 +1,21 @@
+id: WO-OPS-20261117-MANIFEST-GOLDEN-TEST
+title: "Research: golden equivalence test for the dataset manifest build (test only)"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/manifest-golden
+owner_decision: "2026-11-17: the owner asked for faster progress; the part of WO-OPS-20261117-MANIFEST-ISOLATION that does not depend on the host measurement is the equivalence guard any later change (fewer reads, chunked reads, a worker) must keep passing."
+objective: "Pin the manifest the current build produces, byte for byte, for fixed synthetic input: gap-free 1m, 15m and 60m, a 1m series with an exchange-confirmed absence run, and a 15m series over such a gap."
+change:
+  - "tests/research-manifest-golden.test.js: seeds a temporary SQLite database deterministically, builds each manifest with fixed createdAt and sourceCommitSha, and compares sha256 of the manifest JSON, the bar count and the dataset id with golden values computed from the implementation on main; also checks determinism and that the stored manifest equals the returned one."
+not_changed:
+  - "No production code, dataset identity, hash, window, threshold, experiment, risk limit, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Synthetic data only; the real host data (14.9 s build) is covered by the phase timings, not by this test."
+acceptance:
+  - "Exact-head CI (the test runs from dist, on Windows and Linux)."
