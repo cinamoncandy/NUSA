@@ -353,6 +353,19 @@ test("the deployed identity and fail-closed authority are always recorded", () =
 });
 
 
+test("a final verdict job decides what counts as a deployment: it always runs, reads the receipt and the public health, and fails for anything else", () => {
+  const verdict = workflow.slice(workflow.indexOf("\n  verdict:"));
+  assert.match(verdict, /needs: \[backup, release\]/);
+  assert.match(verdict, /if: always\(\)/);
+  assert.match(verdict, /runs-on: ubuntu-latest/, "it never runs on the host runner");
+  assert.match(verdict, /DEPLOYMENT_RESULT: \$\{\{ needs\.release\.outputs\.deploymentResult \}\}/);
+  assert.match(verdict, /node scripts\/release-verdict\.js/);
+  assert.match(verdict, /exit "\$\{PIPESTATUS\[0\]\}"/, "the script's exit code decides the run");
+  assert.match(workflow, /deploymentResult: \$\{\{ steps\.record\.outputs\.deploymentResult \}\}/);
+  assert.match(workflow, /echo "deploymentResult=\$RESULT" >> "\$GITHUB_OUTPUT"/);
+  assert.doesNotMatch(verdict, /sudo|NUSA_DEPLOY_ROOT|self-hosted/, "the verdict job touches nothing on the host");
+});
+
 test("the privileged helper declares helper locals before expanding them under nounset", () => {
   const scriptIn = wrapper.slice(wrapper.indexOf("script_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("script_in()")) + 2);
   const unitIn = wrapper.slice(wrapper.indexOf("unit_in()"), wrapper.indexOf("\n}\n", wrapper.indexOf("unit_in()")) + 2);

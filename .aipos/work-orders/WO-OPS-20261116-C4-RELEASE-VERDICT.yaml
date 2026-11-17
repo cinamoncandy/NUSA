@@ -1,0 +1,24 @@
+id: WO-OPS-20261116-C4-RELEASE-VERDICT
+title: "Release workflow: a final verdict job; a run is a deployment only when the receipt, the job results and the public /health agree"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/c4-release-verdict
+owner_decision: "2026-11-16: the owner chose independent development for now and answered '1' to the next step (the verdict script). The PR stays DRAFT until a non-author review."
+objective: "Stop reporting a release as success when every host step was skipped (2026-11-16 19:38 KST: protected main moved during the backup, deploymentResult=SKIPPED_MAIN_MOVED, run conclusion success). Design: docs/NUSA_C4_RELEASE_THROUGH_CONTROLLER_DESIGN_2026-11-16.md section 3.3."
+change:
+  - "scripts/release-verdict.js (pure decide function and command line): DEPLOYED only if the backup job and the release job succeeded, the receipt says DEPLOYED, a controller outcome (when present) says DEPLOYED, and the public /health shows exactly the released commit. Protected main moved is SUPERSEDED; every other case is FAILED; missing input is never success. Prints 'NOT DEPLOYED: <result> (<reason>)' and exits 1 for anything but DEPLOYED."
+  - ".github/workflows/oracle-paper-release.yml: the record step has an id and a job output (deploymentResult); a new final job 'verdict' (ubuntu-latest, if always()) reads the receipt, polls the public /health read-only up to 6 times, runs the script and fails the run for a non-deployment. The host steps and the release helper are unchanged."
+  - "tests/release-verdict.test.js (9, including an exhaustive combination test) and a workflow structure test."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. The release job, the host runner steps, the helper and the sudo rule are untouched. This PR does not wire the controller's release verb into the workflow (separate PR)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/release-verdict.test.js tests/oracle-paper-release-workflow.test.js (36 pass); platform-independent test validator; workflow YAML parses."
+unverified: "The verdict job has not run on GitHub (a workflow_dispatch release is needed to exercise it, which needs the owner's approval). A superseded run will now end FAILED in the Actions list (and may send a failure mail): that is intended, it is not a deployment."
+acceptance:
+  - "Non-author review (/grill-me); exact-head CI; no host step is part of this change."
