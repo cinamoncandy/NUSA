@@ -1,0 +1,28 @@
+id: WO-OPS-20261117-MANIFEST-ISOLATION
+title: "Research: keep dataset manifest builds off the collector process (design and acceptance first, no code yet)"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/manifest-isolation
+owner_decision: "2026-11-17: the owner pasted a redesign proposal (execution boundary, failure isolation, evidence chain) and answered 'next'. Its first unit is this one. The owner wrote 'for now independent development' (CORE does it, no waiting on Codex). Draft until a non-author review; a release needs the owner's approval and must not fall inside the second study holdout (2026-11-24T06:00Z..2026-11-28T06:00Z)."
+problem: "The manifest build is synchronous on the collector process (14.9 s for KRW-XRP/60m on the host on 2026-11-16). /health stayed unanswered long enough for the old controller to stop the collector (2026-11-17 02:15 KST). The public health still shows eventLoopMaxStallMs=29037 with 5 stalls since 10:14 KST."
+step_0_measure_first:
+  - "Read the [research-manifest] phase lines after the next release (phase-timing PR is merged, not yet on the host). Decide the structure from the measured phase that dominates, not from the sandbox profile."
+design_options:
+  - "A. Fewer reads and no per-row work on the loop thread (cheap, may not be enough)."
+  - "B. Chunked reads that yield to the event loop (keeps one process; bounded stall)."
+  - "C. Separate worker process or worker_thread for the build, with a persistent job id, input range and restart checkpoint; the collector only enqueues and reads the finished manifest."
+  - "C also needs CPU, memory and disk I/O budgets: separating the process alone does not remove contention."
+acceptance:
+  - "At the maximum data size and under collector load: collector event-loop stall under 1 s, no missed or duplicated market events, /health answers within the controller's patience."
+  - "The manifest, its hash and the stored row are byte-identical to the current implementation for the same input (equivalence test)."
+  - "A worker crash or restart leaves no half-written manifest and does not stop the collector."
+  - "No log line or timeout change counts as completion."
+not_changed:
+  - "No dataset identity, hash, window, threshold, experiment, risk limit, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+unverified: "Nothing implemented or measured on the host yet."
