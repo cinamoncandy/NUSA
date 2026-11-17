@@ -59,3 +59,14 @@ Tests required in (a): append-only triggers, `isLatest` after a newer REJECT, ev
 ## 8. Not done
 
 No code, no store, no host change, no release; orders stay OFF. This document is not an approval of Stage B.
+
+## 9. Owner decisions recorded (2026-11-17)
+
+The owner answered "추천대로" (as recommended) to the table of sections 5 and 6, which named each question and its recommended default. Recorded as follows, and nothing more is inferred:
+
+- D3a ACCEPTED: the approving identity is the repository owner account, recorded as a reviewed file path protected by the release gate; a file alone grants nothing.
+- D3b ACCEPTED: the producer reads the governance file at decision time; a missing, unreadable or older-than-60-second read means NOT approved; the owner revokes by merging a change that removes the approval.
+- D3c ACCEPTED: a reviewed list of retired versions in the policy file; a permit under a retired version never validates.
+- D5 ACCEPTED: a spot-only market state under a NEW policy version; the three futures signals stay out of scope.
+- D6 DEFERRED as recommended: decided after the inventory of section 4; until then gate 11 rejects.
+- Still true: decision 2 of 2026-11-16 (no producer is built before a candidate qualifies) and the need for a fresh written owner approval naming Stage B. PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, Release=HOLD unchanged.

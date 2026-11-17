@@ -15,5 +15,6 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
 unverified: "Facts were read from main on 2026-11-17; runtime facts (models, samples, futures data on the host) need the read-only inventory."
+owner_answer: "2026-11-17: 추천대로 (D3a-D3c, D5 accepted as recommended; D6 deferred until the inventory)."
 acceptance:
   - "Owner answers D3a-D3c, D5, D6 or accepts the recommended defaults; independent review of the design."
