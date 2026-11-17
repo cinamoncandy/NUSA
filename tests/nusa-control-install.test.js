@@ -71,7 +71,8 @@ function world(opts = {}) {
   const wrap = (name, envVar, mode) => fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\nc="${counterDir}/${name}"; n=$(( $(cat "$c" 2>/dev/null || echo 0) + 1 )); echo $n > "$c"\ncase ",\${${envVar}:-}," in *",$n,"*) ${mode === "noop" ? "exit 0" : "exit 1"};; esac\nexec /usr/bin/${name} "$@"\n`, { mode: 0o755 });
   if (opts.countCommands && !opts.tamperAt) { wrap("mv", "MV_FAIL_AT", "fail"); wrap("install", "INSTALL_FAIL_AT", "fail"); }
   if (opts.mvNoop) wrap("mv", "MV_NOOP_AT", "noop");
-  const resetCounters = () => { for (const n of ["mv", "install"]) fs.rmSync(path.join(counterDir, n), { force: true }); };
+  if (opts.countFlock) wrap("flock", "FLOCK_FAIL_AT", "fail");
+  const resetCounters = () => { for (const n of ["mv", "install", "flock"]) fs.rmSync(path.join(counterDir, n), { force: true }); };
   const runEnv = (extra, ...args) => { resetCounters(); return spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, ...extra, NUSA_INSTALL_HEALTH_RETRY_SLEEP: "0", NUSA_INSTALL_ROOT: R, NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree", PATH: `${bin}:${process.env.PATH}` } }); };
   const run = (...args) => spawnSync("bash", [script, SHA, ...args], { encoding: "utf8", env: { ...process.env, NUSA_INSTALL_HEALTH_RETRY_SLEEP: "0", NUSA_INSTALL_ROOT: R, ...(opts.noTestFlag ? {} : { NUSA_INSTALL_TEST_MODE: "yes-this-is-a-test-tree" }), PATH: `${bin}:${process.env.PATH}` } });
   const calls = () => (fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n") : []);
@@ -494,7 +495,7 @@ function upgradeWorld(opts = {}) {
   const statusBad = JSON.stringify({ ok: true, state: { desired: "STOPPED", intent: null }, runtime: { ok: false } });
   const stub = (answer) => `#!/usr/bin/env bash\necho "controller $*" >> LOG\ncase "$1" in status) echo '${answer}';; verify) echo '{"ok":true,"code":"COLLECT_ONLY_VERIFIED"}';; esac\nexit 0\n`;
   // 1. install the OLD controller with the real installer (its stub controller already prints a good status)
-  const w = world({ tag: "old" });
+  const w = world({ tag: "old", countCommands: opts.countCommands, countFlock: opts.countFlock });
   const log = path.join(w.R, "calls.log");
   fs.writeFileSync(path.join(w.src, "nusa-control.sh"), stub(statusOk).replace("LOG", JSON.stringify(log)));
   const first = w.run(w.hash, "--apply");
@@ -572,4 +573,23 @@ test("upgrade puts the old files back when the new controller does not report th
 test("--upgrade-controller cannot be combined with --rollback or --after-rollback", posixOnly, () => {
   const w = world();
   for (const extra of ["--rollback", "--after-rollback"]) { const r = w.run(w.hash, "--upgrade-controller", extra); assert.notEqual(r.status, 0); assert.match(r.stderr, /cannot be combined/); }
+});
+
+test("upgrade: if the lock cannot be taken for the restore, nothing is restored and RECOVERY_REQUIRED is reported (exit 3)", posixOnly, () => {
+  const w = upgradeWorld({ newStatusBad: true, countFlock: true });
+  const r = w.runEnv({ FLOCK_FAIL_AT: "2" }, w.hash, "--upgrade-controller", "--apply");
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stderr, /RECOVERY_REQUIRED/); assert.match(r.stderr, /controller lock was not free/);
+  assert.doesNotMatch(r.stderr, /OLD controller files were put back/, "it never claims a restore that did not happen");
+  assert.match(fs.readFileSync(path.join(w.R, "opt/nusa-control/nusa-control.js"), "utf8"), /\/\/ new build/, "the new files stay (no restore without the lock)");
+  assert.ok(fs.readdirSync(path.join(w.R, "opt/nusa-control")).some((n) => n.includes(".upgrade-backup-")), "the backups are kept");
+});
+
+test("upgrade: if restoring a file fails, RECOVERY_REQUIRED is reported and the old files are never claimed to be back", posixOnly, () => {
+  const w = upgradeWorld({ newStatusBad: true, countCommands: true });
+  const r = w.runEnv({ MV_FAIL_AT: "5" }, w.hash, "--upgrade-controller", "--apply");
+  assert.equal(r.status, 3, r.stdout + r.stderr);
+  assert.match(r.stderr, /could not restore/); assert.match(r.stderr, /RECOVERY_REQUIRED/);
+  assert.doesNotMatch(r.stderr, /OLD controller files were put back/);
+  assert.ok(fs.readdirSync(path.join(w.R, "opt/nusa-control")).some((n) => n.includes(".upgrade-backup-")), "the backups are kept");
 });

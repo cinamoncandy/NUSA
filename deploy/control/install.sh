@@ -429,23 +429,37 @@ upgrade_apply() {
   flock -w 120 9 || die "the controller is busy (lock not free within 120 s); nothing was changed"
   stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
   for t in "$js" "$sh" "$MANIFEST_FILE" "$MANIFEST_ANCHOR"; do cp -a -- "$t" "$t.upgrade-backup-$stamp"; done
+  # Put the backups back. Returns non-zero when ANY file could not be restored or does not equal its backup afterwards.
   restore() {
-    local x
-    for x in "$js" "$sh" "$MANIFEST_FILE" "$MANIFEST_ANCHOR"; do [ -f "$x.upgrade-backup-$stamp" ] && cp -a -- "$x.upgrade-backup-$stamp" "$x.restore" && mv -f -- "$x.restore" "$x"; done
+    local x rc=0
+    for x in "$js" "$sh" "$MANIFEST_FILE" "$MANIFEST_ANCHOR"; do
+      if cp -a -- "$x.upgrade-backup-$stamp" "$x.restore" && mv -f -- "$x.restore" "$x" && cmp -s -- "$x.upgrade-backup-$stamp" "$x"; then :; else rc=1; echo "STOP  could not restore $x from $x.upgrade-backup-$stamp" >&2; fi
+    done
+    return "$rc"
+  }
+  recovery_required() {
+    {
+      echo "RECOVERY_REQUIRED  $1"
+      echo "  The old controller files are in *.upgrade-backup-$stamp beside the files (and the anchor in /var/lib/nusa-control). Nothing is deleted."
+      echo "  Orders are OFF; the runtime was never restarted. Do NOT run --apply again. Send this output."
+    } >&2
+    exit 3
   }
   if ! { mv -f -- "$js.new" "$js" && mv -f -- "$sh.new" "$sh" && mv -f -- "$MANIFEST_FILE.new" "$MANIFEST_FILE" && mv -f -- "$MANIFEST_ANCHOR.new" "$MANIFEST_ANCHOR"; }; then
-    restore || true
+    restore || { exec 9>&-; recovery_required "the swap failed AND putting the old files back failed"; }
     exec 9>&-
-    die "the swap failed; the old controller files were put back (backups: *.upgrade-backup-$stamp); the runtime was never touched"
+    die "the swap failed; the old controller files were put back and verified equal to their backups (backups: *.upgrade-backup-$stamp); the runtime was never touched"
   fi
   exec 9>&-
   step "the new controller must report the runtime verified"
   if ! controller_status_ok; then
-    exec 9>>"$R/run/nusa-control/lock"; flock -w 120 9 || true
-    restore || true
+    # Restoring changes controller files: it needs the lock, like the swap. No lock means NO restore and a clear report.
+    exec 9>>"$R/run/nusa-control/lock"
+    if ! flock -w 120 9; then exec 9>&-; recovery_required "the new controller did not report the runtime verified AND the controller lock was not free within 120 s, so the old files were NOT put back (the new files are in place)"; fi
+    if ! restore; then exec 9>&-; recovery_required "the new controller did not report the runtime verified AND restoring the old files failed"; fi
     exec 9>&-
-    controller_status_ok && die "the new controller did not report the runtime verified; the OLD controller files were put back and it verifies (backups: *.upgrade-backup-$stamp)"
-    die "the new controller did not report the runtime verified AND the old files were put back but the status is still not ok; run: sudo /opt/nusa-control/nusa-control.sh status (backups: *.upgrade-backup-$stamp)"
+    controller_status_ok && die "the new controller did not report the runtime verified; the OLD controller files were put back (equal to their backups) and it verifies (backups: *.upgrade-backup-$stamp)"
+    die "the new controller did not report the runtime verified; the old files were put back (equal to their backups) but the status is still not ok; run: sudo /opt/nusa-control/nusa-control.sh status (backups: *.upgrade-backup-$stamp)"
   fi
   "$sh" verify
   echo; echo "DONE  controller upgraded in place to $SHA; runtime verified in COLLECT_ONLY; nothing was restarted. Backups of the old files: *.upgrade-backup-$stamp"
