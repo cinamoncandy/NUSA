@@ -1,0 +1,24 @@
+id: WO-OPS-20261116-C4-WORKFLOW-CONTROLLER
+title: "Release workflow: stage_only input and an opt-in activation through the host controller (release verb)"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/c4-workflow-controller
+owner_decision: "2026-11-16: the owner chose independent development and answered 'do it all' (the remaining C4 steps). The PR stays DRAFT until a non-author review. The default path is unchanged; nothing runs on the host before the owner's per-step approval."
+objective: "Let a release be staged without activation (for the in-place controller upgrade), and let a later release activate through the controller instead of the helper. Design: docs/NUSA_C4_RELEASE_THROUGH_CONTROLLER_DESIGN_2026-11-16.md sections 3.3, 3.6, 4 and 8."
+change:
+  - ".github/workflows/oracle-paper-release.yml: input stage_only (default false): stop after stage (no preflight, no recheck, no activation), receipt STAGED_ONLY. Input activation (helper | controller, default helper): with controller, one step runs the root controller's release verb for the exact source and reads its one-line outcome; only DEPLOYED with exit 0 passes. The record step exports controllerOutcome; the verdict job receives it."
+  - "scripts/release-verdict.js: STAGED_ONLY is not a deployment and not a failure (exit 0, text 'NOT DEPLOYED: STAGED_ONLY'); a STAGED_ONLY receipt from a job that did not succeed is a failure."
+  - "tests/oracle-paper-release-workflow.test.js: the sudo allow-list test now names exactly two privileged commands (the reviewed helper, and the controller's release <sha> only); a stage_only/activation structure test. tests/release-verdict.test.js: one more test."
+not_changed:
+  - "The default activation is still the reviewed helper; the host runner's sudo rule is unchanged by this PR (the controller path cannot work until the owner-approved sudo hand-over). No risk limit, threshold, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/release-verdict.test.js tests/oracle-paper-release-workflow.test.js (38 pass); workflow YAML parses; platform-independent test validator."
+unverified: "Not run on GitHub. The controller path needs the controller with the release verb installed (the in-place upgrade), the runner's sudo rule, and a release dispatched with activation=controller, each needing the owner's approval."
+acceptance:
+  - "Non-author review (/grill-me); exact-head CI; this PR touches a privileged workflow: it widens the allowed privileged commands from one to two, which the reviewer must judge."
