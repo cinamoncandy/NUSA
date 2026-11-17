@@ -17,7 +17,7 @@ const UNITS = Object.freeze(["nusa-research.timer", "nusa.service", "nusa-resear
 const BOOT_UNITS = Object.freeze(["nusa-research.timer", "nusa.service"]); // units that start by themselves when enabled
 const RUNTIME_UNIT = "nusa.service";
 const SHA = /^[0-9a-f]{40}$/;
-const RELEASE_PHASES = Object.freeze(["PREPARED", "UNITS_STOPPED", "SWAPPING", "SWAPPED", "STARTING_NEW", "ROLLING_BACK", "STARTING_OLD"]);
+const RELEASE_PHASES = Object.freeze(["PREPARED", "UNITS_STOPPED", "ACTIVATING", "SWAPPING", "SWAPPED", "STARTING_NEW", "ROLLING_BACK", "STARTING_OLD"]);
 const RELEASE_OUTCOMES = Object.freeze(["DEPLOYED", "ROLLED_BACK", "STOPPED_SAFE", "REFUSED", "SUPERSEDED"]);
 const DEFAULTS = Object.freeze({
   stateDir: "/var/lib/nusa-control",
@@ -28,18 +28,26 @@ const DEFAULTS = Object.freeze({
   // state file alone decides what may start after a boot.
   runDir: "/run/nusa-control",
   grantTtlMs: 60_000,
+  // The reviewed host helper does the real activation (design C4 3.6); the controller runs it as a child while it holds the lock.
+  helperPath: "/opt/nusa/bin/nusa-release-step",
+  activateTimeoutMs: 40 * 60 * 1000,
+  activatingGrantTtlMs: 10 * 60 * 1000,
   healthPort: 41731,
   expectedUid: 0,
   checkAncestors: true,
   startCeilingMs: 20 * 60 * 1000,
   pollMs: 5000,
-  // The periodic verify tolerates a runtime that is busy for a moment (a long synchronous research job can keep /health from
-  // answering for about 15 s): "no answer" is asked again this many times, this far apart, before the runtime is stopped. A WRONG answer
-  // (other build, other mode, foreign sender) is never retried and stops at once. The whole verify holds the controller lock, and an
-  // emergency `stop` waits for that lock (nusa-control.sh, 90 s): the worst case of the retries must stay far below that wait
-  // (2 x 8 s of sleeping plus 3 probes of at most 5 s each is about 31 s).
-  verifyNoAnswerAttempts: 3,
-  verifyNoAnswerRetryMs: 8_000,
+  // The periodic verify tolerates a runtime that is busy: "no answer" (no listener answering, or a sender not identified in time) is asked
+  // again every verifyNoAnswerRetryMs for up to verifyNoAnswerBudgetMs before the runtime is stopped. Real host 2026-11-17 02:15 KST:
+  // after about five hours the hourly research job kept /health unanswered for longer than the earlier 3 x 8 s allowance and the
+  // controller safe-stopped a healthy collector, an 8-hour data gap, with orders OFF (a stop costs more than a wait in COLLECT_ONLY).
+  // A WRONG answer (other build, other mode, foreign sender) is never retried and stops at once; so does a runtime that is no longer
+  // active. The whole verify holds the controller lock, so a stop REQUEST (the stop marker, created before `stop` waits for the lock)
+  // is looked at before every retry: the verify gives way within one retry gap plus one probe, far below the 90 s lock wait of `stop`.
+  // The budget starts after the FIRST probe and is checked before each retry, so the whole verify can last up to the budget plus one retry gap plus
+  // one probe (about 5 min 25 s); `stop` is not delayed by that because it is announced through the marker (see above).
+  verifyNoAnswerBudgetMs: 300_000,
+  verifyNoAnswerRetryMs: 15_000,
 });
 
 class ControlError extends Error {
@@ -280,25 +288,36 @@ function makeController(deps) {
   const createMarker = () => {
     try { const me = deps.selfIdentity(); exclusiveWrite(markerFile, { pid: me.pid, ident: me.ident, createdAt: now() }); return true; } catch (e) { return e.code === "EEXIST"; }
   };
-  const writeGrant = (intent, phase, sha) => {
-    unlinkQuiet(grantFile);
+  // A grant is one file per permitted start (start-grant.1, start-grant.2). A gate CLAIMS a start by renaming one slot file: rename is
+  // atomic, so of two gates racing for the same slot exactly one wins and the other gets ENOENT. The count can never be exceeded.
+  const clearGrants = () => { try { for (const n of fsx.readdirSync(cfg.runDir)) if (n.startsWith("start-grant")) unlinkQuiet(path.join(cfg.runDir, n)); } catch { /* best effort */ } };
+  const writeGrant = (intent, phase, sha, { uses = 1, ttlMs = cfg.grantTtlMs } = {}) => {
+    if (!(uses === 1 || uses === 2)) throw new ControlError("GRANT_USES", String(uses));
+    clearGrants();
     const me = deps.selfIdentity();
     const at = monotonic();
-    exclusiveWrite(grantFile, { runId: intent.runId, phase, sha, pid: me.pid, ident: me.ident, bootId: deps.bootId(), atMono: at, expiresAtMono: at + cfg.grantTtlMs });
+    const rec = { runId: intent.runId, phase, sha, pid: me.pid, ident: me.ident, bootId: deps.bootId(), atMono: at, expiresAtMono: at + ttlMs };
+    for (let n = 1; n <= uses; n += 1) exclusiveWrite(`${grantFile}.${n}`, rec);
   };
   // The gate's check of a release start: every condition must hold, and the grant is consumed (deleted) when it permits.
   const takeGrant = (s) => {
-    const g = peek(grantFile);
-    if (!g.exists) return { ok: false, why: "NO_GRANT" };
     const no = (why) => ({ ok: false, why });
+    let slots = [];
+    try { slots = fsx.readdirSync(cfg.runDir).filter((n) => /^start-grant\.[12]$/.test(n)).sort(); } catch { slots = []; }
+    if (slots.length === 0) return no("NO_GRANT");
+    const g = peek(path.join(cfg.runDir, slots[0]));
+    if (!g.exists) return no("NO_GRANT");
     let rec;
-    try { rec = JSON.parse(g.text); } catch { unlinkQuiet(grantFile); return no("GRANT_UNREADABLE"); }
+    try { rec = JSON.parse(g.text); } catch { return no("GRANT_UNREADABLE"); }
     const i = s.intent;
     if (!rec || typeof rec !== "object" || !i || i.verb !== "release") return no("NO_RELEASE_INTENT");
     if (rec.runId !== i.runId) return no("WRONG_RUN");
-    if (!["STARTING_NEW", "STARTING_OLD"].includes(i.phase) || rec.phase !== i.phase) return no("WRONG_PHASE");
-    const expected = i.phase === "STARTING_NEW" ? i.to : i.from;
-    if (rec.sha !== expected || rec.sha !== currentSha() || rec.sha !== s.active) return no("WRONG_BUILD");
+    if (!["STARTING_NEW", "STARTING_OLD", "ACTIVATING"].includes(i.phase) || rec.phase !== i.phase) return no("WRONG_PHASE");
+    const expected = i.phase === "STARTING_OLD" ? i.from : i.to;
+    // While the helper activates, the helper swaps the link before its restarts: the link must already be the new build and the
+    // record must still say the old one (it is only advanced after the controller's own verification).
+    const recordOk = i.phase === "ACTIVATING" ? s.active === i.from : rec.sha === s.active;
+    if (rec.sha !== expected || rec.sha !== currentSha() || !recordOk) return no("WRONG_BUILD");
     try { if (rec.bootId !== deps.bootId()) return no("OTHER_BOOT"); } catch { return no("OTHER_BOOT"); }
     const at = monotonic();
     if (!(Number.isFinite(rec.atMono) && Number.isFinite(rec.expiresAtMono) && at >= rec.atMono && at <= rec.expiresAtMono)) return no("EXPIRED");
@@ -310,7 +329,15 @@ function makeController(deps) {
     if (!alive) return no("OWNER_GONE");
     if (!isRelease) return no("OWNER_NOT_RELEASE");
     if (!holdsLock) return no("OWNER_NOT_HOLDING_LOCK");
-    try { fsx.unlinkSync(grantFile); } catch { return no("GRANT_NOT_CONSUMED"); }
+    // Claim one start by an atomic rename of a slot file. Losing the race on every slot means the grant is used up.
+    let claimed = false;
+    for (const n of slots) {
+      const from = path.join(cfg.runDir, n);
+      try { fsx.renameSync(from, `${from}.used-${process.pid}`); claimed = true; break; } catch (e) { if (e && e.code === "ENOENT") continue; return no("GRANT_NOT_CONSUMED"); }
+    }
+    if (!claimed) return no("NO_GRANT");
+    // A stop marker that appeared between the gate's first check and this claim still denies the start (the claimed slot is lost: fail closed).
+    if (markerState().present) return no("STOP_REQUESTED_DURING_START");
     return { ok: true };
   };
   const swapLink = (sha) => {
@@ -335,14 +362,14 @@ function makeController(deps) {
     let combo;
     switch (i.phase) {
       case "PREPARED": case "UNITS_STOPPED": case "STARTING_OLD": combo = link === i.from && s.active === i.from; break;
-      case "SWAPPING": combo = both(i.from, i.to) && s.active === i.from; break;
+      case "SWAPPING": case "ACTIVATING": combo = both(i.from, i.to) && s.active === i.from; break;
       // From SWAPPED on, link and record may each be either of the two known builds (a crash between the two writes of this very
       // recovery leaves exactly such a pair, and running the recovery again must reach the same end).
       case "SWAPPED": case "STARTING_NEW": case "ROLLING_BACK": combo = both(i.from, i.to) && (s.active === i.from || s.active === i.to); break;
       default: combo = false;
     }
     try {
-      unlinkQuiet(grantFile);
+      clearGrants();
       if (!combo) {
         store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", active: null, intent: null });
         return { recovered: true, ok: true, code: "RECOVERY_UNKNOWN", detail: `phase ${i.phase} link ${link} active ${s.active}; the link was left untouched` };
@@ -511,8 +538,11 @@ function makeController(deps) {
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
       let v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
-      for (let n = 1; !v.ok && !isWrongAnswer(v) && n < cfg.verifyNoAnswerAttempts; n += 1) {
+      const patienceEnd = monotonic() + cfg.verifyNoAnswerBudgetMs;
+      while (!v.ok && !isWrongAnswer(v) && monotonic() < patienceEnd) {
         await sleep(cfg.verifyNoAnswerRetryMs);
+        // A stop request wins at once (the stop is the owner's decision; this verify must not keep the lock): no more probes.
+        if (markerState().present) return stoppedResult("VERIFY_STOPPED:STOP_REQUESTED");
         // The runtime may have died while we waited: that is a stop now, not another probe.
         if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
         v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
@@ -575,6 +605,20 @@ function makeController(deps) {
       } catch (e) { return releaseResult("STOPPED_SAFE", { reason: why, stateRecorded: false, detail: "recovery settles the record on the next command" }); }
     };
     const guard = async () => (markerState().present ? "STOP_REQUESTED" : (await ordersOffNow()) ? null : "ORDERS_NOT_OFF");
+    // The controller's OWN check that the running runtime is the expected build in COLLECT_ONLY (the helper's readiness is not trusted alone).
+    const waitVerified = async (build) => {
+      const deadline = monotonic() + cfg.startCeilingMs;
+      let last = null;
+      while (monotonic() < deadline) {
+        if (markerState().present) return { ok: false, reason: "STOP_REQUESTED" };
+        last = await verifyRuntime(deps, cfg, build, "COLLECT_ONLY");
+        if (last.ok) return { ok: true };
+        if (isWrongAnswer(last)) return { ok: false, reason: last.reason };
+        await sleep(cfg.pollMs);
+      }
+      return { ok: false, reason: "START_CEILING" };
+    };
+    // Rollback start of the previous proven build: the controller starts it itself, one grant per gated start.
     const startAndVerify = async (phase, build) => {
       try {
         modeWrite();
@@ -584,17 +628,20 @@ function makeController(deps) {
         // The research timer has its own gate check: one grant is one start, so it gets its own grant (same run, same phase).
         writeGrant(cur.intent, phase, build);
         if (sys(["start", "nusa-research.timer"]) !== 0) throw new ControlError("START_FAILED", "nusa-research.timer");
-        const deadline = monotonic() + cfg.startCeilingMs;
-        let last = null;
-        while (monotonic() < deadline) {
-          if (markerState().present) return { ok: false, reason: "STOP_REQUESTED" };
-          last = await verifyRuntime(deps, cfg, build, "COLLECT_ONLY");
-          if (last.ok) return { ok: true };
-          if (isWrongAnswer(last)) return { ok: false, reason: last.reason };
-          await sleep(cfg.pollMs);
-        }
-        return { ok: false, reason: "START_CEILING" };
-      } catch (e) { return { ok: false, reason: e.code || "START_FAILED" }; } finally { unlinkQuiet(grantFile); }
+        return await waitVerified(build);
+      } catch (e) { return { ok: false, reason: e.code || "START_FAILED" }; } finally { clearGrants(); }
+    };
+    // Delegation (design C4 3.6): the reviewed host helper does the real activation (link swap, unit files, source identity,
+    // restarts, readiness, soak). Its two gated starts (nusa.service, research timer) use ONE grant with two uses.
+    const activate = async (build) => {
+      try {
+        modeWrite();
+        writeGrant(cur.intent, "ACTIVATING", build, { uses: 2, ttlMs: cfg.activatingGrantTtlMs });
+        const r = deps.runHelper ? deps.runHelper(build) : { status: 127 };
+        if (!r || r.status !== 0) return { ok: false, reason: `HELPER_EXIT_${r ? r.status : "NONE"}` };
+        if (currentSha() !== build) return { ok: false, reason: "HELPER_LINK_MISMATCH" };
+        return { ok: true };
+      } catch (e) { return { ok: false, reason: e.code || "HELPER_ERROR" }; } finally { clearGrants(); }
     };
     const settleRunning = (outcome, patch, extra = {}) => {
       finish({ desired: "COLLECT_ONLY", ...patch });
@@ -606,10 +653,14 @@ function makeController(deps) {
       if (problems.length > 0) return releaseResult("STOPPED_UNCONFIRMED", { reason: "STOP_NOT_CONFIRMED", problems });
       setPhase("UNITS_STOPPED", { desired: "STOPPED" });
       g = await guard(); if (g) return settleStopped(g);
-      setPhase("SWAPPING"); swapLink(to); setPhase("SWAPPED", { active: to });
-      g = await guard(); if (g) return settleStopped(g);
-      setPhase("STARTING_NEW");
-      const started = await startAndVerify("STARTING_NEW", to);
+      setPhase("ACTIVATING");
+      let started = await activate(to);
+      if (started.ok) {
+        // Only now does the record move to the new build; then the controller verifies on its own.
+        g = await guard(); if (g) return settleStopped(g);
+        setPhase("SWAPPED", { active: to });
+        started = await waitVerified(to);
+      }
       if (started.ok) {
         const proven = cur.proven.some((p) => p.sha === to) ? cur.proven : [...cur.proven, { sha: to, evidence: `RELEASE_VERIFIED:${runId}` }];
         return settleRunning("DEPLOYED", { proven });
@@ -635,6 +686,17 @@ function makeController(deps) {
 function lockHeldBy(pid, lockFile, readLocks = () => fs.readFileSync("/proc/locks", "utf8"), statIno = (f) => fs.statSync(f).ino) {
   const ino = statIno(lockFile);
   return readLocks().split("\n").some((line) => { const f = line.trim().split(/\s+/); return f[1] === "FLOCK" && f[2] === "ADVISORY" && f[3] === "WRITE" && f[4] === String(pid) && /^[0-9a-f]+:[0-9a-f]+:\d+$/.test(f[5] || "") && f[5].split(":")[2] === String(ino); });
+}
+// Runs the reviewed host helper's `activate` as a child of the controller (which holds the controller lock). The helper must be a
+// root-owned regular file nobody else can write; anything else is refused (status 127). The environment is minimal and fixed.
+function runHelperActivate(helper, sha, timeoutMs) {
+  if (!SHA.test(String(sha))) return { status: 127 };
+  try {
+    const st = fs.lstatSync(helper);
+    if (!st.isFile() || st.isSymbolicLink() || st.uid !== 0 || (st.mode & 0o022) !== 0) return { status: 127 };
+  } catch { return { status: 127 }; }
+  const r = spawnSync(helper, ["activate", sha], { stdio: ["ignore", 2, 2], timeout: timeoutMs, env: { PATH: "/usr/sbin:/usr/bin:/sbin:/bin", LC_ALL: "C" } });
+  return { status: r.status === null ? 99 : r.status };
 }
 // Port of install.sh orders_off_everywhere: fail closed, every query must succeed and make sense.
 function ordersOffEverywhere({ root = "", read = (f) => fs.readFileSync(f, "utf8"), show = (a) => { const r = spawnSync("systemctl", ["show", "nusa.service", ...a], { encoding: "utf8", timeout: 10_000 }); if (r.status !== 0) throw new Error("systemctl show failed"); return String(r.stdout).trim(); }, lstat = (f) => fs.lstatSync(f), list = (d) => fs.readdirSync(d) } = {}) {
@@ -793,7 +855,8 @@ async function main(argv) {
     bootId: () => fs.readFileSync("/proc/sys/kernel/random/boot_id", "utf8").trim(), cgroupOf: (pid) => fs.readFileSync(`/proc/${pid}/cgroup`, "utf8"),
     cmdlineIsRelease: (pid) => { const a = fs.readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0"); return a.some((x) => x.endsWith("nusa-control.js")) && a.includes("release"); },
     lockHeldBy: (pid) => lockHeldBy(pid, path.join(DEFAULTS.runDir, "lock")),
-    ordersOff: () => ordersOffEverywhere() });
+    ordersOff: () => ordersOffEverywhere(),
+    runHelper: (sha) => runHelperActivate(DEFAULTS.helperPath, sha, DEFAULTS.activateTimeoutMs) });
   const known = ["status", "stop", "collect", "init", "reconcile", "verify", "release", "grant-orders"];
   if (!known.includes(verb)) { process.stdout.write(`${JSON.stringify({ ok: false, code: "UNKNOWN_VERB", known })}\n`); return 64; }
   const readonly = args.includes("--readonly");
@@ -802,5 +865,5 @@ async function main(argv) {
   return out.ok ? 0 : 1;
 }
 
-module.exports = { lockHeldBy, ordersOffEverywhere, RELEASE_PHASES, RELEASE_OUTCOMES, DEFAULTS, makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
+module.exports = { runHelperActivate, lockHeldBy, ordersOffEverywhere, RELEASE_PHASES, RELEASE_OUTCOMES, DEFAULTS, makeController, validateState, stateStore, writeModeFile, assertSafeDir, hostIdentifiedHealth, serverSideInodes, procAddress, UNITS, BOOT_UNITS, SCHEMA_VERSION, ControlError };
 if (require.main === module) main(process.argv.slice(2)).then((code) => process.exit(code), (e) => { process.stdout.write(`${JSON.stringify({ ok: false, code: "INTERNAL", detail: String(e && e.message) })}\n`); process.exit(70); });
