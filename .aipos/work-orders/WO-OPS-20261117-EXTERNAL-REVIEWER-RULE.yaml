@@ -1,0 +1,22 @@
+id: WO-OPS-20261117-EXTERNAL-REVIEWER-RULE
+title: "AGENTS.md: owner-designated external reviewer (advisory only), proposal"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/agents-reviewer-roles
+owner_decision: "2026-11-17: the owner asked whether Gemini may be a partner and then asked for a draft rule change ('규칙 수정 초안 만들어줘'). This is a DRAFT for the owner to accept or reject; nothing takes effect before the owner merges the PR path (the release bot merges only after non-author review)."
+background: "AGENTS.md names the VALIDATOR as a separate fresh Claude session. The owner chose Codex as reviewer for the C4 PRs on 2026-11-17, which the rule text did not cover (recorded in the 2026-11-17 handoff). An unverified Gemini output the same day described files and an API that do not exist in the repository, so any external AI must stay advisory."
+change:
+  - "AGENTS.md: new role bullet 'External reviewer (owner-designated, per PR)': advisory only; no merge, approval, host access, credentials, sudo, release or deploy; findings must cite file and line; CORE verifies each finding against the repository; the owner's designation is recorded per PR; stands in for the VALIDATOR only where named in writing for that PR."
+  - "AGENTS.md: 'Codex workflows stay disabled' now says automated Codex workflows stay disabled, so the rule above does not contradict it."
+not_changed:
+  - "No authority, risk limit, threshold, capital, gate or merge rule. Automated Codex workflows stay disabled. CORE and VALIDATOR definitions unchanged."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Wording only; not reviewed by a non-author. The owner decides."
+acceptance:
+  - "Owner reads the wording and accepts, edits or rejects it."
