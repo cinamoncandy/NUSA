@@ -540,7 +540,8 @@ test("upgrade --apply swaps only the two controller files and the manifest, keep
   assert.equal(fs.readFileSync(path.join(w.R, "var/lib/nusa-control/state.json"), "utf8"), state, "the state file is untouched");
   assert.equal(fs.readdirSync(path.join(w.R, "etc/systemd/system")).sort().join(","), units);
   assert.ok(!w.calls().some((c) => /^systemctl (restart|stop|start|enable|disable|daemon-reload)/.test(c)), "no unit is touched");
-  assert.ok(w.calls().includes("controller status") && w.calls().includes("controller verify"));
+  assert.ok(w.calls().includes("controller status"));
+  assert.ok(!w.calls().some((c) => c === "controller verify" || c.startsWith("controller stop") || c.startsWith("controller collect")), "the upgrade never calls a verb that can stop or start the runtime (verify stops on any mismatch)");
 });
 
 test("upgrade refuses (changing nothing) for every unsafe precondition", posixOnly, () => {
@@ -592,4 +593,15 @@ test("upgrade: if restoring a file fails, RECOVERY_REQUIRED is reported and the 
   assert.match(r.stderr, /could not restore/); assert.match(r.stderr, /RECOVERY_REQUIRED/);
   assert.doesNotMatch(r.stderr, /OLD controller files were put back/);
   assert.ok(fs.readdirSync(path.join(w.R, "opt/nusa-control")).some((n) => n.includes(".upgrade-backup-")), "the backups are kept");
+});
+
+test("upgrade never calls verify, even when a verify would have stopped the runtime: a stub whose verify stops units is never reached", posixOnly, () => {
+  const w = upgradeWorld();
+  // After the upgrade the release's stub controller answers status ok; make ITS verify (and stop) leave a trace in the unit log if ever called.
+  const sh = path.join(w.src, "nusa-control.sh");
+  fs.writeFileSync(sh, fs.readFileSync(sh, "utf8").replace("verify) echo", 'verify) echo "systemctl stop nusa.service" >> ' + JSON.stringify(path.join(w.R, "calls.log")) + '; echo'));
+  const r = w.run(w.hash, "--upgrade-controller", "--apply");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.ok(!w.calls().some((c) => /^systemctl (stop|restart|start|disable|enable)/.test(c)), "no unit command ever ran");
+  assert.match(fs.readFileSync(path.join(w.R, "opt/nusa-control/nusa-control.sh"), "utf8"), /status\) echo/);
 });

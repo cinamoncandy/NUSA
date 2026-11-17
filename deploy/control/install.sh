@@ -8,7 +8,8 @@
 #   ... <sha> <manifest-sha256> --upgrade-controller [--apply]           replace ONLY the two controller files and the manifest of an
 #        installed, verified COLLECT_ONLY host with those of the staged release <sha> (units, drop-ins, state and runtime untouched,
 #        nothing restarted); the release does NOT have to be the running one. Preflight (without --apply) is read-only. After the swap
-#        the new controller must report the runtime verified; otherwise the old files are put back (backups *.upgrade-backup-<UTC>-<pid> are kept).
+#        the new controller must report the runtime verified by its read-only `status` (never by `verify`, which can stop the runtime);
+#        otherwise the old files are put back (backups *.upgrade-backup-<UTC>-<pid> are kept).
 #
 # The files come from the STAGED RELEASE of that commit (/opt/nusa/releases/<sha>/deploy/control). They are first copied into a
 # root-only private directory; the manifest hash given on the command line (printed in the reviewed pull request, it covers
@@ -461,7 +462,8 @@ upgrade_apply() {
     controller_status_ok && die "the new controller did not report the runtime verified; the OLD controller files were put back (equal to their backups) and it verifies (backups: *.upgrade-backup-$stamp)"
     die "the new controller did not report the runtime verified; the old files were put back (equal to their backups) but the status is still not ok; run: sudo /opt/nusa-control/nusa-control.sh status (backups: *.upgrade-backup-$stamp)"
   fi
-  "$sh" verify
+  # NOT `verify`: the verify verb can stop the runtime (it stops on any mismatch or silence), and this mode promises not to touch it.
+  # The read-only status above already proved the runtime verified by the NEW controller; the periodic timer runs verify as usual.
   echo; echo "DONE  controller upgraded in place to $SHA; runtime verified in COLLECT_ONLY; nothing was restarted. Backups of the old files: *.upgrade-backup-$stamp"
 }
 
