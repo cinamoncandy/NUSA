@@ -1,0 +1,24 @@
+id: WO-OPS-20261117-RESEARCH-MANIFEST-PHASE-TIMING
+title: "Research: log the phase durations of each dataset manifest build (observation only)"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/research-manifest-phase-timing
+owner_decision: "2026-11-17: the owner answered 'next' after the finding that the synchronous manifest build (14.9 s for KRW-XRP/60m on the host on 2026-11-16) is the likely reason /health stayed unanswered long enough for the controller to stop the collector. The PR stays DRAFT until a non-author review; a release needs the owner's approval and must not fall inside the second study holdout (2026-11-24T06:00Z..2026-11-28T06:00Z)."
+objective: "Measure where the time goes on the real host before any structural change. A sandbox profile with synthetic data (100000 one-minute candles, about 2 s per build, the build reads the same range about four times with a per-row checksum) cannot reproduce 14.9 s, so the host must be measured."
+change:
+  - "apps/cloud/src/researchDatasetManifestMaterializer.ts: optional onPhase(phase, durationMs) observer with the phases validate_and_gaps, read_source_candles, derive_and_hash, receipt_coverage, persist. It is called after each phase, never changes any hash, manifest or stored row, and a throwing observer is ignored."
+  - "apps/cloud/src/researchExperimentComposition.ts: one new log line per build: '[research-manifest] <market>/<interval> build phasesMs candles=<n> <phase>=<ms> ...'. The existing 'materialized dataset manifest' and 'build durationMs=' lines are unchanged."
+  - "tests/research-candle-material.test.js: the manifest and the stored row are identical with and without the observer; the phase names and order; a throwing observer does not break the build."
+not_changed:
+  - "No dataset identity, hash, window, threshold, experiment, risk limit, capital, order switch or authority. No structural change to the build yet."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "npx tsc -p tsconfig.json; node -r ./tests/register-dist.cjs --test tests/research-candle-material.test.js tests/research-experiment-composition.test.js (43 pass)."
+unverified: "Not run on the host. The new log line appears only after a release (restart of the collector, owner approval). The research code is not changed beyond observation: the actual fix (fewer reads, chunked reads with yields, or a separate process) waits for the measured phases."
+acceptance:
+  - "Non-author review; exact-head CI; a release only with the owner's approval and outside the second holdout."
