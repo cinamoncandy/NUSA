@@ -251,7 +251,7 @@ test("every privileged action goes through the one wrapper command", () => {
     assert.match(call, /sudo\s+("\$STEP"|\/opt\/nusa-control\/nusa-control\.sh)/, `sudoers must grant only the helper and the controller, found: ${call}`);
   }
   const controllerCalls = workflow.match(/sudo \/opt\/nusa-control\/nusa-control\.sh [^\n]*/g) ?? [];
-  assert.deepEqual(controllerCalls.map((c) => c.replace(/\)".*$/, "").trim()), ['sudo /opt/nusa-control/nusa-control.sh release "$SOURCE_SHA"'], "the only controller verb the runner may call is release <sha>");
+  assert.deepEqual(controllerCalls.map((c) => c.replace(/\)".*$/, "").trim()).sort(), ['sudo /opt/nusa-control/nusa-control.sh release "$SOURCE_SHA"', "sudo /opt/nusa-control/nusa-control.sh status"].sort(), "the only controller verbs the runner may call are release <sha> and status");
   assert.match(workflow, /STEP: \/opt\/nusa\/bin\/nusa-release-step/);
 });
 
@@ -365,6 +365,11 @@ test("stage_only skips preflight, the recheck and every activation; activation i
     const block = workflow.slice(at, workflow.indexOf("\n      - name:", at + 10));
     assert.match(block, /!inputs\.stage_only/, `${name} must be skipped by stage_only`);
   }
+  const verdictBlock = workflow.slice(workflow.indexOf("\n  verdict:"));
+  assert.match(verdictBlock, /ACTIVATION: \$\{\{ inputs\.activation \}\}/, "the verdict knows the activation mode, so a missing controller outcome fails");
+  assert.match(verdictBlock, /CONTROLLER_ACTIVE_SHA: \$\{\{ needs\.release\.outputs\.controllerActiveSha \}\}/);
+  assert.match(verdictBlock, /CONTROLLER_RUNTIME_OK: \$\{\{ needs\.release\.outputs\.controllerRuntimeOk \}\}/);
+  assert.match(workflow, /id: cstatus\r?\n\s+if: always\(\)/, "the controller status is read even when the release step failed");
   assert.match(workflow, /inputs\.activation == 'helper'/); assert.match(workflow, /inputs\.activation == 'controller'/);
   assert.match(workflow, /elif \[ "\$STAGE_ONLY" = "true" \]; then\r?\n\s+RESULT=STAGED_ONLY/);
 });

@@ -193,6 +193,8 @@ jobs:
     outputs:
       deploymentResult: ${{ steps.record.outputs.deploymentResult }}
       controllerOutcome: ${{ steps.record.outputs.controllerOutcome }}
+      controllerActiveSha: ${{ steps.cstatus.outputs.active_sha }}
+      controllerRuntimeOk: ${{ steps.cstatus.outputs.runtime_ok }}
     env:
       SOURCE_SHA: ${{ inputs.source_sha }}
       NUSA_DEPLOY_ROOT: /opt/nusa
@@ -279,6 +281,16 @@ jobs:
           echo "outcome=$OUTCOME" >> "$GITHUB_OUTPUT"
           if [ "$OUTCOME" != DEPLOYED ] || [ "$RC" != 0 ]; then echo "::error::controller release outcome: ${OUTCOME:-none} (exit $RC)"; exit 1; fi
 
+      # The controller's OWN read-only view after its release: the build it recorded as active and whether it verified the runtime.
+      # The verdict job needs both in controller mode (an outcome alone is not enough).
+      - name: Read the controller status (read-only)
+        id: cstatus
+        if: always() && steps.source_fresh.outputs.fresh == 'true' && !inputs.stage_only && inputs.activation == 'controller'
+        run: |
+          set -uo pipefail
+          OUT="$(sudo /opt/nusa-control/nusa-control.sh status)" || true
+          printf '%s\n' "$OUT" | tail -n 1 | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let a="",r="false";try{const o=JSON.parse(s);a=o.state&&typeof o.state.active==="string"&&/^[0-9a-f]{40}$/.test(o.state.active)?o.state.active:"";r=o.runtime&&o.runtime.ok===true?"true":"false"}catch{}console.log("active_sha="+a);console.log("runtime_ok="+r)})' >> "$GITHUB_OUTPUT"
+
       - name: Record deployed identity and fail-closed authority
         id: record
         if: always()
@@ -327,6 +339,9 @@ jobs:
       RELEASE_JOB: ${{ needs.release.result }}
       DEPLOYMENT_RESULT: ${{ needs.release.outputs.deploymentResult }}
       CONTROLLER_OUTCOME: ${{ needs.release.outputs.controllerOutcome }}
+      ACTIVATION: ${{ inputs.activation }}
+      CONTROLLER_ACTIVE_SHA: ${{ needs.release.outputs.controllerActiveSha }}
+      CONTROLLER_RUNTIME_OK: ${{ needs.release.outputs.controllerRuntimeOk }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -339,22 +354,25 @@ jobs:
         id: health
         run: |
           set -uo pipefail
-          HEALTH_SHA=""
+          HEALTH_SHA=""; HEALTH_OK=false
           if [ "$DEPLOYMENT_RESULT" = "DEPLOYED" ]; then
             URL="$(node -e 'const u=JSON.parse(require("fs").readFileSync("deploy/health-watch.json","utf8")).healthUrl;if(typeof u!=="string"||!/^https:\/\/[a-z0-9.-]+\/health$/.test(u))process.exit(1);process.stdout.write(u)' 2>/dev/null)" || URL=""
             if [ -n "$URL" ]; then
               for n in 1 2 3 4 5 6; do
                 curl -sS -m 20 -o /tmp/health.json "$URL" 2>/dev/null || true
                 HEALTH_SHA="$(node -e 'try{const h=JSON.parse(require("fs").readFileSync("/tmp/health.json","utf8"));process.stdout.write(String(h.runtime&&h.runtime.sourceCommitSha||""))}catch{}' 2>/dev/null)" || HEALTH_SHA=""
-                [ "$HEALTH_SHA" = "$SOURCE_SHA" ] && break
+                HEALTH_OK="$(node -e 'try{const h=JSON.parse(require("fs").readFileSync("/tmp/health.json","utf8"));process.stdout.write(h.ok===true?"true":"false")}catch{process.stdout.write("false")}' 2>/dev/null)" || HEALTH_OK=false
+                [ "$HEALTH_SHA" = "$SOURCE_SHA" ] && [ "$HEALTH_OK" = true ] && break
                 [ "$n" = 6 ] || sleep 10
               done
             fi
           fi
           echo "sha=$HEALTH_SHA" >> "$GITHUB_OUTPUT"
+          echo "ok=$HEALTH_OK" >> "$GITHUB_OUTPUT"
       - name: Decide
         env:
           HEALTH_SHA: ${{ steps.health.outputs.sha }}
+          HEALTH_OK: ${{ steps.health.outputs.ok }}
         run: |
           set -uo pipefail
           node scripts/release-verdict.js | tee -a "$GITHUB_STEP_SUMMARY"
