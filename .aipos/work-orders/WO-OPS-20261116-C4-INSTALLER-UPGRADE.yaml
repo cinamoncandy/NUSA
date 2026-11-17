@@ -1,0 +1,23 @@
+id: WO-OPS-20261116-C4-INSTALLER-UPGRADE
+title: "Installer: --upgrade-controller replaces the controller files in place, without stopping or restarting the runtime"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/c4-installer-upgrade
+owner_decision: "2026-11-16: the owner chose independent development for now and answered 'next' to the plan in docs/NUSA_C4_RELEASE_THROUGH_CONTROLLER_DESIGN_2026-11-16.md section 3.6 (bootstrap consequence). The PR stays DRAFT until a non-author review; nothing runs on the host before the owner's per-step approval."
+objective: "The installed controller (678085c2f) has no release verb and the old helper path is refused by its start gate, so the first release carrying the verb would need the three-session dance (rollback, release, install) once more. This mode installs the new controller files on a running, verified COLLECT_ONLY host without touching the runtime."
+change:
+  - "deploy/control/install.sh: new flag --upgrade-controller [--apply]. Preflight (read-only) checks: the staged release (it does NOT have to be the running one), source files and the reviewed manifest hash, safe directories, orders OFF from every source, nusa.service active, the installed controller sound (manifest matches its anchor and every managed file), installed units/drop-ins/mode file byte-identical to the release's (otherwise the full installer is required), the NEW controller's validator accepts the current state file (COLLECT_ONLY, no intent), and the installed controller's read-only status reports the runtime verified. --apply copies the release into a private directory, verifies it, takes the controller lock, backs up the two controller files, the manifest and the anchor (*.upgrade-backup-<UTC>-<pid>, never deleted), replaces each by one rename, then requires the NEW controller to report the runtime verified; otherwise the old files are put back and verified again. Nothing is restarted; units, drop-ins, state and the runtime are untouched."
+  - "tests/nusa-control-install.test.js: 5 new tests (read-only preflight, apply with backups and no unit touched, six refusals that change nothing, automatic restore, flag conflicts)."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. The full install and --rollback paths are unchanged. This PR changes no host."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control-install.test.js (24 pass); AIPOS yaml; platform-independent test validator."
+unverified: "Run against a temporary tree with stub systemctl and controller only. On the host the real `status`, the lock directory /run/nusa-control and the real swap are not exercised; a release and a fresh owner approval are needed (preflight first, then --apply). install.sh is excluded from the manifest like before: the owner checks its sha256."
+acceptance:
+  - "Non-author review (/grill-me); exact-head CI; owner approval for each host step."
