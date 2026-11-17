@@ -44,6 +44,8 @@ const DEFAULTS = Object.freeze({
   // A WRONG answer (other build, other mode, foreign sender) is never retried and stops at once; so does a runtime that is no longer
   // active. The whole verify holds the controller lock, so a stop REQUEST (the stop marker, created before `stop` waits for the lock)
   // is looked at before every retry: the verify gives way within one retry gap plus one probe, far below the 90 s lock wait of `stop`.
+  // The budget starts after the FIRST probe and is checked before each retry, so the whole verify can last up to the budget plus one retry gap plus
+  // one probe (about 5 min 25 s); `stop` is not delayed by that because it is announced through the marker (see above).
   verifyNoAnswerBudgetMs: 300_000,
   verifyNoAnswerRetryMs: 15_000,
 });
