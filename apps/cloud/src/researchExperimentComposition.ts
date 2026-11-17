@@ -331,9 +331,11 @@ export function composeResearchExperiments(input: {
               ? `upbit-1m-closed:${market}:${M}`
               : `upbit-1m-aggregated:${market}:${intervalMs}`;
             const manifestBuildStarted = performance.now();
-            materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs, candles, source, createdAt, sourceCommitSha: settings.sourceCommitSha });
+            const phases: string[] = [];
+            materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs, candles, source, createdAt, sourceCommitSha: settings.sourceCommitSha, onPhase: (phase, durationMs) => { phases.push(`${phase}=${Math.round(durationMs)}`); } });
             log(`[research-manifest] ${market}/${intervalName} materialized dataset manifest`);
             log(`[research-manifest] ${market}/${intervalName} build durationMs=${Math.max(0, Math.round(performance.now() - manifestBuildStarted))}`);
+            log(`[research-manifest] ${market}/${intervalName} build phasesMs candles=${candles.length} ${phases.join(" ")}`);
           }
         }
       } catch (error) {
