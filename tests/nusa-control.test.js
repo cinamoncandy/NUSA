@@ -310,35 +310,41 @@ test("property: no sequence of verbs and faults reaches orders, loses the state,
 });
 
 test("verify asks again when the runtime is busy for a moment (real host 2026-11-16: a 14 s research job stopped a healthy runtime); a wrong answer is never retried", posixOnly, async () => {
-  // Old unit (past the start ceiling): one missing answer used to stop it. Now up to 3 probes, 8 s apart.
-  for (const answers of [[null], [null, null]]) {
+  // Old unit (past the start ceiling): one missing answer used to stop it. Now the verify keeps asking every 15 s for up to 5 minutes.
+  for (const answers of [[null], [null, null], [null, null, null, null, null, null, null, null]]) {
     const w = world({ healthAnswers: ["COLLECT_ONLY", ...answers, "COLLECT_ONLY"] }); await seed(w); await w.ctl.collect(); w.ageMs = 3_600_000;
     const r = await w.ctl.verify();
     assert.equal(r.code, "COLLECT_ONLY_VERIFIED", `${answers.length} missing answers then a good one`);
     assert.ok(!allStopped(w), "the runtime keeps running");
   }
-  // Three missing answers in a row is still a stop (fail closed).
-  const gone = world({ healthAnswers: ["COLLECT_ONLY", null, null, null, "COLLECT_ONLY"] }); await seed(gone); await gone.ctl.collect(); gone.ageMs = 3_600_000;
+  // No answer for the WHOLE patience budget is still a stop (fail closed): 5 minutes of silence, never indefinitely.
+  const gone = world({ healthAnswers: ["COLLECT_ONLY", ...Array(40).fill(null), "COLLECT_ONLY"] }); await seed(gone); await gone.ctl.collect(); gone.ageMs = 3_600_000;
   assert.match((await gone.ctl.verify()).code, /VERIFY_STOPPED/); assert.ok(allStopped(gone));
+  const spent = gone.slept.reduce((a, b) => a + b, 0);
+  assert.ok(spent >= 300_000 && spent <= 300_000 + 15_000, `it waited the whole budget and no longer (${spent} ms)`);
   // A wrong answer stops at once: the good answer queued behind it is never asked for.
   const wrong = world({ healthAnswers: ["COLLECT_ONLY", `COLLECT_ONLY@${OTHER}`, "COLLECT_ONLY"] }); await seed(wrong); await wrong.ctl.collect(); wrong.ageMs = 3_600_000;
   assert.match((await wrong.ctl.verify()).code, /BUILD_MISMATCH/); assert.ok(allStopped(wrong));
   const mode = world({ healthAnswers: ["COLLECT_ONLY", "PAPER_ORDERS", "COLLECT_ONLY"] }); await seed(mode); await mode.ctl.collect(); mode.ageMs = 3_600_000;
   assert.match((await mode.ctl.verify()).code, /MODE_MISMATCH/); assert.ok(allStopped(mode));
-  // The retries are spaced 8 s apart: 2 missing answers, then a good one, means 2 sleeps of 8 s.
+  // The retries are spaced 15 s apart: 2 missing answers, then a good one, means 2 sleeps of 15 s.
   const timed = world({ healthAnswers: ["COLLECT_ONLY", null, null, "COLLECT_ONLY"] }); await seed(timed); await timed.ctl.collect(); timed.ageMs = 3_600_000;
   timed.slept = [];
   assert.equal((await timed.ctl.verify()).code, "COLLECT_ONLY_VERIFIED");
-  assert.deepEqual(timed.slept, [8_000, 8_000]);
+  assert.deepEqual(timed.slept, [15_000, 15_000]);
 });
 
 test("the verify retries are bounded below the wait of an emergency stop, which must not hit LOCK_BUSY while verify holds the lock", posixOnly, () => {
   const src = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.js"), "utf8");
   const sh = fs.readFileSync(path.join(__dirname, "..", "deploy", "control", "nusa-control.sh"), "utf8");
   const probe = Number(/timeoutMs = (\d+)/.exec(src)[1]);            // the real per-probe timeout of hostIdentifiedHealth
-  const worst = (DEFAULTS.verifyNoAnswerAttempts - 1) * DEFAULTS.verifyNoAnswerRetryMs + DEFAULTS.verifyNoAnswerAttempts * probe;
+  // The verify may hold the lock for the whole patience budget, but it looks at the stop marker before EVERY retry, and `stop` creates
+  // that marker before it waits for the lock: the lock is free within one retry gap plus one probe (plus the probe in progress).
+  const reaction = DEFAULTS.verifyNoAnswerRetryMs + 2 * probe;
   const stopWait = Number(/if ! flock -w (\d+) 9; then/.exec(sh.slice(sh.indexOf("stop)")))[1]) * 1000;
-  assert.ok(stopWait >= 2 * worst, `an emergency stop waits ${stopWait} ms for the lock; verify can hold it for at most ${worst} ms`);
+  assert.ok(stopWait >= 2 * reaction, `an emergency stop waits ${stopWait} ms for the lock; verify gives way within ${reaction} ms of the marker`);
+  assert.ok(sh.indexOf("stop-requested") > 0 && sh.indexOf("stop-requested") < sh.indexOf("flock -w 90"), "the marker is created before the wait");
+  assert.match(src, /if \(markerState\(\)\.present\) return stoppedResult\("VERIFY_STOPPED:STOP_REQUESTED"\);\s*\/\/ The runtime may have died/, "the verify looks at the marker before each retry");
   assert.match(sh, /reconcile\|verify\)\s+if ! flock -n 9/, "verify and reconcile still never wait for another command");
 });
 
@@ -728,4 +734,19 @@ test("consecutive verify runs while another command holds the lock never claim v
   for (let i = 0; i < 3; i += 1) { const r = await w.ctl.verify({ readonly: true }); assert.equal(r.verified, false); assert.equal(r.skipped, true); }
   const real = await w.ctl.verify();
   assert.equal(real.code, "COLLECT_ONLY_VERIFIED");
+});
+
+test("a stop requested while the verify is waiting for an unanswered runtime wins at once: no further probe, the verify gives way", posixOnly, async () => {
+  let probes = 0; let w = null; let silent = false;
+  w = world({ identifiedHealth: async () => {
+    if (!silent) return { body: { runtime: { runMode: "COLLECT_ONLY", sourceCommitSha: SHA } }, ownerPids: [4242] };
+    probes += 1;
+    if (probes === 2) fs.writeFileSync(w.marker, JSON.stringify({ pid: 4999, ident: "x" }), { mode: 0o600 });   // an emergency stop arrives during the silence
+    return { body: null, ownerPids: [] };
+  } });
+  await seed(w); await w.ctl.collect(); w.ageMs = 3_600_000; w.marker = path.join(w.base, "run", "stop-requested");
+  silent = true;
+  const r = await w.ctl.verify();
+  assert.match(r.code, /VERIFY_STOPPED:STOP_REQUESTED/); assert.ok(allStopped(w));
+  assert.equal(probes, 2, "no probe after the marker appeared");
 });
