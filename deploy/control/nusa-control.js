@@ -37,13 +37,17 @@ const DEFAULTS = Object.freeze({
   checkAncestors: true,
   startCeilingMs: 20 * 60 * 1000,
   pollMs: 5000,
-  // The periodic verify tolerates a runtime that is busy for a moment (a long synchronous research job can keep /health from
-  // answering for about 15 s): "no answer" is asked again this many times, this far apart, before the runtime is stopped. A WRONG answer
-  // (other build, other mode, foreign sender) is never retried and stops at once. The whole verify holds the controller lock, and an
-  // emergency `stop` waits for that lock (nusa-control.sh, 90 s): the worst case of the retries must stay far below that wait
-  // (2 x 8 s of sleeping plus 3 probes of at most 5 s each is about 31 s).
-  verifyNoAnswerAttempts: 3,
-  verifyNoAnswerRetryMs: 8_000,
+  // The periodic verify tolerates a runtime that is busy: "no answer" (no listener answering, or a sender not identified in time) is asked
+  // again every verifyNoAnswerRetryMs for up to verifyNoAnswerBudgetMs before the runtime is stopped. Real host 2026-11-17 02:15 KST:
+  // after about five hours the hourly research job kept /health unanswered for longer than the earlier 3 x 8 s allowance and the
+  // controller safe-stopped a healthy collector, an 8-hour data gap, with orders OFF (a stop costs more than a wait in COLLECT_ONLY).
+  // A WRONG answer (other build, other mode, foreign sender) is never retried and stops at once; so does a runtime that is no longer
+  // active. The whole verify holds the controller lock, so a stop REQUEST (the stop marker, created before `stop` waits for the lock)
+  // is looked at before every retry: the verify gives way within one retry gap plus one probe, far below the 90 s lock wait of `stop`.
+  // The budget starts after the FIRST probe and is checked before each retry, so the whole verify can last up to the budget plus one retry gap plus
+  // one probe (about 5 min 25 s); `stop` is not delayed by that because it is announced through the marker (see above).
+  verifyNoAnswerBudgetMs: 300_000,
+  verifyNoAnswerRetryMs: 15_000,
 });
 
 class ControlError extends Error {
@@ -534,8 +538,11 @@ function makeController(deps) {
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
       let v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
-      for (let n = 1; !v.ok && !isWrongAnswer(v) && n < cfg.verifyNoAnswerAttempts; n += 1) {
+      const patienceEnd = monotonic() + cfg.verifyNoAnswerBudgetMs;
+      while (!v.ok && !isWrongAnswer(v) && monotonic() < patienceEnd) {
         await sleep(cfg.verifyNoAnswerRetryMs);
+        // A stop request wins at once (the stop is the owner's decision; this verify must not keep the lock): no more probes.
+        if (markerState().present) return stoppedResult("VERIFY_STOPPED:STOP_REQUESTED");
         // The runtime may have died while we waited: that is a stop now, not another probe.
         if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
         v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
