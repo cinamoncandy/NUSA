@@ -41,3 +41,12 @@ Reviews so far: a Codex PRELIMINARY review (not the formal Claude VALIDATOR that
 
 - None of the C4 code has run on the real host: tests use a fake systemd, fake health, a temporary tree and stub `visudo`; the real start gate, `/proc/locks`, `sudo -l -U` and the sudoers layout are untested.
 - The newest heads of the draft PRs have not had full CI.
+
+## Update 2026-11-17 03:30 UTC (12:30 KST)
+
+- C4 is on `main`: #3167, #3169, #3171 (workflow `stage_only`/`activation`), #3170 (installer `--upgrade-controller`), #3172 (sudo audit and hand-over), plus #3173 (this handoff), #3174 (verify patience: no answer tolerated up to 300 s, stop marker and unit state checked before each retry) and #3175 (manifest phase-timing log). The "all DRAFT, not on main" statements above are outdated. The host still runs the OLD controller (build `678085c2f`); none of #3170/#3171/#3172/#3174/#3175 runs there yet.
+- Incident 2026-11-17 02:15 KST: the old controller's verify stopped the collector after `/health` stayed silent during a long research job (SENDER_UNKNOWN in the journal). The owner restarted it with `collect` at 10:14 KST; health stable since (startedAt unchanged, orders 0, COLLECT_ONLY). `eventLoopMaxStallMs` was 29 s at 12:21 KST.
+- Test flake: `actual-paper-runtime` fails intermittently with `PAPER_ORDERBOOK_UNRECONCILED` then `KILL_SWITCH_ACTIVE` (run once more per rule). #3176 (restrict the e2e market to the top-10 by turnover) was REJECTED by Codex and closed: the problem market ranked 9th, so the pool did not exclude it, and at times no market is actionable (BTC fallback). A real fix has to start from runtime behaviour or a measured ranking at failure time.
+- Reviews: Codex (owner-chosen) rejected earlier heads of #3167, #3169-#3172; all findings fixed. Two stale inline threads kept the bot from merging #3172 until resolved. Formal Claude VALIDATOR verdict still does not exist (gap above).
+- New: `.aipos/work-orders/WO-OPS-20261117-MANIFEST-ISOLATION.yaml` (proposed, no code). Track C was CORE's after Codex declined it (Lease rule); the owner said development is independent for now.
+- Next safe actions: unchanged order 2-5 above, but the controller upgrade needs a staged release first and the owner's "승인" per host step; no release inside 2026-11-24T06:00Z..2026-11-28T06:00Z.
