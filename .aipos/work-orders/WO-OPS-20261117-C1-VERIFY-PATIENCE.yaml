@@ -1,0 +1,24 @@
+id: WO-OPS-20261117-C1-VERIFY-PATIENCE
+title: "Controller: the periodic verify waits up to five minutes for an unanswered runtime; a stop request still wins at once"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/c4-verify-patience
+owner_decision: "2026-11-17: the owner approved restarting the collector (collect, done 10:14 KST) and answered 'next' to the planned controller fix. The PR stays DRAFT until a non-author review; no host step before the owner's approval."
+objective: "Stop the controller from safe-stopping a healthy collector because the hourly research job keeps /health unanswered for longer than 3 x 8 s."
+evidence: "Host journal (read by the owner 2026-11-17, host clock UTC): nusa-control.sh verify answered COLLECT_ONLY_VERIFIED every 5 minutes until 16:04 UTC (01:04 KST); at 17:15:43 UTC (02:15 KST) it answered VERIFY_STOPPED:SENDER_UNKNOWN stopped=true, and every later run (17:20 UTC onward, still at 00:42 UTC 11-17) answered VERIFY_STOPPED:RUNTIME_NOT_ACTIVE. The service was inactive/dead (NRestarts=0, last start 12:29:50 UTC), public /health answered 502 from the Health Watch run of 18:21 UTC (issue #3168). The collector restarted by `collect` at 10:14 KST. Data gap about 8 hours (02:15 to 10:14 KST), orders OFF throughout, disk 37 percent, memory 7 GB free. NOT measured: how long the research job actually blocked /health at 17:00 UTC (the host journal lines of the job were not read); that it was the research job is an inference."
+change:
+  - "deploy/control/nusa-control.js: verifyNoAnswerBudgetMs 300000 and verifyNoAnswerRetryMs 15000 replace verifyNoAnswerAttempts 3 and 8000. No-answer (HEALTH_UNAVAILABLE, SENDER_UNKNOWN) is asked again every 15 s for up to 5 minutes. Before every retry the verify looks at the stop marker (a stop request ends the verify at once) and at the runtime unit (not active ends it at once). A wrong answer still stops at once."
+  - "tests/nusa-control.test.js: the retry tests are updated to the new budget; a test that a stop marker appearing during the silence wins with no further probe; the lock-wait guard test now bounds the reaction to a stop request (one retry gap plus two probes) below half of the 90 s wait of `stop`, and checks that the marker is created before the wait."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. Orders stay OFF; COLLECT_ONLY has no order path, which is why waiting is safer than stopping. A runtime that never answers for the whole 5 minutes is still stopped. The root cause (the research job and the collector share one process) is a separate, larger change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control.test.js tests/nusa-control-release.test.js (79 pass); platform-independent test validator."
+unverified: "Fake systemd and health only. It depends on the stop marker of #3167 (created by `stop` before it waits for the lock): this PR is stacked on #3167 and cannot be used before that and the controller upgrade (#3170) are reviewed, merged and installed. Until then the old controller can stop the collector again at the next long research job (it ran about five hours last time)."
+acceptance:
+  - "Non-author review (/grill-me); exact-head CI; a new release, the in-place controller upgrade and a fresh owner approval for each host step."
