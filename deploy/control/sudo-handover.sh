@@ -99,7 +99,7 @@ fi
 # The candidate for the syntax check lives in the temporary directory; only --apply writes anything into /etc/sudoers.d.
 tmp="$(mktemp)"; tmp2=""
 trap 'rm -f -- "$tmp" "$tmp2"' EXIT
-chmod 0440 "$tmp"; rule > "$tmp"
+rule > "$tmp"; chmod 0440 "$tmp"   # write first: a 0440 file cannot be written by a non-root user
 chk "visudo accepts the rule (syntax check of the candidate only)" visudo -cf "$tmp"
 chk "visudo accepts the current whole configuration" check_all
 echo "== result: $fails failure(s). This script never revokes an existing rule."
