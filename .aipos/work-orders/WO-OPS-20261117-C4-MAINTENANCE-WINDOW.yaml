@@ -1,0 +1,21 @@
+id: WO-OPS-20261117-C4-MAINTENANCE-WINDOW
+title: "C4: a bounded maintenance window so a release backup is not mistaken for a dead runtime (design first)"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/maintenance-window-design
+owner_decision: "2026-11-17: the owner delegated all decisions and asked for speed after the controller release failed during the host backup. CORE proposes the design; the owner's earlier rules stand: no host step without the owner's terminal paste, and the sudo hand-over is re-applied by the owner once."
+objective: "Stop the periodic verify from stopping a healthy collector while a release's long backup step makes /health unanswered, without relaxing any wrong-answer check."
+change:
+  - "Design document docs/NUSA_C4_MAINTENANCE_WINDOW_DESIGN_2026-11-17.md (this PR). Implementation follows in separate draft PRs (controller verbs, sudo allow-list, workflow steps)."
+not_changed:
+  - "No code, host, sudo rule, workflow, risk limit, threshold, capital, order switch or authority in this PR."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The cause of the /health silence is not established (the runtime journal is empty for the window). The design only stops the controller from killing a healthy collector during an announced, bounded window."
+acceptance:
+  - "Independent non-author review of the design before any code; implementation with the tests of section 6; the owner re-applies the sudo rule once."
