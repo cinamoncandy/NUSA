@@ -243,17 +243,18 @@ test("activation owns a bounded post-readiness stability soak and disk guard", (
 });
 
 test("every privileged action goes through the one wrapper command", () => {
-  const sudoCalls = workflow.match(/sudo\s+\S+/g) ?? [];
+  const sudoCalls = workflow.match(/sudo\s+(?:-n\s+)?\S+/g) ?? [];
   assert.ok(sudoCalls.length > 0);
   for (const call of sudoCalls) {
     // Exactly two privileged commands exist: the reviewed helper (stage, preflight, activate) and, only for activation=controller, the
     // controller's release verb. Anything else here is a new privilege and needs its own reviewed sudoers line.
-    assert.match(call, /sudo\s+("\$STEP"|\/opt\/nusa-control\/nusa-control\.sh)/, `sudoers must grant only the helper and the controller, found: ${call}`);
+    assert.match(call, /sudo\s+(?:-n\s+)?("\$STEP"|\/opt\/nusa-control\/nusa-control\.sh)/, `sudoers must grant only the helper and the controller, found: ${call}`);
   }
   // Line endings differ between checkouts (CRLF on Windows), so the verbs are read with a pattern that does not depend on where the line ends.
-  const controllerVerbs = [...workflow.matchAll(/sudo \/opt\/nusa-control\/nusa-control\.sh (release "\$SOURCE_SHA"|status)(?=[)"\s])/g)].map((m) => m[1]).sort();
-  assert.deepEqual(controllerVerbs, ['release "$SOURCE_SHA"', "status"], "the only controller verbs the runner may call are release <sha> and status");
-  assert.equal((workflow.match(/sudo \/opt\/nusa-control\/nusa-control\.sh/g) ?? []).length, 2, "no other sudo call of the controller exists");
+  // `sudo /opt/...` (the release and status steps) or `sudo -n /opt/...` (the never-blocking maintenance steps)
+  const controllerVerbs = [...workflow.matchAll(/sudo (?:-n )?\/opt\/nusa-control\/nusa-control\.sh (release "\$SOURCE_SHA"|status|maintenance begin "\$SOURCE_SHA"|maintenance end "\$SOURCE_SHA")(?=[)"\s])/g)].map((m) => m[1]).sort();
+  assert.deepEqual(controllerVerbs, ['maintenance begin "$SOURCE_SHA"', 'maintenance end "$SOURCE_SHA"', 'release "$SOURCE_SHA"', "status"], "the only controller verbs the runner may call are release <sha>, status and maintenance begin|end <sha>");
+  assert.equal((workflow.match(/sudo (?:-n )?\/opt\/nusa-control\/nusa-control\.sh/g) ?? []).length, 4, "no other sudo call of the controller exists");
   assert.match(workflow, /STEP: \/opt\/nusa\/bin\/nusa-release-step/);
 });
 
@@ -491,4 +492,15 @@ test("the controller release step prints the controller's answer even when it re
   assert.match(stepText, /set \+e -uo pipefail/);
   assert.ok(stepText.indexOf("set +e") < stepText.indexOf('OUT="$(sudo /opt/nusa-control/nusa-control.sh release'), "set +e must come before the controller call");
   assert.match(stepText, /printf '%s\\n' "\$OUT"/);
+});
+
+test("the maintenance window opens before the backup, closes after it under always(), and never blocks the release", () => {
+  const norm = workflow.replaceAll("\r\n", "\n");
+  const begin = norm.indexOf("- name: Announce the backup to the controller");
+  const backup = norm.indexOf("- name: Back up persistent state before release mutation");
+  const end = norm.indexOf("- name: Close the maintenance window");
+  assert.ok(begin > 0 && backup > begin && end > backup, "begin, then the backup, then end");
+  const beginStep = norm.slice(begin, backup); const endStep = norm.slice(end, norm.indexOf("\n  release:", end));
+  for (const text of [beginStep, endStep]) { assert.match(text, /set \+e -uo pipefail/); assert.match(text, /exit 0/, "a refused or missing window must not fail the run"); }
+  assert.match(endStep, /if: always\(\) && steps\.source_fresh\.outputs\.fresh == 'true'/);
 });

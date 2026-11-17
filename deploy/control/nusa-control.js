@@ -48,6 +48,9 @@ const DEFAULTS = Object.freeze({
   // one probe (about 5 min 25 s); `stop` is not delayed by that because it is announced through the marker (see above).
   verifyNoAnswerBudgetMs: 300_000,
   verifyNoAnswerRetryMs: 15_000,
+  // A maintenance window (design docs/NUSA_C4_MAINTENANCE_WINDOW_DESIGN_2026-11-17.md): a release announces its long host backup step so the
+  // periodic verify does not stop a healthy collector whose /health is slow meanwhile. Hard limit; tied to one build sha and one boot.
+  maintenanceMaxMs: 60 * 60 * 1000,
 });
 
 class ControlError extends Error {
@@ -380,6 +383,58 @@ function makeController(deps) {
     } catch (e) { return { recovered: true, ok: false, code: "RECOVERY_FAILED", detail: String(e.code || e.message).slice(0, 120) }; }
   };
 
+  // ---- maintenance window (volatile, root-only, in the run directory: a reboot erases it) ---------------------------------------
+  const windowFile = path.join(cfg.runDir, "maintenance");
+  const maxWindowMs = Number.isSafeInteger(cfg.maintenanceMaxMs) && cfg.maintenanceMaxMs > 0 ? cfg.maintenanceMaxMs : 60 * 60 * 1000;
+  // The window that is in force RIGHT NOW, or null. Anything unreadable, malformed, from another boot, not yet begun, expired, longer
+  // than the hard limit, or with an expiry further away than the limit (a clock set back) is NOT a window: today's behaviour applies.
+  const openWindow = () => {
+    const m = peek(windowFile);
+    if (!m.exists || m.text == null) return null;
+    let rec; try { rec = JSON.parse(m.text); } catch { return null; }
+    if (!rec || typeof rec !== "object" || !SHA.test(String(rec.sha)) || typeof rec.bootId !== "string" || !Number.isSafeInteger(rec.beginsAtMs) || !Number.isSafeInteger(rec.expiresAtMs)) return null;
+    if (rec.expiresAtMs - rec.beginsAtMs > maxWindowMs) return null;
+    let boot; try { boot = deps.bootId(); } catch { return null; }
+    if (rec.bootId !== boot) return null;
+    const t = now();
+    if (!(rec.beginsAtMs <= t && t < rec.expiresAtMs && rec.expiresAtMs - t <= maxWindowMs)) return null;
+    return rec;
+  };
+  const clearWindow = () => unlinkQuiet(windowFile);
+  const ordersOffSafe = async () => { try { return !!(deps.ordersOff && (await deps.ordersOff())); } catch { return false; } };
+  const maintenance = async (action, sha) => {
+    if (action !== "begin" && action !== "end") return { ok: false, code: "MAINTENANCE_BAD_ACTION" };
+    if (!SHA.test(String(sha))) return { ok: false, code: action === "begin" ? "MAINTENANCE_REFUSED" : "MAINTENANCE_END_REFUSED", reason: "BAD_SHA" };
+    const refuse = (reason, detail) => ({ ok: false, code: "MAINTENANCE_REFUSED", reason, ...(detail ? { detail } : {}) });
+    if (action === "end") {
+      const w = openWindow();
+      const present = peek(windowFile).exists;
+      // Only the run that began a window ends it. A leftover, expired or unreadable file is removed by anyone (it is no window).
+      if (w && w.sha !== sha) return { ok: false, code: "MAINTENANCE_END_REFUSED", reason: "OTHER_RUN" };
+      if (present) clearWindow();
+      return { ok: true, code: present ? "MAINTENANCE_ENDED" : "MAINTENANCE_NONE" };
+    }
+    // begin: nothing is started, stopped or restarted. It only records that a bounded step is about to run.
+    if (markerState().present) return refuse("STOP_REQUESTED");
+    const rec = recoverRelease();
+    if (rec.recovered) return refuse("RELEASE_RECOVERY_RAN", rec.code);
+    const r0 = store.read();
+    if (!r0.ok) return refuse(r0.reason);
+    const cur = r0.state;
+    if (cur.desired !== "COLLECT_ONLY") return refuse("NOT_COLLECT_ONLY");
+    if (cur.intent !== null) return refuse("INTENT_PENDING");
+    if (!cur.active || currentSha() !== cur.active) return refuse("ACTIVE_MISMATCH");
+    if (openWindow()) return refuse("WINDOW_ALREADY_OPEN");
+    if (!(await ordersOffSafe())) return refuse("ORDERS_NOT_OFF");
+    const v = await verifyRuntime(deps, cfg, cur.active, "COLLECT_ONLY");
+    if (!v.ok) return refuse("RUNTIME_NOT_VERIFIED", v.reason);
+    let boot; try { boot = deps.bootId(); } catch { return refuse("BOOT_ID_UNAVAILABLE"); }
+    clearWindow(); // an expired, foreign or unreadable leftover is removed before the new window is written
+    const t = now();
+    try { exclusiveWrite(windowFile, { sha, bootId: boot, beginsAtMs: t, expiresAtMs: t + maxWindowMs }); } catch (e) { return refuse("WINDOW_WRITE_FAILED", String(e.code || e.message).slice(0, 80)); }
+    return { ok: true, code: "MAINTENANCE_BEGUN", sha, expiresAtMs: t + maxWindowMs };
+  };
+
   const status = async () => {
     const r = store.read();
     const units = Object.fromEntries(UNITS.map((u) => [u, unitState(sys, u)]));
@@ -391,6 +446,7 @@ function makeController(deps) {
   // progress), always stops the units, and records STOPPED afterwards if it can.
   const stop = async () => {
     const markerCreated = createMarker();
+    clearWindow(); // a stop request ends any maintenance window at once
     recoverRelease(); // repairs link and record of an interrupted release; the stop below goes on whatever it says
     let r = store.read();
     if (r.ok) { try { store.write(r.state.version, { ...r.state, version: r.state.version + 1, intent: { verb: "stop", version: r.state.version + 1, at: now() } }); } catch { /* the stop goes on without the marker */ } }
@@ -538,6 +594,12 @@ function makeController(deps) {
       if (s.intent !== null || s.active !== currentSha()) return stoppedResult("VERIFY_STOPPED:MISMATCH_OR_PENDING_INTENT");
       if (unitState(sys, RUNTIME_UNIT).active !== "active") return stoppedResult("VERIFY_STOPPED:RUNTIME_NOT_ACTIVE");
       let v = await verifyRuntime(deps, cfg, s.active, "COLLECT_ONLY");
+      // A valid maintenance window tolerates ONLY "no answer yet": every wrong answer, orders not OFF, a stop request, a state problem and an
+      // inactive runtime were handled above or below exactly as without a window. No waiting here: the window itself is the allowance.
+      if (!v.ok && !isWrongAnswer(v)) {
+        const w = openWindow();
+        if (w) { if (!(await ordersOffSafe())) return stoppedResult("VERIFY_STOPPED:ORDERS_NOT_OFF"); return { ok: true, code: "MAINTENANCE_WINDOW", verified: false, reason: v.reason, sha: w.sha }; }
+      }
       const patienceEnd = monotonic() + cfg.verifyNoAnswerBudgetMs;
       while (!v.ok && !isWrongAnswer(v) && monotonic() < patienceEnd) {
         await sleep(cfg.verifyNoAnswerRetryMs);
@@ -678,7 +740,7 @@ function makeController(deps) {
   };
 
   const refuse = async (verb) => ({ ok: false, code: "NOT_AVAILABLE", detail: `${verb} is not available in this version` });
-  return { status, stop, collect, init, reconcile, reconcileSync, verify, release, "grant-orders": () => refuse("grant-orders") };
+  return { status, stop, collect, init, reconcile, reconcileSync, verify, release, maintenance, "grant-orders": () => refuse("grant-orders") };
 }
 
 // ---- host implementations of the injected effects ---------------------------------------------------------------
@@ -857,7 +919,7 @@ async function main(argv) {
     lockHeldBy: (pid) => lockHeldBy(pid, path.join(DEFAULTS.runDir, "lock")),
     ordersOff: () => ordersOffEverywhere(),
     runHelper: (sha) => runHelperActivate(DEFAULTS.helperPath, sha, DEFAULTS.activateTimeoutMs) });
-  const known = ["status", "stop", "collect", "init", "reconcile", "verify", "release", "grant-orders"];
+  const known = ["status", "stop", "collect", "init", "reconcile", "verify", "release", "maintenance", "grant-orders"];
   if (!known.includes(verb)) { process.stdout.write(`${JSON.stringify({ ok: false, code: "UNKNOWN_VERB", known })}\n`); return 64; }
   const readonly = args.includes("--readonly");
   const out = await ctl[verb](...args.filter((a) => a !== "--readonly"), ...(readonly && ["reconcile", "verify"].includes(verb) ? [{ readonly: true }] : []));

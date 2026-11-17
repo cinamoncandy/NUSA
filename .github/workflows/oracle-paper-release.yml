@@ -174,6 +174,18 @@ jobs:
             exit 1
           }
 
+      # The backup holds the live database for about 35 minutes and the periodic controller check (every 5 minutes) cannot tell that from a dead
+      # runtime (2026-11-17: it stopped a healthy collector twice during a backup). The window announces the backup to the controller, bounded to
+      # one hour, this build and this boot. If it cannot be opened (an older controller, a refused precondition) the backup runs without it, as before.
+      - name: Announce the backup to the controller (maintenance window, never blocks)
+        if: steps.source_fresh.outputs.fresh == 'true'
+        run: |
+          set +e -uo pipefail
+          OUT="$(sudo -n /opt/nusa-control/nusa-control.sh maintenance begin "$SOURCE_SHA" 2>&1)"; RC=$?
+          printf '%s\n' "$OUT"
+          if [ "$RC" != 0 ]; then echo "::warning::maintenance window not opened (exit $RC): the backup runs without one"; fi
+          exit 0
+
       - name: Back up persistent state before release mutation
         if: steps.source_fresh.outputs.fresh == 'true'
         # Conservative observed envelope: 957 MiB * six Sunday full-file phases / 0.8 MiB/s
@@ -181,6 +193,14 @@ jobs:
         # is local to backup, so it cannot terminate a switched-but-unproven activation.
         timeout-minutes: 180
         run: sudo "$STEP" backup
+
+      - name: Close the maintenance window (always, never blocks)
+        if: always() && steps.source_fresh.outputs.fresh == 'true'
+        run: |
+          set +e -uo pipefail
+          OUT="$(sudo -n /opt/nusa-control/nusa-control.sh maintenance end "$SOURCE_SHA" 2>&1)"; RC=$?
+          printf '%s\n' "$OUT"
+          exit 0
 
   release:
     name: Release exact-main Cloud PAPER runtime

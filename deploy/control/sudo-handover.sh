@@ -14,7 +14,7 @@
 # still call the helper's activate directly and bypass the controller's start gate. Removing that old line is a manual, owner-approved step
 # (visudo), taken after sudo-audit.sh was read; this script never edits an existing sudoers line.
 #
-# The rule is exact: status, stop, collect, and `release` with a 40-character lowercase hex argument (forty bracket classes, no `*`).
+# The rule is exact: status, stop, collect, and `release`, `maintenance begin` and `maintenance end` with a 40-character lowercase hex argument (forty bracket classes, no `*`).
 # Nothing else. The runner can never grant orders: the controller has no such verb.
 set -euo pipefail
 R="${NUSA_HANDOVER_ROOT:-}"
@@ -36,7 +36,7 @@ HEX40="$(printf '[0-9a-f]%.0s' $(seq 1 40))"
 rule() {
   cat <<RULE
 # NUSA host controller: the release runner may call exactly these verbs as root (sudo-handover.sh, reviewed). Nothing else.
-Cmnd_Alias NUSA_CONTROL = $CTL status, $CTL stop, $CTL collect, $CTL release $HEX40
+Cmnd_Alias NUSA_CONTROL = $CTL status, $CTL stop, $CTL collect, $CTL release $HEX40, $CTL maintenance begin $HEX40, $CTL maintenance end $HEX40
 $USER_ARG ALL=(root) NOPASSWD: NUSA_CONTROL
 RULE
 }
@@ -45,7 +45,7 @@ check_all() { visudo -c >/dev/null; }
 # The effective policy as sudo itself reports it (sudo -l -U), checked against an ALLOW-LIST and failing closed: every command the runner may
 # run as root must be one of the exact entries below. Anything else (ALL, a shell, env, a directory wildcard, the helper's activate, a bare
 # helper entry, a command that cannot be parsed, or no command at all) means the old paths are NOT closed and the hand-over is NOT complete.
-#   controller: status, stop, collect, release <40 hex pattern>        helper: stage, preflight, backup, prune (optional trailing " *")
+#   controller: status, stop, collect, release <40 hex pattern>, maintenance begin|end <40 hex pattern>        helper: stage, preflight, backup, prune (optional trailing " *")
 exclusive_ok() {
   local out res
   out="$(sudo -n -l -U "$USER_ARG" 2>&1)" || { echo "FAIL  sudo -l -U could not be read; exclusivity is NOT proven"; return 1; }
@@ -54,6 +54,7 @@ exclusive_ok() {
     const ALLOWED = [
       /^\/opt\/nusa-control\/nusa-control\.sh (status|stop|collect)$/,
       /^\/opt\/nusa-control\/nusa-control\.sh release (\[0-9a-f\]){40}$/,
+      /^\/opt\/nusa-control\/nusa-control\.sh maintenance (begin|end) (\[0-9a-f\]){40}$/,
       /^\/opt\/nusa\/bin\/nusa-release-step (stage|preflight|backup|prune)( \*)?$/,
     ];
     let inList = false; const entries = []; const odd = [];
@@ -70,7 +71,7 @@ exclusive_ok() {
     if (bad.length > 0) { console.log(bad.join("\n")); process.exit(0); }
     console.log("OK");
   ')" || { echo "FAIL  the sudo policy could not be parsed; exclusivity is NOT proven"; return 1; }
-  if [ "$res" = "OK" ]; then echo "PASS  every command the runner may run as root is on the allow-list (controller status/stop/collect/release <sha>; helper stage/preflight/backup/prune): the old activate path is closed"; return 0; fi
+  if [ "$res" = "OK" ]; then echo "PASS  every command the runner may run as root is on the allow-list (controller status/stop/collect/release <sha>/maintenance begin|end <sha>; helper stage/preflight/backup/prune): the old activate path is closed"; return 0; fi
   if [ "$res" = "NONE" ]; then echo "FAIL  no allowed command could be read from sudo -l; exclusivity is NOT proven"; return 1; fi
   echo "FAIL  the runner can run commands that are not on the allow-list (the old activate path, ALL, a shell, env or a wildcard may still be open):"; printf '%s\n' "$res" | sed 's/^/    /'; return 1
 }
