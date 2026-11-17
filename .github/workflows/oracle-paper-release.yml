@@ -306,22 +306,25 @@ jobs:
         id: health
         run: |
           set -uo pipefail
-          HEALTH_SHA=""
+          HEALTH_SHA=""; HEALTH_OK=false
           if [ "$DEPLOYMENT_RESULT" = "DEPLOYED" ]; then
             URL="$(node -e 'const u=JSON.parse(require("fs").readFileSync("deploy/health-watch.json","utf8")).healthUrl;if(typeof u!=="string"||!/^https:\/\/[a-z0-9.-]+\/health$/.test(u))process.exit(1);process.stdout.write(u)' 2>/dev/null)" || URL=""
             if [ -n "$URL" ]; then
               for n in 1 2 3 4 5 6; do
                 curl -sS -m 20 -o /tmp/health.json "$URL" 2>/dev/null || true
                 HEALTH_SHA="$(node -e 'try{const h=JSON.parse(require("fs").readFileSync("/tmp/health.json","utf8"));process.stdout.write(String(h.runtime&&h.runtime.sourceCommitSha||""))}catch{}' 2>/dev/null)" || HEALTH_SHA=""
-                [ "$HEALTH_SHA" = "$SOURCE_SHA" ] && break
+                HEALTH_OK="$(node -e 'try{const h=JSON.parse(require("fs").readFileSync("/tmp/health.json","utf8"));process.stdout.write(h.ok===true?"true":"false")}catch{process.stdout.write("false")}' 2>/dev/null)" || HEALTH_OK=false
+                [ "$HEALTH_SHA" = "$SOURCE_SHA" ] && [ "$HEALTH_OK" = true ] && break
                 [ "$n" = 6 ] || sleep 10
               done
             fi
           fi
           echo "sha=$HEALTH_SHA" >> "$GITHUB_OUTPUT"
+          echo "ok=$HEALTH_OK" >> "$GITHUB_OUTPUT"
       - name: Decide
         env:
           HEALTH_SHA: ${{ steps.health.outputs.sha }}
+          HEALTH_OK: ${{ steps.health.outputs.ok }}
         run: |
           set -uo pipefail
           node scripts/release-verdict.js | tee -a "$GITHUB_STEP_SUMMARY"
