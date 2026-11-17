@@ -10,6 +10,8 @@ const hash = (value: unknown): string => createHash("sha256").update(JSON.string
 const SHA256 = /^[a-f0-9]{64}$/;
 const SHA1 = /^[a-f0-9]{40}$/;
 
+export type ResearchManifestPhase = "validate_and_gaps" | "read_source_candles" | "derive_and_hash" | "receipt_coverage" | "persist";
+
 const intervalName = (intervalMs: number): ResearchInterval => {
   const names: Readonly<Record<number, ResearchInterval>> = { 60_000: "1m", 180_000: "3m", 300_000: "5m", 600_000: "10m", 900_000: "15m", 1_800_000: "30m", 3_600_000: "60m", 14_400_000: "240m", 86_400_000: "1d" };
   const interval = names[intervalMs];
@@ -26,12 +28,20 @@ export function materializeResearchDatasetManifest(input: {
   readonly source: string;
   readonly createdAt: string;
   readonly sourceCommitSha: string;
+  // Optional, observation only: called once per phase with its duration. It never changes the manifest, the hashes or the stored rows.
+  readonly onPhase?: (phase: ResearchManifestPhase, durationMs: number) => void;
 }): HistoricalDatasetManifest {
+  const phaseStarted = (): number => performance.now();
+  const phaseDone = (phase: ResearchManifestPhase, started: number): void => {
+    if (input.onPhase == null) return;
+    try { input.onPhase(phase, Math.max(0, performance.now() - started)); } catch { /* observation must never affect the build */ }
+  };
   if (!input.source.trim()) throw new Error("canonical dataset source is required");
   if (!/^KRW-[A-Z0-9-]+$/.test(input.market)) throw new Error("canonical dataset market is invalid");
   if (!Number.isFinite(Date.parse(input.createdAt))) throw new Error("canonical dataset createdAt is invalid");
   if (input.candles.length === 0 || input.candles.some((candle) => candle.volume == null)) throw new Error("canonical dataset requires explicit OHLCV candles");
   const interval = intervalName(input.intervalMs);
+  let started = phaseStarted();
   const candles: readonly CanonicalResearchCandle[] = input.candles.map((candle) => ({ market: input.market, interval, openTime: candle.closeTimeMs - input.intervalMs, closeTime: candle.closeTimeMs, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume! }));
   // A gap is allowed only on the 1-minute series and only where the exchange itself proved there was no candle
   // (ResearchCandleAbsence, recorded from a fingerprinted Upbit page). Our own data loss is still rejected.
@@ -62,12 +72,16 @@ export function materializeResearchDatasetManifest(input: {
     if (missingMinutes.some((close) => !absences.some((run) => close >= run.firstAbsentCloseMs && close <= run.lastAbsentCloseMs))) throw new Error("canonical dataset has missing intervals");
     gapMinuteCount = missingMinutes.length;
   }
+  phaseDone("validate_and_gaps", started);
+  started = phaseStarted();
   const contentSha256 = calculateResearchCandleSha256(candles);
   if (!SHA1.test(input.sourceCommitSha)) throw Object.assign(new Error("dataset replay runtime source commit is unavailable"), { code: "MANIFEST_PROVENANCE_REQUIRED" });
   const sourceIntervalMs = 60_000;
   const firstBaseClose = candles[0]!.openTime + sourceIntervalMs;
   const lastBaseClose = candles.at(-1)!.closeTime;
   const baseCandles = input.candleStore.read(input.market, sourceIntervalMs, firstBaseClose, lastBaseClose);
+  phaseDone("read_source_candles", started);
+  started = phaseStarted();
   const expectedBaseCount = (lastBaseClose - firstBaseClose) / sourceIntervalMs + 1 - gapMinuteCount;
   if (!Number.isSafeInteger(expectedBaseCount) || baseCandles.length !== expectedBaseCount || baseCandles.some((candle) => candle.volume == null)) throw Object.assign(new Error("dataset source candle coverage is incomplete"), { code: "MANIFEST_PROVENANCE_REQUIRED" });
   const derived = new AggregatedResearchCandleSource(input.candleStore, sourceIntervalMs).read(input.market, input.intervalMs, candles[0]!.openTime + input.intervalMs, candles.at(-1)!.closeTime);
@@ -76,11 +90,14 @@ export function materializeResearchDatasetManifest(input: {
   const materials = input.candleStore.listMaterial(input.market, sourceIntervalMs, firstBaseClose, lastBaseClose);
   if (materials.length === 0 || materials.some((material) => material.source !== "UPBIT_PUBLIC_CANDLES" || material.sourceFingerprint !== UPBIT_CANDLE_SOURCE_FINGERPRINT || material.evidenceFingerprintSha256 == null || !SHA256.test(material.evidenceFingerprintSha256))) throw Object.assign(new Error("complete canonical raw-source receipts are required"), { code: "MANIFEST_PROVENANCE_REQUIRED" });
   if (materials.some((material) => material.rejectedObservations !== 0)) throw Object.assign(new Error("malformed raw-source observations cannot produce a canonical manifest"), { code: "MANIFEST_SOURCE_MALFORMED" });
+  phaseDone("derive_and_hash", started);
+  started = phaseStarted();
   const receiptCovered = new Set<number>();
   for (const material of materials) {
     for (const candle of input.candleStore.read(input.market, sourceIntervalMs, material.firstCloseTimeMs, material.lastCloseTimeMs)) receiptCovered.add(candle.closeTimeMs);
   }
   if (baseCandles.some((candle) => !receiptCovered.has(candle.closeTimeMs))) throw Object.assign(new Error("raw-source receipts do not cover the complete dataset"), { code: "MANIFEST_PROVENANCE_REQUIRED" });
+  phaseDone("receipt_coverage", started);
   const provenance: ResearchDatasetProvenanceV2 = {
     rawSourceIdentitySha256s: [...new Set([...materials.map((material) => material.evidenceFingerprintSha256!), ...absences.map((run) => run.evidenceFingerprintSha256)])],
     transformationGraphSha256: hash(["UPBIT_PUBLIC_CANDLES", "parseUpbitMinuteCandles", "CanonicalResearchCandle", "AggregatedResearchCandleSource", "v1"]),
@@ -109,6 +126,8 @@ export function materializeResearchDatasetManifest(input: {
   } catch (error) {
     if (!(error instanceof ResearchDatasetManifestStoreError) || error.code !== "MANIFEST_NOT_FOUND") throw error;
   }
+  started = phaseStarted();
   input.store.persistVerified(manifest, candles);
+  phaseDone("persist", started);
   return Object.freeze(manifest);
 }
