@@ -67,7 +67,7 @@ test("hand-over preflight prints the exact rule, checks it with visudo and chang
   const r = w.run(handover, "runner");
   assert.equal(r.status, 0, r.stdout + r.stderr);
   const hex = "[0-9a-f]".repeat(40);
-  assert.ok(r.stdout.includes(`Cmnd_Alias NUSA_CONTROL = ${CTL} status, ${CTL} stop, ${CTL} collect, ${CTL} release ${hex}`));
+  assert.ok(r.stdout.includes(`Cmnd_Alias NUSA_CONTROL = ${CTL} status, ${CTL} stop, ${CTL} collect, ${CTL} release ${hex}, ${CTL} maintenance begin ${hex}, ${CTL} maintenance end ${hex}`));
   assert.match(r.stdout, /runner ALL=\(root\) NOPASSWD: NUSA_CONTROL/);
   assert.doesNotMatch(r.stdout.split("== result")[0].split("\n").filter((l) => l.startsWith("Cmnd_Alias") || l.includes("NOPASSWD")).join("\n"), /\*/, "no wildcard anywhere in the rule");
   assert.equal(w.snapshot(), before, "preflight writes nothing into the tree");
@@ -149,6 +149,11 @@ test("--check-exclusive is read-only and passes only when EVERY command is on th
     "a controller verb with a free argument": `    (root) NOPASSWD: ${C} release *`,
     "a controller verb that is not allowed (grant-orders)": `    (root) NOPASSWD: ${C} grant-orders`,
     "a short release argument pattern": `    (root) NOPASSWD: ${C} release [0-9a-f]*`,
+    "maintenance begin with a free argument": `    (root) NOPASSWD: ${C} maintenance begin *`,
+    "maintenance end with a free argument": `    (root) NOPASSWD: ${C} maintenance end *`,
+    "a short maintenance argument pattern": `    (root) NOPASSWD: ${C} maintenance begin [0-9a-f]*`,
+    "a maintenance action that is not allowed": `    (root) NOPASSWD: ${C} maintenance extend ${"[0-9a-f]".repeat(40)}`,
+    "maintenance with no action pinned": `    (root) NOPASSWD: ${C} maintenance *`,
     "a second user line that allows more": `    (root) NOPASSWD: ${H} stage *\n    (ALL : ALL) ALL`,
     "an unparsable continuation line": `    (root) NOPASSWD: ${H} stage *\n        , /bin/sh`,
     "SETENV on an otherwise allowed entry is still only the allowed command but env tags do not hide a bad one": `    (root) NOPASSWD: SETENV: /bin/sh`,
@@ -167,4 +172,11 @@ test("--apply says plainly whether the hand-over is complete: adding the control
   const closed = world({ sudoL: "    (root) NOPASSWD: /opt/nusa/bin/nusa-release-step stage *, /opt/nusa-control/nusa-control.sh status" });
   const r2 = closed.run(handover, "runner", "--apply");
   assert.match(r2.stdout, /HAND-OVER COMPLETE for runner/);
+});
+
+test("the exact maintenance begin and end entries are on the allow-list", posixOnly, () => {
+  const hex = "[0-9a-f]".repeat(40); const C = "/opt/nusa-control/nusa-control.sh";
+  const w = world({ sudoL: `    (root) NOPASSWD: ${C} status, ${C} stop, ${C} collect, ${C} release ${hex}, ${C} maintenance begin ${hex}, ${C} maintenance end ${hex}` });
+  const r = w.run(handover, "runner", "--check-exclusive");
+  assert.equal(r.status, 0, r.stdout + r.stderr); assert.match(r.stdout, /HAND-OVER COMPLETE for runner/);
 });
