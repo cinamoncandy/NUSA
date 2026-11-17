@@ -1,0 +1,23 @@
+id: WO-OPS-20261116-CONTROLLER-REAL-HEALTH-TEST
+title: "Test the controller against the REAL cloud runtime /health, not a hand-written fake"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/controller-real-health-test
+owner_decision: "2026-11-16: design check; the owner said 'do all' after the gap 'tests used a fake server that differed from the real one' was named."
+objective: "Prevent a repeat of the second real-host collect failure, which no earlier test could see because every fake /health server set content-length by hand while the real server sends the answer chunked."
+change:
+  - "tests/nusa-control-real-health.test.js (2, Linux only): starts the real server (dist/apps/cloud/src/server.js, startCloudDashboardServer with a runtimeLiveness source) and runs the controller's real host client (hostIdentifiedHealth) against it: the answer is parsed (bodyParsed), the sender is this process, build/mode/order path are read; and the real /health carries every field the off-host watch and the controller read. Mutation check: the pre-fix HTTP/1.1 request makes both tests fail."
+  - ".github/workflows/linux-host-control-tests.yml: the Linux job now compiles the cloud runtime (corepack pnpm, pnpm install --frozen-lockfile, npx tsc -p tsconfig.json) and runs the new test too (a skip still fails the job); path filters include the real server files and the new test. Still read-only: no secrets, nothing deployed."
+not_changed:
+  - "No runtime, controller, installer, limit, threshold, capital, order switch or authority code. No host action, no release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control-real-health.test.js passes locally on Linux against the existing dist; platform-independence and portability validators pass; the workflow edit passes the action-pin validator."
+unverified: "The new Linux job step (pnpm install and tsc) was not run in CI before this PR; the test used the sandbox's existing dist, not a fresh build."
+acceptance:
+  - "Non-author review; exact-head CI including linux-control with the new steps."
