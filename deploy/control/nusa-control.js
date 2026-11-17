@@ -284,19 +284,27 @@ function makeController(deps) {
   const createMarker = () => {
     try { const me = deps.selfIdentity(); exclusiveWrite(markerFile, { pid: me.pid, ident: me.ident, createdAt: now() }); return true; } catch (e) { return e.code === "EEXIST"; }
   };
+  // A grant is one file per permitted start (start-grant.1, start-grant.2). A gate CLAIMS a start by renaming one slot file: rename is
+  // atomic, so of two gates racing for the same slot exactly one wins and the other gets ENOENT. The count can never be exceeded.
+  const clearGrants = () => { try { for (const n of fsx.readdirSync(cfg.runDir)) if (n.startsWith("start-grant")) unlinkQuiet(path.join(cfg.runDir, n)); } catch { /* best effort */ } };
   const writeGrant = (intent, phase, sha, { uses = 1, ttlMs = cfg.grantTtlMs } = {}) => {
-    unlinkQuiet(grantFile);
+    if (!(uses === 1 || uses === 2)) throw new ControlError("GRANT_USES", String(uses));
+    clearGrants();
     const me = deps.selfIdentity();
     const at = monotonic();
-    exclusiveWrite(grantFile, { runId: intent.runId, phase, sha, uses, pid: me.pid, ident: me.ident, bootId: deps.bootId(), atMono: at, expiresAtMono: at + ttlMs });
+    const rec = { runId: intent.runId, phase, sha, pid: me.pid, ident: me.ident, bootId: deps.bootId(), atMono: at, expiresAtMono: at + ttlMs };
+    for (let n = 1; n <= uses; n += 1) exclusiveWrite(`${grantFile}.${n}`, rec);
   };
   // The gate's check of a release start: every condition must hold, and the grant is consumed (deleted) when it permits.
   const takeGrant = (s) => {
-    const g = peek(grantFile);
-    if (!g.exists) return { ok: false, why: "NO_GRANT" };
     const no = (why) => ({ ok: false, why });
+    let slots = [];
+    try { slots = fsx.readdirSync(cfg.runDir).filter((n) => /^start-grant\.[12]$/.test(n)).sort(); } catch { slots = []; }
+    if (slots.length === 0) return no("NO_GRANT");
+    const g = peek(path.join(cfg.runDir, slots[0]));
+    if (!g.exists) return no("NO_GRANT");
     let rec;
-    try { rec = JSON.parse(g.text); } catch { unlinkQuiet(grantFile); return no("GRANT_UNREADABLE"); }
+    try { rec = JSON.parse(g.text); } catch { return no("GRANT_UNREADABLE"); }
     const i = s.intent;
     if (!rec || typeof rec !== "object" || !i || i.verb !== "release") return no("NO_RELEASE_INTENT");
     if (rec.runId !== i.runId) return no("WRONG_RUN");
@@ -306,8 +314,6 @@ function makeController(deps) {
     // record must still say the old one (it is only advanced after the controller's own verification).
     const recordOk = i.phase === "ACTIVATING" ? s.active === i.from : rec.sha === s.active;
     if (rec.sha !== expected || rec.sha !== currentSha() || !recordOk) return no("WRONG_BUILD");
-    const uses = rec.uses === undefined ? 1 : rec.uses;
-    if (!Number.isSafeInteger(uses) || uses < 1 || uses > 2) return no("GRANT_USES");
     try { if (rec.bootId !== deps.bootId()) return no("OTHER_BOOT"); } catch { return no("OTHER_BOOT"); }
     const at = monotonic();
     if (!(Number.isFinite(rec.atMono) && Number.isFinite(rec.expiresAtMono) && at >= rec.atMono && at <= rec.expiresAtMono)) return no("EXPIRED");
@@ -319,11 +325,15 @@ function makeController(deps) {
     if (!alive) return no("OWNER_GONE");
     if (!isRelease) return no("OWNER_NOT_RELEASE");
     if (!holdsLock) return no("OWNER_NOT_HOLDING_LOCK");
-    // One use is consumed per permitted start; the last use deletes the grant. The ACTIVATING grant has two (nusa.service, research timer).
-    try {
-      if (uses > 1) atomicWrite(fsx, cfg.runDir, grantFile, `${JSON.stringify({ ...rec, uses: uses - 1 })}\n`, 0o600);
-      else fsx.unlinkSync(grantFile);
-    } catch { return no("GRANT_NOT_CONSUMED"); }
+    // Claim one start by an atomic rename of a slot file. Losing the race on every slot means the grant is used up.
+    let claimed = false;
+    for (const n of slots) {
+      const from = path.join(cfg.runDir, n);
+      try { fsx.renameSync(from, `${from}.used-${process.pid}`); claimed = true; break; } catch (e) { if (e && e.code === "ENOENT") continue; return no("GRANT_NOT_CONSUMED"); }
+    }
+    if (!claimed) return no("NO_GRANT");
+    // A stop marker that appeared between the gate's first check and this claim still denies the start (the claimed slot is lost: fail closed).
+    if (markerState().present) return no("STOP_REQUESTED_DURING_START");
     return { ok: true };
   };
   const swapLink = (sha) => {
@@ -355,7 +365,7 @@ function makeController(deps) {
       default: combo = false;
     }
     try {
-      unlinkQuiet(grantFile);
+      clearGrants();
       if (!combo) {
         store.write(s.version, { ...s, version: s.version + 1, desired: "STOPPED", active: null, intent: null });
         return { recovered: true, ok: true, code: "RECOVERY_UNKNOWN", detail: `phase ${i.phase} link ${link} active ${s.active}; the link was left untouched` };
@@ -612,7 +622,7 @@ function makeController(deps) {
         writeGrant(cur.intent, phase, build);
         if (sys(["start", "nusa-research.timer"]) !== 0) throw new ControlError("START_FAILED", "nusa-research.timer");
         return await waitVerified(build);
-      } catch (e) { return { ok: false, reason: e.code || "START_FAILED" }; } finally { unlinkQuiet(grantFile); }
+      } catch (e) { return { ok: false, reason: e.code || "START_FAILED" }; } finally { clearGrants(); }
     };
     // Delegation (design C4 3.6): the reviewed host helper does the real activation (link swap, unit files, source identity,
     // restarts, readiness, soak). Its two gated starts (nusa.service, research timer) use ONE grant with two uses.
@@ -624,7 +634,7 @@ function makeController(deps) {
         if (!r || r.status !== 0) return { ok: false, reason: `HELPER_EXIT_${r ? r.status : "NONE"}` };
         if (currentSha() !== build) return { ok: false, reason: "HELPER_LINK_MISMATCH" };
         return { ok: true };
-      } catch (e) { return { ok: false, reason: e.code || "HELPER_ERROR" }; } finally { unlinkQuiet(grantFile); }
+      } catch (e) { return { ok: false, reason: e.code || "HELPER_ERROR" }; } finally { clearGrants(); }
     };
     const settleRunning = (outcome, patch, extra = {}) => {
       finish({ desired: "COLLECT_ONLY", ...patch });
