@@ -7,8 +7,8 @@
 #                                                        configuration (it uses one temporary file outside /etc, removed on exit)
 #   sudo bash sudo-handover.sh <runner-user> --apply     writes /etc/sudoers.d/90-nusa-control after `visudo -cf` accepts it
 #   sudo bash sudo-handover.sh <runner-user> --remove    removes that file again (and checks the whole configuration)
-#   sudo bash sudo-handover.sh <runner-user> --check-exclusive   READ-ONLY: PASS only when the runner's EFFECTIVE sudo rights no longer
-#                                                        include the old helper's `activate` (or ALL, or a wildcard in its place)
+#   sudo bash sudo-handover.sh <runner-user> --check-exclusive   READ-ONLY: PASS only when EVERY command the runner may run as root is on
+#                                                        an exact allow-list (fails closed on anything else, e.g. activate, ALL, a shell)
 #
 # THE HAND-OVER IS NOT COMPLETE until --check-exclusive passes. Adding the controller rule alone leaves the old path open: the runner could
 # still call the helper's activate directly and bypass the controller's start gate. Removing that old line is a manual, owner-approved step
@@ -42,14 +42,37 @@ RULE
 }
 check_all() { visudo -c >/dev/null; }
 
-# The effective policy as sudo itself reports it (sudo -l -U): the old helper verb `activate` must not be reachable, neither by name, nor
-# by a bare helper entry or a wildcard argument (which cover every verb), nor by an ALL rule.
+# The effective policy as sudo itself reports it (sudo -l -U), checked against an ALLOW-LIST and failing closed: every command the runner may
+# run as root must be one of the exact entries below. Anything else (ALL, a shell, env, a directory wildcard, the helper's activate, a bare
+# helper entry, a command that cannot be parsed, or no command at all) means the old paths are NOT closed and the hand-over is NOT complete.
+#   controller: status, stop, collect, release <40 hex pattern>        helper: stage, preflight, backup, prune (optional trailing " *")
 exclusive_ok() {
-  local out bad
+  local out res
   out="$(sudo -n -l -U "$USER_ARG" 2>&1)" || { echo "FAIL  sudo -l -U could not be read; exclusivity is NOT proven"; return 1; }
-  bad="$(printf '%s\n' "$out" | tr ',' '\n' | grep -E 'NOPASSWD: *ALL|\(ALL(:ALL)?\) +ALL$|nusa-release-step( +\*| +activate|[[:space:]]*$)' || true)"
-  if [ -n "$bad" ]; then echo "FAIL  the runner can still reach the helper's activate (or everything):"; printf '    %s\n' "$bad"; return 1; fi
-  echo "PASS  the runner's effective sudo rights do not include the helper's activate, a bare helper entry, a wildcard verb or ALL"
+  res="$(printf '%s\n' "$out" | node -e '
+    const lines = require("fs").readFileSync(0, "utf8").split("\n");
+    const ALLOWED = [
+      /^\/opt\/nusa-control\/nusa-control\.sh (status|stop|collect)$/,
+      /^\/opt\/nusa-control\/nusa-control\.sh release (\[0-9a-f\]){40}$/,
+      /^\/opt\/nusa\/bin\/nusa-release-step (stage|preflight|backup|prune)( \*)?$/,
+    ];
+    let inList = false; const entries = []; const odd = [];
+    for (const l of lines) {
+      if (/may run the following commands/.test(l)) { inList = true; continue; }
+      if (!inList || l.trim() === "") continue;
+      const m = /^\s+\([^)]*\)\s*(.*)$/.exec(l);
+      if (!m) { odd.push(l.trim()); continue; }
+      const rest = m[1].replace(/^(?:[A-Za-z_]+:\s*)+/, "");
+      for (const c of rest.split(/,\s*/)) entries.push(c.trim());
+    }
+    const bad = [...entries.filter((c) => !ALLOWED.some((re) => re.test(c))), ...odd];
+    if (entries.length === 0) { console.log("NONE"); process.exit(0); }
+    if (bad.length > 0) { console.log(bad.join("\n")); process.exit(0); }
+    console.log("OK");
+  ')" || { echo "FAIL  the sudo policy could not be parsed; exclusivity is NOT proven"; return 1; }
+  if [ "$res" = "OK" ]; then echo "PASS  every command the runner may run as root is on the allow-list (controller status/stop/collect/release <sha>; helper stage/preflight/backup/prune): the old activate path is closed"; return 0; fi
+  if [ "$res" = "NONE" ]; then echo "FAIL  no allowed command could be read from sudo -l; exclusivity is NOT proven"; return 1; fi
+  echo "FAIL  the runner can run commands that are not on the allow-list (the old activate path, ALL, a shell, env or a wildcard may still be open):"; printf '%s\n' "$res" | sed 's/^/    /'; return 1
 }
 case "$MODE" in
   exclusive)
