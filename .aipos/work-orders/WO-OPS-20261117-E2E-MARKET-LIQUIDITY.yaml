@@ -1,0 +1,24 @@
+id: WO-OPS-20261117-E2E-MARKET-LIQUIDITY
+title: "Actual PAPER runtime check: pick the market from the most liquid markets only"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/e2e-market-liquidity
+owner_decision: "2026-11-17: the owner approved stabilising the check ('approve') after it failed repeatedly on unrelated PRs. The PR stays DRAFT until a non-author review. The check is not skipped, disabled or weakened."
+objective: "Stop the live-data check actual-paper-runtime from failing on a market whose order book the exchange cannot keep consistent."
+evidence: "Checks of 2026-11-17 02:31-02:35 UTC on #3167 (run 43998756412, KRW-AXIS), #3170 (run 44003387864, twice, KRW-PIEVERSE) and #3169 (run 44003709821): the runtime reports PAPER_ORDERBOOK_UNRECONCILED during start-up, then halts with KILL_SWITCH_ACTIVE before the 60 s observation minimum (failure_code PAPER_RUNTIME_NOT_RUNNING). The same check passed on main at the same time (merges of #3167, #3174, #3175). The market selector ranked newly hyped thin markets first because it picks the highest 24h turnover among actionable markets."
+change:
+  - "scripts/select-actual-paper-e2e-market.js: candidates are only the LIQUID_POOL_SIZE (10) markets with the highest 24h turnover; inside the pool the existing rule is unchanged (naturally actionable by the canonical CIO thresholds, the most liquid one wins, KRW-BTC when none). The returned shape is unchanged."
+  - "tests/select-actual-paper-e2e-market.test.js: an actionable thin market outside the pool is never selected, the same market inside the pool is, the most liquid actionable market inside the pool still wins, and the pool size is bounded."
+not_changed:
+  - "The check itself (scripts/actual-paper-runtime-e2e.js, its observation minimum, halt handling and pass criteria) and the workflow are untouched. No risk limit, threshold, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/select-actual-paper-e2e-market.test.js (7 pass); platform-independent test validator; AIPOS yaml."
+unverified: "Live Upbit data cannot be reproduced offline: whether this removes the flakes is shown only by the next CI runs. If the pool is often empty of actionable markets the check falls back to KRW-BTC as before; the share of such days was not measured. A genuine runtime defect would still fail the check on liquid markets."
+acceptance:
+  - "Non-author review; exact-head CI."

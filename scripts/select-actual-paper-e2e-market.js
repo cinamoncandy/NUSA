@@ -2,6 +2,11 @@ const { upbitTickerToIntelligenceObservation } = require("../dist/apps/cloud/src
 const { decideCio } = require("../dist/apps/cloud/src/cioDecisionEngine.js");
 
 const DEFAULT_MARKET = "KRW-BTC";
+// Only the most liquid markets are candidates. The 2026-11-17 failures of this check (PAPER_ORDERBOOK_UNRECONCILED, then the runtime halts with
+// KILL_SWITCH_ACTIVE before the 60 s observation minimum) all happened on thin, newly hyped markets (KRW-AXIS, KRW-PIEVERSE) that rank high in 24h
+// turnover for a day but have unstable order books. The check still proves the same thing (the runtime stays running for the full observation on a
+// real, naturally actionable market); it just does not pick a market whose order book the exchange cannot keep consistent.
+const LIQUID_POOL_SIZE = 10;
 const UPBIT_ALL_KRW_TICKERS = "https://api.upbit.com/v1/ticker/all?quote_currencies=KRW";
 
 function asTicker(row) {
@@ -28,9 +33,9 @@ function selectActionablePaperMarket(rows, now = Date.now()) {
   if (!Array.isArray(rows)) throw new Error("Upbit all-ticker response must be an array");
   if (!Number.isSafeInteger(now) || now < 0) throw new Error("selection clock is invalid");
   const candidates = [];
-  for (const row of rows) {
-    const ticker = asTicker(row);
-    if (ticker == null) continue;
+  const tickers = rows.map(asTicker).filter((ticker) => ticker != null);
+  const liquidPool = [...tickers].sort((a, b) => b.acc_trade_price_24h - a.acc_trade_price_24h || a.code.localeCompare(b.code)).slice(0, LIQUID_POOL_SIZE);
+  for (const ticker of liquidPool) {
     const observation = upbitTickerToIntelligenceObservation(ticker, { now });
     if (observation == null) continue;
     const decision = decideCio({
@@ -78,4 +83,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { DEFAULT_MARKET, asTicker, selectActionablePaperMarket, selectFromUpbit };
+module.exports = { LIQUID_POOL_SIZE, DEFAULT_MARKET, asTicker, selectActionablePaperMarket, selectFromUpbit };
