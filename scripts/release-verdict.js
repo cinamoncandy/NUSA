@@ -15,6 +15,8 @@ function decide(input) {
   if (i.releaseJob !== "success" && i.releaseJob !== "failure" && i.releaseJob !== "cancelled") return no("NOT_DEPLOYED", `RELEASE_JOB_${String(i.releaseJob || "MISSING").toUpperCase()}`);
   // The workflow's own recheck of protected main: the host was never touched, so this is a clean "superseded", not a deployment.
   if (i.deploymentResult === "SKIPPED_MAIN_MOVED") return no("SUPERSEDED", "PROTECTED_MAIN_MOVED");
+  // stage_only: the release directory was staged on purpose and nothing was activated. Not a deployment, and not a failure.
+  if (i.deploymentResult === "STAGED_ONLY") return i.releaseJob === "success" ? no("STAGED_ONLY", "NOT_A_DEPLOYMENT") : no("FAILED", "STAGED_ONLY_WITHOUT_SUCCESSFUL_JOB");
   if (i.deploymentResult !== "DEPLOYED") return no("FAILED", String(i.deploymentResult || "RESULT_MISSING"));
   if (i.releaseJob !== "success") return no("FAILED", `RELEASE_JOB_${i.releaseJob.toUpperCase()}`);
   // Once the release goes through the controller its one-line outcome must say DEPLOYED as well; an unknown word is not a success,
@@ -49,5 +51,5 @@ module.exports = { decide, main };
 if (require.main === module) {
   const { v, text } = main(process.env);
   process.stdout.write(`${text}\n`);
-  process.exit(v.deployed ? 0 : 1);
+  process.exit(v.deployed || v.result === "STAGED_ONLY" ? 0 : 1);
 }

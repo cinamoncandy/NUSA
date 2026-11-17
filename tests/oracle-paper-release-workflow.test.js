@@ -246,8 +246,14 @@ test("every privileged action goes through the one wrapper command", () => {
   const sudoCalls = workflow.match(/sudo\s+\S+/g) ?? [];
   assert.ok(sudoCalls.length > 0);
   for (const call of sudoCalls) {
-    assert.match(call, /sudo\s+"\$STEP"/, `sudoers must grant one command only, found: ${call}`);
+    // Exactly two privileged commands exist: the reviewed helper (stage, preflight, activate) and, only for activation=controller, the
+    // controller's release verb. Anything else here is a new privilege and needs its own reviewed sudoers line.
+    assert.match(call, /sudo\s+("\$STEP"|\/opt\/nusa-control\/nusa-control\.sh)/, `sudoers must grant only the helper and the controller, found: ${call}`);
   }
+  // Line endings differ between checkouts (CRLF on Windows), so the verbs are read with a pattern that does not depend on where the line ends.
+  const controllerVerbs = [...workflow.matchAll(/sudo \/opt\/nusa-control\/nusa-control\.sh (release "\$SOURCE_SHA"|status)(?=[)"\s])/g)].map((m) => m[1]).sort();
+  assert.deepEqual(controllerVerbs, ['release "$SOURCE_SHA"', "status"], "the only controller verbs the runner may call are release <sha> and status");
+  assert.equal((workflow.match(/sudo \/opt\/nusa-control\/nusa-control\.sh/g) ?? []).length, 2, "no other sudo call of the controller exists");
   assert.match(workflow, /STEP: \/opt\/nusa\/bin\/nusa-release-step/);
 });
 
@@ -352,6 +358,23 @@ test("the deployed identity and fail-closed authority are always recorded", () =
   assert.match(workflow, /aiAuthority=ZERO_AUTHORITY/);
 });
 
+
+test("stage_only skips preflight, the recheck and every activation; activation is chosen by an explicit input and defaults to the helper", () => {
+  assert.match(workflow, /stage_only:[\s\S]*?default: false[\s\S]*?type: boolean/);
+  assert.match(workflow, /activation:[\s\S]*?default: helper[\s\S]*?type: choice[\s\S]*?- helper\s+- controller/);
+  for (const name of ["Preflight host and security contract", "Recheck exact protected main immediately before activation", "Atomically activate exact release and prove both runtimes (helper)", "Release through the host controller"]) {
+    const at = workflow.indexOf(`- name: ${name}`); assert.ok(at > 0, name);
+    const block = workflow.slice(at, workflow.indexOf("\n      - name:", at + 10));
+    assert.match(block, /!inputs\.stage_only/, `${name} must be skipped by stage_only`);
+  }
+  const verdictBlock = workflow.slice(workflow.indexOf("\n  verdict:"));
+  assert.match(verdictBlock, /ACTIVATION: \$\{\{ inputs\.activation \}\}/, "the verdict knows the activation mode, so a missing controller outcome fails");
+  assert.match(verdictBlock, /CONTROLLER_ACTIVE_SHA: \$\{\{ needs\.release\.outputs\.controllerActiveSha \}\}/);
+  assert.match(verdictBlock, /CONTROLLER_RUNTIME_OK: \$\{\{ needs\.release\.outputs\.controllerRuntimeOk \}\}/);
+  assert.match(workflow, /id: cstatus\r?\n\s+if: always\(\)/, "the controller status is read even when the release step failed");
+  assert.match(workflow, /inputs\.activation == 'helper'/); assert.match(workflow, /inputs\.activation == 'controller'/);
+  assert.match(workflow, /elif \[ "\$STAGE_ONLY" = "true" \]; then\r?\n\s+RESULT=STAGED_ONLY/);
+});
 
 test("a final verdict job decides what counts as a deployment: it always runs, reads the receipt and the public health, and fails for anything else", () => {
   const verdict = workflow.slice(workflow.indexOf("\n  verdict:"));
