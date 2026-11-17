@@ -120,10 +120,11 @@ Roles follow `docs/CLAUDE_CENTERED_OPERATING_MODEL.md` (ADR `ADR-OPS-20261013-CL
 - **VALIDATOR**: a separate fresh Claude session (same account allowed) that reviews code and workflow PRs it did not write.
 - **AUTOPILOT**: the Worker with Workers AI, limited to 150 changed lines in one file and allowed CI failures only.
 - **Gate (not AI)**: deterministic Audit and the release bot merge; no AI merges or approves its own PR.
+- **External reviewer (owner-designated, per PR)**: the owner may name an AI outside the Claude sessions (for example Codex or Gemini) as the non-author reviewer of a code or workflow PR. It is advisory only: no merge, no approval, no host access, no credentials, no sudo, no release or deploy step. Its findings must name the file and line they rest on; a finding without that is ignored. The author (CORE) checks every finding against the repository before acting and resolves the inline threads it addressed. The owner's choice is recorded in the PR or the handoff. An external reviewer's verdict stands in for the VALIDATOR only where the owner named it for that PR in writing; otherwise the VALIDATOR rule above applies.
 - A session learns its role from `NUSA_AGENT_ROLE` (`main`, or `validator`/`assistant` for a review session). If it is unset, act as CORE; every session starts with AIPOS recovery and verification, and no role may merge or approve.
 - Claim work by pushing a branch named after the work order before starting (no `agent/` prefix); search open PRs and branches with the same id first and leave existing work alone.
 - A PR that changes code or workflows opens as a **draft** and is reviewed by the role that did not write it, in a fresh session, under `docs/GRILL_ME_PROTOCOL.md`; blocking findings are inline review threads. The author marks it ready only after the review. Documentation-only `authority_impact: none` PRs use the lightweight path.
-- Automatic review on every PR is off; review runs on request. Codex workflows stay disabled and the paid GPT-4.1 overflow is off by owner decision.
+- Automatic review on every PR is off; review runs on request. Automated Codex workflows stay disabled (an owner-designated reviewer working outside this repository's workflows is the rule above) and the paid GPT-4.1 overflow is off by owner decision.
 - Handoffs: `.aipos/handoffs/<date>-main-handoff.md` (older files may use other names). Read the most recent one.
 
 ## PR and CI noise prevention
