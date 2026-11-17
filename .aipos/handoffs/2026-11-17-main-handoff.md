@@ -33,7 +33,7 @@ Reviews so far: a Codex PRELIMINARY review (not the formal Claude VALIDATOR that
 
 ## Open items and owner-only decisions
 
-- Review partner: the owner is choosing between Gemini and a fresh Claude session (proposal in the chat of 2026-11-16); `docs/NUSA_CORE_CODEX_ROLE_SPLIT_2026-11-16.md` still names Codex. Track C (separate the research job from the collector process) was proposed for the partner and is not started.
+- Review partner: on 2026-11-17 the owner chose Codex (chat: "코덱스로 할게") for the C4 PRs. `AGENTS.md` still names the VALIDATOR as a separate fresh Claude session and says Codex workflows stay disabled, so a Codex verdict is recorded as the owner-chosen non-author review for these PRs; the rule text itself was NOT changed by CORE (the owner decides whether to amend `AGENTS.md`). Earlier alternatives discussed: Gemini, a fresh Claude session; `docs/NUSA_CORE_CODEX_ROLE_SPLIT_2026-11-16.md` still names Codex. Track C (separate the research job from the collector process) was proposed for the partner and is not started.
 - Permit producer governance details, Cloudflare removal/phone workflow (C5/C6/S1-S5), strategy review (C7): unchanged from the 2026-11-16 handoff.
 - Known small items: the `runMode` comment in `apps/cloud/src/runtime.ts` should say "selected mode; readiness is `orderPathReady`" (fix when that file is next edited); the release helper's `activate` is not changed by C4 (the controller delegates to it).
 
