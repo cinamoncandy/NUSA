@@ -1,0 +1,25 @@
+id: WO-OPS-20261116-C4-RELEASE-VERB
+title: "Controller: the release verb (one verb changes build, unit state and record; authenticated start grant, recovery table, stop marker at the gate)"
+status: READY_FOR_REVIEW
+created: 2026-11-16
+implementation_branch: claude/c4-release-verb
+owner_decision: "2026-11-16: the owner chose independent development for now (no wait for the Codex re-review of the C4 design). The code PR stays DRAFT until a non-author review is done; nothing here runs on the host before a release and the owner's per-step approval."
+objective: "Remove the three owner terminal sessions per release (rollback, release, install) by letting the controller itself swap the build, as designed in docs/NUSA_C4_RELEASE_THROUGH_CONTROLLER_DESIGN_2026-11-16.md (sections 3.1 to 3.4)."
+change:
+  - "deploy/control/nusa-control.js: verb release <sha> with the outcomes DEPLOYED, ROLLED_BACK, STOPPED_SAFE, REFUSED, STOPPED_UNCONFIRMED; release intent in the state schema (runId, from, to, phase, owner); single-use start grant in the volatile run directory checked by the gate (run id, phase, build, expiry, boot, owner pid and start time, release command line, lock held); stop marker denied at the gate; recovery table that never moves forward and never starts; ordersOffEverywhere (port of the installer check) and lockHeldBy; reconcileSync."
+  - "Delegation (design 3.6): phase ACTIVATING runs the reviewed host helper's activate as a child while the controller holds the lock (it does the link swap, unit files, source identity, readiness and soak); its two gated starts use one grant with two uses; the controller then verifies on its own and only then advances the record. A failed helper takes the existing rollback path. runHelperActivate refuses a helper that is not a root-owned, non-writable regular file."
+  - "deploy/control/nusa-control.sh: stop creates its marker before waiting for the lock and stops the units directly after 90 s (STOP_UNLOCKED)."
+  - "tests/nusa-control-release.test.js: happy path, rollback, refusals, grant and gate table, stop marker race, a stop after every state write, recovery table, a crash injected at every mutation of a release and of the recovery itself."
+not_changed:
+  - "No risk limit, threshold, capital, order switch or authority. PAPER_ORDERS is not representable; grant-orders stays not available. The workflow, the sudoers rule and the host are NOT changed by this PR (design section 8 steps c and d)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test tests/nusa-control.test.js tests/nusa-control-release.test.js tests/nusa-control-install.test.js; AIPOS validators."
+unverified: "Tested with a fake systemd, a fake health endpoint and a temp filesystem; the real systemd start gate, /proc/locks parsing on the host kernel and the stop wrapper are not exercised on the host. The controller manifest hash changes, so a new release and the installer re-run are needed before the verb exists on the host."
+acceptance:
+  - "Non-author review (/grill-me); exact-head CI; the workflow verdict change and the sudo hand-over are separate PRs; no host step without the owner's per-step approval."

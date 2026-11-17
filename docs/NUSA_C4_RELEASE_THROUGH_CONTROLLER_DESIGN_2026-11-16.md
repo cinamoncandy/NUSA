@@ -39,9 +39,9 @@ New controller verb `release <sha>` (root, under the same lock as every verb; `s
 
 A held lock proves nothing about WHO holds it, so the gate does not trust the lock. Every start of the runtime units needs a single-use start grant that only the verb holding the lock can create.
 
-- Identity: the release verb creates a random 128-bit `runId` and stores it in the intent `RELEASE {runId, from, to, phase, startedAt}`. `phase` is one of `PREPARED`, `UNITS_STOPPED`, `SWAPPING`, `SWAPPED`, `STARTING_NEW`, `ROLLING_BACK`, `STARTING_OLD`. Every phase change is one durable state write (write, fsync, rename, fsync the directory) BEFORE the step it announces.
+- Identity: the release verb creates a random 128-bit `runId` and stores it in the intent `RELEASE {runId, from, to, phase, startedAt}`. `phase` is one of `PREPARED`, `UNITS_STOPPED`, `ACTIVATING` (the helper runs, 3.6), `SWAPPING`, `SWAPPED`, `STARTING_NEW`, `ROLLING_BACK`, `STARTING_OLD` (`SWAPPING` and `STARTING_NEW` are only read for intents of an older controller). Every phase change is one durable state write (write, fsync, rename, fsync the directory) BEFORE the step it announces.
 - Grant: immediately before it asks systemd to start the runtime units, the verb writes `/run/nusa-control/start-grant` (root, 0600, `O_EXCL`, `/run` is tmpfs so a reboot erases it) with `{runId, phase, sha, pid, pidStartTime, expiresAt}`. `sha` is `to` for `STARTING_NEW` and `from` for `STARTING_OLD`; `expiresAt` is 60 s after creation (monotonic clock).
-- The gate (`reconcile`, run by `Requires=`) permits a start only when ALL hold, and otherwise refuses with a named reason: state valid; `desired` allows a start; the intent (if any) has the same `runId` as the grant; the grant `phase` equals the intent phase and is `STARTING_NEW` or `STARTING_OLD`; `grant.sha` equals what `/opt/nusa/current` points at and equals `state.active`; the grant is not expired; the process `pid` still exists with the same start time (`/proc/<pid>/stat`), its command line is `nusa-control release`, and `/proc/locks` shows that pid holding the controller lock; no stop marker exists (3.4). The gate consumes (deletes) the grant when it permits, so one grant is one start. A start with no grant is permitted only in the plain case: `desired COLLECT_ONLY`, no intent, `active == current`, no stop marker (the normal boot and `Restart=` path).
+- The gate (`reconcile`, run by `Requires=`) permits a start only when ALL hold, and otherwise refuses with a named reason: state valid; `desired` allows a start; the intent (if any) has the same `runId` as the grant; the grant `phase` equals the intent phase and is `STARTING_NEW` or `STARTING_OLD`; `grant.sha` equals what `/opt/nusa/current` points at and equals `state.active`; the grant is not expired; the process `pid` still exists with the same start time (`/proc/<pid>/stat`), its command line is `nusa-control release`, and `/proc/locks` shows that pid holding the controller lock; no stop marker exists (3.4). A grant is one file per permitted start (`start-grant.1`, and `.2` for the two-start ACTIVATING grant); a gate claims a start by an atomic `rename` of a slot file, so two gates racing for one slot can never both win, and the claim is followed by a second look at the stop marker (a marker that appeared in between still denies the start). One grant is one start; the verb writes a second grant of the same run and phase for the research timer, which has its own gate check. A start with no grant is permitted only in the plain case: `desired COLLECT_ONLY`, no intent, `active == current`, no stop marker (the normal boot and `Restart=` path).
 - So an outside `collect`, `status`, a stray lock holder, a systemd restart or a boot cannot start the runtime during a release: they have no grant, and a RELEASE intent makes the plain case false.
 - No re-entrancy and no deadlock: the release verb does not call the `collect` command as a subprocess (it would need the same lock). It calls the in-process start-and-verify function while it already holds the lock. The gate never takes or waits for the lock (it only reads `/proc/locks`), so the verb waiting on `systemctl start` cannot block on the gate.
 
@@ -49,6 +49,7 @@ A held lock proves nothing about WHO holds it, so the gate does not trust the lo
 | --- | --- |
 | `desired COLLECT_ONLY`, no intent, `active == current`, no marker | yes (normal, no grant needed) |
 | intent `RELEASE` phase `STARTING_NEW` or `STARTING_OLD`, a valid grant as above | yes, once |
+| intent `RELEASE` phase `ACTIVATING`, a valid grant with two uses, link already the new build, record still the old build | yes, twice (`nusa.service`, research timer) |
 | any RELEASE intent without a valid grant, any other phase | no |
 | `desired STOPPED`, or a stop marker exists | no |
 
@@ -61,10 +62,10 @@ Allowed combinations (any other combination is the last row):
 | Phase | link | `state.active` | Recovery |
 | --- | --- | --- | --- |
 | `PREPARED`, `UNITS_STOPPED` | `from` | `from` | stop units (idempotent), clear intent, STOPPED |
-| `SWAPPING` | `from` or `to` | `from` | stop units, set link to `from` if it is `to`, clear intent, STOPPED |
-| `SWAPPED`, `STARTING_NEW` | `to` | `to` or `from` | stop units and confirm inactive, link to `from`, `active = from`, clear intent, STOPPED (the new build was never verified, so it is never continued) |
-| `ROLLING_BACK`, `STARTING_OLD` | `from` | `from` | stop units, clear intent, STOPPED (the live verb, not recovery, restarts the old build) |
-| anything else (link is neither `from` nor `to`, `active` is neither, an unreadable intent, units that will not stop) | any | any | stop units; if they will not stop, report `STOPPED_UNCONFIRMED` and refuse further verbs except `stop`; else STOPPED with `active = null`, reason `RECOVERY_UNKNOWN`, the link left untouched (no guess); the owner or the next `release` names a staged sha |
+| `SWAPPING`, `ACTIVATING` | `from` or `to` | `from` | stop units, set link to `from` if it is `to`, clear intent, STOPPED |
+| `SWAPPED`, `STARTING_NEW`, `ROLLING_BACK` | `from` or `to` | `from` or `to` | stop units and confirm inactive, link to `from`, `active = from`, clear intent, STOPPED (the new build was never verified, so it is never continued; both values may be either build because a crash between the two writes of this very recovery leaves such a pair) |
+| `STARTING_OLD` | `from` | `from` | stop units, clear intent, STOPPED (the live verb, not recovery, restarts the old build) |
+| anything else (link is neither `from` nor `to`, `active` is neither, an unreadable intent, units that will not stop) | any | any | stop units; if they will not stop, report `STOPPED_UNCONFIRMED` and refuse further verbs except `stop`; else STOPPED with `active = null`, reason `RECOVERY_UNKNOWN` (in the command result and the journal; the record has no reason field), the link left untouched (no guess); the owner or the next `release` names a staged sha |
 
 Order inside recovery: (1) stop the units and confirm `inactive`, (2) fix link and `state.active` with the two atomic operations (`ln -sfn` to a temp name then `rename`; state write as in 3.1), (3) clear the intent in the same write that records STOPPED. Each step re-reads the facts, so running recovery again after a crash inside recovery reaches the same end (idempotent). The proof record for a build is written only in the same state write that ends a verified `DEPLOYED` or confirms a verified old build; a rollback target must have a proof.
 
@@ -72,7 +73,7 @@ Recovery runs at the start of every command that takes the lock and, for `status
 
 ### 3.3 Outcome contract and the workflow (answers P1)
 
-`release` ends in exactly one of: `DEPLOYED` (new build verified), `ROLLED_BACK` (the previous proven build verified), `STOPPED_SAFE` (nothing verified, everything stopped, intent cleared), `REFUSED` (a precondition failed, nothing changed), `SUPERSEDED` (protected main moved before the host was touched, nothing changed). Only `DEPLOYED` is a deployment.
+`release` ends in exactly one of: `DEPLOYED` (new build verified), `ROLLED_BACK` (the previous proven build verified), `STOPPED_SAFE` (nothing verified, everything stopped, intent cleared), `REFUSED` (a precondition failed, nothing changed), `SUPERSEDED` (decided by the workflow, never by the controller: protected main moved before the host was touched, nothing changed); the controller adds `STOPPED_UNCONFIRMED` when a unit would not stop (never a success). Only `DEPLOYED` is a deployment.
 
 Workflow contract (a tested script, `scripts/release-verdict.js`, not shell logic scattered in YAML):
 
@@ -94,6 +95,16 @@ The stop marker `/run/nusa-control/stop-requested` is checked at the ONE irrever
 ### 3.5 Invariant enforcement and tests (answers the PAPER_ORDERS remark)
 
 Before every phase change the verb re-checks: orders OFF from every source, the mode file says `COLLECT_ONLY`, no unit or drop-in sets `NUSA_PAPER_ORDER_PATH`. A failure stops the release (`STOPPED_SAFE`). `PAPER_ORDERS` is not representable in the state, the mode file writer or any phase. The tests in section 5 inject a failure at every phase, a stale lock, a tampered order switch between phases and a `stop` during every phase.
+
+### 3.6 Finding while wiring (2026-11-16): the helper's `activate` does more than swap and start
+
+Reading `deploy/oracle/nusa-release-step.sh activate` shows what a release does today beyond the link swap and the runtime start: the replay-compatibility check, its own activation lock, `atomic-deploy.js` (link plus the previous-release record), binding the commit into the runtime environment file, installing the unit files of the release, `enable`, `restart` of `nusa.service`, the autopilot (not gated) and the research timer, `oracle-readiness-check.js`, the writer-lease recovery, the autopilot readiness, the post-activation soak, the proven marker and the schema check for a rollback. The `release` verb as implemented (link swap, mode file, grant, start, verify) is the state-machine core; it is NOT yet a replacement for all of that, and must not be wired into the workflow as one.
+
+Decision (implemented in this PR, to be reviewed): the controller DELEGATES, it does not reimplement. New phase `ACTIVATING`: after `UNITS_STOPPED` the controller runs `nusa-release-step activate <sha>` as a child while it holds the lock. The helper does everything above; its two gated starts (`restart nusa.service`, `start nusa-research.timer`) ask the gate, which accepts a grant with `uses: 2` bound to the intent (run id, phase `ACTIVATING`, build `to`, link must already equal `to`, `state.active` still `from`, owner process alive and holding the lock); each accepted start decrements `uses`, a third is refused. The autopilot restart is not gated and stays the helper's concern. When the helper returns 0 the controller verifies on its own (`verifyRuntime`), writes `active = to`, the proof and `COLLECT_ONLY`. When it returns non-zero (its own safe stop, or a gate refusal) the controller confirms every unit stopped and takes the existing rollback path (`ROLLING_BACK`, `STARTING_OLD`, a fresh single grant for the previous proven build) or ends `STOPPED_SAFE`. Recovery for `ACTIVATING` is the `SWAPPING` row (link `from` or `to`, active `from`).
+
+Sudo consequence: the runner no longer needs `activate` (only the controller, as root, calls it): its rule keeps `stage` and `preflight` of the helper and gains `nusa-control status|stop|collect|release <sha>`.
+
+Bootstrap consequence: the installed controller (678085c2f) has no `release`. The first release that carries this verb cannot go through the controller, and the old helper path is refused by the gate. To avoid the three-session dance one last time, the installer gets an in-place mode (`--upgrade-controller`): with the runtime running and verified, it replaces only the controller files and the manifest from a staged release (units and drop-ins unchanged), then verifies; no restart. Workflow input `stage_only` lets a release stop after `stage` so the owner can run that upgrade.
 
 ## 4. What changes in the workflow and on the host
 
@@ -130,5 +141,5 @@ Before every phase change the verb re-checks: orders OFF from every source, the 
 
 ## 8. Order of work
 
-(a) `release` verb with its property test, no host change; (b) review; (c) the sudo hand-over and the workflow change in one reviewed PR and
+(a) `release` verb with its property test, no host change (state-machine core, PR 3167); (a2) delegation to the helper's `activate` with the `ACTIVATING` phase and the two-use grant; (a3) the installer's `--upgrade-controller` and the workflow's `stage_only`; (b) review; (c) the sudo hand-over and the workflow change in one reviewed PR and
 one owner terminal session; (d) the first release through the controller (C4), with a deliberate failure drill on a copy first (C2 rehearsal).
