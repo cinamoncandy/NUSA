@@ -1,0 +1,22 @@
+id: WO-OPS-20261118-C5-PHONE-BUTTONS
+title: "C5: PAPER Run Mode workflow, stop and collect from the GitHub app through the host controller (no terminal)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+owner_decision: "2026-11-18: the owner asked for the highest-priority work for NUSA's completion in order and delegated approvals to CORE; C5 of docs/NUSA_CORE_DESIGN_V5_2026-11-15.md (one workflow, buttons stop and collect only, Environment with the owner as required reviewer) removes the terminal paste the owner needed after every collector stop. This supersedes draft PR #3136, whose helper-verb design is replaced by the controller (which already holds stop and collect)."
+objective: "Let the owner stop the PAPER service or bring it back in COLLECT_ONLY from the GitHub app, protected by an approval click, with no change on the host."
+change:
+  - ".github/workflows/paper-run-mode.yml: dispatch only, inputs stop|collect, contents:read, no secret, no third-party action; a guard job fails closed unless the repository variable PAPER_RUN_MODE_ENABLED is exactly true and the actor is the repository owner; the apply job needs the guard, runs on the host runner in the Environment paper-host-control and calls only `sudo -n /opt/nusa-control/nusa-control.sh stop|collect` and a read-only `status`; shares the release concurrency group."
+  - "tests/paper-run-mode-workflow.test.js (6 tests) pins all of it, including that every sudo call is the controller entry point and that the runner's sudo rule names status, stop and collect without arguments."
+  - "docs/operations/paper-run-mode.md: what it does and the owner's one-time GitHub setup (Environment with required reviewers, then the repository variable)."
+not_changed:
+  - "The host, the sudo rules, the controller, the release workflow, every limit, threshold, capital, order switch and authority. No action starts the order path."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run on the host or in GitHub (needs the owner's Environment setup first). Required reviewers cannot be checked by code, hence the disabled-until-enabled guard. The first real use should be a collect while the service already runs (a no-op) to see the controller's answer."
+acceptance:
+  - "Exact-head CI; the owner's one-time setup; one harmless first press."
