@@ -305,6 +305,12 @@ export function composeResearchExperiments(input: {
   let backfilling = false;
   let researchTickActive = false;
   const targetSpanMs = researchTargetSpanMs(settings);
+  // The hand-back inside a manifest build: after it, a stop request ends the build (caught and logged per interval below), so a stopped
+  // composition does not keep reading, hashing and persisting on a database that is about to close.
+  const buildStepYield = async (): Promise<void> => {
+    await yieldControl();
+    if (stopped) throw new Error("research composition stopped");
+  };
   const materializeConfiguredManifests = async (market: string, firstClose: number, lastClose: number, sourceChanged = false): Promise<void> => {
     const fromBaseClose = Math.max(firstClose, lastClose - targetSpanMs + M);
     const createdAt = new Date(now()).toISOString();
@@ -325,7 +331,7 @@ export function composeResearchExperiments(input: {
           manifestRetrySchedule.recordAttempt(market, intervalName, now(), currentIntervalClose);
           // Read and build in bounded steps with a hand-back to the event loop between them (the same rows and the same manifest as one synchronous read
           // and build): the PAPER writer heartbeat, the health endpoint and the market feed keep running while a long history is processed.
-          const candles = await readResearchBarsInSlices(bars, market, intervalMs, M, fromBaseClose, lastClose, yieldControl);
+          const candles = await readResearchBarsInSlices(bars, market, intervalMs, M, fromBaseClose, lastClose, buildStepYield);
           if (candles.length === 0) {
             log(`[research-manifest] ${market}/${intervalName} blocked: no complete interval candles`);
           } else {
@@ -334,7 +340,7 @@ export function composeResearchExperiments(input: {
               : `upbit-1m-aggregated:${market}:${intervalMs}`;
             const manifestBuildStarted = performance.now();
             const phases: string[] = [];
-            await materializeResearchDatasetManifestAsync({ store: datasetManifests, candleStore: store, market, intervalMs, candles, source, createdAt, sourceCommitSha: settings.sourceCommitSha, yieldControl, onPhase: (phase, durationMs) => { phases.push(`${phase}=${Math.round(durationMs)}`); } });
+            await materializeResearchDatasetManifestAsync({ store: datasetManifests, candleStore: store, market, intervalMs, candles, source, createdAt, sourceCommitSha: settings.sourceCommitSha, yieldControl: buildStepYield, onPhase: (phase, durationMs) => { phases.push(`${phase}=${Math.round(durationMs)}`); } });
             log(`[research-manifest] ${market}/${intervalName} materialized dataset manifest`);
             log(`[research-manifest] ${market}/${intervalName} build durationMs=${Math.max(0, Math.round(performance.now() - manifestBuildStarted))}`);
             log(`[research-manifest] ${market}/${intervalName} build phasesMs candles=${candles.length} ${phases.join(" ")}`);
@@ -349,7 +355,9 @@ export function composeResearchExperiments(input: {
     }
   };
   const backfill = async (): Promise<readonly BackfillResult[]> => {
-    if (backfilling || researchTickActive || stopped) return Object.freeze([]);
+    // Backfill and gap-fill both write candles and both build manifests in steps that hand the thread back, so they exclude each other (a
+    // build must not see candles change between its steps); the experiment tick is excluded by both as before.
+    if (backfilling || gapFilling || researchTickActive || stopped) return Object.freeze([]);
     backfilling = true;
     const results: BackfillResult[] = [];
     for (const market of settings.markets) {
@@ -383,7 +391,7 @@ export function composeResearchExperiments(input: {
   let gapTimer: ReturnType<typeof setInterval> | undefined;
   let gapRetry: ReturnType<typeof setTimeout> | undefined;
   const fillGaps = async (): Promise<readonly GapFillResult[]> => {
-    if (gapFilling || researchTickActive || stopped) return Object.freeze([]);
+    if (gapFilling || backfilling || researchTickActive || stopped) return Object.freeze([]);
     gapFilling = true;
     const results: GapFillResult[] = [];
     let fillMs = 0, readMs = 0, materializeMs = 0;

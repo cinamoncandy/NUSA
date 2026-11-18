@@ -249,6 +249,13 @@ test("verified base receipts materialize each configured interval manifest on ba
       assert.match(durationLines[0], /durationMs=\d+$/);
     }
     assert.ok(!lines.some((line) => /\[research-manifest\].*blocked/.test(line)), lines.join("\n"));
+    // Backfill and gap-fill both write candles and build manifests in steps that hand the thread back: while one runs, the other declines.
+    const running = composition.backfill();
+    assert.deepEqual(await composition.fillGaps(), [], "gap-fill declines while a backfill is running");
+    assert.equal((await running)[0].status, "COMPLETE");
+    const gaps = composition.fillGaps();
+    assert.deepEqual(await composition.backfill(), [], "backfill declines while a gap-fill is running");
+    assert.equal((await gaps)[0].status, "NO_GAPS");
   } finally { composition.stop(); db.close(); }
 });
 
