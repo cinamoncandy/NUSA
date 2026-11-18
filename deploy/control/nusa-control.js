@@ -646,7 +646,17 @@ function makeController(deps) {
     const ordersOffNow = async () => { try { return !!(deps.ordersOff && (await deps.ordersOff())); } catch { return false; } };
     if (!(await ordersOffNow())) return refuse("ORDERS_NOT_OFF");
     if (cur.desired === "COLLECT_ONLY") {
-      const v = await verifyRuntime(deps, cfg, cur.active, "COLLECT_ONLY");
+      let v = await verifyRuntime(deps, cfg, cur.active, "COLLECT_ONLY");
+      // Nothing has been touched yet, so waiting is safe. A busy collector can leave its accept queue unserved for tens of seconds (event
+      // loop stalls up to 71 s measured on the real host, 2026-11-18; the first controller release was refused with SENDER_UNKNOWN right after
+      // the backup). Only "no answer yet" is waited out, for the same bounded budget as verify; any wrong answer refuses at once.
+      const patienceEnd = monotonic() + cfg.verifyNoAnswerBudgetMs;
+      while (!v.ok && !isWrongAnswer(v) && monotonic() < patienceEnd) {
+        await sleep(cfg.verifyNoAnswerRetryMs);
+        if (markerState().present) return refuse("STOP_REQUESTED");
+        if (unitState(sys, RUNTIME_UNIT).active !== "active") break;
+        v = await verifyRuntime(deps, cfg, cur.active, "COLLECT_ONLY");
+      }
       if (!v.ok) return refuse("RUNTIME_NOT_VERIFIED", v.reason);
     } else if (anyOwnedUnitRunning()) return refuse("UNITS_RUNNING_WHILE_STOPPED");
     const from = cur.active; const to = sha;
