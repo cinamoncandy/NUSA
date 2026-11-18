@@ -211,7 +211,8 @@ test("verified base receipts materialize each configured interval manifest on ba
     const [backfill] = await composition.backfill();
     assert.equal(backfill.status, "COMPLETE");
     assert.equal(fetchCalls, 0);
-    assert.equal(yieldedIntervals, 4, "the event loop yields after each configured interval's synchronous materialization");
+    // One hand-back after each configured interval at least, plus the hand-backs inside each bounded build step (the build no longer holds the thread).
+    assert.ok(yieldedIntervals >= 4, `the event loop yields after each configured interval and inside each build (${yieldedIntervals} hand-backs)`);
     // The 240m window begins inside a 4-hour bar, so its partial leading bar is correctly omitted.
     const expectedCounts = new Map([["1m", count], ["15m", count / 15], ["60m", count / 60], ["240m", count / 240 - 1]]);
     const initial = new Map();
@@ -226,8 +227,9 @@ test("verified base receipts materialize each configured interval manifest on ba
     // A later successful no-op pass has the same source identity but a different observation time.
     // It must preserve the immutable existing manifest instead of conflicting on createdAt.
     now += 1_000;
+    const yieldsBeforeNoOp = yieldedIntervals;
     assert.equal((await composition.backfill())[0].status, "COMPLETE");
-    assert.equal(yieldedIntervals, 8, "no-op intervals also provide event-loop checkpoints between markets/intervals");
+    assert.equal(yieldedIntervals - yieldsBeforeNoOp, 4, "no-op intervals (no build) still provide exactly one event-loop checkpoint each");
     assert.equal((await composition.fillGaps())[0].status, "NO_GAPS");
     for (const [interval, prior] of initial) {
       const replay = composition.datasetManifests.latest("KRW-BTC", interval);
@@ -247,6 +249,13 @@ test("verified base receipts materialize each configured interval manifest on ba
       assert.match(durationLines[0], /durationMs=\d+$/);
     }
     assert.ok(!lines.some((line) => /\[research-manifest\].*blocked/.test(line)), lines.join("\n"));
+    // Backfill and gap-fill both write candles and build manifests in steps that hand the thread back: while one runs, the other declines.
+    const running = composition.backfill();
+    assert.deepEqual(await composition.fillGaps(), [], "gap-fill declines while a backfill is running");
+    assert.equal((await running)[0].status, "COMPLETE");
+    const gaps = composition.fillGaps();
+    assert.deepEqual(await composition.backfill(), [], "backfill declines while a gap-fill is running");
+    assert.equal((await gaps)[0].status, "NO_GAPS");
   } finally { composition.stop(); db.close(); }
 });
 
