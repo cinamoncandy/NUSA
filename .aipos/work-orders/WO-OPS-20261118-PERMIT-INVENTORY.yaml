@@ -1,0 +1,22 @@
+id: WO-OPS-20261118-PERMIT-INVENTORY
+title: "Permit producer: a read-only inventory script for the state database (counts only)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/permit-inventory
+owner_decision: "2026-11-18: the owner asked CORE to use the waiting time for other work. Section 4 of docs/NUSA_PERMIT_PRODUCER_DESIGN_V2_2026-11-17.md asks for a read-only inventory before any build; decision 2 of 2026-11-16 (no producer is built before a candidate qualifies) stands. This script is not the producer."
+objective: "Let the owner (or a read-only host diagnosis later) see, without opening the database by hand, how many research candidates, calibration and outcome samples, futures rows, market-data samples and permit records the state database holds."
+change:
+  - "scripts/permit-inventory.js: opens the database read-only, counts rows of a fixed allow-list of tables (a missing table reads as absent), prints JSON; prints no row content, opens no network connection, writes nothing."
+  - "tests/permit-inventory.test.js: counts, absent tables, the file is byte-identical afterwards with no journal left behind, every table name in the allow-list is a plain identifier, the command line (JSON, missing argument, missing file) and that row content is never printed."
+not_changed:
+  - "No production code, schema, permit, threshold, risk limit, capital, order switch, workflow, release or authority. The script is not wired into any workflow or service."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run against the real host database. Counts do not show whether samples are bound to a model, market and outcome definition (the design says that needs a separate check)."
+acceptance:
+  - "Exact-head CI; a later owner-approved run on the host (one read-only command) to read the numbers."
