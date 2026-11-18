@@ -1,0 +1,19 @@
+id: WO-OPS-20261118-HANDOFF-EVENING
+title: "Handoff update of 2026-11-18 evening (exception merged, controller upgraded, first real controller release refused)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/handoff-2026-11-18-evening
+objective: "Record the state, findings and next safe actions for the next session. Documentation only."
+change:
+  - ".aipos/handoffs/2026-11-17-main-handoff.md: one dated update section."
+not_changed:
+  - "No code, workflow, host, release, gate, risk limit, threshold, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI."
