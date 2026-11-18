@@ -1,0 +1,24 @@
+id: WO-ARCH-20261118-CLOUDFLARE-S1-FINDINGS
+title: "Cloudflare removal S1: source-level findings on the phone path (documentation only)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/cloudflare-removal-wo
+owner_decision: "2026-11-17/18: the owner delegated the next steps ('다 해') while the security gate blocks merges; the 2026-11-14 decision stands (Cloudflare is not needed; remove in stages)."
+objective: "Record, from the source, whether the shipped phone app depends on the Worker, and list what S1 still has to prove."
+evidence:
+  findings: docs/CLOUDFLARE_REMOVAL_S1_FINDINGS_2026-11-18.md
+  key_finding: "No source file of apps/mobile or the PAPER host references workers.dev or cloudflare; seven workflows call the Worker (four Cloudflare-only plus the auto-merge path of S0)."
+scope:
+  - "Documentation and this work order only."
+exclusions:
+  - "No workflow, code, secret, Cloudflare, host or deployment change. No removal step starts. The auto-merge path, HOLD, WIP cap, Audit and Release are untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Partial route extraction; the build-time origin value and the installed app build were not read; upbitLiveClient reachability not traced."
+acceptance:
+  - "Non-author review of the findings; the S1 table completed before S2."
