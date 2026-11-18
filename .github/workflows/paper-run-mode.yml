@@ -5,7 +5,9 @@ name: PAPER Run Mode
 # `nusa-control stop` and `nusa-control collect` (and `status`); nothing on the host changes to use this workflow.
 #   stop    -> `nusa-control stop`: the desired state becomes STOPPED, every unit is stopped and the boot start is disabled.
 #   collect -> `nusa-control collect`: the desired state becomes COLLECT_ONLY and the controller starts the runtime through its start gate; the
-#              order path stays OFF. There is deliberately NO action that starts the PAPER order path: Stage B needs its own written approval and change.
+#              order path stays OFF. NOTE: it RESTARTS a runtime that is already running (a short gap in the collected data), so it is not a harmless test.
+#   status  -> `nusa-control status`: READ-ONLY. Changes nothing; use it to check the setup (approval, runner, sudo rule) without touching the service.
+#   There is deliberately NO action that starts the PAPER order path: Stage B needs its own written approval and change.
 # The apply job runs in the GitHub Environment `paper-host-control`. Required reviewers on that Environment are a GitHub setting that code cannot
 # enforce or read, and an agent dispatching through the owner's account looks like the owner, so the workflow is DISABLED until the owner turns it on:
 # a first job fails closed unless the repository variable PAPER_RUN_MODE_ENABLED is exactly `true` (set it ONLY AFTER adding yourself as a required
@@ -17,10 +19,11 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "stop = stop the PAPER service. collect = start it in COLLECT_ONLY (orders OFF)."
+        description: "status = read-only. stop = stop the PAPER service. collect = (re)start it in COLLECT_ONLY (orders OFF); restarts a running service."
         required: true
         type: choice
         options:
+          - status
           - stop
           - collect
 
@@ -71,6 +74,7 @@ jobs:
           case "$ACTION" in
             stop) OUT="$(sudo -n /opt/nusa-control/nusa-control.sh stop)"; RC=$? ;;
             collect) OUT="$(sudo -n /opt/nusa-control/nusa-control.sh collect)"; RC=$? ;;
+            status) OUT="$(sudo -n /opt/nusa-control/nusa-control.sh status)"; RC=$? ;;
             *) echo "::error::unknown action '$ACTION'"; exit 1 ;;
           esac
           printf '%s\n' "$OUT"

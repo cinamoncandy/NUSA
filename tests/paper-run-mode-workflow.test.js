@@ -21,7 +21,7 @@ function job(name) {
 test("dispatch only: no push, pull_request, schedule or workflow_run trigger, and no action that starts the order path", () => {
   assert.match(code, /\non:\n  workflow_dispatch:\n/);
   assert.doesNotMatch(code, /\n\s+(push|pull_request|pull_request_target|schedule|workflow_run|repository_dispatch|issue_comment):/);
-  assert.match(code, /options:\n\s+- stop\n\s+- collect\n/);
+  assert.match(code, /options:\n\s+- status\n\s+- stop\n\s+- collect\n/);
   assert.doesNotMatch(code, /PAPER_ORDERS|ORDERS_ON|grant-orders|options:[\s\S]*\bON\b/, "no action starts the order path");
 });
 
@@ -54,7 +54,7 @@ test("the action reaches the script only through an environment variable, and th
   const interpolations = [...apply.matchAll(/\$\{\{[^}]*inputs\.action[^}]*\}\}/g)].map((m) => m[0]);
   assert.deepEqual(interpolations, ["${{ inputs.action }}"], "inputs.action appears exactly once, in the env block");
   assert.match(apply, /ACTION: \$\{\{ inputs\.action \}\}/);
-  const calls = [...apply.matchAll(/sudo -n \/opt\/nusa-control\/nusa-control\.sh (\w+)/g)].map((m) => m[1]).sort();
+  const calls = [...new Set([...apply.matchAll(/sudo -n \/opt\/nusa-control\/nusa-control\.sh (\w+)/g)].map((m) => m[1]))].sort();
   assert.deepEqual(calls, ["collect", "status", "stop"]);
   assert.doesNotMatch(apply, /sudo\s+(?!-n \/opt\/nusa-control\/nusa-control\.sh)/, "every sudo call is the controller entry point");
   assert.doesNotMatch(apply, /systemctl\s+(start|stop|restart|enable|disable|mask|kill|daemon-reload)/, "no direct service control, only the controller");

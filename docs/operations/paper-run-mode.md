@@ -7,8 +7,9 @@ The workflow `PAPER Run Mode` (`.github/workflows/paper-run-mode.yml`) calls the
 
 | Action | Effect |
 |---|---|
+| `status` | `nusa-control status`: read-only, changes nothing. Use it first to check the setup (approval click, runner, sudo rule). |
 | `stop` | `nusa-control stop`: the desired state becomes STOPPED, every unit is stopped, the boot start is disabled. |
-| `collect` | `nusa-control collect`: the desired state becomes COLLECT_ONLY, the controller starts the runtime through its start gate. Orders stay OFF. |
+| `collect` | `nusa-control collect`: the desired state becomes COLLECT_ONLY, the controller starts the runtime through its start gate. Orders stay OFF. It restarts a runtime that is already running (a short gap in the collected data), so it is not a test. |
 
 There is no action that starts the PAPER order path. Stage B needs its own written approval (naming "Stage B") and its own change.
 The host needs no change: the runner's sudo rule already allows exactly `nusa-control status`, `stop` and `collect`.
