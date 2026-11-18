@@ -78,6 +78,7 @@ function world(opts = {}) {
   const identifiedHealth = async () => {
     if (!units["nusa.service"].active) return { body: null, ownerPids: [] };
     const b = buildNow();
+    if (w.silent > 0) { w.silent -= 1; return { body: null, ownerPids: [] }; }
     if (w.bad.has(b)) return { body: null, ownerPids: [4242] };
     return { body: { runtime: { runMode: w.wrongMode.has(b) ? "PAPER_ORDERS" : "COLLECT_ONLY", sourceCommitSha: b } }, ownerPids: [4242] };
   };
@@ -110,7 +111,7 @@ function world(opts = {}) {
     },
     now: () => 1_000_000 + w.mono,
     monotonic: () => w.mono,
-    sleep: async (ms) => { w.mono += ms; },
+    sleep: async (ms) => { w.mono += ms; if (w.onSleep) w.onSleep(); },
     config: { stateDir, runDir, releasesDir: path.join(base, "releases"), modeFile: w.modeFile, currentLink, startCeilingMs: 60_000, pollMs: 5_000, expectedUid: UID, checkAncestors: false },
   });
   // The readonly gate is exactly what systemd runs while the release verb holds the lock (the lock wrapper runs it with --readonly).
@@ -546,4 +547,32 @@ test("race with a stop: a marker that appears between the gate's check and its c
   const w = world({ markerAtClaim: true }); await up(w); seedIntent(w); setLink(w, B); writeGrantFile(w, { uses: 1 });
   const g = w.ctl.reconcileSync({ readonly: true });
   assert.deepEqual([g.ok, g.code], [false, "GATE_DENIED:RELEASE_STOP_REQUESTED_DURING_START"]);
+});
+
+test("release waits out a busy collector (no answer yet) before the precheck, then deploys", posixOnly, async () => {
+  const w = world(); await up(w);
+  w.silent = 3; // the first three health probes get no answer (SENDER_UNKNOWN), the fourth is answered
+  const r = await w.ctl.release(B);
+  assert.deepEqual([r.ok, r.outcome], [true, "DEPLOYED"], JSON.stringify(r));
+  assert.ok(w.mono >= 3 * 15_000, "it waited between probes");
+});
+
+test("release refuses after the bounded patience when the collector never answers, and touches nothing", posixOnly, async () => {
+  const w = world(); await up(w);
+  w.silent = 1e9; const linkBefore = w.link(); w.calls.length = 0;
+  const r = await w.ctl.release(B);
+  assert.deepEqual([r.outcome, r.reason, r.detail], ["REFUSED", "RUNTIME_NOT_VERIFIED", "SENDER_UNKNOWN"]);
+  assert.ok(w.mono >= 300_000 && w.mono < 300_000 + 15_000 + 1, "waited about the verify budget, no more");
+  assert.equal(w.link(), linkBefore); assert.deepEqual(mutating(w), []);
+});
+
+test("release does not wait on a WRONG answer, and a stop request ends the wait", posixOnly, async () => {
+  const w1 = world(); await up(w1); w1.wrongMode.add(A);
+  const r1 = await w1.ctl.release(B);
+  assert.deepEqual([r1.outcome, r1.reason, w1.mono], ["REFUSED", "RUNTIME_NOT_VERIFIED", 0], "a wrong answer refuses at once");
+  const w2 = world(); await up(w2); w2.silent = 1e9;
+  w2.onSleep = () => fs.writeFileSync(w2.marker, "{}", { mode: 0o600 });
+  const r2 = await w2.ctl.release(B);
+  assert.deepEqual([r2.outcome, r2.reason], ["REFUSED", "STOP_REQUESTED"]);
+  assert.deepEqual(mutating(w2), []);
 });
