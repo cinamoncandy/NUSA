@@ -4,7 +4,7 @@ import { SqliteResearchDatasetManifestStore } from "../../../packages/storage/sr
 import { SqliteResearchCandleStore, type StoredResearchCandle } from "../../../packages/storage/src/researchCandleStore";
 import { ResearchDatasetManifestStoreError } from "../../../packages/storage/src/researchDatasetManifest";
 import { UPBIT_CANDLE_SOURCE_FINGERPRINT } from "./researchCandleBackfill";
-import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
+import { AggregatedResearchCandleSource, type ResearchCandleStorePort } from "./researchCandleAggregation";
 
 const hash = (value: unknown): string => createHash("sha256").update(JSON.stringify(value), "utf8").digest("hex");
 const SHA256 = /^[a-f0-9]{64}$/;
@@ -84,7 +84,16 @@ export function materializeResearchDatasetManifest(input: {
   started = phaseStarted();
   const expectedBaseCount = (lastBaseClose - firstBaseClose) / sourceIntervalMs + 1 - gapMinuteCount;
   if (!Number.isSafeInteger(expectedBaseCount) || baseCandles.length !== expectedBaseCount || baseCandles.some((candle) => candle.volume == null)) throw Object.assign(new Error("dataset source candle coverage is incomplete"), { code: "MANIFEST_PROVENANCE_REQUIRED" });
-  const derived = new AggregatedResearchCandleSource(input.candleStore, sourceIntervalMs).read(input.market, input.intervalMs, candles[0]!.openTime + input.intervalMs, candles.at(-1)!.closeTime);
+  // The verification below asks the store for exactly the rows read a moment ago (same market, base interval and closes). Hand it
+  // those rows instead of reading them again: the result is identical for identical arguments, and the collector's thread is blocked
+  // for one full read less. Any other request still goes to the store.
+  const sameWindowPort: ResearchCandleStorePort = {
+    read: (market, intervalMs, fromCloseMs, toCloseMs) => (market === input.market && intervalMs === sourceIntervalMs && fromCloseMs === firstBaseClose && toCloseMs === lastBaseClose ? baseCandles : input.candleStore.read(market, intervalMs, fromCloseMs, toCloseMs)),
+    latestCloseTime: (market, intervalMs) => input.candleStore.latestCloseTime(market, intervalMs),
+    earliestCloseTime: (market, intervalMs) => input.candleStore.earliestCloseTime(market, intervalMs),
+    count: (market, intervalMs) => input.candleStore.count(market, intervalMs),
+  };
+  const derived = new AggregatedResearchCandleSource(sameWindowPort, sourceIntervalMs).read(input.market, input.intervalMs, candles[0]!.openTime + input.intervalMs, candles.at(-1)!.closeTime);
   const derivedCanonical = derived.map((candle): CanonicalResearchCandle => ({ market: input.market, interval, openTime: candle.closeTimeMs - input.intervalMs, closeTime: candle.closeTimeMs, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume! }));
   if (calculateResearchCandleSha256(derivedCanonical) !== contentSha256) throw Object.assign(new Error("dataset material does not match the verified source candles"), { code: "MANIFEST_CONTENT_MISMATCH" });
   const materials = input.candleStore.listMaterial(input.market, sourceIntervalMs, firstBaseClose, lastBaseClose);
@@ -92,11 +101,28 @@ export function materializeResearchDatasetManifest(input: {
   if (materials.some((material) => material.rejectedObservations !== 0)) throw Object.assign(new Error("malformed raw-source observations cannot produce a canonical manifest"), { code: "MANIFEST_SOURCE_MALFORMED" });
   phaseDone("derive_and_hash", started);
   started = phaseStarted();
-  const receiptCovered = new Set<number>();
-  for (const material of materials) {
-    for (const candle of input.candleStore.read(input.market, sourceIntervalMs, material.firstCloseTimeMs, material.lastCloseTimeMs)) receiptCovered.add(candle.closeTimeMs);
+  // A stored candle is covered when its close lies inside the (inclusive) close range of some receipt. Every candle of `baseCandles` is a
+  // stored candle, so this is the same test as reading each receipt's range back from the store and collecting the closes, without the reads.
+  const receiptRanges = materials.map((material) => [material.firstCloseTimeMs, material.lastCloseTimeMs] as const).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const mergedRanges: Array<[number, number]> = [];
+  for (const [from, to] of receiptRanges) {
+    const last = mergedRanges.at(-1);
+    if (last != null && from <= last[1]) last[1] = Math.max(last[1], to);
+    else mergedRanges.push([from, to]);
   }
-  if (baseCandles.some((candle) => !receiptCovered.has(candle.closeTimeMs))) throw Object.assign(new Error("raw-source receipts do not cover the complete dataset"), { code: "MANIFEST_PROVENANCE_REQUIRED" });
+  const receiptCovers = (close: number): boolean => {
+    let low = 0;
+    let high = mergedRanges.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      const [from, to] = mergedRanges[mid]!;
+      if (close < from) high = mid - 1;
+      else if (close > to) low = mid + 1;
+      else return true;
+    }
+    return false;
+  };
+  if (baseCandles.some((candle) => !receiptCovers(candle.closeTimeMs))) throw Object.assign(new Error("raw-source receipts do not cover the complete dataset"), { code: "MANIFEST_PROVENANCE_REQUIRED" });
   phaseDone("receipt_coverage", started);
   const provenance: ResearchDatasetProvenanceV2 = {
     rawSourceIdentitySha256s: [...new Set([...materials.map((material) => material.evidenceFingerprintSha256!), ...absences.map((run) => run.evidenceFingerprintSha256)])],
