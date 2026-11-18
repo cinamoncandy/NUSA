@@ -1,0 +1,23 @@
+id: WO-OPS-20261118-C4-RELEASE-PRECHECK-PATIENCE
+title: "C4: the release verb waits out a busy collector in its precheck instead of refusing (SENDER_UNKNOWN)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/release-preflight-patience
+owner_decision: "2026-11-18: the owner delegated the release path to CORE ('다 위임할테니 알아서 해'). The owner was told a further controller upgrade paste would follow if the real release found another fake-versus-real difference."
+evidence: "Run 44285912208 (2026-11-18 11:07Z, first real controller release, main 54c5bc4f6): the controller refused with REFUSED / RUNTIME_NOT_VERIFIED / SENDER_UNKNOWN 28 s after the backup finished, before touching anything (link, units, state unchanged; /health 200 afterwards). The same collector reported eventLoopMaxStallMs=71416 and 179 stalls in 9 h; the controller's identification budget for the accept() of its probe is 3 s."
+objective: "A busy collector must not make a healthy host refuse a release. The precheck probe is retried for the same bounded budget verify already uses (verifyNoAnswerBudgetMs 300 s, every 15 s) before the verb refuses."
+change:
+  - "deploy/control/nusa-control.js: in release, only 'no answer yet' (HEALTH_UNAVAILABLE, SENDER_UNKNOWN) is retried; any wrong answer (BUILD_MISMATCH, MODE_MISMATCH, FOREIGN_SENDER) still refuses at once; a stop marker ends the wait with STOP_REQUESTED; an inactive runtime unit ends it; nothing is mutated before or during the wait."
+  - "tests/nusa-control-release.test.js: three tests (waits then deploys; refuses after the budget and touches nothing; wrong answer refuses at once, stop marker ends the wait)."
+not_changed:
+  - "Every other gate check, the grant, phases, outcomes, sudo rules, workflow, risk limit, threshold, capital, order switch, authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run on the host. A busy collector may also stall later steps of a release (start proof, post-start verify); the next real release shows it. Needs a controller upgrade on the host (owner paste) before it takes effect."
+acceptance:
+  - "Exact-head CI; staged release; owner paste for --upgrade-controller; the next controller release."
