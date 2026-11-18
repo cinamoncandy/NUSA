@@ -102,8 +102,9 @@ test("production Research timers use the cooperative scheduler and serialize evi
   assert.match(source, /first = setTimeout\(scheduleTick, 60_000\)/);
   assert.match(source, /timer = setInterval\(scheduleTick, settings\.tickMs\)/);
   assert.match(source, /await orchestrators\[index\]!\.tickAsync\(yieldProductionTurn\)/);
-  assert.match(source, /if \(backfilling \|\| researchTickActive \|\| stopped\)/);
-  assert.match(source, /if \(gapFilling \|\| researchTickActive \|\| stopped\)/);
+  // Backfill and gap-fill exclude each other as well as the tick (the manifest build now hands the thread back between its steps).
+  assert.match(source, /if \(backfilling \|\| gapFilling \|\| researchTickActive \|\| stopped\)/);
+  assert.match(source, /if \(gapFilling \|\| backfilling \|\| researchTickActive \|\| stopped\)/);
   assert.match(source, /if \(backfilling \|\| gapFilling\) \{/);
   assert.doesNotMatch(source, /setTimeout\(\(\) => \{ try \{ tickOnce\(\)/);
 });

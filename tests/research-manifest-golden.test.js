@@ -9,7 +9,7 @@ const { join } = require("node:path");
 const { tmpdir } = require("node:os");
 const { createHash } = require("node:crypto");
 const { SqliteDatabase, SqliteResearchCandleStore, SqliteResearchDatasetManifestStore } = require("../dist/packages/storage/src/index.js");
-const { materializeResearchDatasetManifest } = require("../dist/apps/cloud/src/researchDatasetManifestMaterializer.js");
+const { materializeResearchDatasetManifest, materializeResearchDatasetManifestAsync, readResearchBarsInSlices } = require("../dist/apps/cloud/src/researchDatasetManifestMaterializer.js");
 const { UPBIT_CANDLE_SOURCE_FINGERPRINT } = require("../dist/apps/cloud/src/researchCandleBackfill.js");
 const { AggregatedResearchCandleSource } = require("../dist/apps/cloud/src/researchCandleAggregation.js");
 
@@ -107,4 +107,50 @@ function materializeWith(mutate) {
 test("a stored candle that no receipt covers still refuses the manifest", () => {
   assert.throws(() => materializeWith((db) => db.connection.prepare("DELETE FROM research_dataset_material WHERE last_close_time_ms = (SELECT MIN(last_close_time_ms) FROM research_dataset_material)").run()),
     (error) => error.code === "MANIFEST_PROVENANCE_REQUIRED" && /receipts do not cover/.test(error.message));
+});
+
+// The collector runs the build with an await between bounded steps. It must produce the SAME manifest as the synchronous build, byte for byte,
+// and it must actually hand the thread back many times on a long series.
+async function buildAsync(scenario) {
+  const dir = mkdtempSync(join(tmpdir(), "nusa-manifest-golden-async-"));
+  const db = new SqliteDatabase(join(dir, "state.db"));
+  let yields = 0;
+  const yieldControl = () => new Promise((resolve) => { yields += 1; setImmediate(resolve); });
+  try {
+    const cs = seed(db, scenario);
+    const ms = new SqliteResearchDatasetManifestStore(db);
+    for (const run of scenario.absences ?? []) {
+      assert.equal(cs.recordAbsence({ market: "KRW-BTC", intervalMs: M, firstAbsentCloseMs: BASE + (run[0] + 1) * M, lastAbsentCloseMs: BASE + (run[1] + 1) * M, beforeCloseMs: BASE + run[0] * M, afterCloseMs: BASE + (run[1] + 2) * M, evidenceFingerprintSha256: "c".repeat(64), observedAt: "2026-11-16T00:00:00.000Z" }), true);
+    }
+    const first = BASE + M; const last = BASE + scenario.minutes * M;
+    const intervalMs = scenario.minutes_per_bar * M;
+    const aggregated = new AggregatedResearchCandleSource(cs, M);
+    const bars = await readResearchBarsInSlices(aggregated, "KRW-BTC", intervalMs, M, first, last, yieldControl, 700);
+    const direct = scenario.minutes_per_bar === 1 ? cs.read("KRW-BTC", M, first, last) : aggregated.read("KRW-BTC", intervalMs, first, last);
+    assert.deepEqual(bars, direct, "sliced bar read equals one read");
+    const source = scenario.minutes_per_bar === 1 ? `upbit-1m-closed:KRW-BTC:${M}` : `upbit-1m-aggregated:KRW-BTC:${intervalMs}`;
+    const manifest = await materializeResearchDatasetManifestAsync({ store: ms, candleStore: cs, market: "KRW-BTC", intervalMs, candles: bars, source, createdAt: CREATED_AT, sourceCommitSha: SHA, yieldControl });
+    assert.deepEqual(ms.read(manifest.datasetId), manifest, "the stored manifest equals the returned one");
+    return { result: { manifestSha: sha(JSON.stringify(manifest)), bars: bars.length, datasetId: manifest.datasetId }, yields };
+  } finally { db.close(); try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may hold the handle a moment */ } }
+}
+
+test("the asynchronous, yielding build gives the golden manifest of every scenario", async () => {
+  for (const [name, scenario] of Object.entries(SCENARIOS)) {
+    const { result, yields } = await buildAsync(scenario);
+    assert.deepEqual(result, GOLDEN_EXPECTED[name], name);
+    assert.ok(yields >= 3, `${name}: the build handed the thread back (${yields} times)`);
+  }
+});
+
+test("a long series is built in many bounded steps, and the aligned slices read the same bars as one read", async () => {
+  const { result, yields } = await buildAsync({ minutes: 9000, minutes_per_bar: 1 });
+  assert.equal(result.bars, 9000);
+  assert.ok(yields >= 25, `9000 candles gave only ${yields} hand-backs`);
+  const sync = build({ minutes: 9000, minutes_per_bar: 1 });
+  assert.deepEqual(result, sync, "the long series is identical to the synchronous build");
+  for (const minutes_per_bar of [15, 60]) {
+    const a = await buildAsync({ minutes: 9000, minutes_per_bar });
+    assert.deepEqual(a.result, build({ minutes: 9000, minutes_per_bar }), `${minutes_per_bar}m long series`);
+  }
 });

@@ -212,10 +212,15 @@ export class SqliteResearchCandleStore {
     return row == null ? undefined : Object.freeze({ ...row });
   }
 
-  public listMaterial(market: string, intervalMs: number, fromCloseTimeMs: number, toCloseTimeMs: number): readonly ResearchDatasetMaterial[] {
+  /** The receipts that overlap a window, as references only (no candle is read or verified here). */
+  public listMaterialRefs(market: string, intervalMs: number, fromCloseTimeMs: number, toCloseTimeMs: number): readonly { readonly firstCloseTimeMs: number; readonly lastCloseTimeMs: number; readonly storeContentSha256: string }[] {
     if (!MARKET.test(market) || !Number.isSafeInteger(fromCloseTimeMs) || !Number.isSafeInteger(toCloseTimeMs) || toCloseTimeMs < fromCloseTimeMs) throw new ResearchCandleStoreError("INVALID_WINDOW", "dataset material window is invalid");
     const rows = this.db.connection.prepare(`SELECT first_close_time_ms AS firstCloseTimeMs, last_close_time_ms AS lastCloseTimeMs, store_content_sha256 AS storeContentSha256 FROM ${MATERIAL_TABLE} WHERE market = ? AND interval_ms = ? AND first_close_time_ms <= ? AND last_close_time_ms >= ? ORDER BY first_close_time_ms, last_close_time_ms`).all(market, intervalMs, toCloseTimeMs, fromCloseTimeMs) as Array<{ firstCloseTimeMs: number; lastCloseTimeMs: number; storeContentSha256: string }>;
-    return Object.freeze(rows.map((row) => this.readMaterial(market, intervalMs, row.firstCloseTimeMs, row.lastCloseTimeMs, row.storeContentSha256)));
+    return Object.freeze(rows.map((row) => Object.freeze({ firstCloseTimeMs: row.firstCloseTimeMs, lastCloseTimeMs: row.lastCloseTimeMs, storeContentSha256: row.storeContentSha256 })));
+  }
+
+  public listMaterial(market: string, intervalMs: number, fromCloseTimeMs: number, toCloseTimeMs: number): readonly ResearchDatasetMaterial[] {
+    return Object.freeze(this.listMaterialRefs(market, intervalMs, fromCloseTimeMs, toCloseTimeMs).map((row) => this.readMaterial(market, intervalMs, row.firstCloseTimeMs, row.lastCloseTimeMs, row.storeContentSha256)));
   }
 
   public hasMaterialCoverage(market: string, intervalMs: number, fromCloseTimeMs: number, toCloseTimeMs: number, source: string, sourceFingerprint: string): boolean {
