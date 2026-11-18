@@ -88,3 +88,23 @@ test("the manifest of each scenario is byte-identical to the golden value", () =
   }
 });
 
+
+// The receipt-coverage check reads no rows any more (it tests each stored candle against the receipts' inclusive close ranges), so its
+// refusal is pinned here: a candle no receipt covers (the store itself already refuses receipts that overlap or disagree with the candles).
+function materializeWith(mutate) {
+  const dir = mkdtempSync(join(tmpdir(), "nusa-manifest-receipts-"));
+  const db = new SqliteDatabase(join(dir, "state.db"));
+  try {
+    const cs = seed(db, { minutes: 1000, page: 200 });
+    mutate(db);
+    const ms = new SqliteResearchDatasetManifestStore(db);
+    const first = BASE + M; const last = BASE + 1000 * M;
+    const bars = cs.read("KRW-BTC", M, first, last);
+    return materializeResearchDatasetManifest({ store: ms, candleStore: cs, market: "KRW-BTC", intervalMs: M, candles: bars, source: `upbit-1m-closed:KRW-BTC:${M}`, createdAt: CREATED_AT, sourceCommitSha: SHA });
+  } finally { db.close(); try { rmSync(dir, { recursive: true, force: true }); } catch { /* Windows may hold the handle a moment */ } }
+}
+
+test("a stored candle that no receipt covers still refuses the manifest", () => {
+  assert.throws(() => materializeWith((db) => db.connection.prepare("DELETE FROM research_dataset_material WHERE last_close_time_ms = (SELECT MIN(last_close_time_ms) FROM research_dataset_material)").run()),
+    (error) => error.code === "MANIFEST_PROVENANCE_REQUIRED" && /receipts do not cover/.test(error.message));
+});

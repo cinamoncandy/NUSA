@@ -1,0 +1,25 @@
+id: WO-OPS-20261118-MANIFEST-FEWER-READS
+title: "Research manifest build: read the source candles once instead of three times (step A of WO-OPS-20261117-MANIFEST-ISOLATION)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/manifest-fewer-reads
+owner_decision: "2026-11-18: the owner delegated all approvals to CORE and asked to fix the stalls of the collector; the isolation work order (merged #3177) lists 'fewer reads' as approach A, to be guarded by the golden test (#3183)."
+evidence: "Host read-only diagnosis (run 44307283740, 2026-11-18 12:47Z): each manifest build takes 13.2-13.6 s ([research-manifest] build durationMs) and runs synchronously in the collector process; the three intervals run back to back (about 40 s); gap-fill materialize timing 41-46 s; eventLoopMaxStallMs 115825 and 392 stalls (backup I/O adds to it). Local profile of 80000 synthetic 1-minute candles (this machine is about 7x faster than the host): materialize 1948/1433/1506 ms (1m/15m/60m) with phases derive_and_hash 48 %, read_source_candles 23 %, receipt_coverage 22 % (all but the first read the same rows again)."
+objective: "Shorten the time the collector's thread is blocked by a manifest build without changing a single byte of the manifest."
+change:
+  - "apps/cloud/src/researchDatasetManifestMaterializer.ts: (1) the derive step asks the store for exactly the rows read a moment before; a small port hands back those rows for that one request and passes every other request to the store. (2) The receipt-coverage check no longer reads each receipt's range back; it tests each stored candle against the receipts' inclusive close ranges (merged, binary search), the same set test."
+  - "tests/research-manifest-golden.test.js: one more test pins the refusal when no receipt covers a stored candle (MANIFEST_PROVENANCE_REQUIRED, 'receipts do not cover')."
+result_local: "materialize 1948 -> 1022 ms (1m), 1433 -> 1016 ms (15m), 1506 -> 1079 ms (60m): about 36 % less in total; receipt_coverage 439 -> 16 ms. On the host that is about 40 s -> 26 s of blocked thread per run, an estimate."
+not_changed:
+  - "The manifest, its hashes, dataset ids, windows, thresholds, risk limits, capital, order switch, authority, workflow, release. The golden test (5 scenarios, byte-identical) passes unchanged."
+remaining: "The build is still synchronous: about 26 s on the host is still a stall. Next: chunked or worker-based isolation (approaches B/C), measured on the host with the phase timings of this build."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run on the host; the host gain is an estimate from a local profile on synthetic data."
+acceptance:
+  - "Exact-head CI; a later release; the host's [research-manifest] build durations (or the phase lines) compared."
