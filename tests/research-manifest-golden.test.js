@@ -13,6 +13,10 @@ const { materializeResearchDatasetManifest } = require("../dist/apps/cloud/src/r
 const { UPBIT_CANDLE_SOURCE_FINGERPRINT } = require("../dist/apps/cloud/src/researchCandleBackfill.js");
 const { AggregatedResearchCandleSource } = require("../dist/apps/cloud/src/researchCandleAggregation.js");
 
+// The manifest identity (replayRuntimeSha256) includes process.version, so the same data gets a different datasetId on another Node version
+// (local Node 22 vs CI Node 24). Pin it here so the golden values below test the build, not the runtime that happens to run the test.
+Object.defineProperty(process, "version", { value: "v0.0.0-golden", configurable: true });
+
 const M = 60_000;
 const BASE = Math.floor(Date.UTC(2026, 10, 1) / M) * M;
 const SHA = "a".repeat(40);
@@ -65,11 +69,11 @@ const SCENARIOS = {
 };
 
 const GOLDEN_EXPECTED = {
-  "1m, gap-free, 1000 candles": { manifestSha: "86ae7f7bd3cc0edbe8b5d4b0d3e06d216ab66e81a433fa75fa950b9e2414000b", bars: 1000, datasetId: "upbit-1m-closed-KRW-BTC-60000_KRW-BTC_1m_20261101_20261101_v2_831655a1070b_8234749ed570" },
-  "15m, gap-free, 1500 candles": { manifestSha: "c8bf86c56e55278233320159a498b96199edf98c2206ad514f201d9a78a223a3", bars: 100, datasetId: "upbit-1m-aggregated-KRW-BTC-900000_KRW-BTC_15m_20261101_20261102_v2_248e3779a44c_afba5571f4d5" },
-  "60m, gap-free, 3000 candles": { manifestSha: "d29a6996c0cdf73632cc1c568d0e8631ed7d7c0123cfa9ffe2304a638314e383", bars: 50, datasetId: "upbit-1m-aggregated-KRW-BTC-3600000_KRW-BTC_60m_20261101_20261103_v2_22437207c577_6eff7092e7d5" },
-  "1m with one exchange-confirmed absence run": { manifestSha: "a60ada6ec2bccefdd6fa925194dba24aff3d17f185b7b154e6ba4a005abdad26", bars: 997, datasetId: "upbit-1m-closed-KRW-BTC-60000_KRW-BTC_1m_20261101_20261101_v2_e0a9a4d9d1b9_4e51f1c76cd5" },
-  "15m over a 1m series with a confirmed absence": { manifestSha: "79c01af48df9d6b12dae4349ac6a160680a79601db964f467b3900f865190a9d", bars: 98, datasetId: "upbit-1m-aggregated-KRW-BTC-900000_KRW-BTC_15m_20261101_20261102_v2_62d249c7ea0b_9bb96b30ebed" },
+  "1m, gap-free, 1000 candles": { manifestSha: "ad1a8f7ee92a655cc29a75d806df2e648f300392c1472068dd7cda6c7a9531eb", bars: 1000, datasetId: "upbit-1m-closed-KRW-BTC-60000_KRW-BTC_1m_20261101_20261101_v2_831655a1070b_9918c026b2e6" },
+  "15m, gap-free, 1500 candles": { manifestSha: "12834f8024cc70c0b24a6acfe584d81cd7d63220d3daf7da8d54b1b83c9c75f0", bars: 100, datasetId: "upbit-1m-aggregated-KRW-BTC-900000_KRW-BTC_15m_20261101_20261102_v2_248e3779a44c_daf2aa7556bf" },
+  "60m, gap-free, 3000 candles": { manifestSha: "cba9295464fda112b3208598c42b29c4324906d869fdbd981929e146cd7f2da9", bars: 50, datasetId: "upbit-1m-aggregated-KRW-BTC-3600000_KRW-BTC_60m_20261101_20261103_v2_22437207c577_eb01a2202ec0" },
+  "1m with one exchange-confirmed absence run": { manifestSha: "4ed46fdb2d17a3b9377fe4b4c3c6451cae9cfb80933508cfc8ed411c859668f9", bars: 997, datasetId: "upbit-1m-closed-KRW-BTC-60000_KRW-BTC_1m_20261101_20261101_v2_e0a9a4d9d1b9_e0c3f5593ee6" },
+  "15m over a 1m series with a confirmed absence": { manifestSha: "967efda618da1f031d4c4baefcd2aa1e904c2b2084ca187da8cd3b749c043dce", bars: 98, datasetId: "upbit-1m-aggregated-KRW-BTC-900000_KRW-BTC_15m_20261101_20261102_v2_62d249c7ea0b_6756f73b1e7a" },
 };
 
 test("the manifest build is deterministic: the same input twice gives the same manifest", () => {
