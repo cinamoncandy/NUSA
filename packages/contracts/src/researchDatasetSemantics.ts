@@ -85,6 +85,33 @@ export function calculateResearchCandleSha256(candles: readonly CanonicalResearc
   return createHash("sha256").update(canonicalSerializeResearchCandles(candles), "utf8").digest("hex");
 }
 
+/**
+ * Streaming form of calculateResearchCandleSha256: feeding the candles in any number of consecutive chunks gives exactly the same digest as
+ * hashing the whole array at once, because JSON.stringify of an array is "[" + the elements' JSON joined by "," + "]". It exists so a very long
+ * candle series can be hashed in slices without holding the thread for the whole serialisation.
+ */
+export function createResearchCandleHasher(): { update(candles: readonly CanonicalResearchCandle[]): void; digest(): string } {
+  const hash = createHash("sha256");
+  hash.update("[", "utf8");
+  let first = true;
+  let done = false;
+  return {
+    update(candles) {
+      if (done) throw new Error("candle hasher is already finished");
+      if (candles.length === 0) return;
+      const inner = canonicalSerializeResearchCandles(candles).slice(1, -1);
+      hash.update(first ? inner : `,${inner}`, "utf8");
+      first = false;
+    },
+    digest() {
+      if (done) throw new Error("candle hasher is already finished");
+      done = true;
+      hash.update("]", "utf8");
+      return hash.digest("hex");
+    },
+  };
+}
+
 function requireSha256(value: string, field: string): string {
   if (!SHA256.test(value)) throw new Error(`invalid ${field}: expected lowercase sha256`);
   return value;

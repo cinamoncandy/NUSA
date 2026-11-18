@@ -8,7 +8,7 @@ import { ResearchRuntimeCoordinator } from "./researchRuntimeCoordinator";
 import { backfillMarket, createUpbitMinuteCandleFetcher, fillRecentGaps, type BackfillResult, type GapFillResult } from "./researchCandleBackfill";
 import { AggregatedResearchCandleSource } from "./researchCandleAggregation";
 import { requiredHistoryMs } from "./researchWalkForwardWindows";
-import { materializeResearchDatasetManifest } from "./researchDatasetManifestMaterializer";
+import { materializeResearchDatasetManifestAsync, readResearchBarsInSlices } from "./researchDatasetManifestMaterializer";
 import type { ResearchRecoveryResult } from "../../../packages/contracts/src/researchRecovery";
 
 /**
@@ -323,7 +323,9 @@ export function composeResearchExperiments(input: {
           // for the PAPER writer heartbeat to become due. Yield even when this interval is a no-op.
         } else {
           manifestRetrySchedule.recordAttempt(market, intervalName, now(), currentIntervalClose);
-          const candles = bars.read(market, intervalMs, fromBaseClose, lastClose);
+          // Read and build in bounded steps with a hand-back to the event loop between them (the same rows and the same manifest as one synchronous read
+          // and build): the PAPER writer heartbeat, the health endpoint and the market feed keep running while a long history is processed.
+          const candles = await readResearchBarsInSlices(bars, market, intervalMs, M, fromBaseClose, lastClose, yieldControl);
           if (candles.length === 0) {
             log(`[research-manifest] ${market}/${intervalName} blocked: no complete interval candles`);
           } else {
@@ -332,7 +334,7 @@ export function composeResearchExperiments(input: {
               : `upbit-1m-aggregated:${market}:${intervalMs}`;
             const manifestBuildStarted = performance.now();
             const phases: string[] = [];
-            materializeResearchDatasetManifest({ store: datasetManifests, candleStore: store, market, intervalMs, candles, source, createdAt, sourceCommitSha: settings.sourceCommitSha, onPhase: (phase, durationMs) => { phases.push(`${phase}=${Math.round(durationMs)}`); } });
+            await materializeResearchDatasetManifestAsync({ store: datasetManifests, candleStore: store, market, intervalMs, candles, source, createdAt, sourceCommitSha: settings.sourceCommitSha, yieldControl, onPhase: (phase, durationMs) => { phases.push(`${phase}=${Math.round(durationMs)}`); } });
             log(`[research-manifest] ${market}/${intervalName} materialized dataset manifest`);
             log(`[research-manifest] ${market}/${intervalName} build durationMs=${Math.max(0, Math.round(performance.now() - manifestBuildStarted))}`);
             log(`[research-manifest] ${market}/${intervalName} build phasesMs candles=${candles.length} ${phases.join(" ")}`);
@@ -341,8 +343,8 @@ export function composeResearchExperiments(input: {
       } catch (error) {
         log(`[research-manifest] ${market}/${intervalName} blocked: ${error instanceof Error ? error.message : "unknown"}`);
       }
-      // Manifest construction is synchronous and can be CPU/I/O heavy for the maximum history
-      // window. Let lease heartbeats and other bounded runtime timers run between intervals.
+      // Manifest construction is CPU/I/O heavy for the maximum history window; it now hands the thread back between bounded steps
+      // (and here between intervals), so lease heartbeats and other bounded runtime timers run in between.
       await yieldControl();
     }
   };

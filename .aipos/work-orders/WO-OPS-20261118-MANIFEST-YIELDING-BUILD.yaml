@@ -1,0 +1,27 @@
+id: WO-OPS-20261118-MANIFEST-YIELDING-BUILD
+title: "Research manifest build runs in bounded steps that hand the thread back (step B of WO-OPS-20261117-MANIFEST-ISOLATION)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/manifest-yielding
+owner_decision: "2026-11-18: the owner delegated all approvals to CORE and asked to fix the collector's stalls. Approach A (fewer reads) is on main (#3192); this is approach B, guarded by the golden test (#3183)."
+evidence: "Host (run 44307283740): each manifest build is one synchronous block of 13.2-13.6 s in the collector process; eventLoopMaxStallMs 115825, 392 stalls. Local profile (80000 synthetic 1m candles, this machine ~7x faster than the host), longest event-loop gap while the three intervals are built: synchronous 1.5-3.2 s, bounded steps 0.15 s (dataset ids identical). The largest single block that remained after step A was the per-receipt verification inside listMaterial (every receipt's candles re-read and re-hashed)."
+objective: "The collector's thread is never held for the whole build; the manifest and its identity stay byte-identical."
+change:
+  - "apps/cloud/src/researchDatasetManifestMaterializer.ts: the build is a generator that yields every 4000 candles / 20 receipts. materializeResearchDatasetManifest drives it to the end (same synchronous behaviour as before); the new materializeResearchDatasetManifestAsync awaits a hand-back between steps; readResearchBarsInSlices reads the bars in slices that end on interval boundaries. One implementation for both, so the output cannot differ."
+  - "packages/contracts/src/researchDatasetSemantics.ts: createResearchCandleHasher, a streaming form of calculateResearchCandleSha256 (same digest for every chunking)."
+  - "packages/storage/src/researchCandleStore.ts: listMaterialRefs (the receipts as references); listMaterial is unchanged in behaviour (refs, then readMaterial for each: the same verification)."
+  - "apps/cloud/src/researchExperimentComposition.ts: the collector reads the bars in slices and builds with the async variant, so heartbeats, /health and the feed run in between."
+  - "tests: research-candle-hasher (every size and chunking equals the one-shot hash); research-manifest-golden (the async build gives the golden value of all five scenarios, 9000-candle 1m/15m/60m builds equal the sync build, many hand-backs); research-experiment-composition (hand-back counts: at least one per interval, exactly one for a no-op interval)."
+not_changed:
+  - "The manifest, its hashes and dataset ids, windows, thresholds, risk limits, capital, order switch, authority, workflow, release. Receipt verification is the same checks, in steps."
+residual: "Persisting the finished manifest and the aggregation of long bars are still single steps (about 0.15 s locally, an estimate of about 1 s on the host). backfill and gap-fill are guarded against each other and against the experiment tick as before; if a concurrent writer changes the candles between the slices, the existing hash and coverage checks refuse the manifest (fail closed) and the retry schedule runs it later."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run on the host; the host figures are estimates from a local profile on synthetic data. The next release shows eventLoopMaxStallMs and the [research-manifest] durations."
+acceptance:
+  - "Exact-head CI; a later release; read-only host diagnosis: eventLoopMaxStallMs and manifest build durations."
