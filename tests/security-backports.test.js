@@ -136,3 +136,22 @@ test("security backport resolver fails closed for missing and duplicate packages
   const duplicate = resolvePackageRoots("image-size", "1.2.1", store, path.join(root, "node_modules"));
   assert.equal(duplicate.length, 2);
 });
+
+const exceptionAudit = (version, id = "1247710", pkg = "picomatch") => ({
+  metadata: { vulnerabilities: { high: 1, critical: 0 } },
+  advisories: { [id]: { module_name: pkg, severity: "high", findings: [{ version }, { version: "2.3.2" }] } }
+});
+
+test("owner exception covers only the exact picomatch advisory, versions and dates", () => {
+  const before = new Date("2026-12-01T23:59:59Z");
+  const ok = evaluateAudit(exceptionAudit("4.0.7"), { controls: {} }, before);
+  assert.equal(ok.unmitigated.length, 0);
+  assert.equal(ok.excepted.length, 1);
+  assert.equal(evaluateAudit(exceptionAudit("4.0.7"), { controls: {} }, new Date("2026-12-02T00:00:00Z")).unmitigated.length, 1, "expired");
+  assert.equal(evaluateAudit(exceptionAudit("4.0.6"), { controls: {} }, before).unmitigated.length, 1, "other version");
+  assert.equal(evaluateAudit(exceptionAudit("4.0.7", "1247711"), { controls: {} }, before).unmitigated.length, 1, "other advisory id");
+  assert.equal(evaluateAudit(exceptionAudit("4.0.7", "1247710", "other-pkg"), { controls: {} }, before).unmitigated.length, 1, "other package");
+  const noFindings = { metadata: { vulnerabilities: { high: 1, critical: 0 } }, advisories: { "1247710": { module_name: "picomatch", severity: "high" } } };
+  assert.equal(evaluateAudit(noFindings, { controls: {} }, before).unmitigated.length, 1, "no findings list fails closed");
+  assert.equal(evaluateAudit(exceptionAudit("4.0.7"), { controls: {} }, new Date("invalid")).unmitigated.length, 1, "bad clock fails closed");
+});

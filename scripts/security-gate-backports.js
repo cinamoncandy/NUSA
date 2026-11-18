@@ -23,6 +23,19 @@ const COMPENSATED = Object.freeze({
   "1240992": { package: "braces", ghsa: "GHSA-vfj7-8cjw-p6xm" }
 });
 
+// Owner-signed, time-boxed exceptions. Each entry is exact: one audit id, one package, the exact installed
+// versions, an expiry date. Anything else (another advisory, another version, past the expiry, a missing
+// findings list) stays blocking. An exception is reported on every run; it is never silent.
+const OWNER_EXCEPTIONS = Object.freeze({
+  "1247710": {
+    package: "picomatch",
+    ghsa: "GHSA-fc5q-39xc-vjpf",
+    versions: Object.freeze(["2.3.2", "4.0.7"]),
+    expiresOn: "2026-12-02",
+    decision: "owner written decision 2026-11-18 (KST), no fixed version published (latest 4.0.7); ReDoS, dev/build tooling path only"
+  }
+});
+
 function parseJsonObject(output) {
   const start = output.indexOf("{");
   if (start < 0) throw new Error("AUDIT_JSON_MISSING");
@@ -106,30 +119,43 @@ function trackedSecrets() {
   return findings;
 }
 
-function evaluateAudit(value, backports) {
+function ownerExceptionApplies(id, advisory, now) {
+  const entry = OWNER_EXCEPTIONS[String(id)];
+  if (!entry || advisory.module_name !== entry.package) return null;
+  if (!(now instanceof Date) || Number.isNaN(now.getTime()) || now.getTime() >= Date.parse(`${entry.expiresOn}T00:00:00Z`)) return null;
+  const findings = Array.isArray(advisory.findings) ? advisory.findings : [];
+  if (findings.length === 0 || !findings.every((item) => entry.versions.includes(String(item?.version)))) return null;
+  return entry;
+}
+
+function evaluateAudit(value, backports, now = new Date()) {
   const advisories = value.advisories ?? {};
   const metadata = value.metadata?.vulnerabilities ?? {};
   const rawHighCritical = Number(metadata.high ?? 0) + Number(metadata.critical ?? 0);
   const highCriticalEntries = Object.entries(advisories).filter(([, advisory]) => ["high", "critical"].includes(String(advisory.severity).toLowerCase()));
   const mitigated = [];
   const unmitigated = [];
+  const excepted = [];
   for (const [id, advisory] of highCriticalEntries) {
     const expected = COMPENSATED[String(id)];
     const controlPass = expected && advisory.module_name === expected.package && backports.controls[expected.ghsa] === true;
+    const exception = controlPass ? null : ownerExceptionApplies(id, advisory, now);
     if (controlPass) mitigated.push({ id: String(id), package: expected.package, ghsa: expected.ghsa });
+    else if (exception) excepted.push({ id: String(id), package: exception.package, ghsa: exception.ghsa, expiresOn: exception.expiresOn });
     else unmitigated.push({ id: String(id), package: advisory.module_name ?? "unknown", severity: advisory.severity ?? "unknown" });
   }
   const shapeMismatch = rawHighCritical !== highCriticalEntries.length;
-  return { metadata, rawHighCritical, mitigated, unmitigated, shapeMismatch };
+  return { metadata, rawHighCritical, mitigated, excepted, unmitigated, shapeMismatch };
 }
 
 function writeReports(result) {
   fs.mkdirSync(reportDir, { recursive: true });
   const mitigated = result.audit.mitigated.map((item) => `- ${item.ghsa} (${item.package}, audit id ${item.id}): exact source backport verified`).join("\n") || "- None";
+  const excepted = result.audit.excepted.map((item) => `- ${item.ghsa} (${item.package}, audit id ${item.id}): OWNER EXCEPTION until ${item.expiresOn}`).join("\n") || "- None";
   const unmitigated = result.audit.unmitigated.map((item) => `- audit id ${item.id}: ${item.package} (${item.severity})`).join("\n") || "- None";
   const licenseLines = result.licenses.disallowed.map((item) => `- ${item.package}: ${item.licenses.join(", ")}`).join("\n") || "- None";
   const secretLines = result.secrets.map((item) => `- ${item.file}:${item.line} (${item.rule})`).join("\n") || "- None";
-  fs.writeFileSync(path.join(reportDir, `dependency-audit-${date}.md`), `# NUSA Dependency Audit\n\nAudited: ${date}\n\n- Lockfile packages: ${result.integrity.packageCount}\n- Raw high/critical advisories: ${result.audit.rawHighCritical}\n- Verified compensating controls: ${result.audit.mitigated.length}\n- Unmitigated high/critical advisories: ${result.audit.unmitigated.length}\n- Audit shape mismatch: ${result.audit.shapeMismatch ? "YES" : "NO"}\n\n## Verified source backports\n\n${mitigated}\n\n## Unmitigated high/critical\n\n${unmitigated}\n\n## License violations\n\n${licenseLines}\n`);
+  fs.writeFileSync(path.join(reportDir, `dependency-audit-${date}.md`), `# NUSA Dependency Audit\n\nAudited: ${date}\n\n- Lockfile packages: ${result.integrity.packageCount}\n- Raw high/critical advisories: ${result.audit.rawHighCritical}\n- Verified compensating controls: ${result.audit.mitigated.length}\n- Unmitigated high/critical advisories: ${result.audit.unmitigated.length}\n- Audit shape mismatch: ${result.audit.shapeMismatch ? "YES" : "NO"}\n\n## Verified source backports\n\n${mitigated}\n\n## Owner exceptions (time-boxed)\n\n${excepted}\n\n## Unmitigated high/critical\n\n${unmitigated}\n\n## License violations\n\n${licenseLines}\n`);
   fs.writeFileSync(path.join(reportDir, `secret-scan-${date}.md`), `# NUSA Secret Scan\n\nAudited: ${date}\n\nNo secret values are included in this report.\n\n## Findings\n\n${secretLines}\n`);
   fs.writeFileSync(path.join(reportDir, `security-hardening-${date}.md`), `# NUSA Security Hardening Report\n\nAudited: ${date}\n\n| Gate | Result |\n|---|---|\n| Dependency vulnerability scan | ${result.audit.unmitigated.length === 0 && !result.audit.shapeMismatch && result.backports.status === "PASS" ? "PASS" : "FAIL"} |\n| Exact dependency backports | ${result.backports.status} |\n| Dependency license verification | ${result.licenses.missing.length === 0 && result.licenses.disallowed.length === 0 ? "PASS" : "FAIL"} |\n| Lockfile integrity | ${result.integrity.findings.length === 0 ? "PASS" : "FAIL"} |\n| Secret scan | ${result.secrets.length === 0 ? "PASS" : "FAIL"} |\n| Artifact checksum verification | ${result.artifacts.checksumStatus} |\n| Release signing verification | ${result.artifacts.signingStatus} (${result.artifacts.signed}) |\n\n## Compensating controls\n\n${mitigated}\n\nAny advisory outside the exact mapped IDs/packages above remains blocking. A source-shape or version mismatch fails closed.\n\n## Safety\n\n- productionMutationAllowed=false remains required for release manifests.\n- Live trading remains disabled.\n- Credentials are not introduced or printed.\n`);
   fs.writeFileSync(path.join(reportDir, `sbom-${date}.json`), `${JSON.stringify({ bomFormat: "CycloneDX", specVersion: "1.5", version: 1, metadata: { component: { type: "application", name: packageJson.name, version: packageJson.version }, timestamp: new Date().toISOString(), properties: [{ name: "nusa:security-backports", value: JSON.stringify(result.audit.mitigated) }] }, components: result.integrity.packages.map((item) => ({ type: "library", name: item.name, version: item.version, hashes: item.integrity ? [{ alg: "SHA-512", content: item.integrity.replace(/^sha512-/, "") }] : [] })).sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version)) }, null, 2)}\n`, "utf8");
@@ -154,7 +180,7 @@ function main() {
   if (licenses.missing.length > 0 || licenses.disallowed.length > 0) failures.push("license verification failed");
   if (secrets.length > 0) failures.push(`${secrets.length} secret findings`);
   if (artifacts.findings.length > 0) failures.push(`${artifacts.findings.length} artifact findings`);
-  console.log(JSON.stringify({ status: failures.length === 0 ? "PASS" : "FAIL", rawHighCritical: auditResult.rawHighCritical, mitigated: auditResult.mitigated, unmitigated: auditResult.unmitigated, backports: backports.status, secrets: secrets.length, artifactStatus: artifacts.status, signing: artifacts.signed, failures }, null, 2));
+  console.log(JSON.stringify({ status: failures.length === 0 ? "PASS" : "FAIL", rawHighCritical: auditResult.rawHighCritical, mitigated: auditResult.mitigated, ownerExceptions: auditResult.excepted, unmitigated: auditResult.unmitigated, backports: backports.status, secrets: secrets.length, artifactStatus: artifacts.status, signing: artifacts.signed, failures }, null, 2));
   if (failures.length > 0) process.exit(1);
 }
 
