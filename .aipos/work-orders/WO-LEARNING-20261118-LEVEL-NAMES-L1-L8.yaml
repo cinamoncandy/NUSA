@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261118-LEVEL-NAMES-L1-L8
+title: "Learning closed-loop levels are called L1-L8 again (FORGE L1/L2 is retired)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/learning-levels-rename-l1
+owner_decision: "2026-11-18 (owner, Korean): the FORGE code-automation levels were retired, so the learning levels are called L1 again instead of LL1."
+objective: "One name for one thing: the learning closed-loop levels are L1-L8 in the design document; older records that say LL1-LL8 mean the same levels."
+change:
+  - "docs/LEARNING_LOOP_LEVELS_20261112.md: LL1-LL8 renamed to L1-L8, with a note on the old names and on the retired FORGE L1/L2 (workflows and scripts removed 2026-11-15, commit 30f2c366f)."
+not_changed:
+  - "The level definitions, pass criteria and states; historical handoffs and work orders (WO-LEARNING-20261112-*) keep the old names. No code, workflow, host, limit, threshold, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI."
