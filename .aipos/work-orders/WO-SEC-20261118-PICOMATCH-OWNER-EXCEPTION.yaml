@@ -1,0 +1,24 @@
+id: WO-SEC-20261118-PICOMATCH-OWNER-EXCEPTION
+title: "Security gate: a time-boxed owner exception for one advisory (picomatch GHSA-fc5q-39xc-vjpf)"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/security-owner-exception-picomatch
+owner_decision: "2026-11-18 (KST): the owner was told the gate blocks every PR because a high advisory on picomatch (audit id 1247710, ReDoS, <=4.0.7) has no fixed version (npm latest 4.0.7, checked hourly since 2026-11-18 ~05:00Z). The owner chose option 2, a written exception for this one advisory, over waiting."
+objective: "Unblock merging while no fixed picomatch exists, without loosening the gate for anything else."
+change:
+  - "scripts/security-gate-backports.js: OWNER_EXCEPTIONS table with exactly one entry (audit id 1247710, package picomatch, installed versions 2.3.2 and 4.0.7 only, expires 2026-12-02 00:00Z). It applies only if the id, package, every finding version and the date all match; no findings list, a bad clock, another version, another advisory or the expiry date make it blocking again. Every run prints and reports the exception (ownerExceptions, report section)."
+  - "tests/security-backports.test.js: exact-match test and fail-closed cases (expired, other version, other id, other package, no findings, bad clock)."
+exposure: "picomatch is reached through metro/jest tooling of the mobile app and dev tooling, not through the host runtime (nusa.service). ReDoS needs an attacker-chosen glob pattern."
+not_changed:
+  - "No risk limit, threshold, capital, order switch, authority, host or release. All other advisories stay blocking."
+exit:
+  - "Remove the entry when a fixed picomatch (>=4.0.8) is installed through a pnpm-workspace.yaml override; the entry expires on its own on 2026-12-02 otherwise and needs a new owner decision."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "pnpm run security:gate PASS with the exception listed; non-author review of this gate change; exact-head CI."
