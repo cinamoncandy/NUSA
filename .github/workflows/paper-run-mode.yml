@@ -1,0 +1,96 @@
+name: PAPER Run Mode
+
+# Owner button (design v5, C5): stop the PAPER service, or bring it back in COLLECT_ONLY, WITHOUT a shell on the host.
+# Dispatch by hand only. It calls the host controller's `stop` or `collect` verb through the runner's sudo rule, which already allows exactly
+# `nusa-control stop` and `nusa-control collect` (and `status`); nothing on the host changes to use this workflow.
+#   stop    -> `nusa-control stop`: the desired state becomes STOPPED, every unit is stopped and the boot start is disabled.
+#   collect -> `nusa-control collect`: the desired state becomes COLLECT_ONLY and the controller starts the runtime through its start gate; the
+#              order path stays OFF. There is deliberately NO action that starts the PAPER order path: Stage B needs its own written approval and change.
+# The apply job runs in the GitHub Environment `paper-host-control`. Required reviewers on that Environment are a GitHub setting that code cannot
+# enforce or read, and an agent dispatching through the owner's account looks like the owner, so the workflow is DISABLED until the owner turns it on:
+# a first job fails closed unless the repository variable PAPER_RUN_MODE_ENABLED is exactly `true` (set it ONLY AFTER adding yourself as a required
+# reviewer of the Environment, Settings, Environments, paper-host-control) and the actor is the repository owner. Every run then waits for the owner's
+# approval click in the GitHub app. This file grants no write permission and uses no secret and no third-party action.
+# PAPER only, LIVE NONE, AI ZERO_AUTHORITY.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "stop = stop the PAPER service. collect = start it in COLLECT_ONLY (orders OFF)."
+        required: true
+        type: choice
+        options:
+          - stop
+          - collect
+
+permissions:
+  contents: read
+
+# Same group as the release: an action waits for a running release instead of racing it (the controller's own lock also serialises them).
+concurrency:
+  group: oracle-paper-release
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Operational-use gate (fails closed)
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    env:
+      ENABLED: ${{ vars.PAPER_RUN_MODE_ENABLED }}
+      ACTOR: ${{ github.actor }}
+      OWNER: ${{ github.repository_owner }}
+    steps:
+      - name: Require the owner's explicit enablement and the repository owner as the actor
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$ENABLED" != "true" ]; then
+            echo "::error::PAPER Run Mode is not enabled. Add required reviewers to the Environment paper-host-control first, then set the repository variable PAPER_RUN_MODE_ENABLED to true."
+            exit 1
+          fi
+          if [ "$ACTOR" != "$OWNER" ]; then
+            echo "::error::only the repository owner may run PAPER Run Mode"
+            exit 1
+          fi
+
+  apply:
+    name: Apply the requested action through the host controller
+    needs: guard
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 15
+    environment: paper-host-control
+    env:
+      ACTION: ${{ inputs.action }}
+    steps:
+      - name: Stop or collect through the controller
+        shell: bash
+        run: |
+          set +e -uo pipefail   # the runner shell is `bash -e`: without this a controller refusal aborts the step before its output is printed
+          case "$ACTION" in
+            stop) OUT="$(sudo -n /opt/nusa-control/nusa-control.sh stop)"; RC=$? ;;
+            collect) OUT="$(sudo -n /opt/nusa-control/nusa-control.sh collect)"; RC=$? ;;
+            *) echo "::error::unknown action '$ACTION'"; exit 1 ;;
+          esac
+          printf '%s\n' "$OUT"
+          if [ "$RC" != 0 ]; then echo "::error::controller $ACTION exit $RC"; exit 1; fi
+
+      - name: Report the controller status (read-only)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          {
+            echo "### PAPER run mode"
+            echo
+            echo "| requested action | service state |"
+            echo "| --- | --- |"
+            echo "| $ACTION | $(systemctl is-active nusa.service 2>&1) |"
+            echo
+            echo "A start takes between 7 seconds and 5 minutes before /health answers; read it with Oracle Host Diagnose."
+          } >> "$GITHUB_STEP_SUMMARY"
+          sudo -n /opt/nusa-control/nusa-control.sh status 2>&1 | tail -n 1 | cut -c1-1500
+          echo 'liveAuthority=NONE'
+          echo 'productionMutationAllowed=false'
+          echo 'aiAuthority=ZERO_AUTHORITY'
