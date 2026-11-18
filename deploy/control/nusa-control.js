@@ -744,9 +744,22 @@ function makeController(deps) {
 }
 
 // ---- host implementations of the injected effects ---------------------------------------------------------------
-// True when the process holds a lock on the controller lock file (the inode appears in /proc/locks with that pid).
-function lockHeldBy(pid, lockFile, readLocks = () => fs.readFileSync("/proc/locks", "utf8"), statIno = (f) => fs.statSync(f).ino) {
+// True when the process holds the lock on the controller lock file.
+// The wrapper takes the lock with the external `flock` binary on fd 9 and then `exec`s the controller: /proc/locks names the pid of the
+// (already exited) flock process, never the controller's pid, so the pid-based check below can NOT see it on the real host (first real
+// release 2026-11-18: GATE_DENIED:RELEASE_OWNER_NOT_HOLDING_LOCK). What identifies the holder is the open file: /proc/<pid>/fdinfo/<fd> of the
+// controller's own fd 9 lists the lock held through that open file ("lock: ... FLOCK ADVISORY WRITE <pid> <dev>:<ino> ..."). The pid-based
+// /proc/locks line is kept as a second accepted proof (a process that locked with flock(2) itself).
+const FDINFO_LOCK = /^lock:\s*\d+:\s+FLOCK\s+ADVISORY\s+WRITE\s+\d+\s+[0-9a-f]+:[0-9a-f]+:(\d+)(?:\s|$)/;
+function lockHeldBy(pid, lockFile, readLocks = () => fs.readFileSync("/proc/locks", "utf8"), statIno = (f) => fs.statSync(f).ino,
+  listFds = (p) => fs.readdirSync(`/proc/${p}/fd`), readFdinfo = (p, fd) => fs.readFileSync(`/proc/${p}/fdinfo/${fd}`, "utf8")) {
   const ino = statIno(lockFile);
+  try {
+    for (const fd of listFds(pid)) {
+      let text; try { text = readFdinfo(pid, fd); } catch { continue; }
+      for (const line of String(text).split("\n")) { const m = FDINFO_LOCK.exec(line); if (m && m[1] === String(ino)) return true; }
+    }
+  } catch { /* fall through to the /proc/locks proof */ }
   return readLocks().split("\n").some((line) => { const f = line.trim().split(/\s+/); return f[1] === "FLOCK" && f[2] === "ADVISORY" && f[3] === "WRITE" && f[4] === String(pid) && /^[0-9a-f]+:[0-9a-f]+:\d+$/.test(f[5] || "") && f[5].split(":")[2] === String(ino); });
 }
 // Runs the reviewed host helper's `activate` as a child of the controller (which holds the controller lock). The helper must be a

@@ -1,0 +1,24 @@
+id: WO-OPS-20261118-C4-GATE-LOCK-PROOF
+title: "C4: the start gate proves the release owner holds the lock through the owner's open file, not through /proc/locks pid"
+status: READY_FOR_REVIEW
+created: 2026-11-18
+implementation_branch: claude/gate-lockheld
+owner_decision: "2026-11-18: the owner delegated all decisions and asked for speed. The first real controller release (run 44211387585) ended STOPPED_SAFE with ROLLBACK_FAILED:START_FAILED."
+evidence:
+  - "Host journal 2026-11-18 01:30:09Z: nusa-control.sh[536629]: GATE_DENIED:RELEASE_OWNER_NOT_HOLDING_LOCK (readonly:true). The gate checks run in order: owner alive (passed), owner is the release command (passed), owner holds the lock (denied)."
+  - "Root cause (reproduced locally, the old code returns false): deploy/control/nusa-control.sh takes the lock with the external `flock` binary on fd 9 and then exec's the controller. /proc/locks names the pid of the exited flock process, never the controller pid, so lockHeldBy(pid) can never be true on the real host. The tests faked lockHeldBy."
+change:
+  - "deploy/control/nusa-control.js: lockHeldBy first looks for the exclusive FLOCK line in /proc/<pid>/fdinfo/<fd> of the owner (the lock held through the owner's own open file) on the lock file's inode; the pid-in-/proc/locks proof stays accepted; an unreadable fd list fails closed."
+  - "tests/nusa-control-lockheld.test.js: fake-data cases (exited pid in /proc/locks, other inode, read lock, POSIX lock, unreadable fd list) and a REAL kernel test that runs the wrapper's exact sequence (open fd 9, external flock, exec) and requires true for the locked process and false for one without the lock."
+not_changed:
+  - "No other gate check, grant, phase, outcome, sudo rule, workflow, risk limit, threshold, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run on the host. The checks after the lock proof in the gate (grant claim, stop marker) have not run on the real host either; the next release shows whether any other fake-vs-real difference remains."
+acceptance:
+  - "Exact-head CI (Linux controller job runs the real kernel test); controller upgrade by the owner; a new controller release."
