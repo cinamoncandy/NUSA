@@ -139,7 +139,7 @@ test("security backport resolver fails closed for missing and duplicate packages
 
 const exceptionAudit = (version, id = "1247710", pkg = "picomatch") => ({
   metadata: { vulnerabilities: { high: 1, critical: 0 } },
-  advisories: { [id]: { module_name: pkg, severity: "high", findings: [{ version }, { version: "2.3.2" }] } }
+  advisories: { [id]: { module_name: pkg, severity: "high", github_advisory_id: "GHSA-fc5q-39xc-vjpf", findings: [{ version }, { version: "2.3.2" }] } }
 });
 
 test("owner exception covers only the exact picomatch advisory, versions and dates", () => {
@@ -151,6 +151,10 @@ test("owner exception covers only the exact picomatch advisory, versions and dat
   assert.equal(evaluateAudit(exceptionAudit("4.0.6"), { controls: {} }, before).unmitigated.length, 1, "other version");
   assert.equal(evaluateAudit(exceptionAudit("4.0.7", "1247711"), { controls: {} }, before).unmitigated.length, 1, "other advisory id");
   assert.equal(evaluateAudit(exceptionAudit("4.0.7", "1247710", "other-pkg"), { controls: {} }, before).unmitigated.length, 1, "other package");
+  const other = exceptionAudit("4.0.7"); other.advisories["1247710"].github_advisory_id = "GHSA-xxxx-xxxx-xxxx";
+  assert.equal(evaluateAudit(other, { controls: {} }, before).unmitigated.length, 1, "other GHSA");
+  const critical = exceptionAudit("4.0.7"); critical.advisories["1247710"].severity = "critical"; critical.metadata.vulnerabilities = { high: 0, critical: 1 };
+  assert.equal(evaluateAudit(critical, { controls: {} }, before).unmitigated.length, 1, "severity raised");
   const noFindings = { metadata: { vulnerabilities: { high: 1, critical: 0 } }, advisories: { "1247710": { module_name: "picomatch", severity: "high" } } };
   assert.equal(evaluateAudit(noFindings, { controls: {} }, before).unmitigated.length, 1, "no findings list fails closed");
   assert.equal(evaluateAudit(exceptionAudit("4.0.7"), { controls: {} }, new Date("invalid")).unmitigated.length, 1, "bad clock fails closed");

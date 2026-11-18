@@ -122,6 +122,7 @@ function trackedSecrets() {
 function ownerExceptionApplies(id, advisory, now) {
   const entry = OWNER_EXCEPTIONS[String(id)];
   if (!entry || advisory.module_name !== entry.package) return null;
+  if (advisory.github_advisory_id !== entry.ghsa || String(advisory.severity).toLowerCase() !== "high") return null;
   if (!(now instanceof Date) || Number.isNaN(now.getTime()) || now.getTime() >= Date.parse(`${entry.expiresOn}T00:00:00Z`)) return null;
   const findings = Array.isArray(advisory.findings) ? advisory.findings : [];
   if (findings.length === 0 || !findings.every((item) => entry.versions.includes(String(item?.version)))) return null;
