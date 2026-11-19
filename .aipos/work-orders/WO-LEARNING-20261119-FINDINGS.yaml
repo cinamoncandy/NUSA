@@ -1,0 +1,19 @@
+id: WO-LEARNING-20261119-FINDINGS
+title: "Record the 2026-11-19 findings: stall fix proven on the host, watch cadence, learning-loop sources (futures HTTP 451, order-book coverage)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Keep the repository, not the conversation, as the record of what the host measurements and the read-only diagnosis showed."
+change:
+  - ".aipos/handoffs/2026-11-17-main-handoff.md: one dated update section."
+  - "docs/RESEARCH_HYPOTHESIS_DIVERSITY_PLAN_20261112.md: section 7, the state of the sources (futures blocked by HTTP 451, order-book coverage 68.8 % against the 90 % bar, trade-flow v2 waiting, closed-loop verdict)."
+not_changed:
+  - "No code, workflow, host, release, gate, pre-registration, limit, threshold, capital, order switch or authority. The order-book and trade-flow pre-registrations are not edited; a third order-book run needs its own new pre-registration."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI."
