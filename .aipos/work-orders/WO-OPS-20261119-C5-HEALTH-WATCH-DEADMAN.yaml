@@ -5,12 +5,13 @@ created: 2026-11-19
 owner_decision: "2026-11-18/19: the owner asked for the highest-priority work for NUSA's completion in order and delegated approvals to CORE; design v5 section 6 and C5 require 'the watch itself is watched (dead-man check)'."
 objective: "If the Health Watch (every 30 minutes) stops running, something raises an issue instead of nobody noticing."
 change:
-  - "scripts/health-watch-deadman-decide.js: a pure decision (WATCH_SILENT past 120 minutes, WATCH_NEVER_RAN, CONFIG_INVALID for unreadable input, a future time or a bad clock or limit)."
+  - "scripts/health-watch-deadman-decide.js: a pure decision (WATCH_SILENT past 720 minutes, WATCH_NEVER_RAN, CONFIG_INVALID for unreadable input, a future time or a bad clock or limit)."
   - ".github/workflows/health-watch-deadman.yml: hourly (cron 17), reads the completion time of the newest finished Health Watch run, opens or updates ONE issue with fixed text; permissions contents read, actions read, issues write; no secret, no host access, no external service."
   - ".github/workflow-authority-map.json: the new job recorded (issues write only), as the ratchet requires."
   - "tests/health-watch-deadman.test.js (5 tests)."
 not_changed:
   - "The Health Watch workflow and its config, the host, the controller, the release, every limit, threshold, capital, order switch and authority."
+calibration: "2026-11-19: the first manual run answered WATCH_SILENT silent_842_minutes. Measured: GitHub started only 16 scheduled Health Watch runs in five days (expected about 240), spaced 6.5-8.8 h (2026-11-17 02:01, 10:32, 19:19; 2026-11-18 01:49, 10:01, 18:47 UTC). The limit was therefore raised from 120 to 720 minutes (12 h); the Health Watch is in practice a watch every 6-9 hours, not every 30 minutes. An independent routine of the owner's Claude session (every 2 hours, one curl of /health, push only when something is wrong) covers the gap."
 limits: "Both workflows depend on GitHub's scheduler: this catches a watch that was disabled, broken or starved, not a GitHub-wide outage. Delivery of GitHub issue notifications to the owner's phone is the other half of the alert path and is not proven by this change; a drill (open a test issue, confirm the phone buzzes) is still open."
 safety:
   paper_only: true
