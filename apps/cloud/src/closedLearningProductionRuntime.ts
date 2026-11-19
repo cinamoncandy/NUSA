@@ -476,7 +476,8 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
           // A finished pre-registered study written by the host Research service joins the reviewed ledger automatically.
           ledger: (() => { const study = readOrderBookStudyResult(config.cloudStateDbPath); return study == null || RESEARCH_LEDGER_SNAPSHOT.some((e) => e.id === study.id) ? RESEARCH_LEDGER_SNAPSHOT : [...RESEARCH_LEDGER_SNAPSHOT, study]; })(),
           runtimeTicksByInterval: researchExperiments?.experimentTicksByInterval() ?? null,
-          researchMarkets: (env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").filter((m) => m.trim() !== "").length,
+          // The universe of the research EXPERIMENTS (market gate of docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md), not of the candle collection.
+          researchMarkets: (env.NUSA_RESEARCH_EXPERIMENT_MARKETS ?? env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").filter((m) => m.trim() !== "").length,
           ...(baselineShadow == null ? {} : { shadow: baselineShadow.summary() }),
           // Performance Evidence N -> Research N+1: realized canonical PAPER baseline periods feed meta-learning.
           paperPeriods: periods.listRealizedPeriods()
