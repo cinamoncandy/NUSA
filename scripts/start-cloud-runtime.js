@@ -95,16 +95,47 @@ const MARKET_PATTERN = /^KRW-[A-Z0-9-]+$/;
  * Owner-decided markets for the PAPER feed and the research collection, versioned with the release and applied
  * over the host environment (same mechanism as the PAPER account), so the decision reaches the host through a
  * normal reviewed release. 1-5 distinct KRW markets; a malformed file fails closed. Absent file: nothing applied.
+ *
+ * Optional (docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md): `researchMarkets` widens only the research CANDLE collection
+ * (NUSA_RESEARCH_MARKETS) and `experimentMarkets` names the markets the experiment orchestrator runs on
+ * (NUSA_RESEARCH_EXPERIMENT_MARKETS). Both are 1-5 distinct KRW markets; the first entry must equal the first PAPER market
+ * (strategies, coverage watchers and progress read the first market); `experimentMarkets` must be a subset of `researchMarkets`;
+ * `experimentMarkets` defaults to `markets` (the PAPER feed list), never to `researchMarkets`, so widening the collection cannot
+ * start experiments on the new markets. The PAPER trading feed (NUSA_CLOUD_UPBIT_MARKETS) always comes from `markets` alone.
  */
+function validMarketList(list) {
+  return Array.isArray(list) && list.length >= 1 && list.length <= 5
+    && list.every((m) => typeof m === "string" && MARKET_PATTERN.test(m)) && new Set(list).size === list.length;
+}
+
 function readOwnerPaperMarkets(file = OWNER_PAPER_MARKETS_FILE) {
   if (!existsSync(file)) return null;
   const parsed = JSON.parse(readFileSync(file, "utf8"));
   const markets = parsed?.markets;
-  if (parsed?.schemaVersion !== 1 || !Array.isArray(markets) || markets.length < 1 || markets.length > 5
-    || markets.some((m) => typeof m !== "string" || !MARKET_PATTERN.test(m)) || new Set(markets).size !== markets.length) {
+  if (parsed?.schemaVersion !== 1 || !validMarketList(markets)) {
     throw new Error(`owner PAPER markets file is invalid: ${file}`);
   }
-  return Object.freeze({ markets: Object.freeze([...markets]) });
+  const hasResearch = parsed.researchMarkets !== undefined;
+  const hasExperiment = parsed.experimentMarkets !== undefined;
+  if (hasExperiment && !hasResearch) throw new Error(`owner PAPER markets file is invalid: ${file}`);
+  let researchMarkets = markets;
+  let experimentMarkets = markets;
+  if (hasResearch) {
+    researchMarkets = parsed.researchMarkets;
+    if (!validMarketList(researchMarkets) || researchMarkets[0] !== markets[0]) throw new Error(`owner PAPER markets file is invalid: ${file}`);
+    if (hasExperiment) {
+      experimentMarkets = parsed.experimentMarkets;
+      if (!validMarketList(experimentMarkets) || experimentMarkets[0] !== markets[0] || experimentMarkets.some((m) => !researchMarkets.includes(m))) {
+        throw new Error(`owner PAPER markets file is invalid: ${file}`);
+      }
+    }
+  }
+  return Object.freeze({
+    markets: Object.freeze([...markets]),
+    researchMarkets: Object.freeze([...researchMarkets]),
+    experimentMarkets: Object.freeze([...experimentMarkets]),
+    separateResearchMarkets: hasResearch,
+  });
 }
 
 const OWNER_RESEARCH_FILE = path.join(__dirname, "..", "deploy", "oracle", "research-experiments.json");
@@ -169,8 +200,19 @@ function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccou
     }
   }
   if (ownerPaperMarkets != null) {
-    const value = ownerPaperMarkets.markets.join(",");
-    for (const key of ["NUSA_CLOUD_UPBIT_MARKETS", "NUSA_RESEARCH_MARKETS"]) {
+    const feed = ownerPaperMarkets.markets.join(",");
+    const research = (ownerPaperMarkets.researchMarkets ?? ownerPaperMarkets.markets).join(",");
+    const wanted = { NUSA_CLOUD_UPBIT_MARKETS: feed, NUSA_RESEARCH_MARKETS: research };
+    // Only a file that widens the research markets sets the experiment list; otherwise the runtime default (the research markets)
+    // equals the PAPER list and nothing new is written.
+    if (ownerPaperMarkets.separateResearchMarkets === true) wanted.NUSA_RESEARCH_EXPERIMENT_MARKETS = ownerPaperMarkets.experimentMarkets.join(",");
+    // A file without researchMarkets removes any host value of the experiment list (independent review, P1): a stale host value must
+    // not widen experiments. Without the variable the runtime follows NUSA_RESEARCH_MARKETS, which then equals the PAPER list.
+    else if (env.NUSA_RESEARCH_EXPERIMENT_MARKETS !== undefined) {
+      delete env.NUSA_RESEARCH_EXPERIMENT_MARKETS;
+      if (!applied.includes("NUSA_RESEARCH_EXPERIMENT_MARKETS")) applied.push("NUSA_RESEARCH_EXPERIMENT_MARKETS");
+    }
+    for (const [key, value] of Object.entries(wanted)) {
       if (env[key] !== value) {
         env[key] = value;
         if (!applied.includes(key)) applied.push(key);
