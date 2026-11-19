@@ -1,6 +1,6 @@
 # Cloudflare removal S2: design of the shadow replacement for the Worker's release check (2026-11-19)
 
-Status: DESIGN ONLY, for review. Phase S2 of `docs/PROPOSAL_SIMPLIFICATION_2026-11-14.md`, after the S0 inventory and the S1 findings (`docs/CLOUDFLARE_REMOVAL_S1_FINDINGS_2026-11-18.md`). It changes no code, workflow, Cloudflare setting or host. Nothing is removed. The owner decides the open points in section 6.
+Status: DESIGN, owner agreed on 2026-11-19 ("병합 점검 진행"). Step 1 (the non-gating shadow of sections 2 and 4, without the path rule of section 3.1) is implemented and merged as #3204; the path rule and the switch to the replacement are S3. Phase S2 of `docs/PROPOSAL_SIMPLIFICATION_2026-11-14.md`, after the S0 inventory and the S1 findings (`docs/CLOUDFLARE_REMOVAL_S1_FINDINGS_2026-11-18.md`). It changes no code, workflow, Cloudflare setting or host. Nothing is removed. The owner decides the open points in section 6.
 Safety unchanged: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`, Release=HOLD, orders OFF.
 
 ## 1. What was read (main 841038612, 2026-11-19)
