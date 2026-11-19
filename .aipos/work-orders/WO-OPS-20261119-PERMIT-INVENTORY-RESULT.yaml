@@ -1,0 +1,18 @@
+id: WO-OPS-20261119-PERMIT-INVENTORY-RESULT
+title: "Record the permit producer inventory (read-only row counts of the host state database, 2026-11-19)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Replace the design's assumptions about what data exists with the counts the host actually holds, before any producer is built."
+change:
+  - "docs/NUSA_PERMIT_PRODUCER_DESIGN_2026-11-16.md: section 7 (the counts, what they show, what counts cannot show, a correction about futures data)."
+not_changed:
+  - "No code, workflow, host, release, gate, limit, threshold, capital, order switch or authority. The inventory was read-only counts run by the owner; nothing is built and decision 2 (no producer before a candidate qualifies) stands."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI."
