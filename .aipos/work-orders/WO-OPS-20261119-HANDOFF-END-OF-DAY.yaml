@@ -1,0 +1,18 @@
+id: WO-OPS-20261119-HANDOFF-END-OF-DAY
+title: "Handoff: end-of-day state of 2026-11-19 (deployed build, S2 shadow count, inventory, open owner items)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Keep the repository, not the conversation, as the record of the day's state and the next safe actions."
+change:
+  - ".aipos/handoffs/2026-11-17-main-handoff.md: one dated update section."
+not_changed:
+  - "No code, workflow, host, release, gate, limit, threshold, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI."
