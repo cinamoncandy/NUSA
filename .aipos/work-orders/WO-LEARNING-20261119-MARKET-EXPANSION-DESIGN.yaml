@@ -1,0 +1,18 @@
+id: WO-LEARNING-20261119-MARKET-EXPANSION-DESIGN
+title: "L1 candidate supply: design for widening the research markets (data first, a pre-registered cross-market family second)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Record the owner's answer (add 4 research markets, research only) as a reviewed design: separate research markets from the PAPER feed, measure the load, and fix the statistical accounting before any result."
+change:
+  - "docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md: why (one market, exhausted rule families), step A (researchMarkets field, five markets, backfill), what is known and not known about load and disk, the K accounting, the order of work."
+not_changed:
+  - "No code, host, release, gate, limit, threshold, capital, order switch or authority. No experiment on new markets. The PAPER trading feed stays KRW-XRP."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI. Independent non-author review before any implementation PR."
