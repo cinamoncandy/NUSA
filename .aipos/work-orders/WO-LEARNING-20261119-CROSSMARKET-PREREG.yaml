@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261119-CROSSMARKET-PREREG
+title: "Pre-registration draft: cross-market relative momentum on five KRW markets (L1 candidate supply, step B)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Fix the hypothesis, grid, spans, costs, K and PASS rule of the first multi-market family before any candle value of the four new markets is read, so that a result cannot influence the rule."
+change:
+  - "docs/RESEARCH_PREREG_2026-11-19_CROSSMARKET_MOMENTUM_60M.md (draft; binding only after an independent non-author review and merge)."
+review_applied:
+  - "First independent review (CHANGES NEEDED): power is near zero for a small edge (stated plainly now, a FAIL is uninformative about small edges); selection on a 2-day validation is noise (one primary cell L 24 h, H 1 h, three descriptive cells, no selection); timing pinned (close time of the minute ending at t, last book sample in (t-2m, t]); tests specified (Student t, moving-block bootstrap, paired sign-flip permutation, a gross rank-IC stage); ties, missing closes, part-end exits, dataset identity, concentration and a BTC beta reference added; blindness disclosed as a convention; feasibility precondition for the lookback data."
+  - "Second independent review (close, CHANGES NEEDED, no P0): the bootstrap null (centring, p formula), block layout (circular, 24), the PRNG (splitmix64 into xoshiro256**), the stage 1 definition (next-hour return, average-rank Spearman, excluded hours), the block sign-flip permutation, the usable-book and spread definitions, the part-end rule, drop reporting, the BTC reference as reported-only, and the contradiction between INSUFFICIENT_DATA and re-registration are fixed in the text."
+not_changed:
+  - "No code, run, experiment, gate, threshold, holdout rule of the runtime ledger, budget, limit, capital, order switch or authority. experimentMarkets stays KRW-XRP. No study script is written before the document is merged and reviewed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; independent non-author review of the pre-registration before merge; exact-head CI."
