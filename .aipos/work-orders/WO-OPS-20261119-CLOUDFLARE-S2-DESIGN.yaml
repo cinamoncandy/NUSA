@@ -1,0 +1,18 @@
+id: WO-OPS-20261119-CLOUDFLARE-S2-DESIGN
+title: "Cloudflare removal S2 design: shadow replacement of the Worker release check (one file on main, read from the audited base)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Design the first S2 step from what the audit workflow actually calls, so the Worker's two off-git switches (HOLD, freeze) have a reviewed, owner-only replacement before any call is switched."
+change:
+  - "docs/CLOUDFLARE_REMOVAL_S2_DESIGN_2026-11-19.md: what the Worker contributes to every merge, the proposed file and checker, the owner-only protection, the shadow run and its evidence rule, the owner decisions."
+not_changed:
+  - "No code, workflow, Cloudflare setting, host, release, gate, limit, threshold, capital, order switch or authority. The Worker check stays authoritative. Nothing is removed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI; independent non-author review before any implementation PR."
