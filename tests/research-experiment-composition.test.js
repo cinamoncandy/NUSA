@@ -972,6 +972,12 @@ test("five collected markets start no experiment on the new markets and leave th
     assert.equal(b.experiments.length, 10);
     assert.equal(JSON.stringify(b.experiments), JSON.stringify(a.experiments), "every experiment identity and result is byte-identical to the XRP-only run");
     for (const e of b.experiments) assert.ok(!/KRW-(BTC|ETH|SOL|DOGE)/.test(JSON.stringify(e)), "no new market in any experiment");
+    // Stored identity (review P2): the experiment rows (dataset, content hash, walk-forward config, result) and the status projection match too.
+    const rows = (x) => x.db.connection.prepare("SELECT market, interval, dataset_id, content_sha256, walk_forward_config_json, result_json, hypothesis_id FROM research_experiment_records ORDER BY id").all();
+    assert.ok(rows(baseline).length >= 10, "experiment rows exist");
+    assert.equal(JSON.stringify(rows(gated)), JSON.stringify(rows(baseline)), "stored experiment rows are identical");
+    assert.ok(rows(gated).every((r) => r.dataset_id === "upbit-1m-closed:KRW-XRP:60000" && !/KRW-(BTC|ETH|SOL|DOGE)/.test(JSON.stringify(r))), "every stored experiment is on the XRP-only dataset");
+    assert.equal(JSON.stringify(gated.composition.orchestrator.statusProjection()), JSON.stringify(baseline.composition.orchestrator.statusProjection()), "status projection is identical");
     const second = gated.composition.tickOnce();
     assert.equal(second.started, 0);
     // Negative control: without the gate the same five markets would start an experiment per variant on every market.
