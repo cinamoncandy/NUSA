@@ -49,7 +49,15 @@ export const DONCHIAN_TIMEOUT_BARS = 12;
 export const RESEARCH_INTERVAL_MINUTES: readonly number[] = Object.freeze([1, 15, 60, 240]);
 
 export interface ResearchExperimentSettings {
+  /** Markets whose candles are collected, backfilled and gap-filled. */
   readonly markets: readonly string[];
+  /**
+   * Markets the experiment orchestrator runs on (docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md). Always a subset of `markets` with
+   * the same first entry. Defaults to `markets` (unchanged behaviour) when NUSA_RESEARCH_EXPERIMENT_MARKETS is not set. The orchestrator
+   * receives ONLY this list, so widening `markets` adds no experiment, configuration or holdout use and leaves every existing session
+   * identity (datasetId, deterministic config) unchanged.
+   */
+  readonly experimentMarkets: readonly string[];
   readonly windows: { readonly intervalMs: number; readonly trainMs: number; readonly validationMs: number; readonly holdoutMs: number; readonly maxMissingRatio: number };
   readonly tickMs: number;
   readonly dailyBudgetPerVariant: number;
@@ -89,6 +97,14 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
   if (!/^[a-f0-9]{40}$/.test(commit)) return Object.freeze({ status: "INVALID", reason: "SOURCE_COMMIT_MISSING_OR_MALFORMED" });
   const markets = (env.NUSA_RESEARCH_MARKETS ?? "KRW-BTC").split(",").map((m) => m.trim().toUpperCase()).filter((m) => m !== "");
   if (markets.length === 0 || markets.length > 5 || markets.some((m) => !/^KRW-[A-Z0-9-]+$/.test(m)) || new Set(markets).size !== markets.length) return Object.freeze({ status: "INVALID", reason: "MARKETS_INVALID" });
+  let experimentMarkets: readonly string[] = markets;
+  if (env.NUSA_RESEARCH_EXPERIMENT_MARKETS !== undefined) {
+    const listed = env.NUSA_RESEARCH_EXPERIMENT_MARKETS.split(",").map((m) => m.trim().toUpperCase()).filter((m) => m !== "");
+    if (listed.length === 0 || listed.length > markets.length || listed.some((m) => !markets.includes(m)) || new Set(listed).size !== listed.length || listed[0] !== markets[0]) {
+      return Object.freeze({ status: "INVALID", reason: "EXPERIMENT_MARKETS_INVALID" });
+    }
+    experimentMarkets = listed;
+  }
   const train = intIn(env.NUSA_RESEARCH_TRAIN_DAYS, 7, 1, 30);
   const validation = intIn(env.NUSA_RESEARCH_VALIDATION_DAYS, 2, 1, 14);
   const holdout = intIn(env.NUSA_RESEARCH_HOLDOUT_DAYS, 2, 1, 14);
@@ -104,6 +120,7 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
     status: "ENABLED",
     settings: Object.freeze({
       markets: Object.freeze(markets),
+      experimentMarkets: Object.freeze([...experimentMarkets]),
       windows: Object.freeze({ intervalMs: M, trainMs: train * DAY_MS, validationMs: validation * DAY_MS, holdoutMs: holdout * DAY_MS, maxMissingRatio: 0.05 }),
       tickMs: tickMinutes * M,
       dailyBudgetPerVariant: budget,
@@ -277,7 +294,7 @@ export function composeResearchExperiments(input: {
     });
     const variants: ResearchVariant[] = [...smaVariants, ...rsiVariants, ...donchianVariants];
     const orchestrator = new ResearchExperimentOrchestrator({
-      variants, sessions, markets: settings.markets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant, precommitStore: precommits,
+      variants, sessions, markets: settings.experimentMarkets, intervalMs, windows: Object.freeze({ ...settings.windows, intervalMs }), dailyBudgetPerVariant: settings.dailyBudgetPerVariant, precommitStore: precommits,
       // The canonical 1m series is fed only by Upbit REST candles with raw-source receipts (backfill + gap fill, which now
       // reaches the newest closed minute). Ticker-aggregated candles carry no receipt or volume, so writing them here blocked
       // every dataset manifest; since 2026-10-17 they also failed silently. Collection is therefore off by design.
@@ -578,7 +595,7 @@ export function composeResearchExperiments(input: {
       timer = setInterval(scheduleTick, settings.tickMs);
       timer.unref?.();
       if (settings.backfill) { gapTimer = setInterval(() => scheduleGapFill(), RESEARCH_GAP_FILL_INTERVAL_MS); gapTimer.unref?.(); }
-      log(`[research-experiments] enabled: markets=${settings.markets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
+      log(`[research-experiments] enabled: markets=${settings.markets.join(",")} experimentMarkets=${settings.experimentMarkets.join(",")} variants=${variantCount} intervals=${settings.intervalsMinutes.join(",")}m tickMinutes=${settings.tickMs / M} backfill=${settings.backfill ? "ENABLED" : "DISABLED"}`);
     },
     stop: () => { preparationActive = false; clearPreparedRecovery(); stopped = true; if (gapTimer != null) clearInterval(gapTimer); if (gapRetry != null) clearTimeout(gapRetry); if (backfillTimer != null) clearTimeout(backfillTimer); if (tickRetry != null) clearTimeout(tickRetry); if (first != null) clearTimeout(first); if (timer != null) clearInterval(timer); },
   });

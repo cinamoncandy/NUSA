@@ -928,3 +928,57 @@ test("the history target stays 12 days when OFF and grows to 34 days only in rol
   const custom = readResearchExperimentSettings({ ...base, NUSA_RESEARCH_ROLLING_HOLDOUT: "SHADOW", NUSA_RESEARCH_TRAIN_DAYS: "10", NUSA_RESEARCH_VALIDATION_DAYS: "3", NUSA_RESEARCH_HOLDOUT_DAYS: "3" }).settings;
   assert.equal(researchTargetSpanMs(custom), (3 * 16 + 1) * DAY, "follows the configured windows");
 });
+
+test("experiment markets: the gate defaults to the research markets, validates fail closed, and never widens experiments with the collection", () => {
+  const ok = (over) => readResearchExperimentSettings(env(over));
+  assert.deepEqual([...ok({ NUSA_RESEARCH_MARKETS: "KRW-XRP" }).settings.experimentMarkets], ["KRW-XRP"], "unset: the research markets, unchanged behaviour");
+  const wide = ok({ NUSA_RESEARCH_MARKETS: "KRW-XRP,KRW-BTC,KRW-ETH", NUSA_RESEARCH_EXPERIMENT_MARKETS: "KRW-XRP" });
+  assert.deepEqual([...wide.settings.markets], ["KRW-XRP", "KRW-BTC", "KRW-ETH"]);
+  assert.deepEqual([...wide.settings.experimentMarkets], ["KRW-XRP"]);
+  assert.deepEqual([...ok({ NUSA_RESEARCH_MARKETS: "KRW-XRP,KRW-BTC", NUSA_RESEARCH_EXPERIMENT_MARKETS: " krw-xrp , KRW-BTC " }).settings.experimentMarkets], ["KRW-XRP", "KRW-BTC"]);
+  for (const bad of ["", " , ", "KRW-BTC", "KRW-XRP,KRW-ETH", "KRW-XRP,KRW-XRP", "KRW-BTC,KRW-XRP", "BTC-KRW", "KRW-XRP,KRW-BTC,KRW-ETH"]) {
+    const result = ok({ NUSA_RESEARCH_MARKETS: "KRW-XRP,KRW-BTC", NUSA_RESEARCH_EXPERIMENT_MARKETS: bad });
+    assert.equal(result.status, "INVALID", JSON.stringify(bad));
+    assert.equal(result.reason, "EXPERIMENT_MARKETS_INVALID", JSON.stringify(bad));
+  }
+});
+
+test("five collected markets start no experiment on the new markets and leave the existing experiment identity byte-identical", () => {
+  const build = (markets, experimentMarkets) => {
+    const db = open();
+    const store = new SqliteResearchCandleStore(db, 200_000);
+    const count = 11 * 1440;
+    for (const market of markets) {
+      const rows = Array.from({ length: count }, (_, i) => { const close = Number((100 + 15 * Math.sin(i / 90) + (i % 11) * 0.2).toFixed(4)); return { closeTimeMs: T_END - (count - 1 - i) * M, open: close, high: close + 1, low: close - 1, close, volume: 1 }; });
+      store.appendWithMaterial(market, M, rows, { source: "UPBIT_PUBLIC_CANDLES", sourceFingerprint: UPBIT_CANDLE_SOURCE_FINGERPRINT, evidenceFingerprintSha256: "d".repeat(64), missingBuckets: 0, incompleteBuckets: 0, rejectedObservations: 0 });
+    }
+    const over = { NUSA_RESEARCH_MARKETS: markets.join(","), NUSA_RESEARCH_DAILY_BUDGET: "10" };
+    if (experimentMarkets !== undefined) over.NUSA_RESEARCH_EXPERIMENT_MARKETS = experimentMarkets;
+    const composition = composeResearchExperiments({ env: env(over), database: db, now: () => T_END, log: () => {} });
+    for (const market of markets) {
+      materializeResearchDatasetManifest({ store: composition.datasetManifests, candleStore: store, market, intervalMs: M, candles: store.read(market, M, 0, T_END), source: `upbit-1m-closed:${market}:60000`, createdAt: new Date(T_END).toISOString(), sourceCommitSha: SHA });
+    }
+    return { db, composition };
+  };
+  const baseline = build(["KRW-XRP"]);
+  const gated = build(["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"], "KRW-XRP");
+  try {
+    assert.equal(baseline.composition.orchestrator.recover().status, "READY");
+    assert.equal(gated.composition.orchestrator.recover().status, "READY");
+    const a = baseline.composition.tickOnce();
+    const b = gated.composition.tickOnce();
+    assert.equal(a.started, 10);
+    assert.equal(b.started, 10, "ten variant sessions, as before");
+    assert.equal(b.experiments.length, 10);
+    assert.equal(JSON.stringify(b.experiments), JSON.stringify(a.experiments), "every experiment identity and result is byte-identical to the XRP-only run");
+    for (const e of b.experiments) assert.ok(!/KRW-(BTC|ETH|SOL|DOGE)/.test(JSON.stringify(e)), "no new market in any experiment");
+    const second = gated.composition.tickOnce();
+    assert.equal(second.started, 0);
+    // Negative control: without the gate the same five markets would start an experiment per variant on every market.
+    const ungated = build(["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]);
+    try {
+      assert.equal(ungated.composition.orchestrator.recover().status, "READY");
+      assert.equal(ungated.composition.tickOnce().experiments.length, 50, "without the gate every variant runs on every market (10 variants x 5 markets): the test would notice a missing gate");
+    } finally { ungated.composition.stop(); ungated.db.close(); }
+  } finally { for (const x of [baseline, gated]) { x.composition.stop(); x.db.close(); } }
+});

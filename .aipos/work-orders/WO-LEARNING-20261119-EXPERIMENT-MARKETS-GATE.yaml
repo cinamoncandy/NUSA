@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261119-EXPERIMENT-MARKETS-GATE
+title: "Research: experiments run only on NUSA_RESEARCH_EXPERIMENT_MARKETS (step 2b of the market expansion design); collection may be wider"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Separate where research candles are collected from where experiments run, so a later widening of the collection cannot start experiments, add configurations or use holdout on new markets, and no existing experiment identity changes."
+change:
+  - "apps/cloud/src/researchExperimentComposition.ts: settings.experimentMarkets (env NUSA_RESEARCH_EXPERIMENT_MARKETS; unset means the research markets, unchanged behaviour; set means a subset of the research markets with the same first entry, otherwise INVALID with reason EXPERIMENT_MARKETS_INVALID); the orchestrator receives experimentMarkets as its markets option (so datasetId and deterministic config are unchanged); backfill, gap-fill and manifest builds keep the research markets; the enabled log line shows both lists."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: the meta-learning universe input counts the experiment markets."
+  - "tests/research-experiment-composition.test.js: defaults, normalisation, eight fail-closed inputs; five collected markets give the same 10 experiments byte-identical to an XRP-only run, none on the new markets; negative control: without the gate the same data gives 50 experiments."
+not_changed:
+  - "No gate, threshold, holdout rule, budget, risk limit, capital, order switch or authority. deploy/oracle/paper-markets.json is NOT changed; the host behaves as before. Step 2c (the file change) needs this change merged and released first, then its own PR and the staged release with a before/after read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "Composition tests, cooperative-liveness and launcher tests, typecheck, validators, exact-head CI, independent non-author review."
