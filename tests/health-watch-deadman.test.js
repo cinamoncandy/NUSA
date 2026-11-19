@@ -14,7 +14,7 @@ test("a recent finished run is alive, a run older than the limit is silent, the 
   assert.equal(decideDeadman(ago(MAX_SILENCE_MINUTES), NOW).alert, "NONE");
   assert.equal(decideDeadman(ago(MAX_SILENCE_MINUTES + 1), NOW).alert, "WATCH_SILENT");
   assert.equal(decideDeadman(ago(24 * 60), NOW).alert, "WATCH_SILENT");
-  assert.match(decideDeadman(ago(300), NOW).reason, /^silent_300_minutes$/);
+  assert.match(decideDeadman(ago(MAX_SILENCE_MINUTES + 300), NOW).reason, /^silent_1020_minutes$/);
 });
 
 test("no finished run is an alarm, never silence", () => {
@@ -42,8 +42,11 @@ test("the workflow is read-only apart from one issue, uses no secret, no host ac
   assert.match(workflow, /BODY="\$\(printf 'Dead-man result: %s \(%s\)\.\\n\\nRun: %s\\n\\n/);
 });
 
-test("the dead-man limit is longer than the Health Watch period so one late scheduled run does not alarm", () => {
+test("the dead-man limit is longer than the measured spacing of GitHub's scheduled Health Watch runs, so an ordinary slow scheduler does not alarm", () => {
   const healthWatch = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "health-watch.yml"), "utf8");
   assert.match(healthWatch, /cron: "7,37 \* \* \* \*"/);
-  assert.ok(MAX_SILENCE_MINUTES >= 4 * 30, "at least four Health Watch periods");
+  // Measured gaps between scheduled runs, 2026-11-17 02:01Z .. 2026-11-18 18:47Z: 8.5 h, 8.8 h, 6.5 h, 8.2 h, 8.8 h.
+  const measuredWorstGapMinutes = Math.round(8.8 * 60);
+  assert.ok(MAX_SILENCE_MINUTES > measuredWorstGapMinutes * 1.3, "a clear margin over the worst measured gap");
+  assert.equal(decideDeadman(ago(measuredWorstGapMinutes), NOW).alert, "NONE");
 });
