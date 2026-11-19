@@ -229,3 +229,37 @@ test("a transient GitHub API failure in the merge step retries instead of ending
   assert.match(merge, /sha="\$EXPECTED_HEAD"/, "the merge stays bound to the exact audited head");
   assert.match(merge, /\[ "\$base" = "\$AUDITED_BASE" \]/, "the read-back still requires the audited base");
 });
+
+test("S2 shadow release-control steps never gate the merge and read from the audited base", () => {
+  const releaseJob = workflow.split(/\r?\n  release:\r?\n/)[1];
+  const shadowSteps = releaseJob.split(/\r?\n      - name: /).filter((step) => step.startsWith("Shadow release-control check"));
+  assert.equal(shadowSteps.length, 2);
+  for (const step of shadowSteps) {
+    assert.match(step, /continue-on-error: true/);
+    assert.match(step, /if: \$\{\{ always\(\) \}\}/);
+    assert.match(step, /\?ref=\$AUDITED_BASE/);
+    assert.doesNotMatch(step, /\?ref=\$EXPECTED_HEAD|exit 1|curl|workers\.dev/);
+  }
+  assert.match(releaseJob, /id: worker_check_1/);
+  assert.match(releaseJob, /id: worker_check_2/);
+  // The Worker call stays authoritative: both Worker steps are unchanged except for the added id.
+  assert.equal((releaseJob.match(/nusa-autopilot\.desporin12\.workers\.dev\/control-plane\/release-check/g) || []).length, 2);
+});
+
+test("S2 shadow steps are bounded, run before the release token is minted, and isolate the fetched checker", () => {
+  const releaseJob = workflow.split(/\r?\n  release:\r?\n/)[1];
+  const steps = releaseJob.split(/\r?\n      - name: /);
+  const mintIndex = steps.findIndex((step) => step.startsWith("Mint dedicated release authority token"));
+  const shadowIndexes = steps.map((step, index) => (step.startsWith("Shadow release-control check") ? index : -1)).filter((index) => index >= 0);
+  assert.equal(shadowIndexes.length, 2);
+  assert.ok(shadowIndexes[0] < mintIndex && shadowIndexes[1] > mintIndex, "shadow 1 before the mint, shadow 2 after the second Worker call");
+  for (const index of shadowIndexes) {
+    const step = steps[index];
+    assert.match(step, /timeout-minutes: 2/);
+    assert.match(step, /timeout 20 gh api/);
+    assert.match(step, /timeout 20 env -i PATH="\$PATH"/);
+    assert.match(step, /match=na reason=base_files_not_readable/);
+    assert.match(step, /success\) WORKER=CLEAR;;\s+failure\) WORKER=BLOCK;;/);
+    assert.doesNotMatch(step, /RELEASE_AUTH|release_authority_token|secrets\./);
+  }
+});
