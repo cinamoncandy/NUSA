@@ -1,0 +1,23 @@
+id: WO-OPS-20261119-CLOUDFLARE-S2-SHADOW
+title: "Cloudflare removal S2: non-gating shadow of the Worker release check (config/release-control.json, pure checker, two shadow steps)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Start the S2 evidence count: after each of the two Worker release-check calls in the audit-release workflow, run a replacement read from the audited base and print whether it agrees. The Worker stays authoritative."
+change:
+  - "config/release-control.json: globalReleaseFreeze=false, holdState=NONE and the three safety facts."
+  - "scripts/release-control-check.js and tests/release-control-check.test.js: pure fail-closed checker (unreadable, invalid, unknown key, freeze, hold, safety fact, identity)."
+  - ".github/workflows/autopilot-deterministic-audit-release.yml (release job): ids on the two Worker steps and two continue-on-error shadow steps that read the file and the checker from AUDITED_BASE and print RELEASE_CONTROL_SHADOW lines. No permission, secret, environment or trigger change."
+  - "tests/autopilot-deterministic-audit-release.test.js: the shadow steps are non-gating, read from the audited base, and the Worker calls are unchanged."
+not_changed:
+  - "The Worker check is still the only gate. No threshold, risk limit, capital, order switch, host, release or authority change. Nothing is removed. The path rule that blocks auto-merge of PRs touching the file is S3 work, not part of this shadow."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "Unit tests, workflow validators, AIPOS validators, exact-head CI."
+  - "Independent non-author review before merge (merge path)."
+  - "S2 evidence: 20 consecutive PRs with match=true (at least 3 touching workflows or release paths); a mismatch is root-caused and the count restarts."

@@ -229,3 +229,19 @@ test("a transient GitHub API failure in the merge step retries instead of ending
   assert.match(merge, /sha="\$EXPECTED_HEAD"/, "the merge stays bound to the exact audited head");
   assert.match(merge, /\[ "\$base" = "\$AUDITED_BASE" \]/, "the read-back still requires the audited base");
 });
+
+test("S2 shadow release-control steps never gate the merge and read from the audited base", () => {
+  const releaseJob = workflow.split(/\r?\n  release:\r?\n/)[1];
+  const shadowSteps = releaseJob.split(/\r?\n      - name: /).filter((step) => step.startsWith("Shadow release-control check"));
+  assert.equal(shadowSteps.length, 2);
+  for (const step of shadowSteps) {
+    assert.match(step, /continue-on-error: true/);
+    assert.match(step, /if: \$\{\{ always\(\) \}\}/);
+    assert.match(step, /\?ref=\$AUDITED_BASE/);
+    assert.doesNotMatch(step, /\?ref=\$EXPECTED_HEAD|exit 1|curl|workers\.dev/);
+  }
+  assert.match(releaseJob, /id: worker_check_1/);
+  assert.match(releaseJob, /id: worker_check_2/);
+  // The Worker call stays authoritative: both Worker steps are unchanged except for the added id.
+  assert.equal((releaseJob.match(/nusa-autopilot\.desporin12\.workers\.dev\/control-plane\/release-check/g) || []).length, 2);
+});

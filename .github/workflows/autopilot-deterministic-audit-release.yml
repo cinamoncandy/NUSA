@@ -234,6 +234,7 @@ jobs:
           NODE
 
       - name: Verify durable control-plane Release clearance
+        id: worker_check_1
         env:
           NUSA_RELEASE_CONTROL_URL: https://nusa-autopilot.desporin12.workers.dev/control-plane/release-check
         run: |
@@ -257,6 +258,28 @@ jobs:
           console.log(`Durable Release control CLEAR: pr=${payload.prNumber} head=${payload.headSha} base=${payload.baseSha} hold=${body.holdState}`);
           NODE
           node "$RUNNER_TEMP/nusa-release-control-check.mjs"
+
+      - name: Shadow release-control check 1 (non-gating, never fails the job)
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          WORKER_OUTCOME: ${{ steps.worker_check_1.outcome }}
+        run: |
+          set +e
+          # S2 shadow (docs/CLOUDFLARE_REMOVAL_S2_DESIGN_2026-11-19.md): the Worker stays authoritative. The replacement reads
+          # config/release-control.json and its checker from the AUDITED BASE sha (never the PR head) and only prints a comparison.
+          gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/config/release-control.json?ref=$AUDITED_BASE" > "$RUNNER_TEMP/release-control.json" 2>/dev/null
+          gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/scripts/release-control-check.js?ref=$AUDITED_BASE" > "$RUNNER_TEMP/release-control-check.js" 2>/dev/null
+          RESULT="$(node "$RUNNER_TEMP/release-control-check.js" "$RUNNER_TEMP/release-control.json" 2>/dev/null | tail -1)"
+          case "$RESULT" in decision=CLEAR*) SHADOW=CLEAR;; *) SHADOW=BLOCK;; esac
+          case "$WORKER_OUTCOME" in
+            success) WORKER=CLEAR;;
+            failure) WORKER=BLOCK;;
+            *) echo "RELEASE_CONTROL_SHADOW check=1 match=na worker_outcome=$WORKER_OUTCOME"; exit 0;;
+          esac
+          if [ "$SHADOW" = "$WORKER" ]; then MATCH=true; else MATCH=false; fi
+          echo "RELEASE_CONTROL_SHADOW check=1 match=$MATCH worker=$WORKER shadow=$SHADOW pr=$PR_NUMBER detail=${RESULT:-no_result}"
+          exit 0
 
       - name: Mint dedicated release authority token
         id: release_authority_token
@@ -297,9 +320,32 @@ jobs:
           echo "Dedicated release authority published and re-read $AUTH_CONTEXT on exact head $EXPECTED_HEAD for audited base $AUDITED_BASE"
 
       - name: Re-verify durable control-plane clearance before merge
+        id: worker_check_2
         env:
           NUSA_RELEASE_CONTROL_URL: https://nusa-autopilot.desporin12.workers.dev/control-plane/release-check
         run: node "$RUNNER_TEMP/nusa-release-control-check.mjs"
+
+      - name: Shadow release-control check 2 (non-gating, never fails the job)
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          WORKER_OUTCOME: ${{ steps.worker_check_2.outcome }}
+        run: |
+          set +e
+          # S2 shadow (docs/CLOUDFLARE_REMOVAL_S2_DESIGN_2026-11-19.md): the Worker stays authoritative. The replacement reads
+          # config/release-control.json and its checker from the AUDITED BASE sha (never the PR head) and only prints a comparison.
+          gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/config/release-control.json?ref=$AUDITED_BASE" > "$RUNNER_TEMP/release-control.json" 2>/dev/null
+          gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/scripts/release-control-check.js?ref=$AUDITED_BASE" > "$RUNNER_TEMP/release-control-check.js" 2>/dev/null
+          RESULT="$(node "$RUNNER_TEMP/release-control-check.js" "$RUNNER_TEMP/release-control.json" 2>/dev/null | tail -1)"
+          case "$RESULT" in decision=CLEAR*) SHADOW=CLEAR;; *) SHADOW=BLOCK;; esac
+          case "$WORKER_OUTCOME" in
+            success) WORKER=CLEAR;;
+            failure) WORKER=BLOCK;;
+            *) echo "RELEASE_CONTROL_SHADOW check=2 match=na worker_outcome=$WORKER_OUTCOME"; exit 0;;
+          esac
+          if [ "$SHADOW" = "$WORKER" ]; then MATCH=true; else MATCH=false; fi
+          echo "RELEASE_CONTROL_SHADOW check=2 match=$MATCH worker=$WORKER shadow=$SHADOW pr=$PR_NUMBER detail=${RESULT:-no_result}"
+          exit 0
 
       - name: Re-verify authorization is still current before merge
         run: |
