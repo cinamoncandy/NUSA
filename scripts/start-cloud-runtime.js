@@ -206,6 +206,12 @@ function buildRuntimeEnv(baseEnv, token, ownerPaperAccount = readOwnerPaperAccou
     // Only a file that widens the research markets sets the experiment list; otherwise the runtime default (the research markets)
     // equals the PAPER list and nothing new is written.
     if (ownerPaperMarkets.separateResearchMarkets === true) wanted.NUSA_RESEARCH_EXPERIMENT_MARKETS = ownerPaperMarkets.experimentMarkets.join(",");
+    // A file without researchMarkets removes any host value of the experiment list (independent review, P1): a stale host value must
+    // not widen experiments. Without the variable the runtime follows NUSA_RESEARCH_MARKETS, which then equals the PAPER list.
+    else if (env.NUSA_RESEARCH_EXPERIMENT_MARKETS !== undefined) {
+      delete env.NUSA_RESEARCH_EXPERIMENT_MARKETS;
+      if (!applied.includes("NUSA_RESEARCH_EXPERIMENT_MARKETS")) applied.push("NUSA_RESEARCH_EXPERIMENT_MARKETS");
+    }
     for (const [key, value] of Object.entries(wanted)) {
       if (env[key] !== value) {
         env[key] = value;

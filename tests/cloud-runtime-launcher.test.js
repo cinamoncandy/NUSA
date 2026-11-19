@@ -257,6 +257,12 @@ test("the owner markets file can widen only the research collection: the PAPER f
   assert.equal(currentEnv.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP");
   assert.equal(currentEnv.NUSA_RESEARCH_MARKETS, "KRW-XRP");
   assert.equal(currentEnv.NUSA_RESEARCH_EXPERIMENT_MARKETS, undefined);
+  // A polluted host environment cannot widen experiments: without researchMarkets in the file the host value is removed.
+  const polluted = build({ NUSA_RESEARCH_EXPERIMENT_MARKETS: "KRW-BTC,KRW-ETH" }, TOKEN, null, current);
+  assert.equal(polluted.env.NUSA_RESEARCH_EXPERIMENT_MARKETS, undefined);
+  assert.ok(polluted.applied.includes("NUSA_RESEARCH_EXPERIMENT_MARKETS"));
+  // With researchMarkets in the file the file wins over a polluted host value.
+  assert.equal(build({ NUSA_RESEARCH_EXPERIMENT_MARKETS: "KRW-BTC" }, TOKEN, null, widened).env.NUSA_RESEARCH_EXPERIMENT_MARKETS, "KRW-XRP");
 
   const bad = [
     { schemaVersion: 1, markets: ["KRW-XRP"], experimentMarkets: ["KRW-XRP"] }, // experiment list without a research list
