@@ -232,3 +232,43 @@ test("the optional rollingHoldout owner key accepts only the exact words OFF or 
   assert.equal(readResearchExperimentSettings({ ...base, NUSA_RESEARCH_ROLLING_HOLDOUT: "SHADOW" }).settings.rollingHoldout, "SHADOW");
   for (const typo of ["shadow", "ENFORCE", "1", ""]) assert.equal(readResearchExperimentSettings({ ...base, NUSA_RESEARCH_ROLLING_HOLDOUT: typo }).settings.rollingHoldout, "OFF", `a typo (${typo}) never turns it on`);
 });
+
+test("the owner markets file can widen only the research collection: the PAPER feed stays on markets, experiments stay on experimentMarkets", () => {
+  const { readOwnerPaperMarkets, buildRuntimeEnv: build } = require("../scripts/start-cloud-runtime.js");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-markets-research-"));
+  const write = (value) => { const f = path.join(dir, "m.json"); fs.writeFileSync(f, JSON.stringify(value)); return f; };
+  const five = ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"];
+
+  const widened = readOwnerPaperMarkets(write({ schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: five }));
+  assert.deepEqual([...widened.researchMarkets], five);
+  assert.deepEqual([...widened.experimentMarkets], ["KRW-XRP"], "experiments default to the PAPER list, never to the research markets");
+  const { env, applied } = build({ NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC", NUSA_RESEARCH_MARKETS: "KRW-BTC" }, TOKEN, null, widened);
+  assert.equal(env.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP", "the PAPER trading feed stays on markets");
+  assert.equal(env.NUSA_RESEARCH_MARKETS, five.join(","));
+  assert.equal(env.NUSA_RESEARCH_EXPERIMENT_MARKETS, "KRW-XRP");
+  assert.ok(applied.includes("NUSA_RESEARCH_EXPERIMENT_MARKETS"));
+
+  const explicit = readOwnerPaperMarkets(write({ schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: five, experimentMarkets: ["KRW-XRP", "KRW-BTC"] }));
+  assert.equal(build({}, TOKEN, null, explicit).env.NUSA_RESEARCH_EXPERIMENT_MARKETS, "KRW-XRP,KRW-BTC");
+
+  // The current file (no new fields) writes no experiment list and keeps both lists on KRW-XRP.
+  const current = readOwnerPaperMarkets();
+  const currentEnv = build({}, TOKEN, null, current).env;
+  assert.equal(currentEnv.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP");
+  assert.equal(currentEnv.NUSA_RESEARCH_MARKETS, "KRW-XRP");
+  assert.equal(currentEnv.NUSA_RESEARCH_EXPERIMENT_MARKETS, undefined);
+
+  const bad = [
+    { schemaVersion: 1, markets: ["KRW-XRP"], experimentMarkets: ["KRW-XRP"] }, // experiment list without a research list
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: ["KRW-BTC", "KRW-XRP"] }, // first market must equal the PAPER first market
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: [...five, "KRW-ADA"] }, // more than five
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: ["KRW-XRP", "KRW-XRP"] },
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: ["KRW-XRP", "BTC-KRW"] },
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: "KRW-XRP" },
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: five, experimentMarkets: ["KRW-BTC"] }, // first must equal the PAPER first market
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: ["KRW-XRP", "KRW-BTC"], experimentMarkets: ["KRW-XRP", "KRW-ETH"] }, // not a subset
+    { schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: five, experimentMarkets: [] },
+  ];
+  for (const value of bad) assert.throws(() => readOwnerPaperMarkets(write(value)), /owner PAPER markets file is invalid/, JSON.stringify(value));
+  fs.rmSync(dir, { recursive: true, force: true });
+});

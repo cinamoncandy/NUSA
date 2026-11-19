@@ -1,0 +1,19 @@
+id: WO-LEARNING-20261119-RESEARCH-MARKETS-LAUNCHER
+title: "Launcher: optional researchMarkets and experimentMarkets in the owner markets file (step 2a of the market expansion design; the file itself is not changed)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Let the owner file widen only the research candle collection, keep the PAPER trading feed on markets, and name the experiment markets separately (default: the PAPER list), so a later file change cannot start experiments on new markets."
+change:
+  - "scripts/start-cloud-runtime.js: readOwnerPaperMarkets accepts optional researchMarkets and experimentMarkets (1-5 distinct KRW markets; first entry equals the first PAPER market; experimentMarkets is a subset of researchMarkets, defaults to markets, and needs researchMarkets); buildRuntimeEnv sets NUSA_CLOUD_UPBIT_MARKETS from markets only, NUSA_RESEARCH_MARKETS from researchMarkets, and NUSA_RESEARCH_EXPERIMENT_MARKETS only when researchMarkets is present."
+  - "tests/cloud-runtime-launcher.test.js: the widened file, defaults, explicit experiment list, the unchanged current file, nine malformed cases."
+not_changed:
+  - "deploy/oracle/paper-markets.json is NOT changed, so the host behaves exactly as before. The runtime does not read NUSA_RESEARCH_EXPERIMENT_MARKETS yet (step 2b, a separate PR); this change alone starts nothing. No gate, limit, threshold, capital, order switch or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "Launcher tests, validators, exact-head CI, independent non-author review."
