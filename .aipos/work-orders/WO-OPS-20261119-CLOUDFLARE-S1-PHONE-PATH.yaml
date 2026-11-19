@@ -1,0 +1,18 @@
+id: WO-OPS-20261119-CLOUDFLARE-S1-PHONE-PATH
+title: "Cloudflare removal S1: the phone path ends on the host (DNS, Caddy, source), and a correction about the Upbit bridge client"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Record, from read-only checks, that the phone does not depend on Cloudflare, and correct the earlier statement that the mobile Upbit client uses private exchange paths."
+change:
+  - "docs/CLOUDFLARE_REMOVAL_S1_FINDINGS_2026-11-18.md: section 6 (update and correction, what stays open)."
+not_changed:
+  - "No code, workflow, Cloudflare setting, host, release, gate, limit, threshold, capital, order switch or authority. No removal step starts."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI."

@@ -32,3 +32,29 @@ At source level the phone does not call the Worker. The only Cloudflare dependen
 ## 5. Next
 
 Finish the complete call table, read the variable value in the repository settings (owner), check on the phone which origin the app shows in its diagnostics, and trace `upbitLiveClient`. Then S2 (shadow the Worker decisions in Actions) can be designed. No removal step starts before S2 and S3 conditions of the proposal are met.
+
+## 6. Update 2026-11-19: the phone path and a correction
+
+Read-only checks on `main` (841038612) and the public name. Nothing here changes code, workflows, Cloudflare or the host.
+
+| Check | Result |
+| --- | --- |
+| DNS of `nusa-api.duckdns.org` | an A record to the host's own address (not a Cloudflare address) |
+| Response headers of the public `/health` | served by Caddy on the host (`via: 1.1 Caddy`); no Cloudflare header (`cf-ray`, `server: cloudflare`) |
+| Mobile origin | `resolveCanonicalCloudOrigin` takes the build's `EXPO_PUBLIC_NUSA_API_BASE_URL` or the generated build constant, HTTPS only, never an invented fallback |
+| Every `/v1/mobile/*` and `/api/*` path written in `apps/mobile` | host routes (`/v1/mobile/bootstrap`, `me`, `session/refresh`, `owner-device/authentication/challenge` and `complete`, `/api/paper-operations`, `/api/settings/investment-allocation`) or the Upbit bridge below |
+
+### Correction to section 2
+
+Section 2 said `upbitLiveClient.ts` uses Upbit private paths. That was wrong. `upbitLiveClient.ts` calls the repository's own read-only bridge `services/upbit-readonly` (default base URL `https://nusa-api.duckdns.org`; `/api/v1/account/summary`, `/api/v1/orders/open|history|:uuid`). The bridge binds to `127.0.0.1:3001` behind the reverse proxy, keeps the exchange keys in a host environment file, and implements no order, cancel, withdrawal or transfer. The only screen that reaches it is the Settings panel `UpbitConnectionPanel` ("UPBIT READ ONLY"), and it connects only while a valid PAPER session exists. So the phone never talks to Upbit or to the Worker directly; this client is not a `liveAuthority` path.
+
+### Reading
+
+For the phone, Cloudflare is not in the path: name, TLS and routes all end on the host. The remaining Cloudflare dependency is the repository's own auto-merge path (S0). This closes the source-level and public-name part of S1.
+
+### Still open
+
+- Value of the repository variable `NUSA_MOBILE_API_BASE_URL` (owner, repository settings) and the origin the owner's installed app shows.
+- Whether `nusa-upbit-readonly.service` is running on the host and whether the host's Caddy forwards `/api/v1/*` to it (a read-only host diagnosis; the app's Upbit panel reports an error otherwise, which is not a safety issue).
+- The Worker's Durable Object state and secrets (S4 rollback).
+- S2: shadowing the Worker's merge decisions in Actions before any removal.
