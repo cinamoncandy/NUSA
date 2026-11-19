@@ -75,3 +75,38 @@ The owner answered in chat (Korean, translated): "B" for the parked store PR (#3
 ## 6. What is not done
 
 No code. No store is created, nothing is wired in the runtime, no release, no host change, orders stay OFF. Each step above is a separate draft PR with an independent review.
+
+## 7. Inventory result, 2026-11-19 (read-only counts on the host)
+
+`scripts/permit-inventory.js` was run by the owner on the host as the service user against the real state database `/var/lib/nusa/state.sqlite` (the path in `NUSA_CLOUD_STATE_DB_PATH` of both env files; the 0-byte `nusa-cloud.sqlite` and `cloud-runtime.sqlite` in the same directory are not the state). Counts only, no row content; the first two attempts read the empty files and are discarded.
+
+| Group | Table | Rows |
+| --- | --- | --- |
+| models and samples | `ai_calibration_durability_events` | 0 |
+| | `ai_outcome_attribution_memory_events` | 0 |
+| | `evaluation_traces` | 0 |
+| | `ai_evaluation_records` | table absent |
+| research | `research_candidates` | 0 |
+| | `research_experiment_records` / `research_evaluation_ledger` | 811 / 811 |
+| | `research_holdout_usage` | 113 |
+| | `research_promotion_audit`, `research_champion_pointer`, `champion_assignments` | 0 |
+| market data | `research_closed_candles` | 81206 |
+| | `research_orderbook_samples` | 5153403 |
+| | `research_trade_ticks_v2` | 2000000 (an exact round number: most likely a retention cap, not confirmed) |
+| | `paper_public_market_observations` | 209166 |
+| futures data | `research_futures_klines` / `research_futures_funding` / `research_futures_marks` | 380 / 290 / 28194 |
+| permits and governance | `trade_permission_records`, `evidence_items` | table absent |
+| | `decision_certifications`, `strategy_governance_state` | 0 |
+| | `risk_paper_approvals` | 9035 |
+
+### What it shows
+
+- No permit store exists (`trade_permission_records` is absent), as designed: nothing is built before a candidate qualifies (decision 2 stands).
+- The probability engine has no labelled samples (calibration 0, outcome attribution 0). A calibrated probability, the first term of the statistical permit, cannot be produced honestly today; the design's rule that a missing input rejects stays the only safe behaviour.
+- `research_candidates` is 0 while 811 experiment records exist: consistent with the closed-loop verdict (no candidate passes).
+- Correction to the earlier assumption that futures data is empty: 380 klines, 290 funding and 28194 mark rows exist (collected before the exchange started refusing the host's region with HTTP 451). They are far too few for the regime signals (380 klines), and their time range and freshness were NOT read; the futures collector itself still fails with HTTP 451.
+- `risk_paper_approvals` has 9035 rows: PAPER risk approvals exist; what they approve was not read.
+
+### Not shown by counts
+
+Whether samples are bound to a model, market and outcome definition, the time span of each table, and whether `trade_ticks_v2` is capped. None of this changes a gate, a limit or the order switch.
