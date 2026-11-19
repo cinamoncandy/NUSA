@@ -50,3 +50,34 @@ test("a bad PR identity blocks", () => {
   assert.equal(run({}, { ...identity, baseSha: undefined }).code, "IDENTITY_SHA");
   assert.equal(evaluateReleaseControl(JSON.stringify(base), undefined).code, "IDENTITY_REPOSITORY");
 });
+
+test("CLI mode: exit code, single output line and the environment mapping", () => {
+  const { spawnSync } = require("node:child_process");
+  const os = require("node:os");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "rcc-"));
+  const file = path.join(dir, "release-control.json");
+  const script = path.join(__dirname, "..", "scripts", "release-control-check.js");
+  const env = { PATH: process.env.PATH, GITHUB_REPOSITORY: "owner/repo", PR_NUMBER: "12", EXPECTED_HEAD: "a".repeat(40), AUDITED_BASE: "b".repeat(40) };
+  fs.writeFileSync(file, JSON.stringify(base));
+  let result = spawnSync(process.execPath, [script, file], { env, encoding: "utf8" });
+  assert.equal(result.status, 0);
+  assert.equal(result.stdout.trim(), "decision=CLEAR code=RELEASE_CONTROL_CLEAR");
+  fs.writeFileSync(file, JSON.stringify({ ...base, holdState: "HOLD" }));
+  result = spawnSync(process.execPath, [script, file], { env, encoding: "utf8" });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout.trim(), "decision=BLOCK code=HOLD_ACTIVE");
+  result = spawnSync(process.execPath, [script, path.join(dir, "missing.json")], { env, encoding: "utf8" });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout.trim(), "decision=BLOCK code=FILE_UNREADABLE");
+  result = spawnSync(process.execPath, [script, file], { env: { PATH: process.env.PATH }, encoding: "utf8" });
+  assert.equal(result.status, 1, "missing identity env fails closed");
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("own __proto__ key and duplicate keys cannot produce CLEAR", () => {
+  assert.equal(evaluateReleaseControl('{"__proto__":{},"schemaVersion":1,"globalReleaseFreeze":false,"holdState":"NONE","liveAuthority":"NONE","productionMutationAllowed":false}', identity).decision, "BLOCK");
+  const dup = '{"schemaVersion":1,"globalReleaseFreeze":true,"globalReleaseFreeze":false,"holdState":"NONE","liveAuthority":"NONE","productionMutationAllowed":false,"aiAuthority":"ZERO_AUTHORITY"}';
+  assert.equal(evaluateReleaseControl(dup, identity).decision, "CLEAR"); // last key wins, as JSON.parse defines; the file is reviewed main code
+  const dup2 = '{"schemaVersion":1,"globalReleaseFreeze":false,"globalReleaseFreeze":true,"holdState":"NONE","liveAuthority":"NONE","productionMutationAllowed":false,"aiAuthority":"ZERO_AUTHORITY"}';
+  assert.equal(evaluateReleaseControl(dup2, identity).code, "GLOBAL_FREEZE_ACTIVE");
+});

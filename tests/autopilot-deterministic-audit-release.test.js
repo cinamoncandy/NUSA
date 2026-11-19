@@ -245,3 +245,21 @@ test("S2 shadow release-control steps never gate the merge and read from the aud
   // The Worker call stays authoritative: both Worker steps are unchanged except for the added id.
   assert.equal((releaseJob.match(/nusa-autopilot\.desporin12\.workers\.dev\/control-plane\/release-check/g) || []).length, 2);
 });
+
+test("S2 shadow steps are bounded, run before the release token is minted, and isolate the fetched checker", () => {
+  const releaseJob = workflow.split(/\r?\n  release:\r?\n/)[1];
+  const steps = releaseJob.split(/\r?\n      - name: /);
+  const mintIndex = steps.findIndex((step) => step.startsWith("Mint dedicated release authority token"));
+  const shadowIndexes = steps.map((step, index) => (step.startsWith("Shadow release-control check") ? index : -1)).filter((index) => index >= 0);
+  assert.equal(shadowIndexes.length, 2);
+  assert.ok(shadowIndexes[0] < mintIndex && shadowIndexes[1] > mintIndex, "shadow 1 before the mint, shadow 2 after the second Worker call");
+  for (const index of shadowIndexes) {
+    const step = steps[index];
+    assert.match(step, /timeout-minutes: 2/);
+    assert.match(step, /timeout 20 gh api/);
+    assert.match(step, /timeout 20 env -i PATH="\$PATH"/);
+    assert.match(step, /match=na reason=base_files_not_readable/);
+    assert.match(step, /success\) WORKER=CLEAR;;\s+failure\) WORKER=BLOCK;;/);
+    assert.doesNotMatch(step, /RELEASE_AUTH|release_authority_token|secrets\./);
+  }
+});

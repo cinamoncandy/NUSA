@@ -20,4 +20,7 @@ authority_impact: none
 acceptance:
   - "Unit tests, workflow validators, AIPOS validators, exact-head CI."
   - "Independent non-author review before merge (merge path)."
-  - "S2 evidence: 20 consecutive PRs with match=true (at least 3 touching workflows or release paths); a mismatch is root-caused and the count restarts."
+  - "S2 evidence: 20 consecutive PRs with match=true (at least 3 touching workflows or release paths); a mismatch is root-caused and the count restarts. The count starts at the first audit run after this PR is on main; lines with match=na (base files not readable, Worker step skipped) do not count and do not reset it."
+known_limits:
+  - "The checker validates the PR identity format only. The Worker's per-PR hold lives in its own store, which the file cannot reproduce, so a match=false for a PR the owner put on hold in the Worker is expected and must be root-caused, not dismissed."
+  - "The fetched checker runs with an empty environment (env -i) and a 20 s limit; each shadow step has a 2 minute limit so it cannot spend the release job's budget."
