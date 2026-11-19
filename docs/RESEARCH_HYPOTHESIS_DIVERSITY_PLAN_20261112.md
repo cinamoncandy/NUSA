@@ -42,3 +42,10 @@
 ## 6. 하지 않는 것
 
 PBO, 비용, 파라미터, 경제적 우위, 증거 폭 관문의 완화. 임계값, 위험 한도, 자본, 권한 변경. 사전등록 전에 새 가설군으로 결과를 미리 보는 일(홀드아웃 엿보기). 이 문서는 어떤 가설군도 구현하거나 실행하지 않는다.
+
+## 7. Addendum 2026-11-19 (state of the data sources; read-only host diagnosis of 2026-11-18)
+
+- **Futures (rank 4) is blocked by the data source, not by code.** `futuresCollector`: rounds 688, failures 4128, every failure `HTTP_451` ("unavailable for legal reasons": the exchange blocks the host's region), 0 marks, 0 funding, 0 klines. It stays blocked until a data source reachable from the host is chosen (owner decision). No proxy or other circumvention of the block is built or proposed.
+- **Order-book study, second run:** status `WAITING_DATA` (14 days collected). `orderBookCoverage` over the 192 h window: 132 h covered, ratio 0.688, longest gap 21 h, `meetsStudyBar=false` (bar 0.90). The cause is collection gaps of 2026-11-17/18 (collector stops, release backups): the same failure class as the first run (59.9 %). The stall fixes of 2026-11-18 (#3192, #3193) and the maintenance window (#3182) address that class; a third run needs a NEW pre-registration with a fresh window after the collector has run without gaps, not a re-reading of this one.
+- **Trade-flow v2:** `WAITING_DATA`, 2 days collected; first result no earlier than 2026-11-21 (pre-registered).
+- **Closed-loop verdict (`learningLoopVerdict`):** UNKNOWN; research inputs PASS (candles, dataset, experiment); trading chain broken at DECISION (`DECISION_NONE`, expected in COLLECT_ONLY); survivesRestart NOT_OBSERVED. L1 cannot close in COLLECT_ONLY by design.
