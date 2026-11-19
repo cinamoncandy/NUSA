@@ -1,0 +1,18 @@
+id: WO-LEARNING-20261119-CROSSMARKET-PREREG
+title: "Pre-registration draft: cross-market relative momentum on five KRW markets (L1 candidate supply, step B)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Fix the hypothesis, grid, spans, costs, K and PASS rule of the first multi-market family before any candle value of the four new markets is read, so that a result cannot influence the rule."
+change:
+  - "docs/RESEARCH_PREREG_2026-11-19_CROSSMARKET_MOMENTUM_60M.md (draft; binding only after an independent non-author review and merge)."
+not_changed:
+  - "No code, run, experiment, gate, threshold, holdout rule of the runtime ledger, budget, limit, capital, order switch or authority. experimentMarkets stays KRW-XRP. No study script is written before the document is merged and reviewed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; independent non-author review of the pre-registration before merge; exact-head CI."
