@@ -1,0 +1,18 @@
+id: WO-LEARNING-20261119-L2-GAP-ANALYSIS
+title: "Learning loop L2: gap analysis before any build (what exists, what is missing, the record-only minimum)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Find out what L2 (a cause classification for every failed candidate, research priority from recorded evidence) still needs, so the next step is a measured, record-only change and not a guess."
+change:
+  - "docs/LEARNING_L2_GAP_ANALYSIS_2026-11-19.md: existing pieces (meta-learning policy, counters, rejection codes, experiment records), the gap (no per-candidate durable cause row, no pinned cause taxonomy), the record-only proposal, what must happen before building."
+not_changed:
+  - "No code, table, workflow, host, release, gate, limit, threshold, capital, order switch or authority. Nothing is built."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI. Independent non-author review before any build."
