@@ -1,7 +1,10 @@
 {
   "schemaVersion": 1,
   "markets": ["KRW-XRP"],
+  "researchMarkets": ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"],
+  "experimentMarkets": ["KRW-XRP"],
   "decidedBy": "owner",
   "decidedAt": "2026-10-03",
-  "note": "PAPER only. Applied over the host NUSA_CLOUD_UPBIT_MARKETS and NUSA_RESEARCH_MARKETS at start. Owner decision: trade and learn KRW-XRP first; add other markets later by changing this file in a reviewed release."
+  "researchMarketsDecidedAt": "2026-11-19",
+  "note": "PAPER only. Applied over the host NUSA_CLOUD_UPBIT_MARKETS and NUSA_RESEARCH_MARKETS at start. Owner decision 2026-10-03: trade and learn KRW-XRP first. `markets` is the PAPER trading feed and stays KRW-XRP. Owner decision 2026-11-19 (docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md): `researchMarkets` widens ONLY the research candle collection, backfill and gap-fill; `experimentMarkets` is where experiments run and stays KRW-XRP until a pre-registered cross-market hypothesis is merged. No order, limit, capital or authority changes."
 }
