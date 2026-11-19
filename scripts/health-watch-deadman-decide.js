@@ -1,8 +1,11 @@
 "use strict";
 // Dead-man decision for the Health Watch (design v5, C5): "the watch itself is watched". Pure function; the workflow passes the completion time
 // of the newest finished Health Watch run (or nothing) and the current time. The Health Watch is scheduled every 30 minutes, but GitHub starts
-// scheduled runs on a best-effort basis (hours late has been seen), so a long silence is itself an alarm.
-const MAX_SILENCE_MINUTES = 120;
+// scheduled runs on a best-effort basis. MEASURED 2026-11-19: only 16 scheduled runs in five days (expected about 240), spaced 6.5 to 8.8 hours
+// (2026-11-17 02:01, 10:32, 19:19; 2026-11-18 01:49, 10:01, 18:47 UTC). A 2-hour limit therefore cried wolf on the first run (silent 842 minutes
+// was a real, ordinary gap), so the limit is 12 hours: it catches a watch that was disabled or broken, not a slow scheduler. The watch is NOT a
+// 30-minute watch here; the independent routine of the owner's session (every 2 hours, pushing only when something is wrong) covers the gap.
+const MAX_SILENCE_MINUTES = 720;
 
 function decideDeadman(latestRunCompletedAt, nowMs, maxSilenceMinutes = MAX_SILENCE_MINUTES) {
   if (!Number.isFinite(nowMs) || !Number.isFinite(maxSilenceMinutes) || maxSilenceMinutes <= 0) return { alert: "CONFIG_INVALID", reason: "invalid_clock_or_limit" };

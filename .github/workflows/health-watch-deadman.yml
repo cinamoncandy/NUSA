@@ -2,7 +2,7 @@ name: Health Watch Dead-man
 
 # Design v5, C5: the watch itself is watched. The Health Watch (every 30 minutes) opens an issue when the PAPER host is wrong, but if the watch stops
 # running nobody hears anything. This job reads the completion time of the newest finished Health Watch run through the GitHub API and opens or updates ONE
-# issue when that run is older than the limit in scripts/health-watch-deadman-decide.js (120 minutes) or when no run exists. Read-only: it changes no
+# issue when that run is older than the limit in scripts/health-watch-deadman-decide.js (12 hours: GitHub starts the scheduled Health Watch only about every 6-9 hours in this repository) or when no run exists. Read-only: it changes no
 # file, calls no external service, uses no secret and never touches the host. The issue text is fixed; only a short reason code and the run URL reach it.
 # Limit of this design: both workflows depend on GitHub's scheduler. It catches a watch that was disabled, broken or starved, not a GitHub-wide outage.
 # PAPER only, LIVE NONE, AI ZERO_AUTHORITY.
@@ -58,7 +58,7 @@ jobs:
             WATCH_NEVER_RAN) TITLE="Health Watch has no finished run (the watch itself is silent)";;
             *) TITLE="Health Watch dead-man check is misconfigured";;
           esac
-          BODY="$(printf 'Dead-man result: %s (%s).\n\nRun: %s\n\nThe Health Watch workflow (every 30 minutes) has not finished a run within the limit, or the check could not read it. Open Actions, Health Watch: is it enabled, failing or starved? This check is read-only and changes nothing. Close this issue when the Health Watch runs again.' "$ALERT" "$REASON" "$RUN_URL")"
+          BODY="$(printf 'Dead-man result: %s (%s).\n\nRun: %s\n\nThe Health Watch workflow (scheduled every 30 minutes, in practice every 6-9 hours) has not finished a run within 12 hours, or the check could not read it. Open Actions, Health Watch: is it enabled, failing or starved? This check is read-only and changes nothing. Close this issue when the Health Watch runs again.' "$ALERT" "$REASON" "$RUN_URL")"
           find_existing() {
             gh api --paginate "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" --jq ".[] | select(.pull_request == null and .title == \"$TITLE\") | .number" | awk 'NR == 1'
           }
