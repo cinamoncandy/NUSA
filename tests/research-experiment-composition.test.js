@@ -988,3 +988,13 @@ test("five collected markets start no experiment on the new markets and leave th
     } finally { ungated.composition.stop(); ungated.db.close(); }
   } finally { for (const x of [baseline, gated]) { x.composition.stop(); x.db.close(); } }
 });
+
+test("the committed owner markets file, through the launcher, gives five collected markets and experiments on KRW-XRP only", () => {
+  const { buildRuntimeEnv, readOwnerPaperMarkets } = require("../scripts/start-cloud-runtime.js");
+  const { env: launched } = buildRuntimeEnv({}, "t".repeat(32), null, readOwnerPaperMarkets(), null);
+  assert.equal(launched.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP", "the PAPER feed is not widened");
+  const result = readResearchExperimentSettings(env({ NUSA_RESEARCH_MARKETS: launched.NUSA_RESEARCH_MARKETS, NUSA_RESEARCH_EXPERIMENT_MARKETS: launched.NUSA_RESEARCH_EXPERIMENT_MARKETS }));
+  assert.equal(result.status, "ENABLED");
+  assert.deepEqual([...result.settings.markets], ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]);
+  assert.deepEqual([...result.settings.experimentMarkets], ["KRW-XRP"]);
+});

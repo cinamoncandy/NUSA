@@ -1,0 +1,26 @@
+id: WO-LEARNING-20261119-RESEARCH-MARKETS-FIVE
+title: "Research collection on five markets (KRW-XRP, BTC, ETH, SOL, DOGE); the PAPER feed and the experiments stay on KRW-XRP (step 2c of the market expansion design)"
+status: READY_FOR_REVIEW
+created: 2026-11-19
+objective: "Collect, backfill and gap-fill candles for four more liquid KRW markets so a pre-registered cross-market hypothesis becomes testable, without any new experiment, configuration, holdout use, order or authority."
+change:
+  - "deploy/oracle/paper-markets.json: researchMarkets (five) and experimentMarkets (KRW-XRP); markets stays KRW-XRP."
+  - "tests/cloud-runtime-launcher.test.js: the committed file gives the five research markets, the feed and the experiment list stay on KRW-XRP, a polluted host value cannot widen experiments."
+  - "tests/research-experiment-composition.test.js: the committed file through the launcher gives settings.markets five and settings.experimentMarkets KRW-XRP."
+precondition_met:
+  - "Step 2a (launcher, #3210) and 2b (experiment gate, #3211) are merged and released: build 920a91e28 on the host since 2026-11-19 18:00 KST (release run 309). The gate pinned zero new experiments and byte-identical XRP identity (and a negative control: 50 experiments without the gate)."
+release_plan:
+  - "Before values (2026-11-19 18:03 KST, build 920a91e28): eventLoopMaxStallMs 1294, stall count 1, research candles 81437, gap-fill lastMaterializeMs 23788 and maxMaterializeMs 25303 (one market), root disk about 90 percent (2026-11-18 diagnose)."
+  - "After the release read, each 30 minutes for 6 hours, then daily: eventLoopMaxStallMs and stall count, gap-fill timings per market, candle counts per market, experiment tick delay (research ticks per hour), disk, memory, load, runner. Abnormal means a stall above 5 s, disk above 85 percent, memory available below 1 GB, a research tick delayed by more than 3 times its interval, or any experiment on a non-XRP market. Rollback: a reviewed change that removes researchMarkets and experimentMarkets from the file, released the same way."
+  - "Not inside 2026-11-24T06:00Z..2026-11-28T06:00Z; not when the owner is unavailable."
+not_changed:
+  - "The PAPER trading feed (NUSA_CLOUD_UPBIT_MARKETS) stays KRW-XRP. No experiment, configuration or holdout use on a new market. No gate, threshold, budget, risk limit, capital, order switch or authority. Orders stay OFF, Release=HOLD."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "Launcher and composition tests, validators, exact-head CI. Staged release with the read above."
