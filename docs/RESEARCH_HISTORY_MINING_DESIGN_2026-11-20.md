@@ -43,5 +43,7 @@ Which of these do you want?
 3. **Extend the backfill deeper** (the exchange's public history, months instead of weeks) so the window is not scarce and the hold-back is longer; this needs a reviewed change and a release.
 Nothing is built or paid by any option until you choose.
 
+**Owner answer 2026-11-20 (KST): "쓸게" (I will use it).** Read as option 2 (mine the pre-2026-11-20 window), with section 4 step 1 first: the extent of the history must be measured from counts before any window is fixed. A read-only extent probe (per market: row count, first and last close time, number of proven-absent minutes; no value) is the next step (work order `WO-LEARNING-20261120-CANDLE-EXTENT-PROBE`). No window is fixed and no value is read until the counts are known. Not chosen: option 3 (deeper backfill).
+
 ## 8. What this document does not do
 No code, run, experiment, gate, threshold, limit, capital, order switch or authority change. `experimentMarkets` stays KRW-XRP. No value of any reserved span is read.
