@@ -4,7 +4,7 @@ status: READY_FOR_REVIEW
 created: 2026-11-20
 objective: "Fix the signal family, directions, span, statistic, bootstrap, Holm adjustment and PASS rule of the first multi-signal screen before any value of its span exists. Owner decision 2026-11-20 (KST): use the 30-day screen."
 change:
-  - "docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M.md (draft; binding only after an independent non-author review and merge, before 2026-12-10T00:30Z)."
+  - "docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M.md (draft; binding only after an independent non-author review and merge, before 2026-11-30T00:00Z)."
 not_changed:
   - "No code, run, experiment, gate, threshold, limit, capital, order switch or authority change. No study script before the document is merged and reviewed. experimentMarkets stays KRW-XRP."
 safety:
