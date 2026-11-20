@@ -66,6 +66,9 @@ function run(options = {}) {
   // Its failure cannot fail Research; a hung run can still delay it by up to its 600 s timeout.
   const crossmarket = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-crossmarket-study.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 600000 });
   if (crossmarket.error || crossmarket.signal || crossmarket.status !== 0) console.error("[cloud-research-snapshot] CROSSMARKET_STUDY_FAILED_CLOSED");
+  // Read-only extent of the stored candle history (counts and close times only, no value; WO-LEARNING-20261120-CANDLE-EXTENT-PROBE). Never blocks Research.
+  const extent = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-candle-extent-probe.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 120000 });
+  if (extent.error || extent.signal || extent.status !== 0) console.error("[cloud-research-snapshot] CANDLE_EXTENT_FAILED_CLOSED");
   const args = [RESEARCH_MAX_OLD_SPACE_ARG, "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"];
   const result = spawn(executable, args, { cwd, env, stdio: "inherit", shell: false });
   if (result.error) throw result.error;

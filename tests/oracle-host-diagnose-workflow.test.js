@@ -271,3 +271,22 @@ test("the diagnosis projects the CROSSMARKET study line to a fixed status, numbe
   assert.equal(project("[cloud-research-snapshot] CROSSMARKET_STUDY_FAILED_CLOSED"), "CROSSMARKET_STUDY_FAILED_CLOSED");
   assert.equal(project(""), "CROSSMARKET_STUDY_UNAVAILABLE");
 });
+
+// WO-LEARNING-20261120-CANDLE-EXTENT-PROBE: the diagnosis shows the latest CANDLE_EXTENT line, integers only.
+test("the diagnosis projects the CANDLE_EXTENT line to a fixed status and integers", () => {
+  const start = text.indexOf("extent=\"$(journalctl");
+  assert.ok(start > 0, "the projection exists");
+  const block = text.slice(start, text.indexOf("summary=\"${summary}\"$'\\n'\"candle_extent", start));
+  assert.match(text, /summary="\$\{summary\}"\$'\\n'"candle_extent=\$\{extent\}"/);
+  const code = block.slice(block.indexOf("node -e '") + "node -e '".length, block.lastIndexOf("')\""));
+  const project = (input) => {
+    const run = require("node:child_process").spawnSync(process.execPath, ["-e", code], { input, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout.trim();
+  };
+  const line = { status: "OK", BTCRows: 16000, BTCFirstMs: 1795000000000, XRPLastMs: 1795100000000, note: "free text", BTCClose: 1.5 };
+  assert.deepEqual(JSON.parse(project("CANDLE_EXTENT " + JSON.stringify(line))), { status: "OK", BTCRows: 16000, BTCFirstMs: 1795000000000, XRPLastMs: 1795100000000 });
+  assert.equal(project("CANDLE_EXTENT " + JSON.stringify({ status: "FORGED" })), "CANDLE_EXTENT_UNAVAILABLE");
+  assert.equal(project("[cloud-research-snapshot] CANDLE_EXTENT_FAILED_CLOSED"), "CANDLE_EXTENT_FAILED_CLOSED");
+  assert.equal(project(""), "CANDLE_EXTENT_UNAVAILABLE");
+});
