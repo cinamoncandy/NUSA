@@ -1,0 +1,36 @@
+# Design (not a pre-registration): a pooled signal screen for L1 candidate supply (PAPER research)
+
+Status: **design for review, written 2026-11-20 (KST). Nothing here is built, run or binding.** A pre-registration would be a separate document after the owner's decision. Learning loop level: L1 candidate supply, as the cross-market pre-registration labels it (`docs/LEARNING_LOOP_LEVELS_20261112.md` defines L1 as the completion of the closed loop; the name is used here only for "supply of candidates"). The count of 811 experiment records is the figure quoted in the cross-market pre-registration and was not re-checked here. Related: `docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md`, `docs/RESEARCH_PREREG_2026-11-19_CROSSMARKET_MOMENTUM_60M.md`.
+
+## 1. Problem
+L1 has produced no candidate in 811+ experiment records, and every pre-registered study so far tests **one** hypothesis on one span and can detect only a **large** edge (the cross-market study: about 240 trades, 80 percent power only for a net edge near 0.16 percent per trade). One hypothesis per span is slow: each study costs about three weeks of calendar time, and a clean negative says little. The bottleneck is not ideas but how much information one span can give.
+
+## 2. Idea: screen several candidate signals at once with one statistic
+Use the **hourly rank information coefficient (IC)**: for each hour, the Spearman correlation across the eligible markets between a signal and the next-hour return. The cross-market study already defines it as its stage 1. It reads a whole cross-section per hour, so it uses more of the data than a top-1 trade test, but how much more is **not quantified** here and the screen is not claimed to be the most powerful statistic. The signals come from a **fixed list** and the family-wise error is controlled. A signal that passes is only **eligible for its own pre-registered tradability test** (costs, spreads, a later span). It is not eligible for a SHADOW test directly, and nothing is promoted.
+
+## 3. Proposed fixed family (to be frozen in a pre-registration, not here)
+- **About 8 distinct signals**, formulas fixed in advance, each with a **direction fixed in advance** (otherwise a two-sided test with K doubled): trailing return over 6, 24 and 72 h; realized volatility over 24 h; volume surge (last hour over the 24 h mean); range position (close within the 24 h high-low range); spread in bp; and, only if its coverage rule below passes, order-book imbalance and trade-flow imbalance. Dropped as duplicates: "relative to the five-market mean" (same cross-sectional ranks as the trailing return at the same lookback) and 1 h return (nested with the target).
+- **Target: next-hour close-to-close return.** A 4 h target is descriptive only (overlapping and nested with the 1 h target) and never enters K.
+- **Inference unit is the hour**, not hour x market: each hourly IC ranks at most 5 items and the five markets co-move, so the effective sample is the number of hours. An hour needs at least 3 eligible markets (as in the cross-market study); the hourly IC is weighted by (n_eligible - 1) so that hours with 3 markets do not count as much as hours with 5. Ties use average ranks; an hour with constant ranks is excluded and counted.
+- **Inference:** a stationary bootstrap with a fixed expected block length of 24 hours and B = 10,000, the null imposed by centring. Because the threshold is small, the span must contain **at least 30 blocks (30 days)**; with fewer, the screen is not run (INSUFFICIENT_DATA), not run anyway.
+- **Multiple testing:** Holm over K = the number of signals in the frozen family (about 8; one-sided, fixed directions). Holm is valid under any dependence but is conservative here because the signals are correlated, which lowers power further; this is accepted and stated.
+- **Coverage rule (objective, fixed before the freeze):** a book or tick signal enters the family only if its usable-hour share in the span's eligibility part is at least 90 percent for each market it uses; otherwise it is excluded **before** the freeze so K stays fixed. The book convention is the last sample in (t - 2 min, t], not crossed.
+- **Separate family:** its K does not enter the runtime experiment ledger or its cumulative bar, nor the cross-market study's family; the two studies share the five-market dataset and are registered as separate families, as the trade-flow and order-book studies were.
+- Spans: fixed in the future in the pre-registration; a part for eligibility only (no standardisation is needed for rank IC), and a screening span of at least 30 days opened once.
+
+## 4. What it can and cannot say (quantified, assumptions not measured data)
+- For one hourly IC among 5 markets the null standard deviation is about 0.5. Over about 700 hours (30 days) the standard error of the mean IC is about 0.019 if hours were independent, larger with autocorrelation and the common factor. Holm over K of about 8 needs a one-sided p near 0.006, a z near 2.5, i.e. a mean IC of roughly **0.05 or more to pass**, and about **0.07 for 80 percent power**. An IC of 0.03 has low power (well under 50 percent). **Smaller information coefficients are invisible.** (With the originally imagined 240 hours the minimum would be about 0.1; the 30-day minimum is the reason for the longer span.)
+- It cannot show profit: a positive IC says nothing about fees, spread or capacity.
+- Overlap with other studies: no screening span may overlap the cross-market holdout (2026-11-30 to 2026-12-10). The 6 h and 24 h return signals duplicate the cross-market study's stage 1 and descriptive cells; the screen uses a **later** span and says so. **The family is frozen before the cross-market holdout is opened**, so that its result cannot steer the list.
+
+## 5. Risks and honest prior
+- Low prior: a signal that survives Holm adjustment on liquid KRW spot at hour scale is unlikely. The value of the screen is information per calendar time, **not a high chance of success**. Compared with a single-hypothesis study (about three weeks, 240 trades, only a large edge visible), this screen needs 30 days but tests about 8 signals at a coarser threshold (IC of about 0.05 and more); it is not shorter, it is wider.
+- Family-selection snooping: the list was designed after earlier XRP experiments and the trade-flow and order-book studies read book and tick data of several markets. This is disclosed; the freeze before 2026-11-30 limits further steering. XRP candle values are not blind (earlier experiments read them); the screen says so.
+- Calendar: the earliest span starts after 2026-12-10, so a result is available in January at the earliest.
+
+## 6. Decision needed from the owner before a pre-registration is written
+1. Whether to spend a 30-day span (after 2026-12-10, result in January at the earliest) on a screen that can see an IC of about 0.05 or more and has a low prior, instead of further single-hypothesis studies. No recommendation is made beyond the numbers above.
+2. Nothing about signal sources: the default is **candles only**, and a book or tick signal joins only if the coverage rule in section 3 passes in the training part.
+
+## 7. What this document does not do
+No code, no run, no experiment, gate, threshold, limit, capital, order switch or authority change. `experimentMarkets` stays KRW-XRP.
