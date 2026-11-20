@@ -23,7 +23,7 @@ test("forward timeout/nonzero failures remain explicit while independent canonic
     let calls = 0;
     const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
       spawnSync: () => ++calls === 1 ? failure : { status: 0 } });
-    assert.equal(calls, 10); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
+    assert.equal(calls, 11); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
   }
 });
 
@@ -31,7 +31,7 @@ test("an order-book study failure is logged and never blocks canonical Research"
   let calls = 0;
   const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
     spawnSync: () => ++calls === 2 ? { status: 1 } : { status: 0 } });
-  assert.equal(calls, 10); assert.equal(result.status, "COMPLETED");
+  assert.equal(calls, 11); assert.equal(result.status, "COMPLETED");
 });
 
 test("a trade-flow study failure is logged and never blocks canonical Research", () => {
@@ -129,7 +129,7 @@ test("runs bounded forward study then canonical preload + real public-market Res
     },
   });
   assert.equal(result.status, "COMPLETED");
-  assert.equal(calls.length, 10);
+  assert.equal(calls.length, 11);
   assert.deepEqual(calls[0].args, ["--max-old-space-size=256", "scripts/run-regime-forward-study.js"]);
   assert.equal(calls[0].options.timeout, 120000);
   assert.deepEqual(calls[1].args, ["--max-old-space-size=256", "scripts/run-orderbook-study.js"]);
@@ -150,6 +150,8 @@ test("runs bounded forward study then canonical preload + real public-market Res
   assert.equal(calls[7].options.timeout, 600000);
   assert.deepEqual(calls[8].args, ["--max-old-space-size=256", "scripts/run-candle-extent-probe.js"]);
   assert.equal(calls[8].options.timeout, 120000);
+  assert.deepEqual(calls[9].args, ["--max-old-space-size=256", "scripts/run-orderbook-gap-probe.js"]);
+  assert.equal(calls[9].options.timeout, 120000);
   assert.equal(result.learningLedgerPath, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
   assert.equal(observed.executable, path.resolve("/usr/bin/node"));
   assert.deepEqual(observed.args, ["--max-old-space-size=256", "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"]);

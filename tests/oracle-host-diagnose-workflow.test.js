@@ -312,3 +312,22 @@ test("the diagnosis projects the SIGNAL_SCREEN_STUDY line to a fixed status, num
   assert.equal(project("[cloud-research-snapshot] SIGNAL_SCREEN_STUDY_FAILED_CLOSED"), "SIGNAL_SCREEN_STUDY_FAILED_CLOSED");
   assert.equal(project(""), "SIGNAL_SCREEN_STUDY_UNAVAILABLE");
 });
+
+// WO-LEARNING-20261120-ORDERBOOK-GAP-PROBE: the diagnosis shows the latest ORDERBOOK_GAPS line, integers only.
+test("the diagnosis projects the ORDERBOOK_GAPS line to a fixed status and integers", () => {
+  const start = text.indexOf("obgaps=\"$(journalctl");
+  assert.ok(start > 0, "the projection exists");
+  const block = text.slice(start, text.indexOf("summary=\"${summary}\"$'\\n'\"orderbook_gaps", start));
+  assert.match(text, /summary="\$\{summary\}"\$'\\n'"orderbook_gaps=\$\{obgaps\}"/);
+  const code = block.slice(block.indexOf("node -e '") + "node -e '".length, block.lastIndexOf("')\""));
+  const project = (input) => {
+    const run = require("node:child_process").spawnSync(process.execPath, ["-e", code], { input, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout.trim();
+  };
+  const line = { status: "OK", windowHours: 192, coveredHours: 131, uncoveredHours: 61, gapOneStartMs: 1794000000000, gapOneHours: 21, note: "free text", ratio: 0.68 };
+  assert.deepEqual(JSON.parse(project("ORDERBOOK_GAPS " + JSON.stringify(line))), { status: "OK", windowHours: 192, coveredHours: 131, uncoveredHours: 61, gapOneStartMs: 1794000000000, gapOneHours: 21 });
+  assert.equal(project("ORDERBOOK_GAPS " + JSON.stringify({ status: "FORGED" })), "ORDERBOOK_GAPS_UNAVAILABLE");
+  assert.equal(project("[cloud-research-snapshot] ORDERBOOK_GAPS_FAILED_CLOSED"), "ORDERBOOK_GAPS_FAILED_CLOSED");
+  assert.equal(project(""), "ORDERBOOK_GAPS_UNAVAILABLE");
+});

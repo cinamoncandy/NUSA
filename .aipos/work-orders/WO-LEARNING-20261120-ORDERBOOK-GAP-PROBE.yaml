@@ -1,0 +1,25 @@
+id: WO-LEARNING-20261120-ORDERBOOK-GAP-PROBE
+title: "Read-only map of the order-book coverage gaps (sample times only)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "The order-book coverage is 68.2 percent against the 90 percent bar and the positions of its 61 uncovered hours in the 192-hour window are unknown (docs/FINDINGS_2026-11-20.md section 2). Map them from sample times only, without reading any price or size, to estimate when old outages leave the window and whether a recent outage still counts."
+change:
+  - "scripts/run-orderbook-gap-probe.js: for the last 192 full hours, the covered hours (a sample in the 2 minutes up to the hour, as in orderBookCoverage.ts), the number of gap runs, the longest gap and the start and length of the six longest runs for KRW-BTC; prints ORDERBOOK_GAPS; selects captured_at_ms only."
+  - "scripts/run-cloud-research-snapshot.js: one more bounded child (120 s timeout), failure logged as ORDERBOOK_GAPS_FAILED_CLOSED and never blocking Research."
+  - ".github/workflows/oracle-host-diagnose.yml: a read-only projection of the latest ORDERBOOK_GAPS line (integers only)."
+  - "tests for the probe, the runner (11 children) and the diagnosis projection."
+notes:
+  - "The probe reads the live table and the study archive table as one source (the order-book study's definition, scripts/lib/orderBookSource.js); /health orderBookCoverage reads only the live table, so for hours beyond the roughly 14-day prune horizon the two counts can differ: that is not a bug. The projection greps 26 hours of journal and shows the latest line; asOfMs says which hour the map ends at."
+not_changed:
+  - "No experiment, gate, threshold, limit, capital, order switch or authority change. No book value (bid, ask, size) is read; no gap is repaired; no study rule changes."
+release_plan:
+  - "Bundled with the next release (outside the freeze 2026-11-24T06:00Z..2026-11-28T06:00Z, owner awake, before/after read; rollback = previous sha). The line first appears after the next daily Research run (09:15 KST)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "The three test files pass; independent non-author review; exact-head CI."
