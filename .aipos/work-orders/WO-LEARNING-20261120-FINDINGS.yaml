@@ -1,0 +1,18 @@
+id: WO-LEARNING-20261120-FINDINGS
+title: "Findings 2026-11-20: Cloudflare S2 evidence count and order-book coverage analysis (read-only)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "Record the S2 shadow evidence count (14 of 20 consecutive identical decisions, all CLEAR) and a code-based analysis of the order-book coverage shortfall, with the open questions."
+change:
+  - "docs/FINDINGS_2026-11-20.md (read-only findings)."
+not_changed:
+  - "No code, run, gate, threshold, limit, capital, order switch or authority change. S3 not started."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; exact-head CI."
