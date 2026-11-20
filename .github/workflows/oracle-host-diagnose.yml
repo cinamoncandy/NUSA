@@ -195,6 +195,13 @@ jobs:
             const out = { status: "OK" }; for (const [k, x] of Object.entries(v)) if (/^[a-zA-Z]{1,40}$/.test(k) && Number.isSafeInteger(x)) out[k] = x; console.log(JSON.stringify(out));
           } catch { console.log(line.includes("CANDLE_EXTENT_FAILED_CLOSED") ? "CANDLE_EXTENT_FAILED_CLOSED" : "CANDLE_EXTENT_UNAVAILABLE"); }')"
           summary="${summary}"$'\n'"candle_extent=${extent}"
+          # Latest read-only order-book gap map (sample times only, no price or size): integers only.
+          obgaps="$(journalctl -u nusa-research.service --since "-26 hours" --no-pager -o cat 2>/dev/null | grep 'ORDERBOOK_GAPS' | tail -1 | cut -c1-3000 | node -e '
+          const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("ORDERBOOK_GAPS ");
+          try { const v = JSON.parse(line.slice(i + 15)); if (i < 0 || v.status !== "OK") throw 0;
+            const out = { status: "OK" }; for (const [k, x] of Object.entries(v)) if (/^[a-zA-Z]{1,40}$/.test(k) && Number.isSafeInteger(x)) out[k] = x; console.log(JSON.stringify(out));
+          } catch { console.log(line.includes("ORDERBOOK_GAPS_FAILED_CLOSED") ? "ORDERBOOK_GAPS_FAILED_CLOSED" : "ORDERBOOK_GAPS_UNAVAILABLE"); }')"
+          summary="${summary}"$'\n'"orderbook_gaps=${obgaps}"
           # Latest stored-data integrity probe from the Research service: a fixed status plus integers only.
           integrity="$(journalctl -u nusa-research.service --since "-26 hours" --no-pager -o cat 2>/dev/null | grep 'DATA_INTEGRITY' | tail -1 | cut -c1-2000 | node -e '
           const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("DATA_INTEGRITY ");

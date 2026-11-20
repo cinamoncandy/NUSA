@@ -73,6 +73,9 @@ function run(options = {}) {
   // Read-only extent of the stored candle history (counts and close times only, no value; WO-LEARNING-20261120-CANDLE-EXTENT-PROBE). Never blocks Research.
   const extent = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-candle-extent-probe.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 120000 });
   if (extent.error || extent.signal || extent.status !== 0) console.error("[cloud-research-snapshot] CANDLE_EXTENT_FAILED_CLOSED");
+  // Read-only map of the order-book coverage gaps (sample times only, no price or size; WO-LEARNING-20261120-ORDERBOOK-GAP-PROBE). Never blocks Research.
+  const gaps = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-orderbook-gap-probe.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 120000 });
+  if (gaps.error || gaps.signal || gaps.status !== 0) console.error("[cloud-research-snapshot] ORDERBOOK_GAPS_FAILED_CLOSED");
   const args = [RESEARCH_MAX_OLD_SPACE_ARG, "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"];
   const result = spawn(executable, args, { cwd, env, stdio: "inherit", shell: false });
   if (result.error) throw result.error;
