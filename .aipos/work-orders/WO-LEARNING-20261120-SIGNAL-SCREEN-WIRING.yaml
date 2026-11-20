@@ -1,0 +1,22 @@
+id: WO-LEARNING-20261120-SIGNAL-SCREEN-WIRING
+title: "Run the pre-registered signal screen script on the Research cadence and show its line in the diagnosis (read-only)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "Put the merged signal screen script (#3224, pre-registration V2) on the host's existing Research cadence so that it logs counts before the eligibility part starts (2026-12-11) and so that the daily diagnosis shows its line. The release must happen before 2026-12-11T00:00Z and outside the freeze 2026-11-24T06:00Z..2026-11-28T06:00Z, with the owner awake."
+change:
+  - "scripts/run-cloud-research-snapshot.js: one more bounded child (600 s timeout, 256 MB heap like its siblings) running scripts/run-signal-screen.js; its failure is logged as SIGNAL_SCREEN_STUDY_FAILED_CLOSED and cannot fail Research."
+  - ".github/workflows/oracle-host-diagnose.yml: a read-only projection of the latest SIGNAL_SCREEN_STUDY journal line (fixed status, numbers, booleans, the 64-hex dataset fingerprint; letters-only keys)."
+  - "scripts/run-cloud-research-snapshot.test.js (10 children, new failure test) and tests/oracle-host-diagnose-workflow.test.js (projection test)."
+not_changed:
+  - "No experiment, gate, threshold, limit, capital, order switch or authority change. Before 2027-01-17T00:30Z the script selects close times only (counts); experimentMarkets stays KRW-XRP."
+release_plan:
+  - "Ordinary release path after merge, in a window outside the freeze, owner awake, before/after read (stall, gap-fill, disk, experiment tick delay); rollback is the previous sha (the study child is the only change). The line first appears after the next daily Research run (09:15 KST)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "The three test files pass; independent non-author review; exact-head CI."
