@@ -1,0 +1,26 @@
+id: WO-OPS-20261120-PERMIT-AUTHORITY-WIRING
+title: "Wire the read-only permit store authority into the production composition, default OFF (design work item c)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+implementation_branch: claude/permit-authority-wiring
+owner_decision: "2026-11-20 (owner message '(a)부터 진행해'): start the permit work. Decision 2 of docs/NUSA_PERMIT_PRODUCER_DESIGN_2026-11-16.md still stands for the PRODUCER (no producer is built before a candidate qualifies); this change is the store, the read-only authority and its default-OFF wiring only, order of work (a) then (c) accepted on 2026-11-16."
+objective: "Give the production runtime a way to read canonical permits from the durable append-only store, so that when a producer exists later nothing else needs to be wired, while today every strategy order is still refused."
+change:
+  - "apps/cloud/src/paperTradePermissionStore.ts and tests/paper-trade-permission-store.test.js: the store and reader of closed PR 3152 (work order WO-P0-20261116-PERMIT-STORE-ADAPTER), unchanged except the source pin: only the new composition module imports the store."
+  - "apps/cloud/src/paperTradePermissionAuthorityFromEnv.ts (new): resolvePaperTradePermissionAuthority(env, stateDbPath). Without NUSA_PERMIT_POLICY_FILE the result is exactly NO_PAPER_TRADE_PERMISSION_AUTHORITY (status OFF). With it, the reviewed policy file (strict shape check) is read once and the store is opened with a node:sqlite readOnly connection; any problem (missing state path, unreadable or malformed file, failed open) falls back to the no-permit authority with a reason. The module never imports the store writer, creates no table and produces no permit."
+  - "apps/cloud/src/closedLearningProductionRuntime.ts: passes the resolved authority to startCloudRuntimeFromOptions (the existing tradePermissionAuthority option of PR 3150) and logs a warning when it fell back."
+  - "tests/paper-trade-permission-authority-from-env.test.js: default OFF, every failure falls back, a valid file and an existing store give a read-only authority that still refuses without a permit, strict policy parsing, source pins (no writer, no INSERT/exec, the runtime wires it)."
+not_changed:
+  - "No policy file is added to the repository, so the wiring is inert in every environment today. No producer, no threshold, no risk limit, no capital, no order switch, no governance input (gate 14 stays not approved), no release, no host change. Orders stay OFF."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test from dist/: the three permit test files and tests/cloud-unreached-baseline.test.js pass; typecheck by tsc. Not run here: pnpm run preflight and validate:full (Node 24, left to CI)."
+unverified: "Behaviour on the real host state database (a read-only connection while the runtime writes in WAL mode) is not exercised here; it only matters once NUSA_PERMIT_POLICY_FILE is set, which is a separate, owner-approved release step."
+release_plan: "Bundled with the next release after merge (outside the freeze, owner awake, before/after read); with no policy file configured the runtime behaves exactly as before."
+acceptance:
+  - "Draft until the independent non-author review is done; exact-head CI; Audit; no release merely because CI passes."

@@ -376,7 +376,11 @@ test("source: both strategy paths ask for the permit before the risk gate AND ag
   assert.match(runtime, /tradePermissionAuthority: PaperTradePermissionAuthority = NO_PAPER_TRADE_PERMISSION_AUTHORITY/, "the runtime default has no permit");
   assert.match(runtime, /new CloudPaperExecutionBoundary\(\{[^}]*tradePermissionAuthority \}\)/);
   const production = fs.readFileSync(path.join(__dirname, "..", "apps/cloud/src/closedLearningProductionRuntime.ts"), "utf8");
-  assert.doesNotMatch(production, /tradePermissionAuthority/, "the production composition never supplies a permit source");
+  // The production composition supplies ONLY the env-resolved authority, which is the no-permit authority unless a policy file is configured.
+  assert.equal(production.split("tradePermissionAuthority").length - 1, 1, "exactly one place supplies the permit source");
+  assert.match(production, /tradePermissionAuthority: permitAuthority\.authority/);
+  assert.match(production, /resolvePaperTradePermissionAuthority\(env, config\.cloudStateDbPath\)/);
+  assert.doesNotMatch(production, /paperTradePermissionTestKit|PaperTradePermissionStoreWriter/);
   const offenders = [];
   const walk = (dir) => { for (const n of fs.readdirSync(dir)) { const p = path.join(dir, n); if (fs.statSync(p).isDirectory()) { if (n !== "node_modules" && n !== "testing") walk(p); } else if (/\.ts$/.test(n) && !/\.test\.ts$/.test(n) && fs.readFileSync(p, "utf8").includes("paperTradePermissionTestKit")) offenders.push(p); } };
   walk(path.join(__dirname, "..", "apps"));

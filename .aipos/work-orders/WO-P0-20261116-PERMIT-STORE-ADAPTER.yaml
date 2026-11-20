@@ -1,0 +1,25 @@
+id: WO-P0-20261116-PERMIT-STORE-ADAPTER
+title: "Canonical permit store and read-only authority adapter (not wired into the runtime)"
+status: SUPERSEDED
+created: 2026-11-16
+implementation_branch: claude/permit-authority-wiring
+issue: "https://github.com/cinamoncandy/NUSA/issues/3108"
+owner_decision: "2026-11-16 (owner message 'A로 진행해' for the permit fix, then '다 해' for the follow-up steps): build the store and adapter described in docs/NUSA_PERMIT_PRODUCER_DESIGN_2026-11-16.md section 3, work item (a). It is not wired into any production path; no producer, no release, no host change, orders stay OFF. A draft PR with an independent non-author review and exact-head CI."
+objective: "Give the PaperTradePermissionAuthority contract of PR 3150 a durable, append-only trusted state: isLatest (replay guard that survives restarts, latest sequence wins so a newer REJECT supersedes an older PERMIT) and evidenceExists (a reference must be a stored evidence item linked to the same intent)."
+change:
+  - "apps/cloud/src/paperTradePermissionStore.ts (new, top level; the cloud reachability gate reports it as unreached because nothing imports it yet. The gate and its baseline are NOT changed and the file is NOT hidden from the gate): schema trade_permission_records and trade_permission_evidence with CHECK constraints and BEFORE UPDATE/DELETE triggers that abort (append-only); PaperTradePermissionStoreWriter.append (atomic; permit and evidence input bound to the same intent; unique references; evidence is stored WITH its content and is content-addressed: the reference must equal sha256:<hash of the content> and the store computes the hash itself; every cited reference supplied or already stored; a record must be strictly newer than the latest record of the intent, so an old unexpired PERMIT can never be re-appended above a newer REJECT; ISO createdAt) and PaperTradePermissionStoreReader implementing PaperTradePermissionAuthority over a prepare()-only handle that issues SELECT statements only. latestPermit verifies the row against its own hash and columns including decision (corruption throws, which the guard turns into a refusal)."
+  - "tests/paper-trade-permission-store.test.js (8 tests, run on the merged-main base): round trip into the real guard with real-engine records; unknown intent and evidence of another intent; latest wins (a newer REJECT supersedes an older PERMIT, the older record is REPLAYED, and PERMIT, REJECT, old PERMIT again is refused at append); append-only on both tables; atomic refusal of bad writes (missing, changed or malformed evidence, unbound input, bad time; rollback of a first inserted evidence item); corruption, row mismatch including the decision column, evidence edited or re-hashed, missing schema and closed database all refuse; the reader works on a REAL read-only connection that cannot write; restart on a file database; source pins (reader never writes, boundary and runtime never import the store, no production source imports it). Mutation checks (each fails tests, 17): either trigger, latest ordering, the hash check, the row check, the decision-column check, the evidence-to-intent link, the empty-references rule, the evidence address and hash checks, isLatest comparing content, the transaction, the content-address rule, the empty-content rule, the intent binding, the strictly-newer rule (and its boundary)."
+not_changed:
+  - "No permit producer exists. The runtime uses the no-permit authority unless NUSA_PERMIT_POLICY_FILE is set (see WO-OPS-20261120-PERMIT-AUTHORITY-WIRING), so every strategy order is still refused. No risk limit, threshold, capital, order switch, release or host action."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node --test (from dist/) tests/paper-trade-permission-store.test.js and the permit enforcement test pass; AIPOS, platform-independence, portability and architecture-surface validators pass. Not run here: pnpm run preflight and validate:full (Node 24, left to CI)."
+unverified: "The store has no producer and no production wiring; the reader's read-only connection is a later wiring step (the reader type exposes prepare() only). Stage B still needs the producer, a qualified candidate strategy, a release and a fresh written owner approval."
+hold: "Released from HOLD: the wiring step (design work item c) lands in the same change as this file, WO-OPS-20261120-PERMIT-AUTHORITY-WIRING, so the reachability gate passes without any change to the gate or its baseline."
+acceptance:
+  - "Draft until the non-author review is done; exact-head CI; Audit; no release or restart merely because CI passes."
