@@ -14,7 +14,8 @@
  * - "Eligible at hour t" needs: study-eligible market, complete bar at t, close at t and at t - L, usable book at t. Hence no trade is ever dropped for "no book at t".
  * - Benchmarks are averaged over the decision hours of the retained trades. Equal weight: the eligible markets that also have a usable book at the exit.
  * - Gross = mid at the exit / mid at the entry - 1 (before fees; the spread is not in it). Net = bid at the exit after fee / ask at the entry after fee.
- * - Stage 1 uses the study-eligible markets that have close(t - 24 h), close(t), close(t + 1 h); an hour whose ranks are constant has no IC and is excluded and counted.
+ * - The usable book is the last sample in the window and it must itself be usable; the spread median (training hours with a usable book) is the mean of the two middle values for an even count.
+ * - Stage 1 uses the study-eligible markets with a complete bar at t that have close(t - 24 h), close(t), close(t + 1 h); an hour whose ranks are constant has no IC and is excluded and counted.
  */
 const crypto = require("node:crypto");
 const { orderBookSource } = require("./lib/orderBookSource.js");
@@ -189,19 +190,20 @@ function bookAt(series, t) {
   series.bookCache.set(t, usable); return usable;
 }
 const spreadBp = (r) => ((r.a - r.b) / ((r.a + r.b) / 2)) * 10_000;
-const medianOf = (v) => { if (v.length === 0) return Infinity; const s = [...v].sort((x, y) => x - y); return s[Math.floor(s.length / 2)]; };
+const medianOf = (v) => { if (v.length === 0) return Infinity; const s = [...v].sort((x, y) => x - y); const h = s.length >> 1; return s.length % 2 === 1 ? s[h] : (s[h - 1] + s[h]) / 2; };
 
 function isStudyEligible(series) {
   const hours = (VAL - START) / H; let good = 0; const spreads = [];
   for (let t = START; t < VAL; t += H) {
     const book = bookAt(series, t);
-    if (barComplete(series, t) && book) { good += 1; spreads.push(spreadBp(book)); }
+    if (book) spreads.push(spreadBp(book)); // the median is over the training hours that have a usable book
+    if (book && barComplete(series, t)) good += 1;
   }
   return good >= MIN_COVERAGE * hours && medianOf(spreads) <= MAX_SPREAD_BP;
 }
 const eligibleAt = (series, t, lookback) => barComplete(series, t) && series.close.has(t) && series.close.has(t - lookback) && bookAt(series, t) !== undefined;
 
-/** Trades of one cell in the part [from, to): non-overlapping decisions at every full hour (a cell holds one position for `hold`). */
+/** Trades of one cell in the part [from, to): a decision at every full hour (non-overlapping for hold = 1 h; the 4 h descriptive cells overlap). */
 function cellTrades(eligible, cell, from, to) {
   const trades = []; const drops = { noBookAtExit: 0, exitAfterPartEnd: 0 }; let skippedHours = 0;
   for (let t = from; t < to; t += H) {
@@ -235,7 +237,7 @@ function summarize(result) {
     trades: trades.length, meanNetBp: bp(mean(trades.map((r) => r.net))), meanStressBp: bp(mean(trades.map((r) => r.stress))), meanGrossBp: bp(mean(trades.map((r) => r.gross))),
     winPct: trades.length === 0 ? 0 : Math.round((10_000 * trades.filter((r) => r.net > 0).length) / trades.length) / 100,
     equalWeightNetBp: bp(mean(trades.map((r) => r.ew))), btcReferenceNetBp: bp(mean(btc.map((r) => r.btc))), btcReferenceHours: btc.length,
-    skippedHours: result.skippedHours, dropNoBookAtExit: result.drops.noBookAtExit, dropExitAfterPartEnd: result.drops.exitAfterPartEnd,
+    skippedHours: result.skippedHours, dropNoBookAtEntry: 0, dropNoBookAtExit: result.drops.noBookAtExit, dropExitAfterPartEnd: result.drops.exitAfterPartEnd,
     shareByMarket: share, meanNetBpByMarket: byMarket,
   };
 }
@@ -244,7 +246,7 @@ function summarize(result) {
 function stageOne(eligible, from, to) {
   const ics = []; let undefinedHours = 0; let skippedHours = 0;
   for (let t = from; t + H <= to; t += H) {
-    const pool = eligible.filter((s) => s.close.has(t - 24 * H) && s.close.has(t) && s.close.has(t + H));
+    const pool = eligible.filter((s) => barComplete(s, t) && s.close.has(t - 24 * H) && s.close.has(t) && s.close.has(t + H));
     if (pool.length < MIN_ELIGIBLE) { skippedHours += 1; continue; }
     const ic = spearman(pool.map((s) => s.close.get(t) / s.close.get(t - 24 * H) - 1), pool.map((s) => s.close.get(t + H) / s.close.get(t) - 1));
     if (ic === undefined) undefinedHours += 1; else ics.push(ic);
@@ -269,7 +271,7 @@ function runStudy({ db, now = Date.now() }) {
   if (futureCandles > 0 || futureBooks > 0) return { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" };
   const all = MARKETS.map((m) => loadMarket(db, m, now));
   const eligible = all.filter(isStudyEligible);
-  if (eligible.length < MIN_ELIGIBLE) return { status: "INSUFFICIENT_DATA", markets: MARKETS.length, eligible: eligible.length };
+  if (eligible.length < MIN_ELIGIBLE) return { status: "INSUFFICIENT_DATA", markets: MARKETS.length, eligible: eligible.length, holdoutTrades: 0 };
   const primary = cellTrades(eligible, PRIMARY, HOLD, END);
   if (primary.trades.length < MIN_TRADES) return { status: "INSUFFICIENT_DATA", markets: MARKETS.length, eligible: eligible.length, holdoutTrades: primary.trades.length };
   const stage = stageOne(eligible, HOLD, END);
@@ -281,8 +283,9 @@ function runStudy({ db, now = Date.now() }) {
   const p3 = (x) => Number(x.toPrecision(3));
   const stageOnePass = stage.ics.length > 0 && stageOneMean > 0 && stageOneP < BAR;
   const summary = summarize(primary);
+  const rawNet = mean(nets); const rawStress = mean(primary.trades.map((r) => r.stress));
   const pairedMean = mean(paired);
-  const pass = stageOnePass && summary.trades >= MIN_TRADES && summary.meanNetBp > 0 && summary.meanStressBp > 0 && tP < BAR && bootP < BAR && pairedMean > 0 && pairedP < BAR;
+  const pass = stageOnePass && summary.trades >= MIN_TRADES && rawNet > 0 && rawStress > 0 && tP < BAR && bootP < BAR && pairedMean > 0 && pairedP < BAR;
   const hash = crypto.createHash("sha256"); let datasetRows = 0; let firstAt = Infinity; let lastAt = -Infinity;
   for (const s of eligible) {
     hash.update(`${s.market}\n`);

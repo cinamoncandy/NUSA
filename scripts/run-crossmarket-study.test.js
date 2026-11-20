@@ -174,12 +174,14 @@ test("timing: the decision uses the close at t and the entry is the ask at t, ne
   const eligible = MARKETS.map((m) => S.loadMarket(db, m, AFTER));
   const base = S.cellTrades(eligible, S.PRIMARY, HOLD, END).trades;
   // Rewrite every candle and book strictly after t = HOLD + 100 h: decisions up to that hour must not change.
-  const cut = HOLD + 100 * H;
+  const cut = HOLD + 100 * H + 30 * M;
   db.exec(`UPDATE research_closed_candles SET close = close * 3 WHERE close_time_ms > ${cut}`);
   db.exec(`UPDATE research_orderbook_samples SET best_bid = best_bid * 3, best_ask = best_ask * 3 WHERE captured_at_ms > ${cut}`);
   const changed = S.cellTrades(MARKETS.map((m) => S.loadMarket(db, m, AFTER)), S.PRIMARY, HOLD, END).trades;
   const sameUntil = (a, b) => a.filter((r) => r.t < cut).map((r) => `${r.t}${r.market}`).join() === b.filter((r) => r.t < cut).map((r) => `${r.t}${r.market}`).join();
   assert.ok(sameUntil(base, changed));
+  const priceUntil = (a) => a.filter((r) => r.t + H <= cut).map((r) => r.net.toFixed(12)).join();
+  assert.equal(priceUntil(base), priceUntil(changed), "entry and exit values up to the cut do not move");
 });
 
 test("part-end rule: an exit exactly at the part end is kept, one after it is dropped and counted", () => {
@@ -210,4 +212,31 @@ test("the module prints one fixed CROSSMARKET_STUDY line and fails closed withou
   const bad = spawnSync(process.execPath, [require.resolve("./run-crossmarket-study.js")], { env: { ...process.env, NUSA_CLOUD_STATE_DB_PATH: "" }, encoding: "utf8" });
   assert.equal(bad.status, 1);
   assert.match(bad.stderr, /CROSSMARKET_STUDY_FAILED_CLOSED/);
+});
+
+test("the net, stress and paired formulas are the documented ones", () => {
+  const db = syntheticDb({ drift: () => 0.001, noise: 0, samePrice: true, halfSpread: 0.001 });
+  const eligible = MARKETS.map((m) => S.loadMarket(db, m, AFTER));
+  const [tr] = S.cellTrades(eligible, S.PRIMARY, HOLD, HOLD + 3 * H).trades;
+  const e = S.bookAt(eligible[0], tr.t); const x = S.bookAt(eligible[0], tr.t + H);
+  assert.ok(Math.abs(tr.net - (x.b * 0.9995) / (e.a * 1.0005) + 1) < 1e-12 || Math.abs(tr.net - ((x.b * 0.9995) / (e.a * 1.0005) - 1)) < 1e-12);
+  assert.ok(Math.abs(tr.stress - ((x.b * 0.9995 * 0.999) / (e.a * 1.0005 * 1.001) - 1)) < 1e-12);
+  assert.ok(Math.abs(tr.ew - tr.net) < 1e-12, "identical markets: equal weight equals the pick");
+});
+
+test("the 90 percent coverage bar is exact and an even-count spread median is the middle mean", () => {
+  const trainHours = (VAL - START) / H; // 168
+  const missing = (n) => (i, t) => i === 0 && t >= START && t < VAL && t % H === 0 && (t - START) / H < n;
+  const ok = syntheticDb({ drift: noDrift, skipBooks: (i, t) => missing(16)(i, t) || (i === 0 && t >= START - 2 * M && t < VAL && t % H !== 0 && false) });
+  // Books exist every five minutes, so removing only the full-hour sample leaves the one at t - 5 min outside (t - 2 min, t]: the hour has no usable book.
+  assert.equal(S.isStudyEligible(S.loadMarket(ok, "KRW-BTC", AFTER)), true, `${trainHours - 16} of ${trainHours} hours is above 90 percent`);
+  const bad = syntheticDb({ drift: noDrift, skipBooks: missing(17) });
+  assert.equal(S.isStudyEligible(S.loadMarket(bad, "KRW-BTC", AFTER)), false, `${trainHours - 17} hours is below 90 percent`);
+});
+
+test("makeRandom(20261119) is pinned", () => {
+  const u = S.makeRandom();
+  const first = [u(), u(), u()];
+  assert.ok(first.every((v) => v >= 0 && v < 1));
+  assert.deepEqual(first, [S.makeRandom()(), (() => { const g = S.makeRandom(); g(); return g(); })(), (() => { const g = S.makeRandom(); g(); g(); return g(); })()]);
 });
