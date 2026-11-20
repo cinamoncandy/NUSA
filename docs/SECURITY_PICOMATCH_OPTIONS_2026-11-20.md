@@ -46,3 +46,8 @@ Choose A: extend the existing exception once, owner-signed, for a short window, 
 
 `pnpm run security:gate` and a fresh audit call were not run (Node 22 in this sandbox, the repo wants Node 24).
 The advisory text was not read.
+
+
+## Owner decision (2026-11-20 KST): option A
+
+The owner chose option A ("A"): one short extension of the existing owner exception, from 2026-12-02 to **2026-12-16**, with the same exact scope (audit id 1247710, picomatch, installed versions 2.3.2 and 4.0.7, severity high). No gate rule, version, advisory or package was widened. The exception still prints on every run. Before 2026-12-16 the registry is checked again for a fixed picomatch; if none exists the owner decides again (a second extension is not automatic). Applied in `scripts/security-gate-backports.js` and `tests/security-backports.test.js` (the boundary dates only).

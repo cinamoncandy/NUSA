@@ -17,3 +17,4 @@ safety:
 validation:
   - "node scripts/validate-aipos-yaml.js and validate-aipos-work-order-provenance.js"
 next_action: "Owner decides before 2026-12-01 whether to extend the expiry (option A in the doc). Merge this doc PR after the 2026-11-23 release; re-check the registry for a fixed picomatch first."
+owner_decision_2026_11_20: "Option A chosen by the owner ('A'): the exception of WO-SEC-20261118-PICOMATCH-OWNER-EXCEPTION is extended once, 2026-12-02 to 2026-12-16, same exact scope. The change is the expiry date in scripts/security-gate-backports.js and the two boundary dates in tests/security-backports.test.js. Merge after the 2026-11-23 release and before 2026-12-02. Re-check the registry for a fixed picomatch before 2026-12-16."
