@@ -214,29 +214,39 @@ test("the module prints one fixed CROSSMARKET_STUDY line and fails closed withou
   assert.match(bad.stderr, /CROSSMARKET_STUDY_FAILED_CLOSED/);
 });
 
-test("the net, stress and paired formulas are the documented ones", () => {
+test("the net, stress and equal-weight formulas are the documented ones", () => {
   const db = syntheticDb({ drift: () => 0.001, noise: 0, samePrice: true, halfSpread: 0.001 });
   const eligible = MARKETS.map((m) => S.loadMarket(db, m, AFTER));
   const [tr] = S.cellTrades(eligible, S.PRIMARY, HOLD, HOLD + 3 * H).trades;
   const e = S.bookAt(eligible[0], tr.t); const x = S.bookAt(eligible[0], tr.t + H);
-  assert.ok(Math.abs(tr.net - (x.b * 0.9995) / (e.a * 1.0005) + 1) < 1e-12 || Math.abs(tr.net - ((x.b * 0.9995) / (e.a * 1.0005) - 1)) < 1e-12);
+  assert.ok(Math.abs(tr.net - ((x.b * 0.9995) / (e.a * 1.0005) - 1)) < 1e-12);
   assert.ok(Math.abs(tr.stress - ((x.b * 0.9995 * 0.999) / (e.a * 1.0005 * 1.001) - 1)) < 1e-12);
   assert.ok(Math.abs(tr.ew - tr.net) < 1e-12, "identical markets: equal weight equals the pick");
 });
 
-test("the 90 percent coverage bar is exact and an even-count spread median is the middle mean", () => {
+test("the 90 percent coverage bar is exact", () => {
   const trainHours = (VAL - START) / H; // 168
   const missing = (n) => (i, t) => i === 0 && t >= START && t < VAL && t % H === 0 && (t - START) / H < n;
-  const ok = syntheticDb({ drift: noDrift, skipBooks: (i, t) => missing(16)(i, t) || (i === 0 && t >= START - 2 * M && t < VAL && t % H !== 0 && false) });
+  const ok = syntheticDb({ drift: noDrift, skipBooks: (i, t) => missing(16)(i, t) });
   // Books exist every five minutes, so removing only the full-hour sample leaves the one at t - 5 min outside (t - 2 min, t]: the hour has no usable book.
   assert.equal(S.isStudyEligible(S.loadMarket(ok, "KRW-BTC", AFTER)), true, `${trainHours - 16} of ${trainHours} hours is above 90 percent`);
   const bad = syntheticDb({ drift: noDrift, skipBooks: missing(17) });
   assert.equal(S.isStudyEligible(S.loadMarket(bad, "KRW-BTC", AFTER)), false, `${trainHours - 17} hours is below 90 percent`);
 });
 
-test("makeRandom(20261119) is pinned", () => {
+test("makeRandom(20261119) first draws are pinned (regression pin of the seeding and draw order)", () => {
   const u = S.makeRandom();
-  const first = [u(), u(), u()];
-  assert.ok(first.every((v) => v >= 0 && v < 1));
-  assert.deepEqual(first, [S.makeRandom()(), (() => { const g = S.makeRandom(); g(); return g(); })(), (() => { const g = S.makeRandom(); g(); g(); return g(); })()]);
+  assert.deepEqual([u(), u(), u()], [0.6486507397792377, 0.3133181840037008, 0.5541882722734062]);
+  assert.equal(S.blockBootstrapP(Array.from({ length: 48 }, (_, i) => i + 1 - 20)), 0.20557944205579443);
+});
+
+test("an even-count spread median is the mean of the two middle values (20 bp edge)", () => {
+  const db = syntheticDb({ drift: noDrift, halfSpread: 0.0001 });
+  // 168 training hours: half at 19 bp, half at 21 bp full spread -> median 20 bp (eligible); one more wide hour -> 21 bp (not eligible).
+  const set = db.prepare("UPDATE research_orderbook_samples SET best_bid = ?, best_ask = ? WHERE market = 'KRW-BTC' AND captured_at_ms = ?");
+  const setSpread = (t, bp) => set.run(1000 * (1 - bp / 20_000), 1000 * (1 + bp / 20_000), t);
+  for (let h = 0; h < 168; h += 1) setSpread(START + h * H, h < 84 ? 19 : 21);
+  assert.equal(S.isStudyEligible(S.loadMarket(db, "KRW-BTC", AFTER)), true);
+  setSpread(START + 0 * H, 21);
+  assert.equal(S.isStudyEligible(S.loadMarket(db, "KRW-BTC", AFTER)), false);
 });
