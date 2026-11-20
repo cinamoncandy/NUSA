@@ -30,7 +30,21 @@ test("the classifier module has no IO, clock, randomness or imports", () => {
   assert.doesNotMatch(source, /\b(require|fetch|process\.|Date\.|Math\.random|crypto|setTimeout)\b/);
 });
 
-test("the classifier is only imported by its test and the contracts index", () => {
-  const files = [...walk(path.join(root, "packages")), ...walk(path.join(root, "scripts"))].filter((file) => /researchFailureCause|classifyFailureCause/.test(fs.readFileSync(file, "utf8")));
-  assert.deepEqual(files.map((file) => path.relative(root, file)).sort(), ["packages/contracts/src/index.ts", "packages/contracts/src/researchFailureCause.test.ts", "packages/contracts/src/researchFailureCause.ts"]);
+test("the classifier is named only by its module, its test, this pin and the documents: no app, script, test or barrel reaches it", () => {
+  const dirs = ["apps", "packages", "scripts", "tests"].map((d) => path.join(root, d));
+  const files = dirs.flatMap((d) => (fs.existsSync(d) ? walk(d) : [])).filter((file) => /researchFailureCause|classifyFailureCause|RESEARCH_FAILURE_CAUSES/.test(fs.readFileSync(file, "utf8")));
+  assert.deepEqual(files.map((file) => path.relative(root, file)).sort(), [
+    "packages/contracts/src/researchFailureCause.test.ts", "packages/contracts/src/researchFailureCause.ts", "tests/research-failure-cause-isolation.test.js"
+  ]);
+});
+
+test("the contracts barrel does not re-export the classifier (a deep import is the only way to reach it)", () => {
+  const index = fs.readFileSync(path.join(root, "packages", "contracts", "src", "index.ts"), "utf8");
+  assert.doesNotMatch(index, /researchFailureCause/);
+});
+
+test("no dynamic access can reach it either: nothing builds the names from strings", () => {
+  const dirs = ["apps", "packages", "scripts"].map((d) => path.join(root, d));
+  const offenders = dirs.flatMap((d) => walk(d)).filter((file) => /["']classify["']\s*\+|["']Failure["']\s*\+\s*["']Cause|"classify"\s*\+\s*"FailureCause"/.test(fs.readFileSync(file, "utf8")));
+  assert.deepEqual(offenders.map((file) => path.relative(root, file)), []);
 });

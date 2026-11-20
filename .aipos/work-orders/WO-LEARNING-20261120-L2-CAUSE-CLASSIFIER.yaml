@@ -9,6 +9,8 @@ change:
   - "packages/contracts/src/researchFailureCause.ts (new, pure, exported from the contracts index): classifyFailureCause maps an experiment outcome, comparison record or status code to one of 11 fixed classes; unknown or malformed input is UNCLASSIFIED; never throws."
   - "packages/contracts/src/researchFailureCause.test.ts: golden table citing the source file of every status code found, malformed inputs, class reachability."
   - "tests/research-failure-cause-isolation.test.js: source pin that no apps/cloud module and no researchMetaLearning* file references the classifier."
+review_fixes:
+  - "Independent review (APPROVE WITH CHANGES, no P0) applied: the pre-registration now defines a failed experiment, uses failed experiments as the denominator (non-failures cannot dilute UNCLASSIFIED), has a minimum of 200 failed experiments, a UNCLASSIFIED ceiling over ERROR_* alone, an 80 percent single-class ceiling and a window restart on any mapping change; the classifier is no longer exported from the contracts barrel (a deep import is the only way in) and the isolation pin covers apps, packages, scripts and tests, the barrel and string-built names; the deliberate no-reason difference from classifyResearchFailure is documented and pinned by tests; REGIME_FRAGILE reachability and the ERROR_/SKIPPED_ looseness are noted."
 not_changed:
   - "No database table, runtime wiring, /health field, workflow, host action, gate, qualification, allocation, threshold, limit, capital, order switch or authority change. researchMetaLearning* untouched. Must not merge before the 2026-11-23 release."
 safety:

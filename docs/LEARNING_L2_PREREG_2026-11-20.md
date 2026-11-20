@@ -4,14 +4,17 @@ Status: PRE-REGISTRATION, written before the build (`docs/LEARNING_LOOP_LEVELS_2
 
 ## 1. Pass criterion (fixed now, judged later on host data)
 
-L2 passes only if, over a 7 day window after the table and wiring exist (not in this step):
+**Definitions.** An *experiment record* is one row of `research_experiment_records` (the future cause table is keyed by its id). A *failed experiment* is a record whose classification is not `NOT_APPLICABLE_NOT_A_FAILURE`: that class holds exactly the records that are not failures (`NOT_DUE`, a challenger that beat the champion). Records that never ran an experiment (`NO_CANDLES`, skipped, `ERROR_*`) are failed experiments with a cause (`DATA_INSUFFICIENT`, `DESIGN_REJECTED`, or `UNCLASSIFIED`), so they count in the denominator below; nothing is excluded to improve a ratio.
 
-1. 100 percent of failed experiments have exactly one cause row (no missing row, no second row).
-2. `UNCLASSIFIED` is at most 10 percent of the cause rows.
-3. The table is append-only (no UPDATE or DELETE path exists; a row is written once).
-4. No decision, gate, qualification, allocation, threshold or order code imports the classifier or reads the table (pinned by `tests/research-failure-cause-isolation.test.js`, which must be changed explicitly by the later wiring PR for the one writer only).
+L2 passes only if, over a 7 day window after the table and wiring exist (not in this step), with at least **N = 200 failed experiments** in the window (fewer means the window is extended, never judged):
 
-If any item fails, L2 is not claimed. The criterion is not tuned after seeing data.
+1. Every failed experiment has exactly one cause row: the number of failed experiments with exactly one row divided by the number of failed experiments is 100 percent (no missing row, no second row).
+2. `UNCLASSIFIED` is at most 10 percent of the **failed experiments** (the denominator excludes `NOT_APPLICABLE_NOT_A_FAILURE` rows, so non-failures cannot dilute it), **and** at most 10 percent of the failed experiments that ended in an `ERROR_*` status taken alone (a deliberately unclassified error cannot hide inside the total).
+3. No single class holds more than 80 percent of the failed experiments (a taxonomy that puts everything in one bucket is not a classification).
+4. Mapping changes: if the mapping table or the class list changes after the window has started, the window restarts at zero. The criterion and the table are not tuned after seeing data.
+5. Code properties (checked by tests at the time of the wiring PR, not by server records): the table is append-only (no UPDATE or DELETE path, a row is written once), and no decision, gate, qualification, allocation, threshold or order code imports the classifier or reads the table (pinned by `tests/research-failure-cause-isolation.test.js`, which the later wiring PR changes explicitly for the one writer only).
+
+Items 1 to 3 are measured from server records once the table exists; today no server record can show them. If any item fails, L2 is not claimed.
 
 ## 2. Fixed cause taxonomy (`packages/contracts/src/researchFailureCause.ts`)
 
@@ -35,9 +38,11 @@ Sources read (code that writes the data, not host data): `researchExperimentRunn
 
 Deliberately `UNCLASSIFIED`: `ERROR_EXPERIMENT_FAILED` and `PROVENANCE_*` (cause unknown), bare `VALIDATION_CHAMPION_BETTER` style keys without metrics, `REPEAT_*` (a derived streak count over strategies, not an experiment), a completed experiment with neither hold-back nor note.
 
+Notes on reachability and strictness: `REGIME_FRAGILE_EDGE`, `DEFLATED_SHARPE_*` and the `*_EVIDENCE_MISSING` qualification codes are defined in `packages/contracts/src/researchQualificationIdentity.ts` and `apps/desktop/src/cloud/nusaLeague.ts`, not emitted by `apps/cloud` experiment outcomes, so `REGIME_FRAGILE` is probably unreachable from real `result_json` (it stays in the list for the qualification path). The `ERROR_<code>` and `SKIPPED_<code>` unwrapping is looser than the exact table: odd compounds such as `ERROR_NOT_DUE` map to `NOT_APPLICABLE_NOT_A_FAILURE`; this is accepted (harmless) and not relied on.
+
 ## 3. Isolation rule
 
-The classifier is pure (no IO, clock, randomness, imports) and nothing under `apps/cloud` or `researchMetaLearning*` references it. Later, only one writer may import it, and no reader may feed a decision.
+The classifier is pure (no IO, clock, randomness, imports) and is **not exported from the contracts barrel** (`packages/contracts/src/index.ts`): a deep import of its module is the only way to reach it. Nothing under `apps`, `packages`, `scripts` or `tests` names it except its module, its test and the isolation pin (a test enforces this). Later, only one writer may import it, and no reader may feed a decision.
 
 ## 4. Explicitly NOT done
 

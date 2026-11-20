@@ -43,6 +43,10 @@ const GOLDEN: readonly (readonly [string, unknown, ResearchFailureCause])[] = [
   ["researchRuntime.ts EQUIVALENT", evidence({ result: "EQUIVALENT" }), "NO_EDGE"],
   ["researchRuntime.ts INCONCLUSIVE with missing challenger", evidence({ result: "INCONCLUSIVE", challenger: null }), "DATA_INSUFFICIENT"],
   ["researchRuntime.ts incomplete comparison reason", evidence({ reason: "INCOMPLETE" }), "DATA_INSUFFICIENT"],
+  // Deliberate difference from classifyResearchFailure (documented in the pre-registration section 2): a missing or non-string reason is a completed comparison.
+  ["no reason at all is a completed comparison", evidence({ reason: undefined }), "NO_EDGE"],
+  ["a non-string reason is a completed comparison", evidence({ reason: 5 as unknown as string }), "NO_EDGE"],
+  ["the two comparison reasons are completed comparisons", evidence({ reason: "NET_RETURN_COMPARISON" }), "NO_EDGE"],
   ["researchRuntime.ts worse execution quality", evidence({ challenger: { metrics: metrics({ executionQuality: 0.5 }) } }), "EXECUTION_MISMATCH"],
   ["researchAutomationRuntime.ts stored result_json (metrics directly, no reason)", { result: "CHAMPION_BETTER", champion: metrics(), challenger: metrics({ maximumDrawdown: 0.4 }) }, "EXCESSIVE_DRAWDOWN"],
   ["researchFailureMemory.ts non-finite challenger netReturn is LOW_SAMPLE", { result: "CHAMPION_BETTER", champion: { netReturn: 1 }, challenger: { netReturn: Number.NaN } }, "DATA_INSUFFICIENT"],
