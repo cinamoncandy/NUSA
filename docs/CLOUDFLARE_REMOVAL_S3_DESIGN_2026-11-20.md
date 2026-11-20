@@ -55,6 +55,8 @@ The rehearsal output (the printed lines, no secrets) is recorded in an evidence 
 
 Prerequisite found while building S3a, NOT yet known: a PR the path rule skips gets no `nusa/release-authorized` status, so it can be merged only if the owner can bypass the required status in branch protection (an administrator merge). If administrators cannot bypass, every PR touching the protected paths (including S3b and any revert of S3a) becomes unmergeable until the owner relaxes the rule in Settings. This is the S1 record the design already requires; S3a is not marked ready until the owner confirms it (Settings, Branches, the rule for `main`: required status checks, and whether bypass by administrators is allowed). Note also that the owner and this agent act as the same GitHub account, so a label or comment cannot prove "the owner did this"; the control is the path rule plus the owner's administrator merge, not a label.
 
+Decision on the prerequisite (2026-11-20, "a로해"): ACCEPTED. A PR touching a protected file (including a revert of S3a, a fix to the rule, any change of the audit workflow, and S3b) is merged only after the owner temporarily relaxes the branch protection for `main` in Settings and restores it afterwards. The protected list keeps the audit workflow file. No bypass of the required status is assumed.
+
 ## 5b. The questions as asked
 
 1. Home of the HOLD and the freeze: the file (recommended: reviewable in git, no external store) or a protected GitHub Environment with required reviewers. S2 section 6 asked this; no answer is recorded, so it is still open.
