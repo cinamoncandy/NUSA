@@ -1,0 +1,18 @@
+id: WO-LEARNING-20261120-HISTORY-MINING-DESIGN
+title: "Design: using the collected history to generate candidate strategies (single hold-back check, forward confirmation)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "Answer the owner's question about building a strategy from all past records: state what history exists, the data-snooping risk, which values are reserved by the pre-registrations, and a protocol that uses the history only to generate and rank candidates for later pre-registered forward tests."
+change:
+  - "docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md (design only; not binding)."
+not_changed:
+  - "No code, run, experiment, gate, threshold, limit, capital, order switch or authority change. No reserved value is read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; independent non-author review; exact-head CI."
