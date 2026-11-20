@@ -19,14 +19,14 @@ Use the **hourly rank information coefficient** (Spearman correlation between a 
 - It cannot show profit: an IC above zero says nothing about fees, spread or capacity. A pass leads only to a pre-registered tradability study.
 - Overlap with other studies: the 24 h momentum signal duplicates the cross-market study's stage 1 on the same markets. To avoid counting one hypothesis twice, the screen either excludes that signal or uses a later span than the cross-market holdout and says so.
 
-## 4. Risks and honest prior
+## 5. Risks and honest prior
 - Low prior: a signal that survives Holm adjustment on liquid KRW spot at hour scale is unlikely; the value of the screen is information per calendar week, not a high chance of success.
 - Order-book signals carry the coverage problem seen in the order-book study (coverage 68 percent against a 90 percent bar). Signals that need a book are dropped for any hour without a usable book and the usable share is reported.
 - Data reuse: XRP candle values are not blind (earlier experiments read them). The screen should use the four new markets plus XRP and say that XRP is not blind.
 
-## 5. Decision needed from the owner before anything is written as a pre-registration
+## 6. Decision needed from the owner before anything is written as a pre-registration
 1. Do you want a screen of this kind (information per week) rather than more single-hypothesis studies? Recommended: yes, one screen after the cross-market holdout so that the span does not overlap.
 2. Allowed signal sources: candles and order-book top only, or also trade ticks (collected, v2 study uses them)?
 
-## 6. What this document does not do
+## 7. What this document does not do
 No code, no run, no experiment, gate, threshold, limit, capital, order switch or authority change. `experimentMarkets` stays KRW-XRP.
