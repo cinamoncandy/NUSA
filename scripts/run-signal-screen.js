@@ -1,7 +1,7 @@
 "use strict";
 /**
- * Pre-registered pooled hourly signal screen RULE_SIGNAL_SCREEN_60M_20261120, work order WO-LEARNING-20261120-SIGNAL-SCREEN-SCRIPT.
- * The rules are written in docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M.md (merged); this file implements that document and nothing else.
+ * Pre-registered pooled hourly signal screen RULE_SIGNAL_SCREEN_60M_20261120_V2, work order WO-LEARNING-20261120-SIGNAL-SCREEN-SCRIPT.
+ * The rules are written in docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M_V2.md (supersedes V1); this file implements that document and nothing else.
  * It reads research_closed_candles (1 m) and research_candle_absence READ-ONLY from NUSA_CLOUD_STATE_DB_PATH and prints one line:
  *   SIGNAL_SCREEN_STUDY {"status":"WAITING_DATA"|"INSUFFICIENT_DATA"|"DATA_INTEGRITY_FAIL"|"SCREEN_PASS"|"SCREEN_FAIL", ...fixed numeric fields}
  * It places no order, writes nothing; a pass makes a signal eligible for its own pre-registered tradability test only.
@@ -16,16 +16,17 @@ const M = 60_000;
 const H = 60 * M;
 const DAY = 24 * H;
 const MARKETS = Object.freeze(["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"]);
-const STUDY_ID = "RULE_SIGNAL_SCREEN_60M_20261120";
+const STUDY_ID = "RULE_SIGNAL_SCREEN_60M_20261120_V2";
 const ELIG_START = Date.parse("2026-12-11T00:00:00Z");
 const SCREEN_START = Date.parse("2026-12-18T00:00:00Z");
 const SCREEN_END = Date.parse("2027-01-17T00:00:00Z");
 const EARLIEST_RUN = Date.parse("2027-01-17T00:30:00Z");
 const SEED = 20261120;
 const B = 10_000;
-const BLOCK_RESTART = 1 / 24;
+const BLOCK = 24;
+const TIE_TOLERANCE = 1e-12;
 const K = 6;
-const ALPHA = 0.05;
+const ALPHA = 0.02;
 const MIN_ELIGIBLE = 3;
 const MIN_COMPLETE_BARS = 152;
 const MIN_USABLE_HOURS = 600;
@@ -98,24 +99,24 @@ const SIGNAL_FN = Object.freeze({
 });
 
 // ---- statistics ----
-/** Stationary bootstrap of the weighted mean (null imposed by centring), exactly the pseudocode of the pre-registration. */
-function bootstrapP(xs, ws, random, resamples = B) {
-  const T = xs.length;
-  let sw = 0; let swx = 0; for (let j = 0; j < T; j += 1) { sw += ws[j]; swx += ws[j] * xs[j]; }
-  const Mean = swx / sw;
-  const xc = xs.map((x) => x - Mean);
+/**
+ * Block sign-flip test of the weighted mean (pre-registration V2 section 5): blocks of 24 consecutive usable-hour indices (the last may be shorter),
+ * M = (S_0 + ... + S_{nb-1}) / W with the block sums added in block order, one uniform per block, blocks in order inside a resample, resamples in order,
+ * a flip when u < 0.5, p = (1 + #{Mstar_b >= M - 1e-12}) / (B + 1).
+ */
+function signFlipP(xs, ws, random, resamples = B) {
+  const T = xs.length; const nb = Math.ceil(T / BLOCK);
+  const sums = new Array(nb).fill(0); let W = 0;
+  for (let j = 0; j < T; j += 1) { sums[Math.floor(j / BLOCK)] += ws[j] * xs[j]; W += ws[j]; }
+  let total = 0; for (let k = 0; k < nb; k += 1) total += sums[k];
+  const Mean = total / W;
   let ge = 0;
   for (let b = 0; b < resamples; b += 1) {
-    let sumWX = 0; let sumW = 0; let j = 0;
-    for (let pos = 0; pos < T; pos += 1) {
-      if (pos === 0) j = Math.floor(random() * T);
-      else if (random() < BLOCK_RESTART) j = Math.floor(random() * T);
-      else j = (j + 1) % T;
-      sumWX += ws[j] * xc[j]; sumW += ws[j];
-    }
-    if (sumWX / sumW >= Mean) ge += 1;
+    let sum = 0;
+    for (let k = 0; k < nb; k += 1) sum += (random() < 0.5 ? -1 : 1) * sums[k];
+    if (sum / W >= Mean - TIE_TOLERANCE) ge += 1;
   }
-  return (1 + ge) / (resamples + 1);
+  return { p: (1 + ge) / (resamples + 1), mean: Mean };
 }
 /** Holm step-down over K p-values given in table order; ties ordered by table order. */
 function holm(ps) {
@@ -175,8 +176,8 @@ function runScreen({ db, now = Date.now(), resamples = B }) {
     const hours = base.hours; const usable = hours.length;
     const insufficient = usable < MIN_USABLE_HOURS;
     const xs = hours.map((h) => signal.s * h.ic); const ws = hours.map((h) => h.n - 1);
-    const mean = usable === 0 ? 0 : weightedMean(xs, ws);
-    const p = insufficient ? 1 : bootstrapP(xs, ws, makeRandom(SEED), resamples);
+    const mean = usable === 0 ? 0 : signFlipP(xs, ws, () => 0.5, 0).mean; // M as in the pre-registration: block sums added in block order
+    const p = insufficient ? 1 : signFlipP(xs, ws, makeRandom(SEED), resamples).p;
     const four = icSeries(eligible, signal, SCREEN_START, SCREEN_END, 4);
     const fourMean = four.hours.length === 0 ? 0 : weightedMean(four.hours.map((h) => signal.s * h.ic), four.hours.map((h) => h.n - 1));
     const weekIdx = (w) => hours.map((h, i) => [h, i]).filter(([h]) => Math.floor((h.t - SCREEN_START) / WEEK) === w).map(([, i]) => i);
@@ -208,8 +209,8 @@ function runScreen({ db, now = Date.now(), resamples = B }) {
 }
 
 module.exports = {
-  runScreen, icSeries, bootstrapP, holm, weightedMean, loadMarket, barComplete, eligibleAt, SIGNALS, SIGNAL_FN, MARKETS, STUDY_ID,
-  ELIG_START, SCREEN_START, SCREEN_END, EARLIEST_RUN, SEED, B, K, MIN_USABLE_HOURS, MIN_COMPLETE_BARS,
+  runScreen, icSeries, signFlipP, holm, weightedMean, loadMarket, barComplete, eligibleAt, SIGNALS, SIGNAL_FN, MARKETS, STUDY_ID,
+  ELIG_START, SCREEN_START, SCREEN_END, EARLIEST_RUN, SEED, B, K, ALPHA, BLOCK, MIN_USABLE_HOURS, MIN_COMPLETE_BARS,
 };
 
 if (require.main === module) {

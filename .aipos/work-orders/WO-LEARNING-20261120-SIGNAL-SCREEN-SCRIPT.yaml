@@ -4,15 +4,18 @@ status: READY_FOR_REVIEW
 created: 2026-11-20
 objective: "Implement docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M.md exactly, and run the null simulation of its bootstrap that the document requires before the screening span opens."
 change:
-  - "scripts/run-signal-screen.js: read-only screen (six signals, hourly Spearman IC, stationary bootstrap per the pseudocode, Holm over K = 6); prints SIGNAL_SCREEN_STUDY; WAITING_DATA before 2027-01-17T00:30Z reads close times only."
-  - "scripts/run-signal-screen.test.js: 13 tests (constants and RNG vector, Holm, bootstrap, formulas and missing-value rules, no look-ahead, bars, waiting path, integrity, planted effect, noise, insufficient, 152 of 168 bar, fail closed)."
-  - "scripts/simulate-signal-screen-size.js: null simulation tool (real bootstrapP, synthetic AR(1) hourly IC series, seeded fast generator)."
-simulation_result:
-  setup: "T = 720 hourly IC values, weights equal, mean zero, AR(1) phi in {0, 0.3, 0.6, 0.8, 0.9}, 1500 repetitions, 1000 resamples, one-sided; nominal sizes 0.05 and 0.0083 (the Holm level of the smallest p-value for K = 6)."
-  size_at_0_05: "0.071 (phi 0), 0.073 (0.3), 0.079 (0.6), 0.090 (0.8), 0.111 (0.9)"
-  size_at_0_0083: "0.018 (phi 0), 0.019 (0.3), 0.021 (0.6), 0.029 (0.8), 0.044 (0.9)"
-  consequence: "The pre-registered unstudentized stationary bootstrap with expected block 24 over 720 hours is anti-conservative even without autocorrelation (the bootstrap variance is itself noisy because the block sum of autocovariances is estimated from about 30 blocks). For six independent null signals the chance that the smallest p-value falls below 0.0083 is about 0.10 (phi 0) to 0.24 (phi 0.9), not 0.05, so the family-wise false-positive rate of 'adjusted p < 0.05' is roughly twice or more the stated one. The document says its p-values are approximate; this simulation quantifies it. The script follows the document unchanged."
-  proposed_options: "(a) accept and report the result as 'family-wise error about 10 to 25 percent'; (b) supersede the pre-registration before 2026-11-30 with a calibrated test (for example a studentized bootstrap or a stricter threshold set from this simulation). Decision belongs to the owner."
+  - "scripts/run-signal-screen.js: read-only screen (six signals, hourly Spearman IC, block sign-flip test per the V2 pseudocode, Holm over K = 6 at level 0.02); prints SIGNAL_SCREEN_STUDY; WAITING_DATA before 2027-01-17T00:30Z reads close times only."
+  - "scripts/run-signal-screen.test.js: 15 tests (constants and RNG vector, Holm, bootstrap, formulas and missing-value rules, no look-ahead, bars, waiting path, integrity, planted effect, noise, insufficient, 152 of 168 bar, fail closed)."
+  - "scripts/simulate-signal-screen-size.js: null calibration tool (real signFlipP and holm, synthetic AR(1) hourly signed-IC series, seeded fast generator)."
+simulation_result_v1:
+  note: "V1 (unstudentized stationary bootstrap) was anti-conservative: single-test size 0.071 (phi 0) to 0.111 (0.9) at 0.05 and 0.018 to 0.044 at 0.0083; family-wise about 0.10 to 0.24. Reproduced by an independent reviewer. Superseded by pre-registration V2 (owner decision (b), 2026-11-20)."
+simulation_result_v2:
+  setup: "scripts/simulate-signal-screen-size.js: the real signFlipP and holm, T = 720, equal weights, mean-zero Gaussian AR(1) hourly signed IC (sd 0.5), 1500 repetitions, 1000 resamples, a pass needs a positive mean."
+  single_test_size_at_0_02: "0.018 (phi 0), 0.019 (0.3), 0.022 (0.6), 0.028 (0.8), 0.043 (0.9)"
+  single_test_size_at_0_05: "0.041, 0.045, 0.048, 0.062, 0.091"
+  familywise_holm_level_0_02: "0.017 (phi 0), 0.022 (0.3), 0.024 (0.6), 0.037 (0.8), 0.086 (0.9)"
+  familywise_holm_level_0_05: "0.055, 0.061, 0.069, 0.097, 0.159"
+  consequence: "At the pre-registered level 0.02 the family-wise false-positive rate is below 0.05 up to hourly signed-IC autocorrelation 0.8 and about 0.09 at 0.9, as the pre-registration states; the independent reviewer of V2 obtained similar figures with their own code."
 not_changed:
   - "Not wired into any service, runner or diagnosis. No runtime, experiment, gate, threshold, limit, capital, order switch or authority change. The pre-registration text is not changed by this work order."
 safety:

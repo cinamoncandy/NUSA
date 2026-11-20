@@ -52,7 +52,7 @@ test("the span, the family and the constants are the ones in the pre-registratio
   assert.equal(SCREEN_END, Date.parse("2027-01-17T00:00:00Z"));
   assert.equal(EARLIEST_RUN, Date.parse("2027-01-17T00:30:00Z"));
   assert.equal((SCREEN_END - SCREEN_START) / H, 720);
-  assert.equal(S.SEED, 20261120); assert.equal(S.B, 10_000); assert.equal(S.K, 6);
+  assert.equal(S.SEED, 20261120); assert.equal(S.B, 10_000); assert.equal(S.K, 6); assert.equal(S.ALPHA, 0.02); assert.equal(S.BLOCK, 24);
   assert.equal(S.MIN_USABLE_HOURS, 600); assert.equal(S.MIN_COMPLETE_BARS, 152);
   assert.deepEqual(S.SIGNALS.map((x) => [x.name, x.s]), [["RET6", -1], ["RET24", 1], ["RET72", 1], ["VOL24", -1], ["SURGE", 1], ["RANGE", 1]]);
   assert.deepEqual([...S.MARKETS], ["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"]);
@@ -68,35 +68,35 @@ test("Holm step-down: ordering, monotone chain, cap at 1", () => {
   assert.deepEqual(S.holm([0.5, 0.5, 0.5, 0.5, 0.5, 0.5]), [1, 1, 1, 1, 1, 1]);
 });
 
-test("the stationary bootstrap rejects a clear positive weighted mean, keeps a centred one, and is deterministic", () => {
+test("the block sign-flip test rejects a clear positive weighted mean, keeps a centred one, and is deterministic", () => {
   const strong = Array.from({ length: 720 }, (_, i) => 0.2 + ((i * 7) % 11) / 100); const w = strong.map(() => 4);
-  assert.ok(S.bootstrapP(strong, w, makeRandom(S.SEED), 1000) < 0.01);
+  assert.ok(S.signFlipP(strong, w, makeRandom(S.SEED), 1000).p < 0.01);
   const centred = Array.from({ length: 720 }, (_, i) => (i % 2 === 0 ? 0.3 : -0.3));
-  assert.ok(S.bootstrapP(centred, w, makeRandom(S.SEED), 1000) > 0.2);
-  assert.equal(S.bootstrapP(strong, w, makeRandom(S.SEED), 200), S.bootstrapP(strong, w, makeRandom(S.SEED), 200));
-  // weights are resampled with their values: a series whose large values carry tiny weights has a smaller weighted mean than its plain mean
+  assert.ok(S.signFlipP(centred, w, makeRandom(S.SEED), 1000).p > 0.2);
+  assert.deepEqual(S.signFlipP(strong, w, makeRandom(S.SEED), 200), S.signFlipP(strong, w, makeRandom(S.SEED), 200));
   assert.ok(S.weightedMean([1, 0], [1, 9]) < 0.2);
+  // T not a multiple of 24: the last, shorter group is one block with its own flip
+  const odd = Array.from({ length: 650 }, (_, i) => 0.1 + (i % 7) / 100);
+  assert.ok(S.signFlipP(odd, odd.map(() => 4), makeRandom(S.SEED), 200).p < 0.05);
 });
 
 /** Independent naive restatement of the pre-registered pseudocode, reading the same uniform stream. */
-function naiveBootstrapP(xs, ws, u, B) {
-  const T = xs.length; let sw = 0; let swx = 0; for (let j = 0; j < T; j += 1) { sw += ws[j]; swx += ws[j] * xs[j]; }
-  const Mn = swx / sw; let ge = 0;
-  for (let b = 0; b < B; b += 1) {
-    let a = 0; let c = 0; let j;
-    for (let pos = 0; pos < T; pos += 1) {
-      if (pos === 0) j = Math.floor(u() * T); else { const restart = u() < 1 / 24; j = restart ? Math.floor(u() * T) : (j + 1) % T; }
-      a += ws[j] * (xs[j] - Mn); c += ws[j];
-    }
-    if (a / c >= Mn) ge += 1;
-  }
+function naiveSignFlipP(xs, ws, u, B) {
+  const T = xs.length; const blocks = [];
+  for (let start = 0; start < T; start += 24) { let s = 0; for (let j = start; j < Math.min(T, start + 24); j += 1) s += ws[j] * xs[j]; blocks.push(s); }
+  let W = 0; for (const w of ws) W += w;
+  let total = 0; for (const s of blocks) total += s;
+  const M = total / W; let ge = 0;
+  for (let b = 0; b < B; b += 1) { let sum = 0; for (let k = 0; k < blocks.length; k += 1) { const sign = u() < 0.5 ? -1 : 1; sum += sign * blocks[k]; } if (sum / W >= M - 1e-12) ge += 1; }
   return (1 + ge) / (B + 1);
 }
-test("the bootstrap equals an independent restatement of the pseudocode and has a pinned value (draw order, strict test)", () => {
+test("the sign-flip test equals an independent restatement of the pseudocode and has a pinned value (draw order, strict u < 0.5, tolerance)", () => {
   const xs = Array.from({ length: 150 }, (_, i) => Math.sin(i / 7) * 0.4 + (i % 5) * 0.02); const ws = xs.map((_, i) => 2 + (i % 3));
-  const a = S.bootstrapP(xs, ws, makeRandom(S.SEED), 300); const b = naiveBootstrapP(xs, ws, makeRandom(S.SEED), 300);
+  const a = S.signFlipP(xs, ws, makeRandom(S.SEED), 500).p; const b = naiveSignFlipP(xs, ws, makeRandom(S.SEED), 500);
   assert.equal(a, b);
-  assert.equal(a, 0.10299003322259136);
+  assert.equal(a, 0.16966067864271456);
+  // an all-plus flip reproduces M: with every sum equal to 0 the statistic ties and counts as an exceedance
+  assert.equal(S.signFlipP([0, 0, 0], [1, 1, 1], () => 0.9, 10).p, 1);
 });
 
 test("Holm with some signals insufficient and others sufficient, and the 4 h / weekly / identity outputs", { timeout: 600_000 }, () => {
