@@ -27,8 +27,11 @@ function hasDuplicateKey(text) {
   if (typeof text !== "string") return false;
   const seen = new Set();
   for (const match of text.matchAll(/"((?:[^"\\]|\\.)*)"\s*:/g)) {
-    if (seen.has(match[1])) return true;
-    seen.add(match[1]);
+    // Decode the key like JSON.parse does, so an escaped spelling (hold\u0053tate) counts as the same key.
+    let key;
+    try { key = JSON.parse(`"${match[1]}"`); } catch { return true; }
+    if (seen.has(key)) return true;
+    seen.add(key);
   }
   return false;
 }
@@ -42,7 +45,7 @@ function decideRelease(input) {
   const identity = i.identity || {};
   const workerNote = i.worker && i.worker.reachable === true ? (i.worker.decision === "CLEAR" ? "WORKER_CLEAR" : "WORKER_BLOCK") : "WORKER_UNREACHABLE";
   if (typeof i.auditedBase !== "string" || !SHA.test(i.auditedBase) || typeof i.mainHeadAtSecondRead !== "string" || !SHA.test(i.mainHeadAtSecondRead)) return block("BASE_UNKNOWN", workerNote);
-  if (identity.baseSha !== i.auditedBase) return block("IDENTITY_BASE_MISMATCH", workerNote);
+  if (typeof identity.baseSha !== "string" || identity.baseSha.toLowerCase() !== i.auditedBase.toLowerCase()) return block("IDENTITY_BASE_MISMATCH", workerNote);
   // Stale base: a HOLD or freeze merged to main after the PR's base would be invisible.
   if (i.auditedBase.toLowerCase() !== i.mainHeadAtSecondRead.toLowerCase()) return block("STALE_BASE", workerNote);
   const first = readDecision(i.firstReadText, identity);

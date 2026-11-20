@@ -39,6 +39,15 @@ test("case 2b: a repeated key is refused even when the last value looks clear (J
   assert.equal(decideRelease(base({ firstReadText: dupHold })).code, "FIRST_READ_FILE_DUPLICATE_KEY");
   assert.equal(decideRelease(base({ secondReadText: dupHold })).code, "SECOND_READ_FILE_DUPLICATE_KEY");
   assert.equal(decideRelease(base()).decision, "CLEAR");
+  // an escaped spelling of the same key is the same key (JSON.parse decodes it and keeps the last value)
+  const escaped = '{"holdState":"HOLD","schemaVersion":1,"globalReleaseFreeze":false,"hold\\u0053tate":"NONE","liveAuthority":"NONE","productionMutationAllowed":false,"aiAuthority":"ZERO_AUTHORITY"}';
+  assert.equal(JSON.parse(escaped).holdState, "NONE", "the escaped duplicate really hides the first HOLD from JSON.parse");
+  assert.equal(decideRelease(base({ firstReadText: escaped })).code, "FIRST_READ_FILE_DUPLICATE_KEY");
+  assert.equal(decideRelease(base({ firstReadText: CLEAN.replace('"holdState"', '"holdState" ') })).decision, "CLEAR", "spacing before a colon is not a duplicate");
+});
+
+test("a differently cased but equal base sha is the same base", () => {
+  assert.equal(decideRelease(base({ identity: { repository: "o/r", prNumber: 7, headSha: HEAD, baseSha: MAIN.toUpperCase() } })).decision, "CLEAR");
 });
 
 test("cases 3, 4, 5: freeze, hold and a changed safety fact block", () => {
@@ -55,7 +64,6 @@ test("case 6: a HOLD set between the first and the second read blocks at the sec
 test("case 7: the PR head's copy of the file is not an input; a HOLD at the base blocks even if the head says CLEAR", () => {
   const result = decideRelease({ ...base({ firstReadText: withFile({ holdState: "HOLD" }), secondReadText: withFile({ holdState: "HOLD" }) }), headFileText: CLEAN, prHeadFile: CLEAN });
   assert.equal(result.decision, "BLOCK");
-  assert.ok(!fs.readFileSync(path.join(__dirname, "../scripts/release-control-gate.js"), "utf8").match(/headFileText|prHeadFile/) || true);
   const source = fs.readFileSync(path.join(__dirname, "../scripts/release-control-gate.js"), "utf8").split("\n").filter((line) => !line.trim().startsWith("//")).join("\n");
   assert.doesNotMatch(source, /headFile|prHeadFile/, "no code path reads a head copy");
 });

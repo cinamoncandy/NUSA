@@ -6,7 +6,7 @@ owner_decision: "2026-11-20 ('해'): continue Cloudflare removal with the rehear
 objective: "Fix the gate's decision rule and prove every refusal case offline before anything is switched, so the S3b wiring is thin glue."
 change:
   - "scripts/release-control-gate.js (new, pure, no network, NOT wired into any workflow or runtime): decideRelease({firstReadText, secondReadText, auditedBase, mainHeadAtSecondRead, identity, worker}) blocks on an unreadable or invalid file at either read, a repeated key, a freeze or HOLD, a safety-fact change, a bad identity, a base that differs from the audit's, a stale base (audited base is not the main head at the second read), and a Worker HOLD after the switch; the Worker being unreachable neither releases nor blocks; the PR head's copy of the file is not an input."
-  - "tests/release-control-gate.test.js (12 tests): rehearsal cases 1-10 and 12, the repeated-key refusal, garbage input never throws and never releases, and a pin that no workflow references the gate yet."
+  - "tests/release-control-gate.test.js (14 tests): rehearsal cases 1-10 and 12, the repeated-key refusal, garbage input never throws and never releases, and a pin that no workflow references the gate yet."
   - "docs/CLOUDFLARE_REMOVAL_S3_DESIGN_2026-11-20.md: case 10 and case 2 wording aligned with the implementation; section 6b records the rehearsal status and that S3b must add the gate script to the protected paths."
 not_changed:
   - "No workflow, Worker, branch protection, gate threshold, limit, capital, order switch or authority change. The Worker check stays authoritative; the S2 shadow and the S3a rule are unchanged. None of the protected paths of the S3a rule is touched, so this PR merges through the normal audit."

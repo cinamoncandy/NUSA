@@ -62,7 +62,7 @@ The rehearsal output (the printed lines, no secrets) is recorded in an evidence 
 
 ## 6b. Rehearsal status (2026-11-20)
 
-The decisions of the gate itself (cases 1-10 and 12, including the repeated key and the stale base) are implemented as a pure, unwired function `scripts/release-control-gate.js` with 12 tests (`tests/release-control-gate.test.js`), so the rule is fixed before any switch. Case 11 (concurrent audits, a stale `nusa/release-authorized` status) and the workflow glue (reading the file twice from the audited base, comparing the main head, feeding the Worker answer) are workflow behaviour and are checked in S3b by reading the workflow and by the first real run. When S3b wires the gate, `scripts/release-control-gate.js` must be added to the protected paths of `scripts/release-control-path-rule.js` (an owner-merged change under the temporary protection relaxation).
+The decisions of the gate itself (cases 1-10 and 12, including the repeated key and the stale base) are implemented as a pure, unwired function `scripts/release-control-gate.js` with 14 tests (`tests/release-control-gate.test.js`), so the rule is fixed before any switch. Case 11 (concurrent audits, a stale `nusa/release-authorized` status) and the workflow glue (reading the file twice from the audited base, comparing the main head, feeding the Worker answer) are workflow behaviour and are checked in S3b by reading the workflow and by the first real run. When S3b wires the gate, `scripts/release-control-gate.js` must be added to the protected paths of `scripts/release-control-path-rule.js` (an owner-merged change under the temporary protection relaxation).
 
 ## 7. Not done
 
