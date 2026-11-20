@@ -78,6 +78,21 @@ jobs:
             exit 0
           fi
 
+          # S3a path rule (docs/CLOUDFLARE_REMOVAL_S3_DESIGN_2026-11-20.md): a PR that touches the release-control gate files is never
+          # auto-merged; the owner merges it by hand. The rule script is read from the AUDITED BASE (never the PR head), so a PR cannot
+          # change the rule that judges it. Any read or parse failure fails this job closed.
+          gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/files?per_page=100" > "$RUNNER_TEMP/nusa-deterministic-audit/pr-files.json"
+          gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/scripts/release-control-path-rule.js?ref=$current_main" > "$RUNNER_TEMP/nusa-deterministic-audit/release-control-path-rule.js"
+          path_rule="$(node "$RUNNER_TEMP/nusa-deterministic-audit/release-control-path-rule.js" "$RUNNER_TEMP/nusa-deterministic-audit/pr-files.json")"
+          echo "$path_rule"
+          if [ "$path_rule" != "${path_rule#RELEASE_CONTROL_PATH_RULE result=PROTECTED}" ]; then
+            echo 'applicable=false' >> "$GITHUB_OUTPUT"
+            echo 'authority=NONE' >> "$GITHUB_OUTPUT"
+            echo "audited_base=$current_main" >> "$GITHUB_OUTPUT"
+            echo "NO_ACTION owner-only paths: the PR touches a release-control gate file and is not auto-merged (pr=$PR_NUMBER head=$REQUESTED_HEAD)"
+            exit 0
+          fi
+
           gh api --paginate --slurp "repos/$GITHUB_REPOSITORY/issues?state=open&per_page=100" > "$RUNNER_TEMP/nusa-deterministic-audit/open-issues-pages.json"
           PR_JSON="$(cat "$RUNNER_TEMP/nusa-deterministic-audit/pr.json")" node - <<'NODE'
           const fs = require('fs');

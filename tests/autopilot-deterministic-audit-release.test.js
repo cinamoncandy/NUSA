@@ -263,3 +263,19 @@ test("S2 shadow steps are bounded, run before the release token is minted, and i
     assert.doesNotMatch(step, /RELEASE_AUTH|release_authority_token|secrets\./);
   }
 });
+
+test("S3a path rule: the audit job skips PRs that touch the release-control gate files, reading the rule from the audited base and failing closed", () => {
+  const auditJob = workflow.slice(workflow.indexOf("  audit:"), workflow.indexOf("\n  release:"));
+  const ruleIndex = auditJob.indexOf("S3a path rule");
+  assert.ok(ruleIndex > 0, "the path rule step exists in the audit job");
+  const rule = auditJob.slice(ruleIndex, auditJob.indexOf("open-issues-pages.json\"", ruleIndex));
+  assert.match(rule, /contents\/scripts\/release-control-path-rule\.js\?ref=\$current_main/);
+  assert.doesNotMatch(rule, /\?ref=\$REQUESTED_HEAD|\?ref=\$current_head/);
+  assert.match(rule, /pulls\/\$PR_NUMBER\/files/);
+  assert.match(rule, /applicable=false/);
+  assert.match(rule, /authority=NONE/);
+  assert.doesNotMatch(rule, /\|\| true|continue-on-error/, "a failure of the rule is never swallowed");
+  // It runs before the authority is granted and before any CI or evidence work.
+  assert.ok(ruleIndex < auditJob.indexOf("authority=DETERMINISTIC_AUDIT_PASS"));
+  assert.ok(ruleIndex < auditJob.indexOf("required_workflows=("));
+});
