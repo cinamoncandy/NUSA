@@ -33,4 +33,6 @@ Use the **hourly rank information coefficient (IC)**: for each hour, the Spearma
 2. Nothing about signal sources: the default is **candles only**, and a book or tick signal joins only if the coverage rule in section 3 passes in the training part.
 
 ## 7. What this document does not do
+
+(Note of 2026-11-20: the pre-registration `docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M.md` is binding where it differs from this design; for instance it deliberately sets the floor at 600 usable hours (25 blocks) for a signal, while the span itself has 30 blocks, and the deadline for its merge is 2026-11-30T00:00Z.)
 No code, no run, no experiment, gate, threshold, limit, capital, order switch or authority change. `experimentMarkets` stays KRW-XRP.
