@@ -1,0 +1,24 @@
+id: WO-UI-20261120-DESKTOP-UNKNOWN-STATE
+title: "Desktop: show unknown instead of stopped before the first data, and no page-load clock as 'last update'"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "2026-11-20 ('uiux 개선', then: diagnose first, and the agent implements). Diagnosis: scratchpad ui-diagnosis-mobile-desktop.md finding 1 and 9 (P1/P2). Merge after the 2026-11-23 bundled release so main stays still until then."
+objective: "A non-engineer opening the desktop app before the first answer must not read 'stopped / automation off' or a fresh-looking update time as facts."
+change:
+  - "apps/desktop/renderer/index.html: the pre-data defaults of the strategy status and automation read '확인 중' (4 places) instead of '중지됨' / '꺼짐'; the automation label reads '모의(PAPER) 자동화'."
+  - "apps/desktop/renderer/app-runtime.js: renderSnapshot sets the update label only when a snapshot was received ('데이터 받은 시각 HH:MM'), otherwise '아직 데이터를 받지 못했습니다'; renderControl shows '확인 중' for an unknown control state and keeps both start and stop disabled until the first answer."
+  - "tests/desktop-connection-truth.test.js: one test pins the defaults, the unknown state, the disabled buttons and the update label."
+not_changed:
+  - "No order, authority, limit, threshold or capital behaviour. Start and stop remain PAPER-only controls; a known control state behaves exactly as before. No server or IPC change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node --test on the desktop UI tests (32 pass); a real Chromium render of the renderer at 1280 and 390 px shows '확인 중' and '아직 데이터를 받지 못했습니다' (screenshots in the session scratchpad)."
+unverified: "Behaviour inside the Electron shell with the real IPC bridge was not run; the change is limited to the initial and null-state branches."
+acceptance:
+  - "Independent non-author review; exact-head CI; not merged before the 2026-11-23 release."

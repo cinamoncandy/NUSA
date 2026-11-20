@@ -44,3 +44,20 @@ test("connection-truth successor remains canonical and does not revive simple-ui
   assert.doesNotMatch(html, /href="simple-ui\.css"/);
   assert.match(html, /src="app-runtime\.js"/);
 });
+
+test("before any data or control answer the desktop says unknown, never stopped, and does not show the page-load clock as an update", () => {
+  // initial HTML defaults are "확인 중", not a claim that the strategy is stopped or automation is off
+  assert.doesNotMatch(html, /data-simple-strategy-status>중지됨/);
+  assert.doesNotMatch(html, /data-simple-auto-trade>꺼짐/);
+  assert.match(html, /data-simple-strategy-status>확인 중/);
+  assert.match(html, /모의\(PAPER\) 자동화/);
+  // an unknown control state shows "확인 중" and keeps both start and stop disabled
+  assert.match(runtime, /const known = control != null;/);
+  assert.match(runtime, /!known \? "확인 중"/);
+  assert.match(runtime, /button\.disabled = !known \|\| status === "RUNNING"/);
+  assert.match(runtime, /button\.disabled = !known \|\| status === "STOPPED"/);
+  // only a received snapshot sets the update label; otherwise it says no data yet
+  assert.match(runtime, /if \(snapshot\) \{ state\.lastUpdated = new Date\(\);[^}]*데이터 받은 시각/);
+  assert.match(runtime, /아직 데이터를 받지 못했습니다/);
+  assert.doesNotMatch(runtime, /state\.loading = false; state\.lastUpdated = new Date\(\)/);
+});
