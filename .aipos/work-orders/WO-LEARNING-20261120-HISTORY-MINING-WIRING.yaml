@@ -1,0 +1,25 @@
+id: WO-LEARNING-20261120-HISTORY-MINING-WIRING
+title: "History mining wiring: config-gated read-only DISCOVER child in the Research runner and a diagnosis projection (waits for config, never runs look)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "2026-11-20 ('만들어' / option 2): mine the pre-2026-11-20 window. This is the wiring step after WO-LEARNING-20261120-HISTORY-MINING-SCRIPT (PR #3237, must merge first)."
+objective: "Let the Research service run the discover phase read-only on the host once the owner has fixed the windows from the candle_extent counts, and show its aggregate result in the host diagnosis, without any run before that and without ever running the one look."
+change:
+  - "scripts/run-history-mining-discover.js (new, read-only): reads deploy/oracle/history-mining-windows.json (fixed path next to paper-markets.json, resolved from __dirname like other deploy/oracle files). ABSENT (the default, the file is NOT created here): prints exactly HISTORY_MINING_DISCOVER {\"status\":\"WAITING_CONFIG\"}, opens no database, reads no candle value. PRESENT: strict validation (exactly the four ISO UTC full-hour fields discoveryStart, discoveryEnd, holdbackStart, holdbackEnd; ordered; 96 h purge; holdbackEnd <= 2026-11-20T00:00Z through checkWindows of run-history-mining.js; absolute NUSA_CLOUD_STATE_DB_PATH), then ONLY the discover phase of scripts/run-history-mining.js, output printed as that script prints it. Invalid config or failed child exits non-zero (fail closed). The look phase is never invoked: the one look stays a manual step ordered by the owner after the freeze record is committed."
+  - "scripts/run-cloud-research-snapshot.js: one more bounded child (300 s) after the order-book gap probe; a failure logs HISTORY_MINING_FAILED_CLOSED and never blocks Research."
+  - ".github/workflows/oracle-host-diagnose.yml: projection history_mining of the latest HISTORY_MINING_DISCOVER line: status (WAITING_CONFIG, INSUFFICIENT_DATA, NO_SHORTLIST, SHORTLIST), numbers (trials, usableDecisionHours, eligibleRules, positiveMeanRules), gridFingerprint (64 hex) and the shortlist as rule ids (letters, digits, underscore) with n, meanNet, meanStress only. Thresholds, windows and the freeze record are not projected."
+  - "tests: tests/run-history-mining-discover.test.js (8 tests: config absent by default; absent config gives WAITING_CONFIG and no database read; 13 invalid configs fail closed; bad state path; discover-only spawn arguments and child failures; end to end on a synthetic sqlite file; source pin that look is never invoked), scripts/run-cloud-research-snapshot.test.js (12 children, timeout 300000, failure logged, source pin), tests/oracle-host-diagnose-workflow.test.js (history_mining projection)."
+  - "docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md section 10: the runbook (counts, choose windows, commit config, release, read discover, commit the freeze record before look, one look by the owner's word)."
+not_changed:
+  - "scripts/run-history-mining.js is unchanged. deploy/oracle/history-mining-windows.json is not created: nothing runs on data until the owner commits it. No experiment, gate, threshold, limit, capital, order switch or authority change. experimentMarkets stays KRW-XRP."
+release_plan: "Depends on PR #3237 (merge it first). After merge it ships with the next release (not before the 2026-11-23 release). Nothing runs on candle data until the owner commits deploy/oracle/history-mining-windows.json from the 2026-11-21 candle_extent counts and a later release ships it; until then the diagnosis shows history_mining WAITING_CONFIG."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run on the real host or database. The freeze record (with thresholds) is printed to the Research journal but is not projected by the diagnosis, so how the owner obtains it for the commit is open (see design section 10). The readings of design section 9 still await the owner's or a reviewer's correction before the first real run."
+acceptance:
+  - "AIPOS validators; independent non-author review; exact-head CI; PR #3237 merged first; no config committed and no real run before the extent counts, the review of the readings and a release."

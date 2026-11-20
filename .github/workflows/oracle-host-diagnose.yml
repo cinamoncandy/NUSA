@@ -195,6 +195,16 @@ jobs:
             const out = { status: "OK" }; for (const [k, x] of Object.entries(v)) if (/^[a-zA-Z]{1,40}$/.test(k) && Number.isSafeInteger(x)) out[k] = x; console.log(JSON.stringify(out));
           } catch { console.log(line.includes("CANDLE_EXTENT_FAILED_CLOSED") ? "CANDLE_EXTENT_FAILED_CLOSED" : "CANDLE_EXTENT_UNAVAILABLE"); }')"
           summary="${summary}"$'\n'"candle_extent=${extent}"
+          # Latest history mining DISCOVER line (docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md; WAITING_CONFIG until the owner commits the windows): a fixed status code, numbers, the grid fingerprint
+          # and the shortlist as rule ids (letters, digits, underscore) with n, meanNet and meanStress only. Thresholds, windows and the freeze record are not projected.
+          mining="$(journalctl -u nusa-research.service --since "-26 hours" --no-pager -o cat 2>/dev/null | grep -e 'HISTORY_MINING_DISCOVER' -e 'HISTORY_MINING_FAILED_CLOSED' | tail -1 | cut -c1-6000 | node -e '
+          const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("HISTORY_MINING_DISCOVER ");
+          try { const v = JSON.parse(line.slice(i + 24)); if (i < 0 || !["WAITING_CONFIG", "INSUFFICIENT_DATA", "NO_SHORTLIST", "SHORTLIST"].includes(v.status)) throw 0;
+            const out = { status: v.status }; for (const [k, x] of Object.entries(v)) if (/^[a-zA-Z]{1,40}$/.test(k) && (typeof x === "boolean" || Number.isFinite(x) || (/Fingerprint$/.test(k) && /^[a-f0-9]{64}$/.test(x)))) out[k] = x;
+            if (Array.isArray(v.shortlist)) out.shortlist = v.shortlist.slice(0, 5).filter((s) => s !== null && typeof s === "object" && /^[A-Za-z0-9_]{1,40}$/.test(s.id) && [s.n, s.meanNet, s.meanStress].every(Number.isFinite)).map((s) => ({ id: s.id, n: s.n, meanNet: s.meanNet, meanStress: s.meanStress }));
+            console.log(JSON.stringify(out));
+          } catch { console.log(line.includes("HISTORY_MINING_FAILED_CLOSED") ? "HISTORY_MINING_FAILED_CLOSED" : "HISTORY_MINING_UNAVAILABLE"); }')"
+          summary="${summary}"$'\n'"history_mining=${mining}"
           # Latest read-only order-book gap map (sample times only, no price or size): integers only.
           obgaps="$(journalctl -u nusa-research.service --since "-26 hours" --no-pager -o cat 2>/dev/null | grep 'ORDERBOOK_GAPS' | tail -1 | cut -c1-3000 | node -e '
           const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("ORDERBOOK_GAPS ");

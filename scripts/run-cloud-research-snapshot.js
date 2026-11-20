@@ -76,6 +76,10 @@ function run(options = {}) {
   // Read-only map of the order-book coverage gaps (sample times only, no price or size; WO-LEARNING-20261120-ORDERBOOK-GAP-PROBE). Never blocks Research.
   const gaps = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-orderbook-gap-probe.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 120000 });
   if (gaps.error || gaps.signal || gaps.status !== 0) console.error("[cloud-research-snapshot] ORDERBOOK_GAPS_FAILED_CLOSED");
+  // Config-gated, read-only DISCOVER phase of the history mining (WO-LEARNING-20261120-HISTORY-MINING-WIRING). Prints WAITING_CONFIG and reads no candle until the owner commits
+  // deploy/oracle/history-mining-windows.json. It never runs `look` (the one look is a manual, owner-ordered step). Never blocks Research.
+  const mining = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-history-mining-discover.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 300000 });
+  if (mining.error || mining.signal || mining.status !== 0) console.error("[cloud-research-snapshot] HISTORY_MINING_FAILED_CLOSED");
   const args = [RESEARCH_MAX_OLD_SPACE_ARG, "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"];
   const result = spawn(executable, args, { cwd, env, stdio: "inherit", shell: false });
   if (result.error) throw result.error;

@@ -291,6 +291,31 @@ test("the diagnosis projects the CANDLE_EXTENT line to a fixed status and intege
   assert.equal(project(""), "CANDLE_EXTENT_UNAVAILABLE");
 });
 
+// WO-LEARNING-20261120-HISTORY-MINING-WIRING: the diagnosis shows the latest HISTORY_MINING_DISCOVER line, safe fields only.
+test("the diagnosis projects the HISTORY_MINING_DISCOVER line to a fixed status, numbers, the grid fingerprint and a flat shortlist", () => {
+  const start = text.indexOf("mining=\"$(journalctl");
+  assert.ok(start > 0, "the projection exists");
+  const block = text.slice(start, text.indexOf("summary=\"${summary}\"$'\\n'\"history_mining", start));
+  assert.match(text, /summary="\$\{summary\}"\$'\\n'"history_mining=\$\{mining\}"/);
+  const code = block.slice(block.indexOf("node -e '") + "node -e '".length, block.lastIndexOf("')\""));
+  assert.ok(!code.includes("'"), "no single quote inside the node -e block");
+  const project = (input) => {
+    const run = require("node:child_process").spawnSync(process.execPath, ["-e", code], { input, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout.trim();
+  };
+  assert.deepEqual(JSON.parse(project("HISTORY_MINING_DISCOVER {\"status\":\"WAITING_CONFIG\"}")), { status: "WAITING_CONFIG" });
+  const fp = "c".repeat(64);
+  const done = { status: "SHORTLIST", gridFingerprint: fp, trials: 128, usableDecisionHours: 4000, eligibleRules: 40, positiveMeanRules: 12, note: "free text", reasonCode: "DATA_X", thresholds: { RET1_HIGH_Q80_H1: { limit: 0.01, n: 5 } }, windows: { discoveryStart: 1 },
+    shortlist: [{ id: "RET1_HIGH_Q80_H1", n: 120, meanNet: 0.001, meanStress: -0.0002, unresolved: 3, extra: "x" }, { id: "BAD ID;rm", n: 1, meanNet: 0, meanStress: 0 }, { id: "RET3_LOW_Q90_H4", n: "120", meanNet: 0, meanStress: 0 }, { id: "CLOSE_VS_MA24_LOW_Q90_H24", n: 101, meanNet: 0.002, meanStress: 0.0001 }] };
+  assert.deepEqual(JSON.parse(project("HISTORY_MINING_DISCOVER " + JSON.stringify(done))), { status: "SHORTLIST", gridFingerprint: fp, trials: 128, usableDecisionHours: 4000, eligibleRules: 40, positiveMeanRules: 12,
+    shortlist: [{ id: "RET1_HIGH_Q80_H1", n: 120, meanNet: 0.001, meanStress: -0.0002 }, { id: "CLOSE_VS_MA24_LOW_Q90_H24", n: 101, meanNet: 0.002, meanStress: 0.0001 }] });
+  assert.deepEqual(JSON.parse(project("HISTORY_MINING_DISCOVER " + JSON.stringify({ status: "NO_SHORTLIST", gridFingerprint: "not-hex", trials: 128 }))), { status: "NO_SHORTLIST", trials: 128 });
+  assert.equal(project("HISTORY_MINING_DISCOVER " + JSON.stringify({ status: "FORGED" })), "HISTORY_MINING_UNAVAILABLE");
+  assert.equal(project("[cloud-research-snapshot] HISTORY_MINING_FAILED_CLOSED"), "HISTORY_MINING_FAILED_CLOSED");
+  assert.equal(project(""), "HISTORY_MINING_UNAVAILABLE");
+});
+
 // WO-LEARNING-20261120-SIGNAL-SCREEN-WIRING: the diagnosis shows the latest SIGNAL_SCREEN_STUDY line with numbers and booleans only.
 test("the diagnosis projects the SIGNAL_SCREEN_STUDY line to a fixed status, numbers, booleans and the dataset fingerprint", () => {
   const start = text.indexOf("screen=\"$(journalctl");
