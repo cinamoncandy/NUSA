@@ -120,3 +120,66 @@ describe("app runtime mount", () => {
     expect(document.querySelector("[data-simple-settings-message]").textContent.length).toBeGreaterThan(0);
   });
 });
+
+describe("unknown control state (UI diagnosis finding 1)", () => {
+  const controlFixture = () => {
+    fixture();
+    const root = document.querySelector("#simple-ui-root");
+    root.insertAdjacentHTML("beforeend",
+      '<small data-simple-updated>업데이트 대기 중</small>' +
+      '<strong data-simple-strategy-status>확인 중</strong><b data-simple-auto-trade>확인 중</b>' +
+      '<button data-simple-strategy="start">start</button><button data-simple-strategy="stop">stop</button>');
+  };
+  const read = (selector) => document.querySelector(selector).textContent;
+  // mount() deletes window.nusa first, so a bridge stub has to be installed after those deletes.
+  const mountWithBridge = (bridge) => {
+    delete window.NUSACanonicalUI; delete window.nusa; delete window.nusaApp; delete window.NUSAMobileViewModel;
+    window.nusa = bridge;
+    vi.useFakeTimers();
+    window.eval(source);
+    return window.NUSACanonicalUI;
+  };
+  afterEach(() => { delete window.nusa; });
+
+  beforeEach(() => { controlFixture(); });
+
+  it("with no bridge the state stays unknown, both PAPER buttons are disabled and no update time is shown", async () => {
+    mount();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(read("[data-simple-strategy-status]")).not.toBe("중지됨");
+    expect(read("[data-simple-auto-trade]")).not.toBe("꺼짐");
+    expect(read("[data-simple-updated]")).toBe("아직 데이터를 받지 못했습니다");
+    expect(document.querySelector("[data-simple-strategy='start']").disabled).toBe(true);
+    expect(document.querySelector("[data-simple-strategy='stop']").disabled).toBe(true);
+  });
+
+  it("a failed or empty first control read says it cannot be confirmed instead of waiting forever", async () => {
+    mountWithBridge({ getSnapshot: async () => null, getControlSnapshot: async () => null });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(read("[data-simple-strategy-status]")).toBe("확인 불가");
+    expect(read("[data-simple-auto-trade]")).toBe("확인 불가");
+    expect(document.querySelector("[data-simple-strategy='start']").disabled).toBe(true);
+    expect(document.querySelector("[data-simple-strategy='stop']").disabled).toBe(true);
+  });
+
+  it("a real control answer replaces the unknown state and enables the matching PAPER button only", async () => {
+    mountWithBridge({ getSnapshot: async () => null, getControlSnapshot: async () => ({ status: "STOPPED", autoTradeEnabled: false, events: [] }) });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(read("[data-simple-strategy-status]")).toBe("중지됨");
+    expect(read("[data-simple-auto-trade]")).toBe("꺼짐");
+    expect(document.querySelector("[data-simple-strategy='start']").disabled).toBe(false);
+    expect(document.querySelector("[data-simple-strategy='stop']").disabled).toBe(true);
+  });
+
+  it("a later control push recovers from a failed first read", async () => {
+    let push = null;
+    mountWithBridge({ getSnapshot: async () => null, getControlSnapshot: async () => null, onControl: (callback) => { push = callback; return () => undefined; } });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(read("[data-simple-strategy-status]")).toBe("확인 불가");
+    push({ status: "RUNNING", autoTradeEnabled: true, events: [] });
+    expect(read("[data-simple-strategy-status]")).toBe("실행 중");
+    expect(read("[data-simple-auto-trade]")).toBe("켜짐");
+    expect(document.querySelector("[data-simple-strategy='start']").disabled).toBe(true);
+    expect(document.querySelector("[data-simple-strategy='stop']").disabled).toBe(false);
+  });
+});

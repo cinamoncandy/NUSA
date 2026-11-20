@@ -6,8 +6,8 @@ owner_decision: "2026-11-20 ('uiux 개선', then: diagnose first, and the agent 
 objective: "A non-engineer opening the desktop app before the first answer must not read 'stopped / automation off' or a fresh-looking update time as facts."
 change:
   - "apps/desktop/renderer/index.html: the pre-data defaults of the strategy status and automation read '확인 중' (4 places) instead of '중지됨' / '꺼짐'; the automation label reads '모의(PAPER) 자동화'."
-  - "apps/desktop/renderer/app-runtime.js: renderSnapshot sets the update label only when a snapshot was received ('데이터 받은 시각 HH:MM'), otherwise '아직 데이터를 받지 못했습니다'; renderControl shows '확인 중' for an unknown control state and keeps both start and stop disabled until the first answer."
-  - "tests/desktop-connection-truth.test.js: one test pins the defaults, the unknown state, the disabled buttons and the update label."
+  - "apps/desktop/renderer/app-runtime.js: renderSnapshot sets the update label only when a snapshot was received ('데이터 받은 시각 HH:MM'), otherwise '아직 데이터를 받지 못했습니다'; renderControl shows '확인 중' for an unknown control state and keeps both start and stop disabled until the first answer; if the first control read fails or comes back empty, it shows '확인 불가' (and logs it) instead of waiting forever, and a later control push recovers it (independent review P1)."
+  - "tests/desktop-connection-truth.test.js: one source-pin test; tests/app-runtime-execution.vitest.js: four behavioural jsdom tests (no bridge stays unknown with both buttons disabled; a failed first read says '확인 불가'; a real answer shows the real state and enables only the matching button; a later push recovers). A mutation (removing the failure label) fails two of them."
 not_changed:
   - "No order, authority, limit, threshold or capital behaviour. Start and stop remain PAPER-only controls; a known control state behaves exactly as before. No server or IPC change."
 safety:

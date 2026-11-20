@@ -53,7 +53,8 @@ test("before any data or control answer the desktop says unknown, never stopped,
   assert.match(html, /모의\(PAPER\) 자동화/);
   // an unknown control state shows "확인 중" and keeps both start and stop disabled
   assert.match(runtime, /const known = control != null;/);
-  assert.match(runtime, /!known \? "확인 중"/);
+  assert.match(runtime, /const unknownLabel = state\.controlLoadFailed === true \? "확인 불가" : "확인 중"/);
+  assert.match(runtime, /!known \? unknownLabel/);
   assert.match(runtime, /button\.disabled = !known \|\| status === "RUNNING"/);
   assert.match(runtime, /button\.disabled = !known \|\| status === "STOPPED"/);
   // only a received snapshot sets the update label; otherwise it says no data yet
