@@ -290,3 +290,25 @@ test("the diagnosis projects the CANDLE_EXTENT line to a fixed status and intege
   assert.equal(project("[cloud-research-snapshot] CANDLE_EXTENT_FAILED_CLOSED"), "CANDLE_EXTENT_FAILED_CLOSED");
   assert.equal(project(""), "CANDLE_EXTENT_UNAVAILABLE");
 });
+
+// WO-LEARNING-20261120-SIGNAL-SCREEN-WIRING: the diagnosis shows the latest SIGNAL_SCREEN_STUDY line with numbers and booleans only.
+test("the diagnosis projects the SIGNAL_SCREEN_STUDY line to a fixed status, numbers, booleans and the dataset fingerprint", () => {
+  const start = text.indexOf("screen=\"$(journalctl");
+  assert.ok(start > 0, "the projection exists");
+  const block = text.slice(start, text.indexOf("summary=\"${summary}\"$'\\n'\"signal_screen_study", start));
+  assert.match(text, /summary="\$\{summary\}"\$'\\n'"signal_screen_study=\$\{screen\}"/);
+  const code = block.slice(block.indexOf("node -e '") + "node -e '".length, block.lastIndexOf("')\""));
+  const project = (input) => {
+    const run = require("node:child_process").spawnSync(process.execPath, ["-e", code], { input, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout.trim();
+  };
+  const waiting = { status: "WAITING_DATA", daysCollected: 3, btcMinutes: 4000, studyId: "RULE_X", note: "free text" };
+  assert.deepEqual(JSON.parse(project("SIGNAL_SCREEN_STUDY " + JSON.stringify(waiting))), { status: "WAITING_DATA", daysCollected: 3, btcMinutes: 4000 });
+  const done = { status: "SCREEN_PASS", eligible: 5, k: 6, datasetFingerprint: "b".repeat(64), retDayMeanIc: 0.06, retDayAdjP: 0.004, retDayPass: true, retDayInsufficient: false, note: "free", datasetRows: 123 };
+  assert.deepEqual(JSON.parse(project("SIGNAL_SCREEN_STUDY " + JSON.stringify(done))), { status: "SCREEN_PASS", eligible: 5, k: 6, datasetFingerprint: "b".repeat(64), retDayMeanIc: 0.06, retDayAdjP: 0.004, retDayPass: true, retDayInsufficient: false, datasetRows: 123 });
+  assert.deepEqual(JSON.parse(project("SIGNAL_SCREEN_STUDY " + JSON.stringify({ status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" }))), { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" });
+  assert.equal(project("SIGNAL_SCREEN_STUDY " + JSON.stringify({ status: "FORGED_PASS" })), "SIGNAL_SCREEN_STUDY_UNAVAILABLE");
+  assert.equal(project("[cloud-research-snapshot] SIGNAL_SCREEN_STUDY_FAILED_CLOSED"), "SIGNAL_SCREEN_STUDY_FAILED_CLOSED");
+  assert.equal(project(""), "SIGNAL_SCREEN_STUDY_UNAVAILABLE");
+});

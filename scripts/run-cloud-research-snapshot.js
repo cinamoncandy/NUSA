@@ -66,6 +66,10 @@ function run(options = {}) {
   // Its failure cannot fail Research; a hung run can still delay it by up to its 600 s timeout.
   const crossmarket = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-crossmarket-study.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 600000 });
   if (crossmarket.error || crossmarket.signal || crossmarket.status !== 0) console.error("[cloud-research-snapshot] CROSSMARKET_STUDY_FAILED_CLOSED");
+  // Pre-registered SIGNAL SCREEN (docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M_V2.md; read-only; WAITING_DATA, counts only, until 2027-01-17T00:30Z).
+  // Its failure cannot fail Research; a hung run can still delay it by up to its 600 s timeout.
+  const signalScreen = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-signal-screen.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 600000 });
+  if (signalScreen.error || signalScreen.signal || signalScreen.status !== 0) console.error("[cloud-research-snapshot] SIGNAL_SCREEN_STUDY_FAILED_CLOSED");
   // Read-only extent of the stored candle history (counts and close times only, no value; WO-LEARNING-20261120-CANDLE-EXTENT-PROBE). Never blocks Research.
   const extent = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-candle-extent-probe.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 120000 });
   if (extent.error || extent.signal || extent.status !== 0) console.error("[cloud-research-snapshot] CANDLE_EXTENT_FAILED_CLOSED");
