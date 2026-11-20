@@ -78,6 +78,40 @@ test("the stationary bootstrap rejects a clear positive weighted mean, keeps a c
   assert.ok(S.weightedMean([1, 0], [1, 9]) < 0.2);
 });
 
+/** Independent naive restatement of the pre-registered pseudocode, reading the same uniform stream. */
+function naiveBootstrapP(xs, ws, u, B) {
+  const T = xs.length; let sw = 0; let swx = 0; for (let j = 0; j < T; j += 1) { sw += ws[j]; swx += ws[j] * xs[j]; }
+  const Mn = swx / sw; let ge = 0;
+  for (let b = 0; b < B; b += 1) {
+    let a = 0; let c = 0; let j;
+    for (let pos = 0; pos < T; pos += 1) {
+      if (pos === 0) j = Math.floor(u() * T); else { const restart = u() < 1 / 24; j = restart ? Math.floor(u() * T) : (j + 1) % T; }
+      a += ws[j] * (xs[j] - Mn); c += ws[j];
+    }
+    if (a / c >= Mn) ge += 1;
+  }
+  return (1 + ge) / (B + 1);
+}
+test("the bootstrap equals an independent restatement of the pseudocode and has a pinned value (draw order, strict test)", () => {
+  const xs = Array.from({ length: 150 }, (_, i) => Math.sin(i / 7) * 0.4 + (i % 5) * 0.02); const ws = xs.map((_, i) => 2 + (i % 3));
+  const a = S.bootstrapP(xs, ws, makeRandom(S.SEED), 300); const b = naiveBootstrapP(xs, ws, makeRandom(S.SEED), 300);
+  assert.equal(a, b);
+  assert.equal(a, 0.10299003322259136);
+});
+
+test("Holm with some signals insufficient and others sufficient, and the 4 h / weekly / identity outputs", { timeout: 600_000 }, () => {
+  const adj = S.holm([1, 0.001, 1, 0.02, 1, 1]);
+  assert.ok(Math.abs(adj[1] - 0.006) < 1e-12 && Math.abs(adj[3] - 0.1) < 1e-12 && adj[0] === 1);
+  const db = syntheticDb({ drift: blockDrift, noise: 0.0005 });
+  db.prepare("INSERT INTO research_candle_absence VALUES ('KRW-BTC', 60000, ?, ?, 0, 0, 'f', 't', 'c')").run(SCREEN_START + 50 * H - 5 * M, SCREEN_START + 50 * H - 3 * M);
+  const r = S.runScreen({ db, now: AFTER, resamples: 50 });
+  assert.equal(r.retDayFourHourExcluded, 3, "the last 3 hours have no t + 4 h inside the span");
+  assert.equal(r.retDayWeekHoursFour, 48, "block 4 has 2 days");
+  assert.equal(r.retDayWeekHoursZero, 168);
+  assert.ok(r.datasetFirstMs >= Date.parse("2026-12-10T23:00:00Z") && r.datasetLastMs === SCREEN_END);
+  assert.ok("retDayFourHourSkippedHours" in r && "retDayFourHourConstantHours" in r);
+});
+
 test("signal formulas, missing-value rules and the absence of look-ahead", () => {
   const t = SCREEN_START + 100 * H;
   const s = { market: "KRW-BTC", close: new Map(), volume: new Map(), absent: new Set(), barCache: new Map() };

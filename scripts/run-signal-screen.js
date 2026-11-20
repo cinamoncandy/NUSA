@@ -45,12 +45,14 @@ const SIGNALS = Object.freeze([
 // ---- data ----
 function loadMarket(db, market) {
   const close = new Map(); const volume = new Map();
-  for (const r of db.prepare("SELECT close_time_ms AS t, close AS c, volume AS v FROM research_closed_candles WHERE market = ? AND interval_ms = ? AND close_time_ms >= ? AND close_time_ms <= ? ORDER BY close_time_ms ASC").iterate(market, M, LOOKBACK_FROM - 3 * DAY, SCREEN_END)) {
+  for (const r of db.prepare("SELECT close_time_ms AS t, close AS c, volume AS v FROM research_closed_candles WHERE market = ? AND interval_ms = ? AND close_time_ms >= ? AND close_time_ms <= ? ORDER BY close_time_ms ASC").iterate(market, M, LOOKBACK_FROM, SCREEN_END)) {
+    // A non-finite or non-positive close is treated as missing (never filled): the bar then counts as incomplete.
+    if (!Number.isFinite(Number(r.c)) || Number(r.c) <= 0) continue;
     close.set(Number(r.t), Number(r.c)); volume.set(Number(r.t), r.v === null || r.v === undefined ? null : Number(r.v));
   }
   const absent = new Set();
-  for (const r of db.prepare("SELECT first_absent_close_ms AS a, last_absent_close_ms AS b FROM research_candle_absence WHERE market = ? AND interval_ms = ? AND last_absent_close_ms >= ? AND first_absent_close_ms <= ?").iterate(market, M, LOOKBACK_FROM - 3 * DAY, SCREEN_END)) {
-    for (let t = Math.max(Number(r.a), LOOKBACK_FROM - 3 * DAY); t <= Math.min(Number(r.b), SCREEN_END); t += M) absent.add(t);
+  for (const r of db.prepare("SELECT first_absent_close_ms AS a, last_absent_close_ms AS b FROM research_candle_absence WHERE market = ? AND interval_ms = ? AND last_absent_close_ms >= ? AND first_absent_close_ms <= ?").iterate(market, M, LOOKBACK_FROM, SCREEN_END)) {
+    for (let t = Math.max(Number(r.a), LOOKBACK_FROM); t <= Math.min(Number(r.b), SCREEN_END); t += M) absent.add(t);
   }
   return { market, close, volume, absent, barCache: new Map() };
 }
@@ -159,7 +161,7 @@ function coverageCounts(db, now) {
 
 function runScreen({ db, now = Date.now(), resamples = B }) {
   if (now < EARLIEST_RUN) return { status: "WAITING_DATA", daysCollected: Math.max(0, Math.floor((Math.min(now, SCREEN_END) - ELIG_START) / DAY)), ...coverageCounts(db, now) };
-  const future = Number(db.prepare("SELECT COUNT(*) AS n FROM research_closed_candles WHERE close_time_ms > ?").get(now + 5_000).n);
+  let future = 0; for (const market of MARKETS) future += Number(db.prepare("SELECT COUNT(*) AS n FROM research_closed_candles WHERE market = ? AND interval_ms = ? AND close_time_ms > ?").get(market, M, now + 5_000).n);
   if (future > 0) return { status: "DATA_INTEGRITY_FAIL", reasonCode: "DATA_FUTURE" };
   const all = MARKETS.map((m) => loadMarket(db, m));
   const eligible = all.filter((s) => {
@@ -177,28 +179,30 @@ function runScreen({ db, now = Date.now(), resamples = B }) {
     const p = insufficient ? 1 : bootstrapP(xs, ws, makeRandom(SEED), resamples);
     const four = icSeries(eligible, signal, SCREEN_START, SCREEN_END, 4);
     const fourMean = four.hours.length === 0 ? 0 : weightedMean(four.hours.map((h) => signal.s * h.ic), four.hours.map((h) => h.n - 1));
+    const weekIdx = (w) => hours.map((h, i) => [h, i]).filter(([h]) => Math.floor((h.t - SCREEN_START) / WEEK) === w).map(([, i]) => i);
+    const weekHours = [0, 1, 2, 3, 4].map((w) => weekIdx(w).length);
     const weeks = [0, 1, 2, 3, 4].map((w) => { const idx = hours.map((h, i) => [h, i]).filter(([h]) => Math.floor((h.t - SCREEN_START) / WEEK) === w).map(([, i]) => i); return idx.length === 0 ? 0 : round(weightedMean(idx.map((i) => xs[i]), idx.map((i) => ws[i])), 5); });
-    return { signal, usable, insufficient, mean, p, skipped: base.skippedHours, constant: base.constantHours, fourMean, fourHours: four.hours.length, fourExcluded: four.excluded4h, weeks };
+    return { signal, usable, insufficient, mean, p, skipped: base.skippedHours, constant: base.constantHours, fourMean, fourHours: four.hours.length, fourExcluded: four.excluded4h, fourSkipped: four.skippedHours, fourConstant: four.constantHours, weeks, weekHours };
   });
   const adj = holm(results.map((r) => r.p));
   results.forEach((r, i) => { r.adjP = adj[i]; r.pass = !r.insufficient && r.mean > 0 && r.adjP < ALPHA; });
 
-  const hash = crypto.createHash("sha256"); let rows = 0;
+  const hash = crypto.createHash("sha256"); let rows = 0; let firstMs = Infinity; let lastMs = -Infinity;
   for (const s of eligible) {
     hash.update(`${s.market}\n`);
-    for (const [t, c] of s.close) { hash.update(`c,${t},${c},${s.volume.get(t)}\n`); rows += 1; }
+    for (const [t, c] of s.close) { hash.update(`c,${t},${c},${s.volume.get(t)}\n`); rows += 1; firstMs = Math.min(firstMs, t); lastMs = Math.max(lastMs, t); }
     for (const t of [...s.absent].sort((a, b) => a - b)) hash.update(`a,${t}\n`);
   }
   const out = {
     status: results.some((r) => r.pass) ? "SCREEN_PASS" : "SCREEN_FAIL", markets: MARKETS.length, eligible: eligible.length, k: K,
-    datasetFingerprint: hash.digest("hex"), datasetRows: rows,
+    datasetFingerprint: hash.digest("hex"), datasetRows: rows, datasetFirstMs: rows === 0 ? 0 : firstMs, datasetLastMs: rows === 0 ? 0 : lastMs,
   };
   for (const r of results) {
     const k = r.signal.key;
     out[`${k}Hours`] = r.usable; out[`${k}SkippedHours`] = r.skipped; out[`${k}ConstantHours`] = r.constant;
     out[`${k}MeanIc`] = round(r.mean, 5); out[`${k}P`] = p3(r.p); out[`${k}AdjP`] = p3(r.adjP); out[`${k}Pass`] = r.pass; out[`${k}Insufficient`] = r.insufficient;
-    out[`${k}FourHourMeanIc`] = round(r.fourMean, 5); out[`${k}FourHourHours`] = r.fourHours; out[`${k}FourHourExcluded`] = r.fourExcluded;
-    r.weeks.forEach((w, i) => { out[`${k}WeekIc${["Zero", "One", "Two", "Three", "Four"][i]}`] = w; });
+    out[`${k}FourHourMeanIc`] = round(r.fourMean, 5); out[`${k}FourHourHours`] = r.fourHours; out[`${k}FourHourExcluded`] = r.fourExcluded; out[`${k}FourHourSkippedHours`] = r.fourSkipped; out[`${k}FourHourConstantHours`] = r.fourConstant;
+    r.weeks.forEach((w, i) => { const name = ["Zero", "One", "Two", "Three", "Four"][i]; out[`${k}WeekIc${name}`] = w; out[`${k}WeekHours${name}`] = r.weekHours[i]; });
   }
   return out;
 }
