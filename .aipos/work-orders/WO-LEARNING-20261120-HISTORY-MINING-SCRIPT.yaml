@@ -1,0 +1,22 @@
+id: WO-LEARNING-20261120-HISTORY-MINING-SCRIPT
+title: "History mining script: fixed rule grid, discovery, shortlist, freeze record and the one hold-back look (not wired, not run)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "2026-11-20 ('만들어'): build the candidate generation and ranking script of docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md section 4. Wiring and the first real run are separate steps."
+objective: "Give the owner's 'build a strategy from past charts' request a protocol-bound tool: many rules on the older history, a shortlist of at most 5, a frozen record, then exactly one look at a newer hold-back, so a lucky pattern is not mistaken for evidence."
+change:
+  - "scripts/run-history-mining.js (new, read-only, no network, aggregates only): discover and look phases, the 128-rule grid with a fingerprint, thresholds from the discovery data only, non-overlapping long-only trades, the shortlist rule (n >= 100, at most 5, overlap <= 50 percent), the freeze record with a content fingerprint, and the one-look bootstrap test (block 24, B = 10,000, centred null, one-sided, Bonferroni over the shortlist)."
+  - "tests/run-history-mining.test.js (9 tests on synthetic data): grid fixed and free of pre-registered signals; window and purge checks; planted mean reversion found in discovery and passed in the look on blind markets only; a random walk gets a shortlist but the look does not pass it; rows after the cut never read and never change a result; tampered, foreign or used freeze refused; insufficient data reported; aggregates-only output; one-sided centred bootstrap. Mutation checks (each fails a test): the SQL cut bound, the hold-back cut check, the purge, XRP in the look, the fingerprint check, the already-looked check, the overlap filter, the minimum trades."
+  - "docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md: section 9 records the implementation, the readings made where the design leaves room, and what must happen before the first real run."
+not_changed:
+  - "Not wired into the Research runner or the diagnosis; not run on any real data; no candle value of any reserved span is read. No experiment, gate, threshold, limit, capital, order switch or authority change. experimentMarkets stays KRW-XRP."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The readings of section 9 (long only, hourly decisions, pooled-quantile thresholds, trade-sequence bootstrap, cost reading) await the owner's or a reviewer's correction before the first run; behaviour on the real database (sizes, speed of the discovery on tens of thousands of hourly rows) is not measured."
+acceptance:
+  - "AIPOS validators; independent non-author review; exact-head CI; no real run before the extent counts, the review of the readings and a release."
