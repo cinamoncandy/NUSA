@@ -39,6 +39,7 @@ import { SqliteCloudDashboardSnapshotRepository } from "./cloudDashboardSnapshot
 import { PaperChallengerBindingLedger } from "./paperChallengerBindingLedger";
 import { PAPER_WRITER_LEASE_DURATION_MS, SqliteCloudPaperAccountRepository, paperAccountIdForCapital, type PaperAccountState } from "./paperTradingExecutionLoop";
 import { createCloudAiRuntime } from "./ai/runtime";
+import { resolvePaperTradePermissionAuthority } from "./paperTradePermissionAuthorityFromEnv";
 import { isPaperOrderPathEnabled, registerGracefulShutdown, startCloudRuntimeFromOptions, type CloudRuntimeHandle } from "./runtime";
 import { readClosedLearningProductionConfig } from "./closedLearningProductionConfig";
 import { ClosedLearningResearchWorkerClient } from "./closedLearningResearchWorkerClient";
@@ -213,8 +214,12 @@ export function startClosedLearningProductionRuntime(env: NodeJS.ProcessEnv = pr
     // Advance the marker only after a successful write, so a transient failure is retried on a later tick.
     if (recordClosedLearningBlocked(config.cloudStateDbPath, current)) persistedBlockedAt = current.at;
   };
+  // Default OFF: without NUSA_PERMIT_POLICY_FILE this is the no-permit authority, so no strategy order is created.
+  const permitAuthority = resolvePaperTradePermissionAuthority(env, config.cloudStateDbPath);
+  if (permitAuthority.status === "FALLBACK_NO_PERMIT") console.warn(`permit authority fell back to no permit: ${permitAuthority.reason}`);
   const baseHandle = startCloudRuntimeFromOptions({
     env,
+    tradePermissionAuthority: permitAuthority.authority,
     dashboardHydrator,
     snapshotRepository: snapshots,
     paperAccountRepository: paperRepository,
