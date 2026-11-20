@@ -1,0 +1,23 @@
+id: WO-OPS-20261120-CLOUDFLARE-S3A-PATH-RULE
+title: "Cloudflare removal S3a: the release-control gate files are owner-only (auto-merge refused by a path rule)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "2026-11-20 ('권장대로 다 해'): the file is the home of the HOLD and the freeze, a PR touching it is not auto-merged, S3b is merged by the owner by hand. Design: docs/CLOUDFLARE_REMOVAL_S3_DESIGN_2026-11-20.md (PR 3231)."
+objective: "Make the gate files owner-only before the authority is ever switched: a PR that touches them ends the audit with NO_ACTION, so the release bot does not merge it and only the owner can."
+change:
+  - "scripts/release-control-path-rule.js (new, pure, no network): reads the PR file list JSON, prints RELEASE_CONTROL_PATH_RULE result=PROTECTED|CLEAR, exits 2 on any malformed input or a possibly truncated list (3000 files). Protected: config/release-control.json, scripts/release-control-check.js, the rule script itself, the audit workflow file, CODEOWNERS. Renames out of a protected path are caught."
+  - ".github/workflows/autopilot-deterministic-audit-release.yml: one step inside the audit job (before the open-issue, CI and evidence work) fetches the PR files and the rule script from the AUDITED BASE (never the PR head) and, when PROTECTED, writes applicable=false / authority=NONE and exits 0 (NO_ACTION). A read or parse failure fails the audit job closed."
+  - "tests/release-control-path-rule.test.js (6 tests) and one test in tests/autopilot-deterministic-audit-release.test.js (base read, no head read, no swallowed failure, ordering before the authority); mutation check: reading the script from the PR head fails the test."
+not_changed:
+  - "The Worker call stays authoritative and unchanged; the S2 shadow steps are unchanged. No gate, threshold, limit, capital, order switch, branch protection, secret or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: merge_path_stricter
+prerequisite: "NOT YET KNOWN: a PR skipped by the rule gets no nusa/release-authorized status, so the owner can merge it only if administrators may bypass the required status in branch protection. Until the owner confirms that (Settings, Branches, the rule for main), this PR must not be marked ready: after it merges, a revert of it or the S3b PR would otherwise be unmergeable. Merging this PR itself goes through the old audit (the rule is not live until it is on main)."
+unverified: "Behaviour of the live workflow (the step runs only on a real audit dispatch); the rule script and the workflow text are tested, bash syntax is checked."
+acceptance:
+  - "Independent non-author review (this changes the merge path); exact-head CI; the owner's confirmation of the branch-protection bypass before ready; the owner decides when it merges."
