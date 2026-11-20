@@ -1,0 +1,23 @@
+id: WO-LEARNING-20261120-L2-CAUSE-CLASSIFIER
+title: "Learning loop L2: pre-registration and a pure failure cause classifier (record-only, not wired)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "Learning loop L2 as record-only instrumentation (docs/LEARNING_LOOP_LEVELS_20261112.md, docs/LEARNING_L2_GAP_ANALYSIS_2026-11-19.md sections 4 and 5)."
+objective: "Make the next lesson measurable: map a failed Research experiment to exactly one cause class from a fixed reviewed list, with the pass criterion pre-registered before the build."
+change:
+  - "docs/LEARNING_L2_PREREG_2026-11-20.md (new): pass criterion, fixed taxonomy, isolation rule, what is not done, the unverified result_json assumption, follow-ups."
+  - "packages/contracts/src/researchFailureCause.ts (new, pure, exported from the contracts index): classifyFailureCause maps an experiment outcome, comparison record or status code to one of 11 fixed classes; unknown or malformed input is UNCLASSIFIED; never throws."
+  - "packages/contracts/src/researchFailureCause.test.ts: golden table citing the source file of every status code found, malformed inputs, class reachability."
+  - "tests/research-failure-cause-isolation.test.js: source pin that no apps/cloud module and no researchMetaLearning* file references the classifier."
+not_changed:
+  - "No database table, runtime wiring, /health field, workflow, host action, gate, qualification, allocation, threshold, limit, capital, order switch or authority change. researchMetaLearning* untouched. Must not merge before the 2026-11-23 release."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The host's result_json shape was not read (only the code that writes it). The real UNCLASSIFIED share is unknown. The contracts classifier mirrors the priority of apps/cloud researchFailureMemory by review, not by import."
+acceptance:
+  - "AIPOS validators; independent non-author review of the class list and isolation rule; exact-head CI; no wiring before the release and a result_json sample check."

@@ -50,6 +50,7 @@ export * from "./aiTradingJudgment";
 export * from "./researchHypothesisContract";
 export * from "./referenceIntelligence";
 export * from "./researchIntelligence";
+export * from "./researchFailureCause";
 export * from "./researchFactoryOutcome";
 export * from "./researchFactoryEvidenceReport";
 export * from "./researchFactoryPromotionBridge";
