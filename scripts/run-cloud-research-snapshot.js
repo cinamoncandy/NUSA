@@ -62,6 +62,10 @@ function run(options = {}) {
     const tradeflow = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-tradeflow-study.js"], { cwd, env: { ...env, NUSA_TRADEFLOW_STUDY_ID: studyId }, stdio: "inherit", shell: false, timeout: 600000 });
     if (tradeflow.error || tradeflow.signal || tradeflow.status !== 0) console.error(`[cloud-research-snapshot] TRADEFLOW_STUDY_FAILED_CLOSED:V${version}`);
   }
+  // Pre-registered CROSSMARKET study (docs/RESEARCH_PREREG_2026-11-19_CROSSMARKET_MOMENTUM_60M.md; read-only; WAITING_DATA, counts only, until 2026-12-10T00:30Z).
+  // Its failure cannot fail Research; a hung run can still delay it by up to its 600 s timeout.
+  const crossmarket = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-crossmarket-study.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 600000 });
+  if (crossmarket.error || crossmarket.signal || crossmarket.status !== 0) console.error("[cloud-research-snapshot] CROSSMARKET_STUDY_FAILED_CLOSED");
   const args = [RESEARCH_MAX_OLD_SPACE_ARG, "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"];
   const result = spawn(executable, args, { cwd, env, stdio: "inherit", shell: false });
   if (result.error) throw result.error;

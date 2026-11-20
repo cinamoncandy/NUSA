@@ -250,3 +250,24 @@ test("the Research journal availability probe prints only counts and a timestamp
   assert.match(block, /grep -c/);
   assert.doesNotMatch(block, /\bsudo\b|>\s*\/|\btee\b/);
 });
+
+// WO-LEARNING-20261120-CROSSMARKET-STUDY-WIRING: the diagnosis shows the latest CROSSMARKET study line with numbers and booleans only.
+test("the diagnosis projects the CROSSMARKET study line to a fixed status, numbers and one level of numeric objects", () => {
+  const start = text.indexOf("crossmarket=\"$(journalctl");
+  assert.ok(start > 0, "the projection exists");
+  const block = text.slice(start, text.indexOf("summary=\"${summary}\"$'\\n'\"crossmarket_study", start));
+  assert.match(text, /summary="\$\{summary\}"\$'\\n'"crossmarket_study=\$\{crossmarket\}"/);
+  const code = block.slice(block.indexOf("node -e '") + "node -e '".length, block.lastIndexOf("')\""));
+  const project = (input) => {
+    const run = require("node:child_process").spawnSync(process.execPath, ["-e", code], { input, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return run.stdout.trim();
+  };
+  const waiting = { status: "WAITING_DATA", daysCollected: 3, studyId: "RULE_X", coverageMinutes: { "KRW-BTC": 1200, "KRW-XRP": 1300 } };
+  assert.deepEqual(JSON.parse(project("CROSSMARKET_STUDY " + JSON.stringify(waiting))), { status: "WAITING_DATA", daysCollected: 3, coverageMinutes: { BTC: 1200, XRP: 1300 } }, "the KRW- prefix of a market code is dropped from a key; free text is dropped");
+  const done = { status: "HOLDOUT_FAIL", eligible: 5, eligibleMarkets: ["KRW-BTC"], datasetFingerprint: "a".repeat(64), stageOne: { hours: 200, pass: false, meanIc: 0.01, note: "free" }, primary: { trades: 240, meanNetBp: -3.2, shareByMarket: { x: 1 } }, descriptive: [{ trades: 1 }] };
+  assert.deepEqual(JSON.parse(project("CROSSMARKET_STUDY " + JSON.stringify(done))), { status: "HOLDOUT_FAIL", eligible: 5, datasetFingerprint: "a".repeat(64), stageOne: { hours: 200, pass: false, meanIc: 0.01 }, primary: { trades: 240, meanNetBp: -3.2 } });
+  assert.equal(project("CROSSMARKET_STUDY " + JSON.stringify({ status: "FORGED_PASS" })), "CROSSMARKET_STUDY_UNAVAILABLE");
+  assert.equal(project("[cloud-research-snapshot] CROSSMARKET_STUDY_FAILED_CLOSED"), "CROSSMARKET_STUDY_FAILED_CLOSED");
+  assert.equal(project(""), "CROSSMARKET_STUDY_UNAVAILABLE");
+});

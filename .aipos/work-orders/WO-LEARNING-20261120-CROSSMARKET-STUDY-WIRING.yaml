@@ -1,0 +1,22 @@
+id: WO-LEARNING-20261120-CROSSMARKET-STUDY-WIRING
+title: "Run the pre-registered cross-market study script on the Research cadence and show its line in the diagnosis (read-only)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "Put the merged study script (#3216) on the host's existing Research cadence so that it is already running and logging counts before the span starts, and so that the daily diagnosis shows its line. Release must happen before 2026-11-30 and not inside the freeze 2026-11-24T06:00Z..2026-11-28T06:00Z."
+change:
+  - "scripts/run-cloud-research-snapshot.js: one more bounded child (600 s timeout, 256 MB heap like its siblings) running scripts/run-crossmarket-study.js; its failure is logged as CROSSMARKET_STUDY_FAILED_CLOSED and cannot fail Research."
+  - ".github/workflows/oracle-host-diagnose.yml: a read-only projection of the latest CROSSMARKET_STUDY journal line (fixed status, numbers, booleans, one level of numeric objects; KRW- prefix dropped from coverage keys)."
+  - "scripts/run-cloud-research-snapshot.test.js (8 children, new failure test) and tests/oracle-host-diagnose-workflow.test.js (projection test)."
+not_changed:
+  - "No experiment, gate, threshold, limit, capital, order switch or authority change. The script reads close times only (counts) until 2026-12-10T00:30Z; experimentMarkets stays KRW-XRP."
+release_plan:
+  - "Ordinary release path (build, backup, release, verdict) after the freeze or before 2026-11-24T06:00Z, owner awake; before/after read of stall, gap-fill, disk and experiment tick delay as for the five-market release. Rollback: the previous release sha (the study child is the only change)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "The three test files pass; independent non-author review; exact-head CI."
