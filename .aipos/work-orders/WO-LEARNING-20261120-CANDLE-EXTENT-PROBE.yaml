@@ -1,0 +1,23 @@
+id: WO-LEARNING-20261120-CANDLE-EXTENT-PROBE
+title: "Read-only extent of the stored five-market candle history (counts and close times, no value)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "The owner chose (2026-11-20, KST) to use the pre-2026-11-20 history for candidate generation. Its power depends on how far back the five-market candles reach, which is not measured. Measure it from counts only, without reading any candle value, so that no reserved span of the pre-registered studies is touched."
+change:
+  - "scripts/run-candle-extent-probe.js: per market, rows, first and last close time, proven-absent minutes and missing minutes of the 1-minute series; prints CANDLE_EXTENT; selects close_time_ms and absence ranges only."
+  - "scripts/run-cloud-research-snapshot.js: one more bounded child (120 s timeout), failure logged as CANDLE_EXTENT_FAILED_CLOSED and never blocking Research."
+  - ".github/workflows/oracle-host-diagnose.yml: read-only projection of the latest CANDLE_EXTENT line (integers only)."
+  - "tests for the probe, the runner (9 children) and the diagnosis projection."
+not_changed:
+  - "No experiment, gate, threshold, limit, capital, order switch or authority change. No window is fixed and no value is read."
+release_plan:
+  - "Ordinary release path after merge, outside the freeze 2026-11-24T06:00Z..2026-11-28T06:00Z, owner awake, before/after read; rollback is the previous sha. The line first appears after the next daily Research run (09:15 KST)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "The three test files pass; independent non-author review; exact-head CI."
