@@ -23,7 +23,7 @@ Run on a throwaway branch or a dispatch-only copy of the workflow, never on a re
 | # | Case | Expected |
 | --- | --- | --- |
 | 1 | the file cannot be read from the audited base (404, API error) | refuse |
-| 2 | invalid JSON, an unknown or missing field, a wrong type, a duplicate key, a BOM or odd whitespace, a directory or symlink at the path | refuse (or, for harmless whitespace, the same decision as the clean file; the checker's rule is pinned by a test) |
+| 2 | invalid JSON, an unknown or missing field, a wrong type, a duplicate key, a BOM or odd whitespace, a directory or symlink at the path | refuse (the S2 checker keeps the last of two equal keys, as JSON.parse does; the S3b gate refuses any repeated key instead, `FILE_DUPLICATE_KEY`, so an earlier HOLD cannot be hidden) |
 | 3 | `globalReleaseFreeze` true | refuse |
 | 4 | `holdState` active | refuse |
 | 5 | a safety fact missing or changed (`liveAuthority`, `productionMutationAllowed`, `aiAuthority`) | refuse |
@@ -31,7 +31,7 @@ Run on a throwaway branch or a dispatch-only copy of the workflow, never on a re
 | 7 | the PR head holds a CLEAR file while the audited base holds HOLD (a PR must not clear itself) | refuse |
 | 8 | the answer for another PR number, head or base | refuse |
 | 9 | stale base: the PR base lags main and a HOLD or freeze was merged to main after it | refuse (the audit requires the audited base to equal the current head of main: `current_base == current_main` in the audit job and the re-check in the release job, `autopilot-deterministic-audit-release.yml`) |
-| 10 | HOLD cleared between the two reads | the decision follows the second read; a clear after the first read must not pass without the second read |
+| 10 | HOLD cleared between the two reads | the first blocked read stops the gate and a re-run reads fresh; a clear after the first read cannot pass without the second read (`scripts/release-control-gate.js`, case 10 test) |
 | 11 | two audits of the same PR at once, or a re-run after a new HOLD | each run reads on its own; an old `nusa/release-authorized` status is revoked or expires and cannot carry over (read the revoke steps in the workflow and check them) |
 | 12 | after the switch: the Worker unreachable, or the Worker says HOLD while the replacement says CLEAR | the replacement decides; the disagreement is printed. During the reversed-shadow period a Worker HOLD also refuses (the stricter option), so a disagreement can only block, never release. Decided here so it is not left open |
 
@@ -59,6 +59,10 @@ The rehearsal output (the printed lines, no secrets) is recorded in an evidence 
 3. S3b is merged by the owner by hand after the rehearsal evidence, not by the bot. ACCEPTED.
 4. Date: after the branch-protection record exists and outside the freeze window of section 5. ACCEPTED as the rule; no date is set.
 5. The branch-protection consequence: the required status `nusa/release-authorized` applies to administrators too (`docs/CLAUDE_CENTERED_OPERATING_MODEL.md` line 62; the live setting is not readable by the agent), and a PR skipped by the rule gets no such status. A PR touching a protected file (including a revert of S3a, a fix to the rule, any change of the audit workflow, and S3b) is therefore merged only after the owner temporarily relaxes the branch protection for `main` in Settings and restores it afterwards. ACCEPTED by decision "a"; the protected list keeps the audit workflow file. No bypass of the required status is assumed.
+
+## 6b. Rehearsal status (2026-11-20)
+
+The decisions of the gate itself (cases 1-10 and 12, including the repeated key and the stale base) are implemented as a pure, unwired function `scripts/release-control-gate.js` with 14 tests (`tests/release-control-gate.test.js`), so the rule is fixed before any switch. Case 11 (concurrent audits, a stale `nusa/release-authorized` status) and the workflow glue (reading the file twice from the audited base, comparing the main head, feeding the Worker answer) are workflow behaviour and are checked in S3b by reading the workflow and by the first real run. When S3b wires the gate, `scripts/release-control-gate.js` must be added to the protected paths of `scripts/release-control-path-rule.js` (an owner-merged change under the temporary protection relaxation).
 
 ## 7. Not done
 
