@@ -283,6 +283,9 @@
   async function strategyCommand(command) {
     const api = global.nusa; const message = $("[data-simple-last-signal]"); const method = command === "start" ? api?.startStrategy : api?.stopStrategy;
     if (typeof method !== "function") { if (message) message.textContent = "전략 제어 기능을 사용할 수 없습니다."; return; }
+    // One accidental tap must not start or stop the PAPER strategy: ask first (the same confirm pattern as the settings reset). PAPER only; no real order is involved.
+    const question = command === "start" ? "모의(PAPER) 전략을 시작할까요? 실제 주문은 발생하지 않습니다." : "모의(PAPER) 전략을 중지할까요?";
+    if (typeof global.confirm !== "function" || !global.confirm(question)) { if (message) message.textContent = "요청을 취소했습니다."; return; }
     try { const result = await method.call(api); renderControl(result); if (message) message.textContent = command === "start" ? "Paper 전략 시작 요청 완료" : "Paper 전략 중지 요청 완료"; } catch { if (message) message.textContent = "전략 상태를 변경하지 못했습니다."; }
   }
   function on(target, type, handler) { target?.addEventListener(type, handler); cleanup.push(() => target?.removeEventListener(type, handler)); }
