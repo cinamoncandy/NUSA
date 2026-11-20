@@ -1,0 +1,18 @@
+id: WO-LEARNING-20261120-SIGNAL-SCREEN-DESIGN
+title: "Design for a pooled signal screen (L1 candidate supply, information per week)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "Propose, for review and the owner's decision, a screen that tests a fixed family of signals at once on the five collected markets with the rank IC, so that one span gives more information than a single-hypothesis study."
+change:
+  - "docs/RESEARCH_SIGNAL_SCREEN_DESIGN_2026-11-20.md (design only; not binding)."
+not_changed:
+  - "No code, run, experiment, gate, threshold, limit, capital, order switch or authority change. A pre-registration would be a separate document after the owner's decision."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "AIPOS validators pass; independent non-author review; exact-head CI."
