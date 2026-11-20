@@ -40,10 +40,11 @@ test("the grid is fixed: 128 rules, none duplicating a pre-registered signal, wi
   assert.match(mining.GRID_FINGERPRINT, /^[0-9a-f]{64}$/);
 });
 
-test("windows are checked: order, 72 hour purge, full hours and the CUT", () => {
+test("windows are checked: order, 96 hour purge, full hours and the CUT", () => {
   const ok = { ...windows };
   assert.doesNotThrow(() => mining.checkWindows(ok));
-  assert.throws(() => mining.checkWindows({ ...ok, holdbackStart: ok.discoveryEnd + 71 * H }), /purge/);
+  assert.throws(() => mining.checkWindows({ ...ok, holdbackStart: ok.discoveryEnd + 95 * H }), /purge/);
+  assert.doesNotThrow(() => mining.checkWindows({ ...ok, holdbackStart: ok.discoveryEnd + 96 * H }));
   assert.throws(() => mining.checkWindows({ ...ok, discoveryStart: ok.discoveryEnd }), /ordered|purge/);
   assert.throws(() => mining.checkWindows({ ...ok, holdbackEnd: CUT + H }), /2026-11-20/);
 });
@@ -78,16 +79,18 @@ test("the shortlist never holds two rules whose trades overlap by more than half
 });
 
 test("a random walk gives a shortlist (the search always finds a winner) but the look does not pass it", () => {
-  let passes = 0;
+  let passes = 0; let shortlisted = 0;
   for (const seed of [11, 12, 13, 14]) {
     const db = makeDb({ markets: ALL, phi: {}, seed });
     const found = mining.discover({ db, windows });
     assert.ok(found.status === "SHORTLIST" || found.status === "NO_SHORTLIST");
     if (found.status !== "SHORTLIST") continue;
+    shortlisted += 1;
     const result = mining.look({ db, freeze: mining.freezeRecord(found, "x"), resamples: 2000 });
     if (result.status === "LOOK_PASS") passes += 1;
   }
-  assert.ok(passes <= 1, `null look passes ${passes} of 4`);
+  assert.ok(shortlisted >= 3, `the null runs must produce shortlists (got ${shortlisted}); otherwise the test proves nothing`);
+  assert.ok(passes <= 1, `null look passes ${passes} of ${shortlisted}`);
 });
 
 test("candle values at or after the CUT are never read and never change a result", () => {
@@ -124,10 +127,76 @@ test("too little data is reported, not guessed; the printed result carries aggre
   for (const s of found.shortlist) assert.deepEqual(Object.keys(s).sort(), ["id", "meanNet", "meanStress", "n", "unresolved"]);
 });
 
-test("the bootstrap p-value is one-sided and centred: an obvious positive mean is small, a zero-mean series is not", () => {
+test("the time-block bootstrap is one-sided and centred: a clear positive mean is small, a zero-mean series is not", () => {
   const random = makeRandom(1);
-  const pos = Array.from({ length: 200 }, (_, i) => 0.004 + 0.002 * normal(random));
-  assert.ok(mining.blockBootstrapP(pos, makeRandom(2), 2000) < 0.01);
-  const zero = Array.from({ length: 200 }, () => 0.01 * normal(random));
-  assert.ok(mining.blockBootstrapP(zero, makeRandom(2), 2000) > 0.05);
+  const from = 0; const to = 400 * H;
+  const pos = Array.from({ length: 300 }, (_, i) => ({ t: i * H, v: 0.004 + 0.002 * normal(random) }));
+  assert.ok(mining.timeBlockBootstrapP(pos, from, to, makeRandom(2), 2000) < 0.01);
+  const zero = Array.from({ length: 300 }, (_, i) => ({ t: i * H, v: 0.01 * normal(random) }));
+  assert.ok(mining.timeBlockBootstrapP(zero, from, to, makeRandom(2), 2000) > 0.05);
+});
+
+test("not testable cases never pass: fewer than two trades, all equal returns (zero variance)", () => {
+  assert.equal(mining.timeBlockBootstrapP([{ t: 0, v: 0.01 }], 0, 100 * H, makeRandom(1), 500), 1);
+  assert.equal(mining.timeBlockBootstrapP(Array.from({ length: 80 }, (_, i) => ({ t: i * H, v: 0.01 })), 0, 100 * H, makeRandom(1), 500), 1);
+  assert.equal(mining.timeBlockBootstrapP([], 0, 100 * H, makeRandom(1), 500), 1);
+});
+
+test("simultaneous trades of correlated markets are kept together: a duplicated series is not more significant per hour block than its source", () => {
+  const random = makeRandom(4);
+  const base = Array.from({ length: 120 }, (_, i) => ({ t: i * H, v: 0.0005 + 0.01 * normal(random) }));
+  const dup = base.flatMap((x) => [x, x, x, x]);
+  const p1 = mining.timeBlockBootstrapP(base, 0, 130 * H, makeRandom(9), 3000);
+  const p4 = mining.timeBlockBootstrapP(dup, 0, 130 * H, makeRandom(9), 3000);
+  assert.ok(Math.abs(p4 - p1) < 0.05, `p ${p1} vs ${p4}: four identical markets must not look four times as strong`);
+});
+
+test("the stress cost is 2 x fee + 5 bp per side, about 30 bp for the round trip", () => {
+  assert.ok(Math.abs(mining.COST - 0.001) < 1e-12);
+  assert.ok(Math.abs(mining.STRESS_COST - 0.003) < 1e-12);
+});
+
+test("the look needs enough trades: a handful of lucky hold-back trades is not a pass", () => {
+  assert.equal(mining.MIN_LOOK_TRADES, 50);
+  const db = makeDb({ markets: ALL, phi: mr, seed: 3 });
+  const found = mining.discover({ db, windows });
+  const freeze = mining.freezeRecord(found, "x");
+  // a hold-back of two days has far fewer than 50 trades per rule at the longer holds: whatever the p-value, an untestable rule never passes
+  const short = { ...windows, holdbackStart: CUT - 3 * DAY, holdbackEnd: CUT - 1 * H };
+  const f2 = { ...freeze, windows: { ...freeze.windows, holdbackStart: short.holdbackStart, holdbackEnd: short.holdbackEnd } };
+  const result = mining.look({ db, freeze: { ...f2, fingerprint: mining.fingerprintOf(f2) }, resamples: 500 });
+  for (const c of result.candidates) if (c.n < mining.MIN_LOOK_TRADES) { assert.equal(c.testable, false); assert.equal(c.pass, false); assert.equal(c.p, 1); }
+});
+
+test("one-position-per-market logic: a rule never re-enters before its exit; a trade with a missing exit close is skipped, not filled", () => {
+  const thresholds = {}; for (const s of mining.SIGNALS) { thresholds[s.id] = { q80: { high: -Infinity, low: Infinity }, q90: { high: -Infinity, low: Infinity } }; }
+  const rule = mining.RULES.find((r) => r.id === "RET1_HIGH_Q80_H4");
+  const closes = new Map(); const rows = [];
+  for (let i = 0; i < 12; i += 1) { closes.set(i * H, 100 + i); rows.push({ t: i * H, values: { RET1: 0.01 } }); }
+  closes.delete(9 * H); // the exit close of an entry at hour 5 is missing
+  const { trades, unresolved } = mining.tradesFor(rule, rows, closes, thresholds);
+  const entries = trades.map((x) => x.t / H);
+  assert.deepEqual(entries, [0, 4, 8].filter((h) => closes.has((h + 4) * H)), "entries 4 hours apart; no overlap");
+  assert.ok(unresolved >= 1, "the missing exit close is counted, not filled");
+});
+
+test("the freeze record carries the source commit and its fingerprint binds it", () => {
+  const db = makeDb({ markets: ALL, phi: mr, seed: 3 });
+  const found = mining.discover({ db, windows });
+  const a = mining.freezeRecord(found, "x", "a".repeat(40));
+  const b = mining.freezeRecord(found, "x", "b".repeat(40));
+  assert.equal(a.sourceCommit, "a".repeat(40));
+  assert.notEqual(a.fingerprint, b.fingerprint);
+  assert.equal(mining.look({ db, freeze: { ...a, sourceCommit: "c".repeat(40) }, resamples: 100 }).status, "FREEZE_MISMATCH");
+});
+
+test("the PASS rule: enough trades, positive at the base cost AND the stress cost, p below alpha", () => {
+  const ok = { n: 60, meanNet: 0.002, meanStress: 0.0005, p: 0.004, alpha: 0.01 };
+  assert.equal(mining.passDecision(ok), true);
+  assert.equal(mining.passDecision({ ...ok, n: 49 }), false, "too few trades");
+  assert.equal(mining.passDecision({ ...ok, meanNet: 0 }), false, "no base edge");
+  assert.equal(mining.passDecision({ ...ok, meanStress: -0.0001 }), false, "an edge that does not survive the stress cost");
+  assert.equal(mining.passDecision({ ...ok, meanStress: 0 }), false);
+  assert.equal(mining.passDecision({ ...ok, p: 0.01 }), false, "p must be below alpha, not equal");
+  assert.equal(mining.passDecision({ ...ok, p: 0.5 }), false);
 });

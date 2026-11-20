@@ -9,11 +9,11 @@
  * Phases (design section 4): `discover` explores the fixed rule grid in the discovery window only and prints the shortlist (at most 5), the
  * frozen thresholds and the freeze record; the freeze record is committed BEFORE `look`. `look` is the ONE look at the hold-back window: the frozen
  * rules and thresholds are applied unchanged and tested with the circular block bootstrap of the cross-market pre-registration (block 24, B = 10,000,
- * centred null, one-sided), Bonferroni over the shortlist size only. The result is descriptive: a filter into forward confirmation, not evidence.
+ * centred null, one-sided, over hourly bins of the hold-back so that simultaneous trades of the markets stay together), Bonferroni over the shortlist size only. The result is descriptive: a filter into forward confirmation, not evidence.
  *
  * Blindness: candle values at or after CUT (2026-11-20T00:00Z) are reserved by the pre-registrations and are never selected (the SQL bound is the
  * minimum of the requested end and CUT, and every window is checked against CUT before anything is read). The hold-back must lie at least PURGE
- * (72 h) after the discovery window. Rules that duplicate a pre-registered signal by formula (RET6, RET24, RET72, VOL24, SURGE, RANGE) are not in the grid.
+ * (96 h) after the discovery window. Rules that duplicate a pre-registered signal by formula (RET6, RET24, RET72, VOL24, SURGE, RANGE) are not in the grid.
  * XRP is not blind (earlier experiments): it is discovery-only and never enters the hold-back.
  * Output: aggregates only (counts, means, p-values, rule ids, thresholds). No candle value is printed.
  */
@@ -23,13 +23,14 @@ const { makeRandom } = require("./run-crossmarket-study.js");
 const M = 60_000;
 const H = 60 * M;
 const CUT = Date.parse("2026-11-20T00:00:00Z");
-const PURGE = 72 * H;
+const PURGE = 96 * H; // the 72 h lookback plus the longest hold (24 h): no signal or trade return of one window shares a price interval with the other
 const BLIND_MARKETS = Object.freeze(["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL"]);
 const DISCOVERY_ONLY_MARKETS = Object.freeze(["KRW-XRP"]);
 const FEE = 0.0005; // per side
 const COST = 2 * FEE; // round trip, base
-const STRESS_COST = 2 * COST + 0.0005; // 2 x fee + 5 bp, applied to the round trip as in the cross-market study's stress reading
-const MIN_TRADES = 100;
+const STRESS_COST = 2 * (2 * FEE + 0.0005); // per side 2 x fee + 5 bp (pre-registration section 2), so about 30 bp for the round trip
+const MIN_TRADES = 100; // discovery shortlist
+const MIN_LOOK_TRADES = 50; // the look: fewer trades than this is not testable (never a pass)
 const MAX_SHORTLIST = 5;
 const MAX_OVERLAP = 0.5;
 const ALPHA_TOTAL = 0.05;
@@ -54,6 +55,8 @@ const QUANTILES = Object.freeze([0.8, 0.9]);
 const HOLDS = Object.freeze([1, 4, 12, 24]);
 
 const RULES = Object.freeze(SIGNALS.flatMap((s) => SIDES.flatMap((side) => QUANTILES.flatMap((q) => HOLDS.map((hold) => Object.freeze({ id: `${s.id}_${side}_Q${Math.round(q * 100)}_H${hold}`, signal: s.id, side, q, hold }))))));
+// The grid fingerprint binds the grid parameters and constants (ids, sides, quantiles, holds, costs, minimums, block, B, seed, purge, cut), NOT the signal
+// formulas or the other function bodies: the freeze record therefore also carries the source commit sha of the code that produced it.
 const GRID_FINGERPRINT = crypto.createHash("sha256").update(JSON.stringify({ SIGNALS: SIGNALS.map((s) => s.id), SIDES, QUANTILES, HOLDS, FEE, COST, STRESS_COST, MIN_TRADES, MAX_SHORTLIST, MAX_OVERLAP, ALPHA_TOTAL, BLOCK, B, SEED, PURGE, CUT })).digest("hex");
 
 // ---- signals on the hourly closes: h[k] = close at t - k hours (k = 0..72), undefined when missing ----
@@ -73,7 +76,7 @@ function parseWindow(name, value) {
 }
 function checkWindows(w) {
   const { discoveryStart, discoveryEnd, holdbackStart, holdbackEnd } = w;
-  if (!(discoveryStart < discoveryEnd && discoveryEnd + PURGE <= holdbackStart && holdbackStart < holdbackEnd)) throw new Error("windows must be ordered with a 72 hour purge between discovery and hold-back");
+  if (!(discoveryStart < discoveryEnd && discoveryEnd + PURGE <= holdbackStart && holdbackStart < holdbackEnd)) throw new Error("windows must be ordered with a 96 hour purge between discovery and hold-back");
   if (holdbackEnd > CUT) throw new Error("the hold-back must end at or before 2026-11-20T00:00Z (reserved candle values are never read)");
   return w;
 }
@@ -117,7 +120,7 @@ function thresholdsFrom(tables) {
 }
 
 /** The trades of one rule in one market: non-overlapping (one position), long only, entry and exit at hourly closes. */
-function tradesFor(rule, rows, closes, thresholds, to) {
+function tradesFor(rule, rows, closes, thresholds) {
   const th = thresholds[rule.signal][`q${Math.round(rule.q * 100)}`];
   const limit = rule.side === "HIGH" ? th.high : th.low;
   const out = []; let free = -Infinity; let unresolved = 0;
@@ -139,10 +142,10 @@ const net = (trade, cost) => trade.gross - cost;
 const mean = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
 const round = (x, d) => { const f = 10 ** d; return Math.round(x * f) / f; };
 
-function evaluateRule(rule, perMarket, thresholds, to) {
+function evaluateRule(rule, perMarket, thresholds) {
   const trades = []; let unresolved = 0;
   for (const m of perMarket) {
-    const r = tradesFor(rule, m.rows, m.closes, thresholds, to);
+    const r = tradesFor(rule, m.rows, m.closes, thresholds);
     unresolved += r.unresolved;
     for (const t of r.trades) trades.push({ market: m.market, t: t.t, gross: t.gross });
   }
@@ -166,7 +169,7 @@ function discover({ db, windows }) {
   const thresholds = thresholdsFrom(perMarket.map((m) => m.rows));
   const results = [];
   for (const rule of RULES) {
-    const { trades, unresolved } = evaluateRule(rule, perMarket, thresholds, w.discoveryEnd);
+    const { trades, unresolved } = evaluateRule(rule, perMarket, thresholds);
     if (trades.length === 0) { results.push({ rule, trades, n: 0, meanNet: -Infinity, meanStress: -Infinity, unresolved }); continue; }
     results.push({ rule, trades, n: trades.length, meanNet: mean(trades.map((t) => net(t, COST))), meanStress: mean(trades.map((t) => net(t, STRESS_COST))), unresolved });
   }
@@ -189,24 +192,44 @@ function discover({ db, windows }) {
 
 /** The fingerprint binds the frozen content (not the creation time): the shortlist, thresholds, windows, alpha and the grid. */
 function fingerprintOf(f) {
-  return crypto.createHash("sha256").update(JSON.stringify({ study: f.study, gridFingerprint: f.gridFingerprint, windows: f.windows, shortlist: f.shortlist, thresholds: f.thresholds, alphaPerCandidate: f.alphaPerCandidate })).digest("hex");
+  return crypto.createHash("sha256").update(JSON.stringify({ study: f.study, gridFingerprint: f.gridFingerprint, windows: f.windows, shortlist: f.shortlist, thresholds: f.thresholds, alphaPerCandidate: f.alphaPerCandidate, sourceCommit: f.sourceCommit })).digest("hex");
 }
-function freezeRecord(result, nowIso) {
-  const body = { study: "HISTORY_MINING_V1", gridFingerprint: result.gridFingerprint, windows: result.windows, shortlist: result.shortlist.map((s) => s.id), thresholds: result.thresholds, alphaPerCandidate: ALPHA_TOTAL / Math.max(1, result.shortlist.length), createdAt: nowIso, lookedAt: null };
+function freezeRecord(result, nowIso, sourceCommit = null) {
+  const body = { study: "HISTORY_MINING_V1", gridFingerprint: result.gridFingerprint, windows: result.windows, shortlist: result.shortlist.map((s) => s.id), thresholds: result.thresholds, alphaPerCandidate: ALPHA_TOTAL / Math.max(1, result.shortlist.length), sourceCommit, createdAt: nowIso, lookedAt: null };
   return { ...body, fingerprint: fingerprintOf(body) };
 }
 
 // ---- look: the one look at the hold-back ----
-function blockBootstrapP(xs, random, resamples = B) {
-  const n = xs.length; const m = mean(xs); const centred = xs.map((x) => x - m);
+/**
+ * Circular block bootstrap over TIME, not over the trade sequence: trades are summed into hourly bins (simultaneous trades of the correlated markets
+ * stay together), blocks are 24 consecutive hour bins, the null is centred (each hour's sum minus m x its trade count) and the p-value is one-sided,
+ * p = (1 + #{M* >= M - 1e-12}) / (B + 1) with M the observed mean net per trade. Zero variance (all trades equal) is not testable and gives p = 1.
+ */
+function timeBlockBootstrapP(items, from, to, random, resamples = B) {
+  const bins = Math.max(0, Math.round((to - from) / H));
+  const sums = new Array(bins).fill(0); const counts = new Array(bins).fill(0);
+  let n = 0; let total = 0; let first = null; let varying = false;
+  for (const it of items) {
+    const i = Math.floor((it.t - from) / H);
+    if (i < 0 || i >= bins) continue;
+    sums[i] += it.v; counts[i] += 1; n += 1; total += it.v;
+    if (first === null) first = it.v; else if (it.v !== first) varying = true;
+  }
+  if (n < 2 || bins === 0 || !varying) return 1;
+  const m = total / n;
+  const centred = sums.map((s, i) => s - m * counts[i]);
   let ge = 0;
   for (let b = 0; b < resamples; b += 1) {
-    let sum = 0; let count = 0;
-    while (count < n) { const start = Math.floor(random() * n); for (let k = 0; k < BLOCK && count < n; k += 1) { sum += centred[(start + k) % n]; count += 1; } }
-    if (sum / n >= m - 1e-12) ge += 1;
+    let num = 0; let den = 0; let filled = 0;
+    while (filled < bins) { const start = Math.floor(random() * bins); for (let k = 0; k < BLOCK && filled < bins; k += 1) { const i = (start + k) % bins; num += centred[i]; den += counts[i]; filled += 1; } }
+    const stat = den > 0 ? num / den : 0;
+    if (stat >= m - 1e-12) ge += 1;
   }
   return (1 + ge) / (resamples + 1);
 }
+
+/** The descriptive PASS of the look: enough trades, mean net above zero at the base cost AND under the stress cost, p below the per-candidate alpha. */
+function passDecision({ n, meanNet, meanStress, p, alpha }) { return n >= MIN_LOOK_TRADES && meanNet > 0 && meanStress > 0 && p < alpha; }
 
 function look({ db, freeze, resamples = B }) {
   const w = checkWindows({ discoveryStart: freeze.windows.discoveryStart, discoveryEnd: freeze.windows.discoveryEnd, holdbackStart: freeze.windows.holdbackStart, holdbackEnd: freeze.windows.holdbackEnd });
@@ -224,10 +247,13 @@ function look({ db, freeze, resamples = B }) {
     const frozen = freeze.thresholds[id];
     const th = thresholds[rule.signal][`q${Math.round(rule.q * 100)}`];
     if (rule.side === "HIGH") th.high = frozen.limit; else th.low = frozen.limit;
-    const { trades, unresolved } = evaluateRule(rule, perMarket, thresholds, w.holdbackEnd);
+    const { trades, unresolved } = evaluateRule(rule, perMarket, thresholds);
     const xs = trades.map((t) => net(t, COST));
-    const p = xs.length >= 2 ? blockBootstrapP(xs, makeRandom(SEED + out.length), resamples) : 1;
-    out.push({ id, n: xs.length, meanNet: round(mean(xs), 6), meanStress: round(mean(trades.map((t) => net(t, STRESS_COST))), 6), unresolved, p: round(p, 4), pass: xs.length >= 2 && mean(xs) > 0 && p < alpha });
+    const stress = mean(trades.map((t) => net(t, STRESS_COST)));
+    const testable = xs.length >= MIN_LOOK_TRADES;
+    const p = testable ? timeBlockBootstrapP(trades.map((t) => ({ t: t.t, v: net(t, COST) })), w.holdbackStart, w.holdbackEnd, makeRandom(SEED + out.length), resamples) : 1;
+    // PASS (descriptive filter into forward confirmation): enough trades, mean net above zero at the base cost AND under the stress cost, p below the per-candidate alpha.
+    out.push({ id, n: xs.length, testable, meanNet: round(mean(xs), 6), meanStress: round(stress, 6), unresolved, p: round(p, 4), pass: passDecision({ n: xs.length, meanNet: mean(xs), meanStress: stress, p, alpha }) });
   }
   return { status: out.some((c) => c.pass) ? "LOOK_PASS" : "LOOK_FAIL", alphaPerCandidate: alpha, candidates: out };
 }
@@ -244,7 +270,7 @@ function main(argv) {
       const windows = { discoveryStart: parseWindow("discovery-start", arg("discovery-start")), discoveryEnd: parseWindow("discovery-end", arg("discovery-end")), holdbackStart: parseWindow("holdback-start", arg("holdback-start")), holdbackEnd: parseWindow("holdback-end", arg("holdback-end")) };
       const result = discover({ db, windows });
       console.log(`HISTORY_MINING_DISCOVER ${JSON.stringify(result)}`);
-      if (result.shortlist) console.log(`HISTORY_MINING_FREEZE ${JSON.stringify(freezeRecord(result, new Date().toISOString()))}`);
+      if (result.shortlist) console.log(`HISTORY_MINING_FREEZE ${JSON.stringify(freezeRecord(result, new Date().toISOString(), (process.env.NUSA_SOURCE_COMMIT_SHA || "").trim() || null))}`);
       return 0;
     }
     if (phase === "look") {
@@ -261,4 +287,4 @@ function main(argv) {
 }
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
-module.exports = { discover, look, freezeRecord, fingerprintOf, overlap, blockBootstrapP, checkWindows, loadHourly, signalTable, thresholdsFrom, tradesFor, RULES, SIGNALS, GRID_FINGERPRINT, CUT, PURGE, BLIND_MARKETS, DISCOVERY_ONLY_MARKETS, COST, STRESS_COST, MIN_TRADES };
+module.exports = { discover, look, freezeRecord, fingerprintOf, overlap, timeBlockBootstrapP, passDecision, checkWindows, loadHourly, signalTable, thresholdsFrom, tradesFor, RULES, SIGNALS, GRID_FINGERPRINT, CUT, PURGE, BLIND_MARKETS, DISCOVERY_ONLY_MARKETS, COST, STRESS_COST, MIN_TRADES, MIN_LOOK_TRADES };
