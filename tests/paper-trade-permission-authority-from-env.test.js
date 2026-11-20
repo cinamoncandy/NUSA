@@ -15,7 +15,9 @@ const policy = () => ({
   minimumNetExpectedValue: 0.001, minimumRewardToRisk: 1.5, minimumLiquidityScore: 0.5, minimumCapacityUsd: 100, maximumSlippageBps: 10,
   maximumUncertainty: 0.2, maximumModelDispersion: 0.1, maximumRiskBudgetUsage: 0.5, permissionTtlMs: 30000
 });
-const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "permit-authority-"));
+const made = [];
+const tmp = () => { const dir = fs.mkdtempSync(path.join(os.tmpdir(), "permit-authority-")); made.push(dir); return dir; };
+test.after(() => { for (const dir of made) fs.rmSync(dir, { recursive: true, force: true }); });
 let policySeq = 0;
 const writePolicy = (dir, body) => { const file = path.join(dir, `policy-${policySeq += 1}.json`); fs.writeFileSync(file, typeof body === "string" ? body : JSON.stringify(body)); return file; };
 const query = { decisionId: "d1", strategyId: "s1", market: "KRW-XRP" };
@@ -67,6 +69,19 @@ test("a valid policy file and an existing store give a read-only authority that 
     result.close();
     writerDb.close?.();
   }
+});
+
+test("an out-of-range policy never permits: the guard refuses every order", () => {
+  const dir = tmp();
+  const dbPath = path.join(dir, "state.sqlite");
+  const writerDb = new SqliteDatabase(dbPath);
+  new PaperTradePermissionStoreWriter(writerDb);
+  const file = writePolicy(dir, { policy: { ...policy(), permissionTtlMs: -1, minimumDataQuality: 2 }, probabilityModelVersion: "m1" });
+  const result = resolvePaperTradePermissionAuthority({ [PERMIT_POLICY_FILE_ENV]: file }, dbPath);
+  try {
+    assert.equal(result.status, "STORE_READ_ONLY");
+    assert.ok(refusePaperTradePermission(result.authority, query, Date.now(), new Map()) != null);
+  } finally { result.close(); writerDb.close?.(); }
 });
 
 test("policy parsing is strict", () => {

@@ -21,6 +21,8 @@ safety:
 validation:
   - "node --test from dist/: the three permit test files and tests/cloud-unreached-baseline.test.js pass; typecheck by tsc. Not run here: pnpm run preflight and validate:full (Node 24, left to CI)."
 unverified: "Behaviour on the real host state database (a read-only connection while the runtime writes in WAL mode) is not exercised here; it only matters once NUSA_PERMIT_POLICY_FILE is set, which is a separate, owner-approved release step."
+follow_up:
+  - "Independent review (APPROVE, no P0/P1) P2 notes: before NUSA_PERMIT_POLICY_FILE is ever set in production, pin the policy file to a reviewed version (a sha256 in the repository or a path under the reviewed config) and authenticate the store writer (the row hashes live in the same database file, so they are self-consistency checks, not authentication); register the read-only handle with the graceful shutdown. None applies while no policy file exists and no writer is wired."
 release_plan: "Bundled with the next release after merge (outside the freeze, owner awake, before/after read); with no policy file configured the runtime behaves exactly as before."
 acceptance:
   - "Draft until the independent non-author review is done; exact-head CI; Audit; no release merely because CI passes."
