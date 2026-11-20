@@ -1,0 +1,28 @@
+id: WO-LEARNING-20261120-CROSSMARKET-STUDY-SCRIPT
+title: "Study script for the pre-registered cross-market relative momentum study (not wired, not run)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "Implement docs/RESEARCH_PREREG_2026-11-19_CROSSMARKET_MOMENTUM_60M.md exactly, before any value of its span exists, so that the run on 2026-12-10 cannot be influenced by results."
+change:
+  - "scripts/run-crossmarket-study.js: read-only study (candles, absence proofs, order-book source); prints one CROSSMARKET_STUDY line; WAITING_DATA before 2026-12-10T00:30Z reads close times only (counts), no value."
+  - "scripts/run-crossmarket-study.test.js: 20 tests (PRNG reference vectors, statistics, timing without look-ahead, part-end rule, eligibility, planted edge, noise, cost negative control)."
+implementation_readings:
+  - "A fresh PRNG (splitmix64(20261119) into xoshiro256**) starts for each resampling test; a sign flip is made when u < 0.5."
+  - "Eligible at hour t: study-eligible market, complete bar at t, close at t and t - L, usable book at t; so no trade is dropped for a missing entry book, drops are: no book at exit, exit after part end; hours with fewer than 3 eligible markets are counted as skipped."
+  - "Benchmarks are averaged over the decision hours of retained trades; equal weight uses eligible markets with a usable exit book; gross is mid-to-mid before fees."
+  - "Stage 1 uses the study-eligible markets with a complete bar at t and close(t-24h), close(t), close(t+1h) (review: bar completeness is part of eligibility); an hour with constant ranks has no IC and is excluded and counted."
+  - "Known property of the pre-registered sign-flip test: with 24-trade blocks the smallest possible p is about 1/(blocks+1 powers of two); at least 7 blocks (about 145 trades) are needed to reach 0.0125. The primary cell has about 240 trades."
+  - "The book at t is the last sample in (t-2m, t] and it must itself be usable. The spread median is over training hours with a usable book (bar completeness not required there) and is the mean of the two middle values for an even count. The PASS means use unrounded values; every result carries the same fields (dropNoBookAtEntry is 0 by construction)."
+review_applied:
+  - "Independent review 1 (no P0): spread median population (P1), even-count median, stage 1 bar, unrounded PASS means, fixed fields, comment, stronger look-ahead test, numeric formula test, 90 percent boundary test."
+not_changed:
+  - "Not wired into any service, snapshot runner or diagnosis; no runtime, experiment, gate, threshold, limit, capital, order switch or authority change. Wiring is a separate later PR and release before 2026-11-30."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+acceptance:
+  - "node --test scripts/run-crossmarket-study.test.js passes; independent non-author review; exact-head CI."
