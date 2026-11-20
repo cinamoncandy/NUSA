@@ -46,7 +46,16 @@ The rehearsal output (the printed lines, no secrets) is recorded in an evidence 
 - Rollback of S3b: revert the one PR (the Worker stays deployed and its call stays in the workflow until S4), merged by the owner by hand. No data or host change is involved, so the rollback is a single revert.
 - S4 (removal of the Worker and the five Cloudflare workflows) starts only after 20 further decisions with the roles reversed show no disagreement, and needs its own design and approval.
 
-## 5. Owner decisions needed
+## 5. Owner decisions (2026-11-20: "권장대로 다 해", recorded as the recommendations below)
+
+1. Home of the HOLD and the freeze: the file `config/release-control.json`. ACCEPTED.
+2. The path rule: a PR touching the protected paths is not auto-merged. ACCEPTED.
+3. S3b is merged by the owner by hand after the rehearsal evidence, not by the bot. ACCEPTED.
+4. Date: after the branch-protection record exists and outside the freeze. ACCEPTED as the rule; no date is set.
+
+Prerequisite found while building S3a, NOT yet known: a PR the path rule skips gets no `nusa/release-authorized` status, so it can be merged only if the owner can bypass the required status in branch protection (an administrator merge). If administrators cannot bypass, every PR touching the protected paths (including S3b and any revert of S3a) becomes unmergeable until the owner relaxes the rule in Settings. This is the S1 record the design already requires; S3a is not marked ready until the owner confirms it (Settings, Branches, the rule for `main`: required status checks, and whether bypass by administrators is allowed). Note also that the owner and this agent act as the same GitHub account, so a label or comment cannot prove "the owner did this"; the control is the path rule plus the owner's administrator merge, not a label.
+
+## 5b. The questions as asked
 
 1. Home of the HOLD and the freeze: the file (recommended: reviewable in git, no external store) or a protected GitHub Environment with required reviewers. S2 section 6 asked this; no answer is recorded, so it is still open.
 2. Confirm the path rule for the file (S2 section 3.1): auto-merge refused, owner merges by hand.
