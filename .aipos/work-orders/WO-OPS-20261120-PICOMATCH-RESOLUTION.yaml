@@ -1,0 +1,19 @@
+id: WO-OPS-20261120-PICOMATCH-RESOLUTION
+title: "picomatch advisory: no fixed version exists, options for the owner before the exception expires"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+implementation_branch: claude/picomatch-resolution
+authority_impact: none
+follows: "Owner exception for audit id 1247710 (GHSA-fc5q-39xc-vjpf) expires 2026-12-02T00:00Z; the 2026-11-18 handoff asked for a proper resolution before then."
+change:
+  - "docs/SECURITY_PICOMATCH_OPTIONS_2026-11-20.md: dependents (2.3.2 via micromatch and jest-util, 4.0.7 via tinyglobby, fdir, vite, vitest), reachability (dev/build/test tooling only), registry status (latest 4.0.7, no fixed version), options with cost, and a recommendation."
+not_changed:
+  - "The security gate, OWNER_EXCEPTIONS, the expiry date, tests, the lockfile and every dependency. The exception is neither widened nor extended."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "node scripts/validate-aipos-yaml.js and validate-aipos-work-order-provenance.js"
+next_action: "Owner decides before 2026-12-01 whether to extend the expiry (option A in the doc). Merge this doc PR after the 2026-11-23 release; re-check the registry for a fixed picomatch first."
