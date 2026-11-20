@@ -78,6 +78,7 @@ test("the block sign-flip test rejects a clear positive weighted mean, keeps a c
   // T not a multiple of 24: the last, shorter group is one block with its own flip
   const odd = Array.from({ length: 650 }, (_, i) => 0.1 + (i % 7) / 100);
   assert.ok(S.signFlipP(odd, odd.map(() => 4), makeRandom(S.SEED), 200).p < 0.05);
+  assert.equal(S.signFlipP(odd, odd.map(() => 4), makeRandom(S.SEED), 200).p, naiveSignFlipP(odd, odd.map(() => 4), makeRandom(S.SEED), 200), "the 2-hour last block is one block with its own flip");
 });
 
 /** Independent naive restatement of the pre-registered pseudocode, reading the same uniform stream. */

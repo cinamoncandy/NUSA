@@ -2,7 +2,7 @@ id: WO-LEARNING-20261120-SIGNAL-SCREEN-SCRIPT
 title: "Study script for the merged signal screen pre-registration, with the required null simulation (not wired, not run)"
 status: READY_FOR_REVIEW
 created: 2026-11-20
-objective: "Implement docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M.md exactly, and run the null simulation of its bootstrap that the document requires before the screening span opens."
+objective: "Implement docs/RESEARCH_PREREG_2026-11-20_SIGNAL_SCREEN_60M_V2.md (block sign-flip test, Holm level 0.02) exactly, and reproduce the null calibration that the document requires before the screening span opens."
 change:
   - "scripts/run-signal-screen.js: read-only screen (six signals, hourly Spearman IC, block sign-flip test per the V2 pseudocode, Holm over K = 6 at level 0.02); prints SIGNAL_SCREEN_STUDY; WAITING_DATA before 2027-01-17T00:30Z reads close times only."
   - "scripts/run-signal-screen.test.js: 15 tests (constants and RNG vector, Holm, bootstrap, formulas and missing-value rules, no look-ahead, bars, waiting path, integrity, planted effect, noise, insufficient, 152 of 168 bar, fail closed)."
