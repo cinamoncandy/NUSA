@@ -201,10 +201,22 @@ jobs:
           const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("HISTORY_MINING_DISCOVER ");
           try { const v = JSON.parse(line.slice(i + 24)); if (i < 0 || !["WAITING_CONFIG", "INSUFFICIENT_DATA", "NO_SHORTLIST", "SHORTLIST"].includes(v.status)) throw 0;
             const out = { status: v.status }; for (const [k, x] of Object.entries(v)) if (/^[a-zA-Z]{1,40}$/.test(k) && (typeof x === "boolean" || Number.isFinite(x) || (/Fingerprint$/.test(k) && /^[a-f0-9]{64}$/.test(x)))) out[k] = x;
-            if (Array.isArray(v.shortlist)) out.shortlist = v.shortlist.slice(0, 5).filter((s) => s !== null && typeof s === "object" && /^[A-Za-z0-9_]{1,40}$/.test(s.id) && [s.n, s.meanNet, s.meanStress].every(Number.isFinite)).map((s) => ({ id: s.id, n: s.n, meanNet: s.meanNet, meanStress: s.meanStress }));
+            if (Array.isArray(v.shortlist)) out.shortlist = v.shortlist.slice(0, 5).filter((s) => s !== null && typeof s === "object" && /^[A-Z0-9]+(_[A-Z0-9]+)*_(HIGH|LOW)_Q(80|90)_H(1|4|12|24)$/.test(s.id) && [s.n, s.meanNet, s.meanStress].every(Number.isFinite)).map((s) => ({ id: s.id, n: s.n, meanNet: s.meanNet, meanStress: s.meanStress }));
             console.log(JSON.stringify(out));
           } catch { console.log(line.includes("HISTORY_MINING_FAILED_CLOSED") ? "HISTORY_MINING_FAILED_CLOSED" : "HISTORY_MINING_UNAVAILABLE"); }')"
           summary="${summary}"$'\n'"history_mining=${mining}"
+          # Latest history mining FREEZE record (the owner commits it BEFORE the one look): strictly validated, fixed fields only. The thresholds are signal quantiles, not candle values.
+          freezerec="$(journalctl -u nusa-research.service --since "-26 hours" --no-pager -o cat 2>/dev/null | grep 'HISTORY_MINING_FREEZE' | tail -1 | cut -c1-8000 | node -e '
+          const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("HISTORY_MINING_FREEZE ");
+          try { const v = JSON.parse(line.slice(i + 22)); if (i < 0 || v.study !== "HISTORY_MINING_V1" || v.lookedAt !== null) throw 0;
+            const hex = (x) => typeof x === "string" && /^[a-f0-9]{64}$/.test(x); const gid = (x) => typeof x === "string" && /[A-Z0-9]+(_[A-Z0-9]+)*_(HIGH|LOW)_Q(80|90)_H(1|4|12|24)/.test(x); const int = (x) => Number.isSafeInteger(x);
+            const w = v.windows; if (!hex(v.fingerprint) || !hex(v.gridFingerprint) || !w || !["discoveryStart", "discoveryEnd", "holdbackStart", "holdbackEnd"].every((k) => int(w[k])) || !Number.isFinite(w.purgeHours)) throw 0;
+            if (!Array.isArray(v.shortlist) || v.shortlist.length > 5 || !v.shortlist.every(gid) || v.thresholds === null || typeof v.thresholds !== "object") throw 0;
+            const thresholds = {}; for (const id of v.shortlist) { const t = v.thresholds[id]; if (!t || !Number.isFinite(t.limit) || !int(t.n)) throw 0; thresholds[id] = { limit: t.limit, n: t.n }; }
+            if (!Number.isFinite(v.alphaPerCandidate) || !(v.sourceCommit === null || /^[a-f0-9]{40}$/.test(v.sourceCommit)) || typeof v.createdAt !== "string" || !/^\d{4}-\d{2}-\d{2}T[0-9:.]{8,12}Z$/.test(v.createdAt)) throw 0;
+            console.log(JSON.stringify({ study: v.study, fingerprint: v.fingerprint, gridFingerprint: v.gridFingerprint, windows: { discoveryStart: w.discoveryStart, discoveryEnd: w.discoveryEnd, holdbackStart: w.holdbackStart, holdbackEnd: w.holdbackEnd, purgeHours: w.purgeHours }, shortlist: v.shortlist, thresholds, alphaPerCandidate: v.alphaPerCandidate, sourceCommit: v.sourceCommit, createdAt: v.createdAt, lookedAt: null }));
+          } catch { console.log("HISTORY_MINING_FREEZE_UNAVAILABLE"); }')"
+          summary="${summary}"$'\n'"history_mining_freeze=${freezerec}"
           # Latest read-only order-book gap map (sample times only, no price or size): integers only.
           obgaps="$(journalctl -u nusa-research.service --since "-26 hours" --no-pager -o cat 2>/dev/null | grep 'ORDERBOOK_GAPS' | tail -1 | cut -c1-3000 | node -e '
           const line = require("node:fs").readFileSync(0, "utf8"); const i = line.indexOf("ORDERBOOK_GAPS ");

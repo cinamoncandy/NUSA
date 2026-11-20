@@ -73,10 +73,11 @@ test("valid config: spawns only the discover phase with the four windows; a fail
   let seen;
   const code = wrapper.run({ configPath: file, env: { NUSA_CLOUD_STATE_DB_PATH: path.join(dir, "s.sqlite") }, log: () => {}, spawnSync: (exe, args, opts) => { seen = { args, opts }; return { status: 0 }; } });
   assert.equal(code, 0);
-  assert.equal(path.basename(seen.args[0]), "run-history-mining.js");
-  assert.equal(seen.args[1], "discover");
+  assert.equal(seen.args[0], "--max-old-space-size=256", "the child is bounded like the other research children");
+  assert.equal(path.basename(seen.args[1]), "run-history-mining.js");
+  assert.equal(seen.args[2], "discover");
   assert.ok(!seen.args.includes("look") && !seen.args.includes("--freeze"));
-  assert.deepEqual(seen.args.slice(2), ["--db", path.join(dir, "s.sqlite"), "--discovery-start", good.discoveryStart, "--discovery-end", good.discoveryEnd, "--holdback-start", good.holdbackStart, "--holdback-end", good.holdbackEnd]);
+  assert.deepEqual(seen.args.slice(3), ["--db", path.join(dir, "s.sqlite"), "--discovery-start", good.discoveryStart, "--discovery-end", good.discoveryEnd, "--holdback-start", good.holdbackStart, "--holdback-end", good.holdbackEnd]);
   assert.equal(seen.opts.shell, false); assert.ok(seen.opts.timeout <= 280000);
   for (const failure of [{ status: 2 }, { error: { code: "ETIMEDOUT" } }, { signal: "SIGTERM", status: null }]) {
     assert.equal(wrapper.run({ configPath: file, env: { NUSA_CLOUD_STATE_DB_PATH: path.join(dir, "s.sqlite") }, log: () => {}, spawnSync: () => failure }), 1);
@@ -114,4 +115,11 @@ test("source pin: the wrapper and the runner never invoke the look phase", () =>
   }
   const w = fs.readFileSync(SCRIPT, "utf8");
   assert.match(w, /"discover"/);
+});
+
+test("a repeated key in the config is refused, also in an escaped spelling (JSON.parse would keep the last value)", () => {
+  const dup = '{"discoveryStart":"2026-09-01T00:00:00Z","discoveryStart":"2026-10-01T00:00:00Z","discoveryEnd":"2026-10-31T00:00:00Z","holdbackStart":"2026-11-04T00:00:00Z","holdbackEnd":"2026-11-19T23:00:00Z"}';
+  assert.throws(() => wrapper.parseConfig(dup), /repeated key/);
+  assert.throws(() => wrapper.parseConfig(dup.replace('"discoveryStart":"2026-10', '"discovery\\u0053tart":"2026-10')), /repeated key|must have exactly/);
+  assert.doesNotThrow(() => wrapper.parseConfig(JSON.stringify(good)));
 });

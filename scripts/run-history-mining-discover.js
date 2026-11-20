@@ -23,7 +23,20 @@ const FULL_HOUR = /^\d{4}-\d{2}-\d{2}T\d{2}:00:00(?:\.000)?Z$/;
 const WAITING = 'HISTORY_MINING_DISCOVER {"status":"WAITING_CONFIG"}';
 
 /** Strict parse of the config text into { iso, ms }; throws on anything but exactly the four full-hour UTC fields in a valid layout. */
+/** The config is flat (string values only), so every `"key":` is a top-level key; JSON.parse would keep the LAST of two equal keys, so any repeat (also an escaped spelling) is refused. */
+function hasDuplicateKey(text) {
+  const seen = new Set();
+  for (const match of text.matchAll(/"((?:[^"\\]|\\.)*)"\s*:/g)) {
+    let key;
+    try { key = JSON.parse(`"${match[1]}"`); } catch { return true; }
+    if (seen.has(key)) return true;
+    seen.add(key);
+  }
+  return false;
+}
+
 function parseConfig(text) {
+  if (hasDuplicateKey(String(text))) throw new Error("history mining config has a repeated key");
   let raw;
   try { raw = JSON.parse(text); } catch { throw new Error("history mining config is not JSON"); }
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) throw new Error("history mining config must be an object");
@@ -51,7 +64,7 @@ function run(options = {}) {
   const dbPath = String(env.NUSA_CLOUD_STATE_DB_PATH || "");
   if (!path.isAbsolute(dbPath)) throw new Error("state path");
   // Only `discover`: the one `look` is a manual step ordered by the owner after the freeze record is committed.
-  const child = spawn(options.executable ?? process.execPath, [MINING_SCRIPT, "discover", "--db", dbPath, "--discovery-start", iso.discoveryStart, "--discovery-end", iso.discoveryEnd, "--holdback-start", iso.holdbackStart, "--holdback-end", iso.holdbackEnd], { env, stdio: "inherit", shell: false, timeout: options.timeoutMs ?? 240000 });
+  const child = spawn(options.executable ?? process.execPath, ["--max-old-space-size=256", MINING_SCRIPT, "discover", "--db", dbPath, "--discovery-start", iso.discoveryStart, "--discovery-end", iso.discoveryEnd, "--holdback-start", iso.holdbackStart, "--holdback-end", iso.holdbackEnd], { env, stdio: "inherit", shell: false, timeout: options.timeoutMs ?? 240000 });
   return child.error || child.signal || child.status !== 0 ? 1 : 0;
 }
 
