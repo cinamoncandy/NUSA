@@ -5,16 +5,16 @@ Safety unchanged: PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=f
 
 ## 1. Where S2 stands (read 2026-11-20)
 
-- Evidence count: 14 identical CLEAR decisions at the time of #3220, then 7 more read from the job logs (#3221, #3222, #3223, #3225, #3224, #3226, #3227), all `match=true` on both checks, no HOLD, no mismatch, no `match=na`. The line of #3228 and #3229 was not read yet. Total at least 21, the bar is 20. One audit run failed (#3223, a transient failure) and the same PR passed on its re-run.
-- The bar also asks for at least 3 PRs that touch workflows or release paths. The docs define no path list; on 2026-11-20 the owner agreed ("그래") to read it as "changes `.github/workflows/**`". Four PRs qualify (#3217, #3223, #3226, #3228, all `oracle-host-diagnose.yml`). Counting launcher or deploy files would add two more but is not used.
-- What the count does not show: every decision was CLEAR. No HOLD and no freeze was ever present, so the replacement has never been seen refusing anything. The rehearsal cases of S2 section 4 are therefore required, not optional, before the switch.
+- Evidence count: 14 identical CLEAR decisions (`docs/FINDINGS_2026-11-20.md` section 1: 14 runs, 28 shadow lines) at the time of #3220, then 7 more read from the job logs on 2026-11-20 (#3221, #3222, #3223, #3225, #3224, #3226, #3227), all `match=true` on both checks, no HOLD, no mismatch, no `match=na`. These 7 are recorded only in this document. The lines of #3228 and #3229 were not read. Total at least 21, the bar is 20. One audit run failed (#3223, a transient failure, no shadow line) and does not count; the same PR passed on its re-run, which does.
+- The bar also asks for at least 3 PRs that touch workflows or release paths. The docs define no path list; on 2026-11-20 the owner agreed ("그래") to read it as "changes `.github/workflows/**`". Four PRs qualify (#3217, #3223, #3226, #3228, all `oracle-host-diagnose.yml`); this list was made from the PR file lists on 2026-11-20 and is not in the repository elsewhere. Counting launcher or deploy files would add two more but is not used.
+- What the count does not show: every decision was CLEAR. No HOLD and no freeze was ever present, so the replacement has never been seen refusing anything. The rehearsal of section 3 is therefore required, not optional, before the switch.
 
 ## 2. What S3 changes
 
 Two things, in this order, each its own PR:
 
-1. **S3a, the file is protected (no change of authority).** The audit workflow refuses to auto-merge a PR that touches `config/release-control.json`, `scripts/release-control-check.js` or the shadow step itself (a tested, fail-closed path step, S2 section 3.1). `CODEOWNERS` lists them under the owner as a visible marker only. A PR that edits the gate can then only be merged by the owner by hand. The Worker stays authoritative.
-2. **S3b, the switch.** The replacement becomes the authoritative check; the Worker call stays for a while as the non-gating shadow (the roles reversed), so a disagreement is still printed and counted. Because this PR changes the merge path itself, it is merged by the owner by hand, after the independent non-author review and the rehearsal below. Nothing else (Worker, Durable Object, the five Cloudflare workflows, `apps/autopilot`) is touched; they are removed in S4, never in S3.
+1. **S3a, the gate files are protected (no change of authority).** The audit workflow refuses to auto-merge a PR that touches `config/release-control.json`, `scripts/release-control-check.js`, `scripts/release-control-path-rule.js`, the audit workflow file or `CODEOWNERS` (a tested, fail-closed path step, S2 section 3.1; PR #3232). The Worker stays authoritative. Until S3a is on main, a PR that edits `config/release-control.json` could still be auto-merged under the Worker, so nothing else may touch those files before S3a is merged and its first real audit run has been read. S3a itself merges through the old audit (the rule is not live before it is on main); everything after it that touches a protected file is merged by the owner by hand (section 6).
+2. **S3b, the switch.** The replacement becomes the authoritative check; the Worker call stays for a while as the non-gating shadow (the roles reversed), so a disagreement is still printed and counted. This PR changes the merge path itself, so it is merged by the owner by hand after the independent non-author review and the rehearsal. Nothing else (Worker, Durable Object, the five Cloudflare workflows, `apps/autopilot`) is touched; they are removed in S4, never in S3.
 
 ## 3. Rehearsal before S3b (each case must fail the merge, never pass it)
 
@@ -23,13 +23,17 @@ Run on a throwaway branch or a dispatch-only copy of the workflow, never on a re
 | # | Case | Expected |
 | --- | --- | --- |
 | 1 | the file cannot be read from the audited base (404, API error) | refuse |
-| 2 | invalid JSON, an unknown or missing field, a wrong type | refuse |
+| 2 | invalid JSON, an unknown or missing field, a wrong type, a duplicate key, a BOM or odd whitespace, a directory or symlink at the path | refuse (or, for harmless whitespace, the same decision as the clean file; the checker's rule is pinned by a test) |
 | 3 | `globalReleaseFreeze` true | refuse |
 | 4 | `holdState` active | refuse |
 | 5 | a safety fact missing or changed (`liveAuthority`, `productionMutationAllowed`, `aiAuthority`) | refuse |
 | 6 | HOLD set between the first and the second read | refuse at the second read |
-| 7 | a PR that edits the file (read from the PR head instead of the base must not clear itself) | refuse, and the path rule blocks auto-merge |
+| 7 | the PR head holds a CLEAR file while the audited base holds HOLD (a PR must not clear itself) | refuse |
 | 8 | the answer for another PR number, head or base | refuse |
+| 9 | stale base: the PR base lags main and a HOLD or freeze was merged to main after it | refuse (the audit requires the audited base to equal the current head of main: `current_base == current_main` in the audit job and the re-check in the release job, `autopilot-deterministic-audit-release.yml`) |
+| 10 | HOLD cleared between the two reads | the decision follows the second read; a clear after the first read must not pass without the second read |
+| 11 | two audits of the same PR at once, or a re-run after a new HOLD | each run reads on its own; an old `nusa/release-authorized` status is revoked or expires and cannot carry over (read the revoke steps in the workflow and check them) |
+| 12 | after the switch: the Worker unreachable, or the Worker says HOLD while the replacement says CLEAR | the replacement decides; the disagreement is printed. During the reversed-shadow period a Worker HOLD also refuses (the stricter option), so a disagreement can only block, never release. Decided here so it is not left open |
 
 The rehearsal output (the printed lines, no secrets) is recorded in an evidence PR before S3b is merged. A case that passes is a bug in the replacement and stops S3b.
 
@@ -37,33 +41,25 @@ The rehearsal output (the printed lines, no secrets) is recorded in an evidence 
 
 - The file is read from the **audited base**, so a PR cannot clear its own gate; with the path rule, it cannot edit the gate and merge itself either.
 - Fail closed everywhere: any doubt means the merge stops. The cost of a wrong refusal is a blocked merge that the owner can see and fix; the cost of a wrong clearance would be an unchecked release, so the design accepts false refusals and no false clearances.
-- Residual risk: the Worker's freeze lives in its deployed configuration, which a main merge can currently redeploy, so today's freeze is not owner-only either. The file plus the path rule is stricter, but only as strong as branch protection and merge permissions. The S1 record of who can merge and whether administrators can bypass (S2 section 3.3) must exist before S3b. If it does not, S3b waits.
+- Residual risk: the Worker's freeze lives in its deployed configuration, which a main merge can currently redeploy, so today's freeze is not owner-only either. The file plus the path rule is stricter, but only as strong as branch protection and merge permissions. The owner and the agents act as the same GitHub account, so a label or comment cannot prove that the owner did something; the control is the path rule plus the owner's own merge under a relaxed protection.
 - The release bot `nusa-release-authority` must keep merging normal PRs. S3b's PR must include a real PR that goes through the new check and merges (a docs-only PR after the switch) as its proof, and the owner reads that run.
 
-## 4b. Interaction with the release freeze and rollback
+## 5. Freeze, rollback and who sets the freeze
 
-- No S3 merge or switch inside the release freeze 2026-11-24T06:00Z..2026-11-28T06:00Z; the owner merges S3b only when awake.
-- Rollback of S3b: revert the one PR (the Worker stays deployed and its call stays in the workflow until S4), merged by the owner by hand. No data or host change is involved, so the rollback is a single revert.
+- **Setting the freeze or a HOLD:** the owner edits `config/release-control.json` in a PR and merges it by hand (a protected path). The audit sees it only after that PR is on main. A freeze or HOLD merge needs no rehearsal and is allowed inside the release freeze window 2026-11-24T06:00Z..2026-11-28T06:00Z; it is the one S3 merge that is.
+- **No other S3 merge or switch inside that window**; the owner merges S3b only when awake.
+- **Rollback of S3b:** revert the one PR. A revert is itself a protected-path PR, so it also needs the owner's temporary relaxation of the protection and must not be done during the freeze. It is safe only while the Worker call stays in the workflow, which it does until S4. No data or host change is involved.
+- **Each relaxation of the branch protection** is not recorded in git, so the owner (or the agent at the owner's word) writes the start and end time of every relaxation into the PR it was used for; the window should be as short as the merge itself.
 - S4 (removal of the Worker and the five Cloudflare workflows) starts only after 20 further decisions with the roles reversed show no disagreement, and needs its own design and approval.
 
-## 5. Owner decisions (2026-11-20: "권장대로 다 해", recorded as the recommendations below)
+## 6. Owner decisions (2026-11-20: "권장대로 다 해" and "a로해")
 
 1. Home of the HOLD and the freeze: the file `config/release-control.json`. ACCEPTED.
 2. The path rule: a PR touching the protected paths is not auto-merged. ACCEPTED.
 3. S3b is merged by the owner by hand after the rehearsal evidence, not by the bot. ACCEPTED.
-4. Date: after the branch-protection record exists and outside the freeze. ACCEPTED as the rule; no date is set.
+4. Date: after the branch-protection record exists and outside the freeze window of section 5. ACCEPTED as the rule; no date is set.
+5. The branch-protection consequence: the required status `nusa/release-authorized` applies to administrators too (`docs/CLAUDE_CENTERED_OPERATING_MODEL.md` line 62; the live setting is not readable by the agent), and a PR skipped by the rule gets no such status. A PR touching a protected file (including a revert of S3a, a fix to the rule, any change of the audit workflow, and S3b) is therefore merged only after the owner temporarily relaxes the branch protection for `main` in Settings and restores it afterwards. ACCEPTED by decision "a"; the protected list keeps the audit workflow file. No bypass of the required status is assumed.
 
-Prerequisite found while building S3a, NOT yet known: a PR the path rule skips gets no `nusa/release-authorized` status, so it can be merged only if the owner can bypass the required status in branch protection (an administrator merge). If administrators cannot bypass, every PR touching the protected paths (including S3b and any revert of S3a) becomes unmergeable until the owner relaxes the rule in Settings. This is the S1 record the design already requires; S3a is not marked ready until the owner confirms it (Settings, Branches, the rule for `main`: required status checks, and whether bypass by administrators is allowed). Note also that the owner and this agent act as the same GitHub account, so a label or comment cannot prove "the owner did this"; the control is the path rule plus the owner's administrator merge, not a label.
+## 7. Not done
 
-Decision on the prerequisite (2026-11-20, "a로해"): ACCEPTED. A PR touching a protected file (including a revert of S3a, a fix to the rule, any change of the audit workflow, and S3b) is merged only after the owner temporarily relaxes the branch protection for `main` in Settings and restores it afterwards. The protected list keeps the audit workflow file. No bypass of the required status is assumed.
-
-## 5b. The questions as asked
-
-1. Home of the HOLD and the freeze: the file (recommended: reviewable in git, no external store) or a protected GitHub Environment with required reviewers. S2 section 6 asked this; no answer is recorded, so it is still open.
-2. Confirm the path rule for the file (S2 section 3.1): auto-merge refused, owner merges by hand.
-3. Confirm that S3b is merged by the owner by hand after the rehearsal evidence, and not by the bot.
-4. Date: not before the S1 branch-protection record exists; not inside the freeze.
-
-## 6. Not done
-
-No code, no workflow edit, no rehearsal, no switch. The Worker check is unchanged and still authoritative. Next step on agreement: S3a as one draft PR with its tests and an independent non-author review, and the S1 branch-protection read (read-only) in parallel.
+No code of S3b, no rehearsal, no switch. The Worker check is unchanged and still authoritative. S3a is PR #3232 (separate draft). Next step: S3a merged and its first real audit run read; then the rehearsal harness (a dispatch-only copy of the workflow) as its own PR with an independent review.
