@@ -1,0 +1,19 @@
+id: WO-OPS-20261120-CLOUDFLARE-S3-DESIGN
+title: "Design: Cloudflare removal S3, the switch from the Worker release check to the file in git"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+objective: "Record where the S2 shadow evidence stands (at least 21 identical CLEAR decisions, 4 workflow-touching PRs under the reading the owner agreed on 2026-11-20) and design S3: protect the control file with a path rule, rehearse the refusal cases, then switch the authority with the Worker kept as a reversed shadow, merged by the owner by hand."
+change:
+  - "docs/CLOUDFLARE_REMOVAL_S3_DESIGN_2026-11-20.md (design only; not binding, nothing is built or switched)."
+not_changed:
+  - "No code, workflow, Worker, Durable Object, branch protection, gate, threshold, limit, capital, order switch or authority change. The Worker check is unchanged and still authoritative."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The shadow lines of #3228 and #3229 were not read; the count of 21 rests on a log read of seven runs after the earlier 14. The path definition is the owner's agreed reading, not a documented rule."
+acceptance:
+  - "AIPOS validators pass; independent non-author review; exact-head CI."
