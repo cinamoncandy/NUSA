@@ -23,7 +23,7 @@ test("forward timeout/nonzero failures remain explicit while independent canonic
     let calls = 0;
     const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
       spawnSync: () => ++calls === 1 ? failure : { status: 0 } });
-    assert.equal(calls, 7); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
+    assert.equal(calls, 8); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
   }
 });
 
@@ -31,7 +31,7 @@ test("an order-book study failure is logged and never blocks canonical Research"
   let calls = 0;
   const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
     spawnSync: () => ++calls === 2 ? { status: 1 } : { status: 0 } });
-  assert.equal(calls, 7); assert.equal(result.status, "COMPLETED");
+  assert.equal(calls, 8); assert.equal(result.status, "COMPLETED");
 });
 
 test("a trade-flow study failure is logged and never blocks canonical Research", () => {
@@ -50,6 +50,19 @@ test("each trade-flow study failure is logged with its own version", () => {
       spawnSync: (executable, args, options) => (args.includes("scripts/run-tradeflow-study.js") && options.env.NUSA_TRADEFLOW_STUDY_ID === "ML_TRADEFLOW_60M_20261114" ? { status: 1 } : { status: 0 }) });
   } finally { console.error = original; }
   assert.deepEqual(messages.filter((m) => m.includes("TRADEFLOW_STUDY_FAILED_CLOSED")), ["[cloud-research-snapshot] TRADEFLOW_STUDY_FAILED_CLOSED:V2"]);
+});
+
+test("a cross-market study failure is logged and never blocks canonical Research", () => {
+  const messages = [];
+  const original = console.error;
+  console.error = (...args) => { messages.push(args.join(" ")); };
+  let result;
+  try {
+    result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
+      spawnSync: (executable, args) => (args.includes("scripts/run-crossmarket-study.js") ? { status: 1 } : { status: 0 }) });
+  } finally { console.error = original; }
+  assert.equal(result.status, "COMPLETED");
+  assert.deepEqual(messages.filter((m) => m.includes("CROSSMARKET_STUDY_FAILED_CLOSED")), ["[cloud-research-snapshot] CROSSMARKET_STUDY_FAILED_CLOSED"]);
 });
 
 test("accepts matching deployed source commit identities", () => {
@@ -103,7 +116,7 @@ test("runs bounded forward study then canonical preload + real public-market Res
     },
   });
   assert.equal(result.status, "COMPLETED");
-  assert.equal(calls.length, 7);
+  assert.equal(calls.length, 8);
   assert.deepEqual(calls[0].args, ["--max-old-space-size=256", "scripts/run-regime-forward-study.js"]);
   assert.equal(calls[0].options.timeout, 120000);
   assert.deepEqual(calls[1].args, ["--max-old-space-size=256", "scripts/run-orderbook-study.js"]);
@@ -118,6 +131,8 @@ test("runs bounded forward study then canonical preload + real public-market Res
   assert.deepEqual(calls[5].args, ["--max-old-space-size=256", "scripts/run-tradeflow-study.js"]);
   assert.equal(calls[5].options.timeout, 600000);
   assert.equal(calls[5].options.env.NUSA_TRADEFLOW_STUDY_ID, "ML_TRADEFLOW_60M_20261114");
+  assert.deepEqual(calls[6].args, ["--max-old-space-size=256", "scripts/run-crossmarket-study.js"]);
+  assert.equal(calls[6].options.timeout, 600000);
   assert.equal(result.learningLedgerPath, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
   assert.equal(observed.executable, path.resolve("/usr/bin/node"));
   assert.deepEqual(observed.args, ["--max-old-space-size=256", "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"]);
