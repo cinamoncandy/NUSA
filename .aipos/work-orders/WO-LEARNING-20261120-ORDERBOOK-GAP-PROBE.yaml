@@ -8,6 +8,8 @@ change:
   - "scripts/run-cloud-research-snapshot.js: one more bounded child (120 s timeout), failure logged as ORDERBOOK_GAPS_FAILED_CLOSED and never blocking Research."
   - ".github/workflows/oracle-host-diagnose.yml: a read-only projection of the latest ORDERBOOK_GAPS line (integers only)."
   - "tests for the probe, the runner (11 children) and the diagnosis projection."
+notes:
+  - "The probe reads the live table and the study archive table as one source (the order-book study's definition, scripts/lib/orderBookSource.js); /health orderBookCoverage reads only the live table, so for hours beyond the roughly 14-day prune horizon the two counts can differ: that is not a bug. The projection greps 26 hours of journal and shows the latest line; asOfMs says which hour the map ends at."
 not_changed:
   - "No experiment, gate, threshold, limit, capital, order switch or authority change. No book value (bid, ask, size) is read; no gap is repaired; no study rule changes."
 release_plan:
