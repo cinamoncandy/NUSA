@@ -69,10 +69,12 @@ export interface ResearchExperimentSettings {
   /** K-of-N rolling holdout: OFF (default) or SHADOW (display only; see docs/DESIGN_ROLLING_HOLDOUT_WIRING.md). */
   readonly rollingHoldout: "OFF" | "SHADOW";
   /**
-   * Optional NUSA_RESEARCH_BACKFILL_DAYS (1..60): reach the historical candle BACKFILL this many days back. It only deepens the backfill
+   * Optional NUSA_RESEARCH_BACKFILL_DAYS (1..45): reach the historical candle BACKFILL this many days back. It only deepens the backfill
    * walk; windows, manifests, gap-fill, experiments and every identity use researchTargetSpanMs and ignore it. Absent when unset.
    */
   readonly backfillDays?: number;
+  /** True when NUSA_RESEARCH_BACKFILL_DAYS was set but not a plain integer 1..45: the value is IGNORED (default depth) and logged; a typo never disables research. */
+  readonly backfillDaysIgnored?: true;
 }
 
 export type ResearchExperimentSettingsResult =
@@ -96,13 +98,25 @@ export function researchTargetSpanMs(settings: Pick<ResearchExperimentSettings, 
   return (settings.rollingHoldout === "SHADOW" ? requiredHistoryMs(w) : w.trainMs + w.validationMs + w.holdoutMs) + DAY_MS;
 }
 
-/** Hard ceiling of NUSA_RESEARCH_BACKFILL_DAYS: 60 days = 86,400 one-minute rows, inside the candle store's 100,000-row cap per market and interval. */
-export const RESEARCH_BACKFILL_DAYS_MAX = 60;
+/** Hard ceiling of NUSA_RESEARCH_BACKFILL_DAYS: 45 days = 64,800 one-minute rows, leaving about 24 days of live growth inside the candle store's 100,000-row cap per market and interval before the oldest rows are trimmed. */
+export const RESEARCH_BACKFILL_DAYS_MAX = 45;
 
 /** How far back the historical backfill (only) reaches: the target span, or the owner's deeper backfill days when that is longer. */
 export function researchBackfillSpanMs(settings: Pick<ResearchExperimentSettings, "windows" | "rollingHoldout" | "backfillDays">): number {
   const target = researchTargetSpanMs(settings);
   return settings.backfillDays === undefined ? target : Math.max(target, settings.backfillDays * DAY_MS);
+}
+
+/**
+ * Whether a finished backfill run is scheduled again (at most twice more, 10 minutes apart). Unchanged when the depth setting is unset: any market that is not COMPLETE
+ * retries. With a deeper span only a rate limit or an error retries: an INCOMPLETE result (a hole in the older part of a long walk) would re-request every page and re-hash
+ * the window on each retry without ever healing, so it is accepted as final for the run (the candle_extent probe shows the missing minutes).
+ */
+export function shouldRetryBackfill(results: readonly { readonly status: string }[], markets: number, deepened: boolean): boolean {
+  const done = results.length === markets && results.every((r) => r.status === "COMPLETE");
+  if (done) return false;
+  if (!deepened) return true;
+  return results.length !== markets || results.some((r) => r.status === "RATE_LIMITED" || r.status === "ERROR");
 }
 
 export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): ResearchExperimentSettingsResult {
@@ -125,9 +139,10 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
   const tickMinutes = intIn(env.NUSA_RESEARCH_TICK_MINUTES, 30, 5, 360);
   const budget = intIn(env.NUSA_RESEARCH_DAILY_BUDGET, 48, 1, 288);
   if (train == null || validation == null || holdout == null || tickMinutes == null || budget == null) return Object.freeze({ status: "INVALID", reason: "NUMERIC_SETTING_INVALID" });
-  // Unset (or blank) keeps today's behaviour exactly; anything else must be an integer 1..60, otherwise the settings are INVALID (same fail-closed rule as the other integers).
-  const backfillDays = intIn(env.NUSA_RESEARCH_BACKFILL_DAYS, 0, 1, RESEARCH_BACKFILL_DAYS_MAX);
-  if (env.NUSA_RESEARCH_BACKFILL_DAYS !== undefined && env.NUSA_RESEARCH_BACKFILL_DAYS.trim() !== "" && backfillDays == null) return Object.freeze({ status: "INVALID", reason: "BACKFILL_DAYS_INVALID" });
+  // Unset (or blank) keeps today's behaviour exactly. A plain integer 1..45 (no sign, no leading zero, no exponent, no hex) deepens the backfill only; anything else is IGNORED with a
+  // logged warning (default depth): the knob can only add history, so a typo in an owner paste must not switch the whole research runtime off.
+  const backfillRaw = (env.NUSA_RESEARCH_BACKFILL_DAYS ?? "").trim();
+  const backfillDays = backfillRaw === "" ? undefined : /^[1-9][0-9]?$/.test(backfillRaw) && Number(backfillRaw) <= RESEARCH_BACKFILL_DAYS_MAX ? Number(backfillRaw) : null;
   const intervalsRaw = (env.NUSA_RESEARCH_INTERVAL_MINUTES ?? "1").split(",").map((value) => value.trim()).filter((value) => value !== "");
   const intervalsMinutes = intervalsRaw.map(Number);
   if (intervalsMinutes.length === 0 || intervalsMinutes.some((value) => !RESEARCH_INTERVAL_MINUTES.includes(value)) || new Set(intervalsMinutes).size !== intervalsMinutes.length) {
@@ -146,7 +161,8 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
       backfill: env.NUSA_RESEARCH_BACKFILL === undefined || env.NUSA_RESEARCH_BACKFILL === "ENABLED",
       // Anything but the exact word SHADOW is OFF: a typo can never turn the rolling check on.
       rollingHoldout: env.NUSA_RESEARCH_ROLLING_HOLDOUT === "SHADOW" ? ("SHADOW" as const) : ("OFF" as const),
-      ...(backfillDays != null && backfillDays > 0 ? { backfillDays } : {}),
+      ...(typeof backfillDays === "number" ? { backfillDays } : {}),
+      ...(backfillDays === null ? { backfillDaysIgnored: true as const } : {}),
     }),
   });
 }
@@ -191,6 +207,7 @@ export function composeResearchExperiments(input: {
   const parsed = readResearchExperimentSettings(input.env);
   if (parsed.status === "DISABLED") return undefined;
   if (parsed.status === "INVALID") { log(`[research-experiments] disabled: ${parsed.reason}`); return undefined; }
+  if (parsed.status === "ENABLED" && parsed.settings.backfillDaysIgnored === true) log("[research-experiments] NUSA_RESEARCH_BACKFILL_DAYS ignored: expected a plain integer 1..45");
   const settings = parsed.settings;
   const now = input.now ?? Date.now;
   const yieldControl = input.yieldControl ?? (() => new Promise<void>((resolve) => setImmediate(resolve)));
@@ -499,8 +516,7 @@ export function composeResearchExperiments(input: {
     if (stopped || !settings.backfill) return;
     backfillTimer = setTimeout(() => {
       void backfill().then((results) => {
-        const done = results.length === settings.markets.length && results.every((r) => r.status === "COMPLETE");
-        if (!done && attempt < 3) scheduleBackfill(attempt + 1, 10 * M);
+        if (shouldRetryBackfill(results, settings.markets.length, settings.backfillDays !== undefined) && attempt < 3) scheduleBackfill(attempt + 1, 10 * M);
         else scheduleGapFill();
       });
     }, delayMs);

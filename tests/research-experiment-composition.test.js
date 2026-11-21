@@ -999,7 +999,7 @@ test("the committed owner markets file, through the launcher, gives five collect
   assert.deepEqual([...result.settings.experimentMarkets], ["KRW-XRP"]);
 });
 
-test("NUSA_RESEARCH_BACKFILL_DAYS: unset is unchanged, 1..60 integers parse, anything else is INVALID, and identity-bearing settings never change", () => {
+test("NUSA_RESEARCH_BACKFILL_DAYS: unset is unchanged, plain integers 1..45 parse, anything else is IGNORED (never disables research), and identity-bearing settings never change", () => {
   const { researchTargetSpanMs, researchBackfillSpanMs, RESEARCH_BACKFILL_DAYS_MAX } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
   const DAY = 86_400_000;
   const unset = readResearchExperimentSettings(env());
@@ -1007,20 +1007,53 @@ test("NUSA_RESEARCH_BACKFILL_DAYS: unset is unchanged, 1..60 integers parse, any
   assert.equal("backfillDays" in unset.settings, false, "unset adds no field: the settings object is what it was");
   assert.equal(researchBackfillSpanMs(unset.settings), researchTargetSpanMs(unset.settings), "unset: backfill span is the target span");
   assert.equal(readResearchExperimentSettings(env({ NUSA_RESEARCH_BACKFILL_DAYS: "  " })).settings.backfillDays, undefined, "blank is unset");
-  for (const days of ["1", "12", "13", "60"]) {
+  for (const days of ["1", "12", "13", "45", " 45 "]) {
     const set = readResearchExperimentSettings(env({ NUSA_RESEARCH_BACKFILL_DAYS: days }));
     assert.equal(set.status, "ENABLED");
     const { backfillDays, ...rest } = set.settings;
-    assert.equal(backfillDays, Number(days));
+    assert.equal(backfillDays, Number(days.trim()));
     assert.deepEqual(rest, unset.settings, "every other setting (windows, markets, commit, rolling mode ...) is identical");
     assert.equal(researchTargetSpanMs(set.settings), researchTargetSpanMs(unset.settings), "the experiment/manifest/gap-fill span never moves");
-    assert.equal(researchBackfillSpanMs(set.settings), Math.max(12, Number(days)) * DAY, "backfill span is max(target, days)");
+    assert.equal(researchBackfillSpanMs(set.settings), Math.max(12, Number(days.trim())) * DAY, "backfill span is max(target, days)");
   }
-  for (const bad of ["0", "-1", "61", "100", "1.5", "abc"]) {
-    assert.deepEqual({ ...readResearchExperimentSettings(env({ NUSA_RESEARCH_BACKFILL_DAYS: bad })) }, { status: "INVALID", reason: "BACKFILL_DAYS_INVALID" }, `${bad} fails closed`);
+  assert.equal(RESEARCH_BACKFILL_DAYS_MAX, 45);
+  for (const bad of ["0", "-1", "46", "60", "100", "1.5", "abc", "045", "1e1", "0x10", "+5", "４５", "9999999999999999999999"]) {
+    const ignored = readResearchExperimentSettings(env({ NUSA_RESEARCH_BACKFILL_DAYS: bad }));
+    assert.equal(ignored.status, "ENABLED", `${bad}: research stays on`);
+    assert.equal("backfillDays" in ignored.settings, false, `${bad}: the default depth is kept`);
+    assert.equal(ignored.settings.backfillDaysIgnored, true, `${bad}: flagged so the composition logs it`);
+    const { backfillDaysIgnored, ...rest } = ignored.settings;
+    assert.deepEqual(rest, unset.settings, `${bad}: every other setting is identical`);
   }
   assert.ok(RESEARCH_BACKFILL_DAYS_MAX * 1440 + 1 <= 100_000, "the ceiling stays inside the candle store's default 100,000-row cap");
   assert.equal(readResearchExperimentSettings({ NUSA_SOURCE_COMMIT_SHA: SHA, NUSA_RESEARCH_BACKFILL_DAYS: "999" }).status, "DISABLED", "research off stays off");
+});
+
+test("an ignored NUSA_RESEARCH_BACKFILL_DAYS is logged by the composition and research keeps running", () => {
+  const db = open();
+  const lines = [];
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_BACKFILL_DAYS: "sixty", NUSA_RESEARCH_BACKFILL: "DISABLED" }), database: db, now: () => Date.UTC(2026, 9, 3, 6, 0, 30), log: (l) => lines.push(l) });
+  try {
+    assert.ok(composition !== undefined, "research stays enabled");
+    assert.ok(lines.includes("[research-experiments] NUSA_RESEARCH_BACKFILL_DAYS ignored: expected a plain integer 1..45"), lines.join("\n"));
+  } finally { composition?.stop?.(); db.close?.(); }
+});
+
+test("backfill retry rule: unchanged without the depth setting; with it only a rate limit or an error retries, an INCOMPLETE hole is final", () => {
+  const { shouldRetryBackfill } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  const r = (...statuses) => statuses.map((status) => ({ status }));
+  // unset: today's rule, any market that is not COMPLETE retries
+  assert.equal(shouldRetryBackfill(r("COMPLETE", "COMPLETE"), 2, false), false);
+  assert.equal(shouldRetryBackfill(r("COMPLETE", "INCOMPLETE"), 2, false), true);
+  assert.equal(shouldRetryBackfill(r("RATE_LIMITED"), 2, false), true);
+  assert.equal(shouldRetryBackfill([], 2, false), true);
+  // deeper backfill: a hole (INCOMPLETE) would re-request every page and re-hash the window without healing
+  assert.equal(shouldRetryBackfill(r("COMPLETE", "COMPLETE"), 2, true), false);
+  assert.equal(shouldRetryBackfill(r("COMPLETE", "INCOMPLETE"), 2, true), false);
+  assert.equal(shouldRetryBackfill(r("INCOMPLETE", "INCOMPLETE"), 2, true), false);
+  assert.equal(shouldRetryBackfill(r("COMPLETE", "RATE_LIMITED"), 2, true), true);
+  assert.equal(shouldRetryBackfill(r("ERROR"), 1, true), true);
+  assert.equal(shouldRetryBackfill(r("COMPLETE"), 2, true), true, "the run stopped before every market was tried");
 });
 
 const backfillRun = async (extra) => {
@@ -1062,10 +1095,10 @@ test("a deeper backfill reaches further only in the backfill; required history a
   assert.deepEqual(deep.second.map((r) => r.status), ["COMPLETE"], "a second run is a no-op");
 });
 
-test("the largest allowed backfill (60 days) stays inside the candle store's default row cap and is bounded in pages", async () => {
-  const deep = await backfillRun({ NUSA_RESEARCH_BACKFILL_DAYS: "60" });
+test("the largest allowed backfill (45 days) stays inside the candle store's default row cap and is bounded in pages", async () => {
+  const deep = await backfillRun({ NUSA_RESEARCH_BACKFILL_DAYS: "45" });
   assert.deepEqual(deep.results.map((r) => r.status), ["COMPLETE"]);
-  assert.ok(deep.requests <= Math.ceil(60 * 1440 / 200) + 10, `page budget holds (${deep.requests})`);
-  assert.equal(deep.rows, 60 * 1440);
-  assert.ok(deep.rows < 100_000, "never reaches the retention cap, so nothing is trimmed");
+  assert.ok(deep.requests <= Math.ceil(45 * 1440 / 200) + 10, `page budget holds (${deep.requests})`);
+  assert.equal(deep.rows, 45 * 1440);
+  assert.ok(deep.rows <= 100_000 - 20 * 1440, "leaves at least 20 days of live growth before the retention cap trims the oldest rows");
 });

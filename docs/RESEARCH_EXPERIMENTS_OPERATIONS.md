@@ -39,22 +39,24 @@ history-mining tool and the learning loop need more candles than that. `NUSA_RES
 historical backfill walk to `max(that span, N days)`. The experiment windows, dataset manifests, the gap-fill window,
 experiment identity, hashes and fingerprints still use the 12-day span and are not changed.
 
-- Integer 1 to 60 (60 days = 86,400 one-minute rows, inside the 100,000-row cap of the candle store). Anything else
-  (0, 61, `abc`, `1.5`) makes the research settings INVALID and research stays off, like the other numeric settings;
-  fix the line and restart. Blank or unset: no change.
+- A plain integer 1 to 45 (no sign, no leading zero, no exponent, no hex): 45 days = 64,800 one-minute rows, which leaves about
+  24 days of live growth inside the 100,000-row cap of the candle store. **Recommended: 45.** Anything else (0, 46, `abc`,
+  `1.5`, `045`) is IGNORED with the log line `NUSA_RESEARCH_BACKFILL_DAYS ignored: expected a plain integer 1..45`
+  (default depth, research stays on: a typo in the paste must not switch research off). Blank or unset: no change.
 - Owner step on the host (not part of any release; applied by a restart). Append one line, do not print the file
   (it holds secrets):
-  `grep -q '^NUSA_RESEARCH_BACKFILL_DAYS=' /etc/nusa/cloud-runtime.env || echo 'NUSA_RESEARCH_BACKFILL_DAYS=60' | sudo tee -a /etc/nusa/cloud-runtime.env >/dev/null`
+  `grep -q '^NUSA_RESEARCH_BACKFILL_DAYS=' /etc/nusa/cloud-runtime.env || echo 'NUSA_RESEARCH_BACKFILL_DAYS=45' | sudo tee -a /etc/nusa/cloud-runtime.env >/dev/null`
   then restart the service. Only a build that contains this setting reads it; on an older build it is ignored.
-- Effect: about 60 x 1440 / 200 = 432 requests per market (about 4 x 432 = 1,730 requests for the four new markets, plus the
-  58-day market re-verifying its stored pages), 150 ms apart plus latency: roughly 1.5 to 3 minutes per market, under
-  10 minutes in all, run once after start (retried at most twice, 10 minutes apart, on a request error or rate limit).
-  The per-run page budget is `span / 200 + 10`; a 429 or an error stops the run and the next restart walks again from the
-  newest page (idempotent: stored rows are only re-verified, never replaced). While it runs, the experiment tick and gap
-  fill wait their turn and the thread is handed back after every page.
-- The candle store keeps the newest 100,000 rows per market: 60 days leaves about 9 days of live growth before the oldest
-  rows are trimmed, after which a restart re-requests the trimmed days (bounded, but wasted). Remove the line once the
-  history is in, or keep a smaller N.
+- Effect: about 45 x 1440 / 200 = 324 requests per market (about 4 x 324 = 1,300 requests for the four new markets, plus the
+  58-day market re-verifying its stored pages), 150 ms apart plus latency: roughly 1 to 3 minutes per market, run once after
+  start. A rerun (every restart) walks again from the newest page and re-requests every page: idempotent (stored rows are
+  not replaced) but not free. A rate limit or an error is retried at most twice, 10 minutes apart; **an INCOMPLETE result
+  (a hole in the older part of the walk, for example an exchange maintenance minute) is final for the run and is not
+  retried** (a retry would re-request and re-hash the whole window without ever healing it; the candle_extent probe shows
+  the missing minutes). Gap-fill only heals the recent experiment window, so holes older than that stay. While the backfill
+  runs, the experiment tick and gap fill wait their turn and the thread is handed back after every page.
+- The candle store keeps the newest 100,000 rows per market: after about 24 days of live growth the oldest rows are trimmed
+  and a restart re-requests the trimmed days (bounded, but wasted). Remove the line once the history is in, or keep it.
 - Log: `[research-backfill] KRW-BTC COMPLETE recorded=... pages=...`.
 
 ## What it does
