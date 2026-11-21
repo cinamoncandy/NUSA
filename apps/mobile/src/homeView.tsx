@@ -179,7 +179,7 @@ export function HomeView({
   const hasPosition = Boolean(position && Number(position.quantity) > 0);
   const openOrders = snapshot?.portfolio?.openOrderCount ?? null;
   const pnlColor = totalPnl == null ? theme.colors.text : totalPnl >= 0 ? theme.colors.success : theme.colors.danger;
-  const connectionLabelText = connectionLabel({ recovering, stale, disconnected, readOnlyError: Boolean(readOnlyError), readyForPaperOperations: Boolean(snapshot?.readyForPaperOperations) });
+  const connectionLabelText = connectionLabel({ recovering, stale, disconnected, readOnlyError: Boolean(readOnlyError), readyForPaperOperations: Boolean(snapshot?.readyForPaperOperations), collectOnly: fieldInput.collectOnly === true });
   // A trusted device whose session is being recovered is not a setup problem: project it as
   // reconnecting. SETUP remains only for a configuration or trust failure that needs the owner.
   const shownConnectionLabel = connectionLabelText;

@@ -8,6 +8,8 @@ export interface SafetyLineInput {
   readonly runtimeHalted: boolean;
   /** The verified session could not load PAPER data, or the server reports it is not healthy. */
   readonly dataUnconfirmed?: boolean;
+  /** The server is healthy but has no order path (COLLECT_ONLY): not a fault, so not "확인 필요". Orders are off, which is the safe state. */
+  readonly collectOnly?: boolean;
   /** RECOVERING inside the short resume grace: still not 안전, but worded as a routine check. */
   readonly resuming?: boolean;
 }
@@ -17,6 +19,7 @@ const BOUNDARY = "PAPER 전용 · LIVE 잠김";
 
 export function buildSafetyLine(input: SafetyLineInput): SafetyLine {
   if (input.runtimeHalted) return Object.freeze({ tone: "halt", word: "정지됨", detail: BOUNDARY });
+  if (input.sessionState === "VERIFIED" && input.dataUnconfirmed === true && input.collectOnly === true) return Object.freeze({ tone: "ok", word: "수집 전용", detail: `주문 꺼짐 · ${BOUNDARY}` });
   if (input.sessionState === "VERIFIED" && input.dataUnconfirmed === true) return Object.freeze({ tone: "act", word: "확인 필요", detail: BOUNDARY });
   if (input.sessionState === "VERIFIED") return Object.freeze({ tone: "ok", word: "안전", detail: BOUNDARY });
   if (input.sessionState === "RECOVERING" && input.resuming === true) return Object.freeze({ tone: "wait", word: "확인 중", detail: BOUNDARY });

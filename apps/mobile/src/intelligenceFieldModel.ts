@@ -15,6 +15,8 @@ export interface IntelligenceFieldInput {
   readonly haltActive: boolean;
   /** Read-only error, non-HEALTHY snapshot or a runtime that is not READY/RUNNING. */
   readonly degraded: boolean;
+  /** The server is healthy and has no order path (COLLECT_ONLY): worded as "no orders, collecting", never as a fault. */
+  readonly collectOnly?: boolean;
   readonly feedStale: boolean;
   readonly readyForPaperOperations: boolean;
   readonly decisionCount: number | null;
@@ -62,6 +64,9 @@ function buildBase(input: IntelligenceFieldInput): IntelligenceFieldModel {
   }
   if (input.haltActive) {
     return freeze({ phase: "HALTED", statusWord: "HALTED", tone: "red", headline: "안전 정지 중", detail: input.haltCause ? `리스크 경계가 새 판단을 멈췄습니다. 원장은 보존됩니다. 사유: ${input.haltCause}` : "리스크 경계가 새 판단을 멈췄습니다. 원장은 보존됩니다.", lit: ALL, focus: "risk", states: { governance: "ONLINE", market: "ONLINE", risk: "HALT", axiom: "PAUSED", paper: "PAUSED" }, coreLevel: 0.7 });
+  }
+  if (input.collectOnly === true && !input.degraded) {
+    return freeze({ phase: "CONNECTED", statusWord: "COLLECT ONLY", tone: "blue", headline: "수집 전용\n주문 꺼짐", detail: "주문 없이 시세와 데이터를 관찰합니다. PAPER 주문은 발생하지 않습니다.", lit: ["governance", "market"], focus: "paper", states: { governance: "ONLINE", market: "ONLINE", paper: "ORDERS OFF" }, coreLevel: 0.8 });
   }
   if (input.degraded) {
     return freeze({ phase: "DEGRADED", statusWord: "DEGRADED", tone: "amber", headline: "PAPER 상태 확인 필요", detail: "서버 상태가 정상으로 확인되지 않았습니다. 아래 안내를 확인해 주세요.", lit: ["governance"], focus: "governance", states: { governance: "DEGRADED" }, coreLevel: 0.5 });

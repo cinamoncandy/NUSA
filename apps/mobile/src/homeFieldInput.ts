@@ -8,12 +8,34 @@ import type { IntelligenceFieldInput } from "./intelligenceFieldModel";
 export interface HomeFieldSnapshot {
   readonly health: string;
   readonly readyForPaperOperations: boolean;
-  readonly dashboard: { readonly killSwitchActive: boolean };
+  readonly dashboard: { readonly killSwitchActive: boolean; readonly overallHealth?: unknown };
   readonly operations: {
     readonly runtimeState: string;
     readonly pipelineStage?: unknown;
+    readonly schedulerMode?: unknown;
+    readonly transport?: unknown;
+    readonly pendingWrites?: unknown;
     readonly heartbeat?: { readonly decisionCount: number; readonly paperOrderCount: number; readonly buySignalCount?: number; readonly buyBlockedCount?: number; readonly buyCountsSince?: number; readonly windowDecisionCount?: number; readonly windowOrderCount?: number; readonly feedDisconnectCount?: number; readonly feedStaleGapCount?: number; readonly feedMaxGapMs?: number; readonly feedCountsSince?: number; readonly lastDecisionDetail?: unknown; readonly researchCollection?: unknown; readonly tradedMarkets?: unknown; readonly lastError?: unknown };
   };
+}
+
+/**
+ * True when the server is healthy but has no order path: the COLLECT_ONLY run mode. The server then reports the runtime as STOPPED
+ * (no execution loop, scheduler OFF) and the whole snapshot as DEGRADED, which the phone used to word as "확인 필요". Every fact
+ * below is a server field (the dashboard overall health must itself be HEALTHY: only the missing execution loop explains the DEGRADED snapshot); if any one differs (a halt, a kill switch, a lost transport, pending writes, a running loop) this is false
+ * and the existing warning wording applies unchanged. It only ever REPLACES a warning wording with "no orders, collecting"; it adds no authority.
+ */
+export function isCollectOnlyObservation(snapshot: HomeFieldSnapshot | null | undefined): boolean {
+  if (snapshot == null) return false;
+  const ops = snapshot.operations;
+  return snapshot.health === "DEGRADED"
+    && snapshot.dashboard?.killSwitchActive !== true
+    && snapshot.dashboard?.overallHealth === "HEALTHY"
+    && ops.runtimeState === "STOPPED"
+    && ops.pipelineStage === "READ_ONLY_DASHBOARD"
+    && ops.schedulerMode === "OFF"
+    && ops.transport === "ONLINE"
+    && ops.pendingWrites === 0;
 }
 
 export interface HomeFieldSource {
@@ -32,7 +54,8 @@ export function buildHomeFieldInput(source: HomeFieldSource): IntelligenceFieldI
     disconnected,
     recovering: disconnected && source.sessionRecovering,
     haltActive: snapshot?.dashboard.killSwitchActive === true || snapshot?.operations.runtimeState === "HALTED",
-    degraded: readOnlyError != null || (snapshot != null && (snapshot.health !== "HEALTHY" || !["READY", "RUNNING"].includes(snapshot.operations.runtimeState))),
+    collectOnly: readOnlyError == null && isCollectOnlyObservation(snapshot),
+    degraded: readOnlyError != null || (snapshot != null && !isCollectOnlyObservation(snapshot) && (snapshot.health !== "HEALTHY" || !["READY", "RUNNING"].includes(snapshot.operations.runtimeState))),
     feedStale: source.publicMarketStale,
     readyForPaperOperations: snapshot?.readyForPaperOperations ?? false,
     decisionCount: snapshot?.operations.heartbeat?.decisionCount ?? null,
