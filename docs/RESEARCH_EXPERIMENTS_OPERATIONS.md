@@ -33,6 +33,30 @@ full train + validation + holdout days (plus one day of margin) for live collect
 - Log lines: `[research-backfill] KRW-XRP COMPLETE recorded=... rejected=... pages=...`.
 - Turn it off with `NUSA_RESEARCH_BACKFILL=DISABLED` (any value other than `ENABLED` also disables it) and restart.
 
+### Deeper history only: `NUSA_RESEARCH_BACKFILL_DAYS` (optional, unset = unchanged)
+The backfill normally reaches back `train + validation + holdout + 1 day` (12 days with the 7/2/2 defaults). The
+history-mining tool and the learning loop need more candles than that. `NUSA_RESEARCH_BACKFILL_DAYS` deepens ONLY the
+historical backfill walk to `max(that span, N days)`. The experiment windows, dataset manifests, the gap-fill window,
+experiment identity, hashes and fingerprints still use the 12-day span and are not changed.
+
+- Integer 1 to 60 (60 days = 86,400 one-minute rows, inside the 100,000-row cap of the candle store). Anything else
+  (0, 61, `abc`, `1.5`) makes the research settings INVALID and research stays off, like the other numeric settings;
+  fix the line and restart. Blank or unset: no change.
+- Owner step on the host (not part of any release; applied by a restart). Append one line, do not print the file
+  (it holds secrets):
+  `grep -q '^NUSA_RESEARCH_BACKFILL_DAYS=' /etc/nusa/cloud-runtime.env || echo 'NUSA_RESEARCH_BACKFILL_DAYS=60' | sudo tee -a /etc/nusa/cloud-runtime.env >/dev/null`
+  then restart the service. Only a build that contains this setting reads it; on an older build it is ignored.
+- Effect: about 60 x 1440 / 200 = 432 requests per market (about 4 x 432 = 1,730 requests for the four new markets, plus the
+  58-day market re-verifying its stored pages), 150 ms apart plus latency: roughly 1.5 to 3 minutes per market, under
+  10 minutes in all, run once after start (retried at most twice, 10 minutes apart, on a request error or rate limit).
+  The per-run page budget is `span / 200 + 10`; a 429 or an error stops the run and the next restart walks again from the
+  newest page (idempotent: stored rows are only re-verified, never replaced). While it runs, the experiment tick and gap
+  fill wait their turn and the thread is handed back after every page.
+- The candle store keeps the newest 100,000 rows per market: 60 days leaves about 9 days of live growth before the oldest
+  rows are trimmed, after which a restart re-requests the trimmed days (bounded, but wasted). Remove the line once the
+  history is in, or keep a smaller N.
+- Log: `[research-backfill] KRW-BTC COMPLETE recorded=... pages=...`.
+
 ## What it does
 1. Every tick it turns stored public ticker observations into closed 1-minute candles and stores them durably
    (incomplete minutes are dropped; the oldest retained minute is skipped).

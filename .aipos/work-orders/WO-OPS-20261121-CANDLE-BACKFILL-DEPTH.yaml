@@ -1,0 +1,24 @@
+id: WO-OPS-20261121-CANDLE-BACKFILL-DEPTH
+title: "Research: optional NUSA_RESEARCH_BACKFILL_DAYS deepens only the historical candle backfill (1..60 days)"
+status: READY_FOR_REVIEW
+created: 2026-11-21
+objective: "The four newly collected markets have about 13.5 days of 1-minute candles because the backfill reaches only train + validation + holdout + 1 day. Add a separate optional setting that deepens only the backfill so the history-mining tool and the learning loop have enough candles, without touching experiment windows, manifests, identity or any hash."
+change:
+  - "apps/cloud/src/researchExperimentComposition.ts: optional backfillDays setting (NUSA_RESEARCH_BACKFILL_DAYS, integer 1..60, invalid = INVALID settings BACKFILL_DAYS_INVALID, unset = no field) and researchBackfillSpanMs = max(researchTargetSpanMs, days x 1 day), passed only to backfillMarket."
+  - "tests/research-experiment-composition.test.js: parse, identity unchanged, deeper backfill only, page bound, row cap."
+  - "docs/RESEARCH_EXPERIMENTS_OPERATIONS.md: owner paste line, expected effect, trim note."
+not_changed:
+  - "researchTargetSpanMs, manifests, gap-fill window, rolling holdout, experiment identity, hashes and fingerprints; candle store cap; backfill and gap-fill code; any gate, threshold, risk limit, capital or experiment qualification."
+  - "Unset behaviour is byte for byte the current behaviour."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+release_plan:
+  - "Must not merge before the 2026-11-23 release. Ships in the first release after the 2026-11-24..2026-11-28 freeze."
+  - "The NUSA_RESEARCH_BACKFILL_DAYS=60 line in /etc/nusa/cloud-runtime.env is an owner host step after that release; nothing changes until it is written and the service restarted."
+acceptance:
+  - "AIPOS validators pass; relevant research tests pass; independent non-author /grill-me review; exact-head CI."

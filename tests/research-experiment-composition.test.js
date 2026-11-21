@@ -998,3 +998,74 @@ test("the committed owner markets file, through the launcher, gives five collect
   assert.deepEqual([...result.settings.markets], ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]);
   assert.deepEqual([...result.settings.experimentMarkets], ["KRW-XRP"]);
 });
+
+test("NUSA_RESEARCH_BACKFILL_DAYS: unset is unchanged, 1..60 integers parse, anything else is INVALID, and identity-bearing settings never change", () => {
+  const { researchTargetSpanMs, researchBackfillSpanMs, RESEARCH_BACKFILL_DAYS_MAX } = require("../dist/apps/cloud/src/researchExperimentComposition.js");
+  const DAY = 86_400_000;
+  const unset = readResearchExperimentSettings(env());
+  assert.equal(unset.status, "ENABLED");
+  assert.equal("backfillDays" in unset.settings, false, "unset adds no field: the settings object is what it was");
+  assert.equal(researchBackfillSpanMs(unset.settings), researchTargetSpanMs(unset.settings), "unset: backfill span is the target span");
+  assert.equal(readResearchExperimentSettings(env({ NUSA_RESEARCH_BACKFILL_DAYS: "  " })).settings.backfillDays, undefined, "blank is unset");
+  for (const days of ["1", "12", "13", "60"]) {
+    const set = readResearchExperimentSettings(env({ NUSA_RESEARCH_BACKFILL_DAYS: days }));
+    assert.equal(set.status, "ENABLED");
+    const { backfillDays, ...rest } = set.settings;
+    assert.equal(backfillDays, Number(days));
+    assert.deepEqual(rest, unset.settings, "every other setting (windows, markets, commit, rolling mode ...) is identical");
+    assert.equal(researchTargetSpanMs(set.settings), researchTargetSpanMs(unset.settings), "the experiment/manifest/gap-fill span never moves");
+    assert.equal(researchBackfillSpanMs(set.settings), Math.max(12, Number(days)) * DAY, "backfill span is max(target, days)");
+  }
+  for (const bad of ["0", "-1", "61", "100", "1.5", "abc"]) {
+    assert.deepEqual({ ...readResearchExperimentSettings(env({ NUSA_RESEARCH_BACKFILL_DAYS: bad })) }, { status: "INVALID", reason: "BACKFILL_DAYS_INVALID" }, `${bad} fails closed`);
+  }
+  assert.ok(RESEARCH_BACKFILL_DAYS_MAX * 1440 + 1 <= 100_000, "the ceiling stays inside the candle store's default 100,000-row cap");
+  assert.equal(readResearchExperimentSettings({ NUSA_SOURCE_COMMIT_SHA: SHA, NUSA_RESEARCH_BACKFILL_DAYS: "999" }).status, "DISABLED", "research off stays off");
+});
+
+const backfillRun = async (extra) => {
+  const now = Date.UTC(2026, 9, 3, 6, 0, 30);
+  const anchor = Math.floor(now / M) * M;
+  const db = open();
+  let requests = 0;
+  const fetchImpl = async (url) => {
+    requests += 1;
+    const to = new URL(url).searchParams.get("to");
+    const upper = to == null ? anchor + M : Date.parse(to);
+    const page = [];
+    for (let start = upper - M; page.length < 200; start -= M) page.push({ market: "KRW-XRP", candle_date_time_utc: new Date(start).toISOString().slice(0, 19), opening_price: 1000, high_price: 1001, low_price: 999, trade_price: 1000.5 });
+    return { status: 200, ok: true, json: async () => page };
+  };
+  const composition = composeResearchExperiments({ env: env({ NUSA_RESEARCH_MARKETS: "KRW-XRP", ...extra }), database: db, now: () => now, log: () => undefined, fetchImpl, sleep: async () => undefined });
+  try {
+    const results = await composition.backfill();
+    const progress = composition.orchestrator.collectionProgress();
+    const first = requests;
+    const second = await composition.backfill();
+    const rows = new SqliteResearchCandleStore(db).read("KRW-XRP", M, 0, anchor + M).length;
+    return { results, progress, requests: first, second, rows };
+  } finally { composition.stop(); db.close(); }
+};
+
+test("a deeper backfill reaches further only in the backfill; required history and a second run are unaffected", async () => {
+  const base = await backfillRun({});
+  const deep = await backfillRun({ NUSA_RESEARCH_BACKFILL_DAYS: "30" });
+  const sameSpan = await backfillRun({ NUSA_RESEARCH_BACKFILL_DAYS: "5" });
+  assert.deepEqual(base.results.map((r) => r.status), ["COMPLETE"]);
+  assert.deepEqual(deep.results.map((r) => r.status), ["COMPLETE"]);
+  assert.ok(base.requests <= 100, "unset: about 12 days of pages");
+  assert.ok(deep.requests > 200 && deep.requests <= Math.ceil(30 * 1440 / 200) + 10, `deep: about 30 days of pages, bounded (${deep.requests})`);
+  assert.ok(deep.rows >= 30 * 1440, "30 days stored");
+  assert.ok(base.rows < 13 * 1440 + 200, "unset: about 12 days stored");
+  assert.equal(deep.progress.requiredCandles, base.progress.requiredCandles, "required history (experiment window) is unchanged");
+  assert.equal(sameSpan.requests, base.requests, "days below the target span change nothing");
+  assert.deepEqual(deep.second.map((r) => r.status), ["COMPLETE"], "a second run is a no-op");
+});
+
+test("the largest allowed backfill (60 days) stays inside the candle store's default row cap and is bounded in pages", async () => {
+  const deep = await backfillRun({ NUSA_RESEARCH_BACKFILL_DAYS: "60" });
+  assert.deepEqual(deep.results.map((r) => r.status), ["COMPLETE"]);
+  assert.ok(deep.requests <= Math.ceil(60 * 1440 / 200) + 10, `page budget holds (${deep.requests})`);
+  assert.equal(deep.rows, 60 * 1440);
+  assert.ok(deep.rows < 100_000, "never reaches the retention cap, so nothing is trimmed");
+});

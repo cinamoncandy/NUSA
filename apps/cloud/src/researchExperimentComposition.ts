@@ -68,6 +68,11 @@ export interface ResearchExperimentSettings {
   readonly backfill: boolean;
   /** K-of-N rolling holdout: OFF (default) or SHADOW (display only; see docs/DESIGN_ROLLING_HOLDOUT_WIRING.md). */
   readonly rollingHoldout: "OFF" | "SHADOW";
+  /**
+   * Optional NUSA_RESEARCH_BACKFILL_DAYS (1..60): reach the historical candle BACKFILL this many days back. It only deepens the backfill
+   * walk; windows, manifests, gap-fill, experiments and every identity use researchTargetSpanMs and ignore it. Absent when unset.
+   */
+  readonly backfillDays?: number;
 }
 
 export type ResearchExperimentSettingsResult =
@@ -91,6 +96,15 @@ export function researchTargetSpanMs(settings: Pick<ResearchExperimentSettings, 
   return (settings.rollingHoldout === "SHADOW" ? requiredHistoryMs(w) : w.trainMs + w.validationMs + w.holdoutMs) + DAY_MS;
 }
 
+/** Hard ceiling of NUSA_RESEARCH_BACKFILL_DAYS: 60 days = 86,400 one-minute rows, inside the candle store's 100,000-row cap per market and interval. */
+export const RESEARCH_BACKFILL_DAYS_MAX = 60;
+
+/** How far back the historical backfill (only) reaches: the target span, or the owner's deeper backfill days when that is longer. */
+export function researchBackfillSpanMs(settings: Pick<ResearchExperimentSettings, "windows" | "rollingHoldout" | "backfillDays">): number {
+  const target = researchTargetSpanMs(settings);
+  return settings.backfillDays === undefined ? target : Math.max(target, settings.backfillDays * DAY_MS);
+}
+
 export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): ResearchExperimentSettingsResult {
   if (env[RESEARCH_FLAG] !== "1") return Object.freeze({ status: "DISABLED" });
   const commit = (env.NUSA_SOURCE_COMMIT_SHA ?? env.NUSA_SOURCE_COMMIT ?? "").trim();
@@ -111,6 +125,9 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
   const tickMinutes = intIn(env.NUSA_RESEARCH_TICK_MINUTES, 30, 5, 360);
   const budget = intIn(env.NUSA_RESEARCH_DAILY_BUDGET, 48, 1, 288);
   if (train == null || validation == null || holdout == null || tickMinutes == null || budget == null) return Object.freeze({ status: "INVALID", reason: "NUMERIC_SETTING_INVALID" });
+  // Unset (or blank) keeps today's behaviour exactly; anything else must be an integer 1..60, otherwise the settings are INVALID (same fail-closed rule as the other integers).
+  const backfillDays = intIn(env.NUSA_RESEARCH_BACKFILL_DAYS, 0, 1, RESEARCH_BACKFILL_DAYS_MAX);
+  if (env.NUSA_RESEARCH_BACKFILL_DAYS !== undefined && env.NUSA_RESEARCH_BACKFILL_DAYS.trim() !== "" && backfillDays == null) return Object.freeze({ status: "INVALID", reason: "BACKFILL_DAYS_INVALID" });
   const intervalsRaw = (env.NUSA_RESEARCH_INTERVAL_MINUTES ?? "1").split(",").map((value) => value.trim()).filter((value) => value !== "");
   const intervalsMinutes = intervalsRaw.map(Number);
   if (intervalsMinutes.length === 0 || intervalsMinutes.some((value) => !RESEARCH_INTERVAL_MINUTES.includes(value)) || new Set(intervalsMinutes).size !== intervalsMinutes.length) {
@@ -129,6 +146,7 @@ export function readResearchExperimentSettings(env: NodeJS.ProcessEnv): Research
       backfill: env.NUSA_RESEARCH_BACKFILL === undefined || env.NUSA_RESEARCH_BACKFILL === "ENABLED",
       // Anything but the exact word SHADOW is OFF: a typo can never turn the rolling check on.
       rollingHoldout: env.NUSA_RESEARCH_ROLLING_HOLDOUT === "SHADOW" ? ("SHADOW" as const) : ("OFF" as const),
+      ...(backfillDays != null && backfillDays > 0 ? { backfillDays } : {}),
     }),
   });
 }
@@ -322,6 +340,8 @@ export function composeResearchExperiments(input: {
   let backfilling = false;
   let researchTickActive = false;
   const targetSpanMs = researchTargetSpanMs(settings);
+  // Deeper only for the historical backfill walk; manifests, gap-fill and experiments keep targetSpanMs.
+  const backfillSpanMs = researchBackfillSpanMs(settings);
   // The hand-back inside a manifest build: after it, a stop request ends the build (caught and logged per interval below), so a stopped
   // composition does not keep reading, hashing and persisting on a database that is about to close.
   const buildStepYield = async (): Promise<void> => {
@@ -380,7 +400,7 @@ export function composeResearchExperiments(input: {
     for (const market of settings.markets) {
       if (stopped) break;
       try {
-        const result = await backfillMarket({ market, targetSpanMs, nowMs: now(), store, fetchPage, sleep, yieldControl: () => new Promise((resolve) => setImmediate(resolve)) });
+        const result = await backfillMarket({ market, targetSpanMs: backfillSpanMs, nowMs: now(), store, fetchPage, sleep, yieldControl: () => new Promise((resolve) => setImmediate(resolve)) });
         results.push(result);
         if (result.status === "COMPLETE") {
           const firstClose = store.earliestCloseTime(market, M);
