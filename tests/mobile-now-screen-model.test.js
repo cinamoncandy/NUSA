@@ -81,3 +81,9 @@ test("a healthy COLLECT_ONLY server reads as watching without orders, not as 'al
   const stale = buildNowScreen({ ...base, staleLabel: "마지막 확인 2분 전", collectOnly: true });
   assert.equal(stale.headline, "최근 값을 보여주고 있어요", "a cached value is never shown as the live collect-only state");
 });
+
+test("source pin: nowView passes the collect-only flag to both the screen model and the status chip", () => {
+  const view = fs.readFileSync(path.join(SRC, "nowView.tsx"), "utf8");
+  assert.equal((view.match(/collectOnly: fieldInput\.collectOnly === true/g) ?? []).length, 2, "one for buildNowScreen and one for nowStatusChip");
+  assert.match(view, /buildHomeFieldInput\(\{ snapshot: stale \? null : snapshot,/, "a cached snapshot never reaches the flag");
+});
