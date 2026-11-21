@@ -1,0 +1,29 @@
+id: WO-OPS-20261120-BACKUP-AND-ORDERBOOK-RETENTION
+title: "Where the backups go and how long order books are kept: findings, risks and owner steps (docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+implementation_branch: claude/ops-backup-retention
+authority_impact: none
+objective: "Answer from the repository where release backups go, how they are verified, how many copies exist, whether any leaves the host and whether a restore was tested, and size a defensible order-book retention before the first prune of 2026-11-20 data (about 2026-12-04)."
+deliverable: "docs/OPERATIONS_BACKUP_AND_ORDERBOOK_RETENTION_2026-11-20.md"
+findings:
+  - "Only the PAPER state SQLite file is backed up (VACUUM INTO, integrity_check, SHA-256 sidecar) to /var/backups/nusa on the same disk; 7 daily plus 4 weekly buckets; no copy leaves the host; backups run only inside a release; no restore of a real snapshot is recorded."
+  - "The backup is 36 to 56 minutes because it is capped at 1 MiB/s and reads the file several times; the controller maintenance window is bounded to 60 minutes."
+  - "Setting NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS (14..90, default 14) exists only as an env value in /etc/nusa/cloud-runtime.env on the host; nothing in the repo ships it. The prune copies about 14 percent of rows into research_orderbook_study_rows before deleting."
+change:
+  - "Docs and this work order only. No code, workflow, unit file, env file, threshold, limit or capital change."
+not_changed:
+  - "Safety: PAPER_ONLY, liveAuthority NONE, productionMutationAllowed false, aiAuthority ZERO_AUTHORITY. No host or release action was taken."
+owner_steps:
+  - "Before the 2026-11-23 release: check df and du, then set NUSA_RESEARCH_ORDERBOOK_RETENTION_DAYS=28 in /etc/nusa/cloud-runtime.env (exact commands in the document, section 5); the release restart applies it."
+  - "Offsite copy and a restore drill (document section 4, items 1 and 2)."
+merge_condition: "Draft. Must not merge before the 2026-11-23 release (the document is guidance for that release; merging earlier changes nothing but should follow the release freeze plan)."
+unverified: "All host facts (sizes, free disk, row counts, current env value). The 5.15 M row figure and the 52 GB free figure are quoted, not measured here. Sizes and times for other retentions are estimates."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - "node scripts/validate-aipos-yaml.js, node scripts/validate-aipos-work-order-provenance.js and node scripts/validate-platform-independent-tests.js pass."
+  - "Non-author review of the numbers before the owner acts on them."
