@@ -186,7 +186,10 @@
     text("[data-simple-balance-total]", moneyValue(snapshot?.equity));
     text("[data-simple-realized-pnl]", signedMoney(snapshot?.position?.realizedPnl));
     renderComposition(snapshot); renderPositions(snapshot); renderOrders(snapshot); renderOrderSummary();
-    state.loading = false; state.lastUpdated = new Date(); root.dataset.state = state.connection; text("[data-simple-updated]", `마지막 업데이트 ${state.lastUpdated.toLocaleTimeString("ko-KR")}`);
+    state.loading = false; root.dataset.state = state.connection;
+    // Only a received snapshot counts as an update; before the first one the label says so instead of showing the page-load clock.
+    if (snapshot) { state.lastUpdated = new Date(); text("[data-simple-updated]", `데이터 받은 시각 ${state.lastUpdated.toLocaleTimeString("ko-KR")}`); }
+    else text("[data-simple-updated]", "아직 데이터를 받지 못했습니다");
   }
   function orderBlockReason(quantity) {
     const [connectionTone] = overallConnection();
@@ -242,9 +245,13 @@
   }
   function logRow(titleValue, messageValue, timestamp) { const row = document.createElement("div"); row.className = "simple-log-row"; const detail = document.createElement("div"); const title = document.createElement("strong"); title.textContent = titleValue; const message = document.createElement("small"); message.textContent = messageValue || ""; detail.append(title, message); const time = document.createElement("span"); time.textContent = timestamp ? new Date(timestamp).toLocaleTimeString("ko-KR") : "-"; row.append(detail, time); return row; }
   function renderControl(control) {
-    state.control = control || null; const status = String(control?.status || "STOPPED");
-    text("[data-simple-strategy-status]", status === "RUNNING" ? "실행 중" : status === "PAUSED" ? "일시 중지" : "중지됨"); text("[data-simple-auto-trade]", control?.autoTradeEnabled ? "켜짐" : "꺼짐");
-    $$("[data-simple-strategy='start']").forEach((button) => { button.disabled = status === "RUNNING"; }); $$("[data-simple-strategy='stop']").forEach((button) => { button.disabled = status === "STOPPED"; });
+    state.control = control || null; const known = control != null; const status = String(control?.status || "STOPPED");
+    if (known) state.controlLoadFailed = false;
+    // Before the first control answer the state is UNKNOWN, not "stopped": say so and keep both PAPER buttons disabled.
+    // If the first read failed or came back empty, say "확인 불가" (cannot be confirmed) instead of waiting forever; a later control push recovers it.
+    const unknownLabel = state.controlLoadFailed === true ? "확인 불가" : "확인 중";
+    text("[data-simple-strategy-status]", !known ? unknownLabel : status === "RUNNING" ? "실행 중" : status === "PAUSED" ? "일시 중지" : "중지됨"); text("[data-simple-auto-trade]", !known ? unknownLabel : control?.autoTradeEnabled ? "켜짐" : "꺼짐");
+    $$("[data-simple-strategy='start']").forEach((button) => { button.disabled = !known || status === "RUNNING"; }); $$("[data-simple-strategy='stop']").forEach((button) => { button.disabled = !known || status === "STOPPED"; });
     const latest = Array.isArray(control?.events) ? control.events[0] : null; text("[data-simple-last-signal]", latest ? `${latest.type || "이벤트"} · ${latest.message || ""}` : "아직 운영 이벤트가 없습니다.");
     const eventRows = Array.isArray(control?.events) ? control.events.slice(0, 40).map((event) => logRow(event.type || "운영 이벤트", event.message, event.timestamp)) : [];
     const localRows = state.logs.map((log) => logRow(`${log.category} · ${log.severity}`, log.message, log.time)); const rows = [...eventRows, ...localRows].slice(0, 40);
@@ -314,7 +321,8 @@
       markServerDisconnected();
       recordLog("NUSA 서버", "초기 Cloud snapshot 연결 실패", "주의");
     }
-    if (control) renderControl(control); await loadSettings(); await loadAbout(); render();
+    if (control) renderControl(control); else { state.controlLoadFailed = true; recordLog("NUSA 서버", "초기 운영 상태를 확인하지 못했습니다", "주의"); }
+    await loadSettings(); await loadAbout(); render();
   }
 
   installEvents(); showPage(global.location.hash.slice(1) || "dashboard", false); render(); void loadInitial();
