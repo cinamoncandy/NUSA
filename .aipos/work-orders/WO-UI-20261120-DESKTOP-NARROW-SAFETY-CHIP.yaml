@@ -1,0 +1,23 @@
+id: WO-UI-20261120-DESKTOP-NARROW-SAFETY-CHIP
+title: "Desktop on a phone width: the PAPER / no-live chip is readable"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "2026-11-20 ('uiux는?'): UI diagnosis, on a phone the sidebar authority block is hidden and the header chip 'PAPER · 실거래 비활성' was 8px. Merge after the 2026-11-23 bundled release."
+objective: "The main safety message must be readable on a phone-width desktop window."
+change:
+  - "apps/desktop/renderer/app.css: at 720px and below the .v2-mode chip is 11px, wraps and has no max-width or ellipsis; the 420px breakpoint no longer caps its width."
+  - "tests/desktop-narrow-safety-chip.test.js: a source pin for the rule and the chip text."
+not_changed:
+  - "No wording, no behaviour, no order, authority, limit or capital change; the hidden sidebar block stays hidden (the chip carries the message)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "Chromium render at 390 and 360 px: the chip is 11px and not clipped (screenshots in the session scratchpad); node UI tests pass."
+unverified: "Not seen in the Electron shell; the mobile app (React Native) is a separate surface."
+acceptance:
+  - "Independent non-author review; exact-head CI; not merged before the 2026-11-23 release."
