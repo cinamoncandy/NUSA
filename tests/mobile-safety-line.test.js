@@ -49,3 +49,10 @@ test("resume grace never reads 안전 on the safety line; it reads 확인 중", 
   assert.equal(line.tone, "wait");
   assert.equal(buildSafetyLine({ sessionState: "RECOVERING", runtimeHalted: false }).word, "재연결 중");
 });
+
+test("the PAPER/LIVE boundary text is never cut to one line (large fonts, small phones)", () => {
+  const view = fs.readFileSync(path.join(root, "apps/mobile/src/safetyLine.tsx"), "utf8");
+  assert.doesNotMatch(view, /numberOfLines=\{1\}/, "the safety detail must not be truncated to a single line");
+  assert.match(view, /testID="safety-line-word"/);
+  assert.match(view, /numberOfLines=\{2\}>· \{line\.detail\}/);
+});
