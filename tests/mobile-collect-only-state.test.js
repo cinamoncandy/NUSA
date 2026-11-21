@@ -23,7 +23,7 @@ const { connectionLabel } = load("connectionLabelModel.ts");
 const collectOnly = (over = {}, ops = {}) => ({
   health: "DEGRADED",
   readyForPaperOperations: false,
-  dashboard: { killSwitchActive: false },
+  dashboard: { killSwitchActive: false, overallHealth: "HEALTHY" },
   operations: { runtimeState: "STOPPED", pipelineStage: "READ_ONLY_DASHBOARD", schedulerMode: "OFF", transport: "ONLINE", pendingWrites: 0, heartbeat: { decisionCount: 0, paperOrderCount: 0, lastError: null }, ...ops },
   ...over,
 });
@@ -44,7 +44,10 @@ test("every other fact keeps the warning wording: only the exact COLLECT_ONLY co
   const faults = [
     collectOnly({ health: "FAIL_CLOSED" }),
     collectOnly({ health: "HEALTHY" }),
-    collectOnly({ dashboard: { killSwitchActive: true } }),
+    collectOnly({ dashboard: { killSwitchActive: true, overallHealth: "HEALTHY" } }),
+    collectOnly({ dashboard: { killSwitchActive: false, overallHealth: "DEGRADED" } }),
+    collectOnly({ dashboard: { killSwitchActive: false, overallHealth: "DOWN" } }),
+    collectOnly({ dashboard: { killSwitchActive: false } }),
     collectOnly({}, { runtimeState: "RUNNING" }),
     collectOnly({}, { runtimeState: "DEGRADED" }),
     collectOnly({}, { runtimeState: "HALTED" }),
@@ -61,7 +64,8 @@ test("every other fact keeps the warning wording: only the exact COLLECT_ONLY co
   for (const snapshot of faults) assert.equal(isCollectOnlyObservation(snapshot), false, JSON.stringify(snapshot)?.slice(0, 120));
   assert.equal(field(collectOnly({}, { transport: "OFFLINE" })).headline, "PAPER 상태 확인 필요", "a lost transport is still a warning");
   assert.equal(field(collectOnly({}, { pendingWrites: 3 })).headline, "PAPER 상태 확인 필요");
-  assert.equal(field(collectOnly({ dashboard: { killSwitchActive: true } })).phase, "HALTED", "a halt still wins");
+  assert.equal(field(collectOnly({ dashboard: { killSwitchActive: false, overallHealth: "DEGRADED" } })).headline, "PAPER 상태 확인 필요", "a degraded dashboard is never relabelled");
+  assert.equal(field(collectOnly({ dashboard: { killSwitchActive: true, overallHealth: "HEALTHY" } })).phase, "HALTED", "a halt still wins");
   assert.equal(field(collectOnly({}, { runtimeState: "HALTED" })).phase, "HALTED");
   assert.equal(field(collectOnly(), { readOnlyError: "boom" }).headline, "PAPER 상태 확인 필요", "a failed read is never relabelled");
   assert.equal(field(collectOnly(), { notConfigured: "x" }).phase, "AUTHENTICATION");

@@ -8,7 +8,7 @@ import type { IntelligenceFieldInput } from "./intelligenceFieldModel";
 export interface HomeFieldSnapshot {
   readonly health: string;
   readonly readyForPaperOperations: boolean;
-  readonly dashboard: { readonly killSwitchActive: boolean };
+  readonly dashboard: { readonly killSwitchActive: boolean; readonly overallHealth?: unknown };
   readonly operations: {
     readonly runtimeState: string;
     readonly pipelineStage?: unknown;
@@ -22,7 +22,7 @@ export interface HomeFieldSnapshot {
 /**
  * True when the server is healthy but has no order path: the COLLECT_ONLY run mode. The server then reports the runtime as STOPPED
  * (no execution loop, scheduler OFF) and the whole snapshot as DEGRADED, which the phone used to word as "확인 필요". Every fact
- * below is a server field; if any one differs (a halt, a kill switch, a lost transport, pending writes, a running loop) this is false
+ * below is a server field (the dashboard overall health must itself be HEALTHY: only the missing execution loop explains the DEGRADED snapshot); if any one differs (a halt, a kill switch, a lost transport, pending writes, a running loop) this is false
  * and the existing warning wording applies unchanged. It only ever REPLACES a warning wording with "no orders, collecting"; it adds no authority.
  */
 export function isCollectOnlyObservation(snapshot: HomeFieldSnapshot | null | undefined): boolean {
@@ -30,6 +30,7 @@ export function isCollectOnlyObservation(snapshot: HomeFieldSnapshot | null | un
   const ops = snapshot.operations;
   return snapshot.health === "DEGRADED"
     && snapshot.dashboard?.killSwitchActive !== true
+    && snapshot.dashboard?.overallHealth === "HEALTHY"
     && ops.runtimeState === "STOPPED"
     && ops.pipelineStage === "READ_ONLY_DASHBOARD"
     && ops.schedulerMode === "OFF"
