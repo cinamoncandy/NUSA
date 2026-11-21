@@ -1,0 +1,25 @@
+id: WO-UI-20261121-MOBILE-COLLECT-ONLY-STATE
+title: "Mobile: a healthy COLLECT_ONLY server is worded as collecting with orders off, not as 확인 필요"
+status: READY_FOR_REVIEW
+created: 2026-11-21
+owner_decision: "2026-11-21 (owner screenshot of the phone: 'PAPER 상태 확인 필요' while the server was healthy; '해결해'). UI diagnosis finding 2 (say in words that orders are OFF)."
+objective: "In COLLECT_ONLY (no order path) the server reports the runtime as STOPPED and the snapshot health as DEGRADED, so the phone showed three warning words for a healthy, orders-off state: the safety line '확인 필요', the home headline 'PAPER 상태 확인 필요' and the capsule '확인 중'. Say what is true: collecting, orders off."
+change:
+  - "apps/mobile/src/homeFieldInput.ts: isCollectOnlyObservation(snapshot), true only when ALL server fields agree: health DEGRADED, no kill switch, runtimeState STOPPED, pipelineStage READ_ONLY_DASHBOARD, schedulerMode OFF, transport ONLINE, pendingWrites 0. buildHomeFieldInput adds collectOnly and no longer marks that exact combination degraded."
+  - "apps/mobile/src/intelligenceFieldModel.ts: collectOnly input; headline '수집 전용 / 주문 꺼짐' with a plain detail (phase CONNECTED, state ORDERS OFF). Halt, read error and not-configured states are checked first and unchanged."
+  - "apps/mobile/src/safetyLineModel.ts: collectOnly input; word '수집 전용', detail '주문 꺼짐 · PAPER 전용 · LIVE 잠김' (the boundary text is kept)."
+  - "apps/mobile/src/connectionLabelModel.ts, homeView.tsx, App.tsx: pass the flag; the capsule reads '수집 전용' only when nothing worse (recovering, cached, setup, read error) applies."
+  - "tests/mobile-collect-only-state.test.js: the exact combination is relabelled; each differing fact (health, kill switch, runtime state, pipeline stage, scheduler mode, transport, pending writes, null snapshot) keeps the warning wording; halt, read error and not-configured are never softened."
+not_changed:
+  - "No server, runtime, health contract, order, authority, limit, threshold or capital change; no release is needed (the server already publishes these fields). A phone build ships it."
+  - "A failed read, a lost transport, pending writes, a halt or a running execution loop keep their existing wording."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "No device render (Android-only React Native). The snapshot of a real COLLECT_ONLY server was not read: the relabel rests on the server code (runtime.ts: runtimeState STOPPED when the scheduler is off, pipelineStage READ_ONLY_DASHBOARD without an execution loop; personalPaperOperations.ts: health DEGRADED when runtimeState is not READY or RUNNING). Limit: the snapshot does not carry the dashboard overall health, so a dashboard DEGRADED with the same other facts would also read as collecting."
+acceptance:
+  - "Independent non-author review; exact-head CI; owner installs a new phone build."
