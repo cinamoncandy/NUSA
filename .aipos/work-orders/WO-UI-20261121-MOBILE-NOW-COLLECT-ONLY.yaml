@@ -1,0 +1,23 @@
+id: WO-UI-20261121-MOBILE-NOW-COLLECT-ONLY
+title: "Mobile: the 지금 screen also says 'watching without orders' in COLLECT_ONLY (follow-up of PR #3244)"
+status: READY_FOR_REVIEW
+created: 2026-11-21
+owner_decision: "2026-11-21 (owner screenshot after installing the build of PR #3244): the safety line now reads 수집 전용, but the 지금 headline still said '모두 정상이에요' and the capsule 'PAPER · 모의 운영', which hide that orders are off."
+objective: "In a healthy COLLECT_ONLY server the main 지금 headline and the status capsule must say that orders are off, not 'all normal' and 'paper operating'."
+change:
+  - "apps/mobile/src/nowScreenModel.ts: optional collectOnly input; only when the field phase is CONNECTED and the value is not stale: headline '주문 없이 지켜보는 중이에요', sub '수집 전용 · 주문 꺼짐 · 실거래 잠김'. Every other phase and a cached value keep their wording."
+  - "apps/mobile/src/stageTraceModel.ts nowStatusChip: optional collectOnly; after stale, blocked and halted, and only when not dimmed: 'PAPER · 수집 전용' (not lit)."
+  - "apps/mobile/src/nowView.tsx: pass fieldInput.collectOnly (the flag of PR #3244: all server facts agree, see WO-UI-20261121-MOBILE-COLLECT-ONLY-STATE)."
+  - "tests/mobile-now-screen-model.test.js and tests/mobile-ai-island-kit.test.js: new cases, including that stale, halted, blocked, dimmed and every non-CONNECTED phase are not relabelled."
+not_changed:
+  - "No server, order, authority, limit, threshold or capital change; no host release. A phone build ships it."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "No device render of the new wording (Android-only React Native). The collectOnly flag itself was confirmed on the owner's phone after PR #3244 (the safety line read 수집 전용)."
+acceptance:
+  - "Independent non-author review; exact-head CI; owner installs the next phone build."

@@ -78,6 +78,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
     decisionCount: heartbeat?.decisionCount ?? null,
     paperOrderCount: heartbeat?.paperOrderCount ?? null,
     fillCount: heartbeat?.paperFillCount ?? null,
+    collectOnly: fieldInput.collectOnly === true,
   });
   // The main motion graphic: today's decision terrain from the server's display-only trace (nothing drawn while stale or blocked).
   const traceSource: { readonly decisionCount?: unknown; readonly decisionTrace?: unknown } | null = heartbeat ?? null;
@@ -89,7 +90,7 @@ export function NowView({ snapshot: liveSnapshot, cachedSnapshot = null, readOnl
   const brokenStage = blocked || gate != null || lossLimit != null ? null : firstBrokenStage(heartbeat, Date.now());
   const needsSetup = notConfigured != null || readOnlyError != null;
   const trace = buildStageTrace(brokenStage?.stage);
-  const chip = nowStatusChip({ stale, blocked, hasHeartbeat: heartbeat != null, halted: haltCause != null || field.phase === "HALTED", dim: model.dim, hasDecisionCount: dailyCounts.decisionCount != null });
+  const chip = nowStatusChip({ stale, blocked, hasHeartbeat: heartbeat != null, halted: haltCause != null || field.phase === "HALTED", dim: model.dim, hasDecisionCount: dailyCounts.decisionCount != null, collectOnly: fieldInput.collectOnly === true });
   const reduced = useReducedMotion();
   const [size, setSize] = useState({ width: 0, height: 0 });
   return <View style={styles.shell} testID="now-screen" onLayout={(e) => setSize({ width: Math.round(e.nativeEvent.layout.width), height: Math.round(e.nativeEvent.layout.height) })}>

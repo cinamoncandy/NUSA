@@ -91,3 +91,13 @@ test("the 더보기 detail screens, the order and portfolio screens, the notific
   for (const file of ["src/screenFrame.tsx", "src/notificationView.tsx", "src/portfolioView.tsx"]) assert.match(read(file), /backgroundColor: "transparent"/, `${file} lets the backdrop show`);
   assert.doesNotMatch(read("src/settingsView.tsx"), /<AiShell/, "Settings keeps the user's theme because it holds the theme switch");
 });
+
+test("the status chip says 수집 전용 for a healthy COLLECT_ONLY server and never overrides a worse state", () => {
+  assert.deepEqual(m.nowStatusChip({ ...ok, collectOnly: true }), { text: "PAPER · 수집 전용", live: false });
+  assert.deepEqual(m.nowStatusChip({ ...ok, collectOnly: true, hasDecisionCount: false }), { text: "PAPER · 수집 전용", live: false });
+  assert.equal(m.nowStatusChip({ ...ok, collectOnly: true, stale: true }).text, "PAPER · 지난 값");
+  assert.equal(m.nowStatusChip({ ...ok, collectOnly: true, blocked: true }).text, "PAPER · 연결 대기");
+  assert.equal(m.nowStatusChip({ ...ok, collectOnly: true, halted: true }).text, "PAPER · 멈춤");
+  assert.equal(m.nowStatusChip({ ...ok, collectOnly: true, dim: true }).text, "PAPER · 확인 중");
+  assert.deepEqual(m.nowStatusChip(ok), { text: "PAPER · 모의 운영", live: true }, "without the flag nothing changes");
+});
