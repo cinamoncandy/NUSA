@@ -65,3 +65,25 @@ test("why joins the order reason with the decision explanation", () => {
   const m = buildNowScreen({ ...base, orderReasonText: "안전장치가 매수를 막았어요.", whyLines: ["연속 손실 한도", " "] });
   assert.equal(m.why, "안전장치가 매수를 막았어요. 연속 손실 한도");
 });
+
+test("a healthy COLLECT_ONLY server reads as watching without orders, not as 'all normal'; every other phase is unchanged", () => {
+  const collect = buildNowScreen({ ...base, collectOnly: true });
+  assert.equal(collect.headline, "주문 없이 지켜보는 중이에요");
+  assert.equal(collect.sub, "수집 전용 · 주문 꺼짐 · 실거래 잠김");
+  assert.equal(collect.dim, false);
+  assert.equal(buildNowScreen({ ...base }).headline, "모두 정상이에요", "without the flag nothing changes");
+  assert.equal(buildNowScreen({ ...base, collectOnly: false }).headline, "모두 정상이에요");
+  for (const phase of ["LAUNCH", "AUTHENTICATION", "RECOVERING", "DEGRADED", "HALTED"]) {
+    const m = buildNowScreen({ ...base, phase, phaseHeadline: "H", phaseDetail: "D", collectOnly: true });
+    assert.equal(m.headline, "H", `${phase} keeps its own headline`);
+    assert.equal(m.sub, "D");
+  }
+  const stale = buildNowScreen({ ...base, staleLabel: "마지막 확인 2분 전", collectOnly: true });
+  assert.equal(stale.headline, "최근 값을 보여주고 있어요", "a cached value is never shown as the live collect-only state");
+});
+
+test("source pin: nowView passes the collect-only flag to both the screen model and the status chip", () => {
+  const view = fs.readFileSync(path.join(SRC, "nowView.tsx"), "utf8");
+  assert.equal((view.match(/collectOnly: fieldInput\.collectOnly === true/g) ?? []).length, 2, "one for buildNowScreen and one for nowStatusChip");
+  assert.match(view, /buildHomeFieldInput\(\{ snapshot: stale \? null : snapshot,/, "a cached snapshot never reaches the flag");
+});

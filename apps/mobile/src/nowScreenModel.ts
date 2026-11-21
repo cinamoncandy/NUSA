@@ -21,6 +21,8 @@ export interface NowScreenInput {
   readonly decisionCount: number | null;
   readonly paperOrderCount: number | null;
   readonly fillCount: number | null;
+  /** The server is healthy and has no order path (COLLECT_ONLY): "all normal" would hide that orders are off. */
+  readonly collectOnly?: boolean;
 }
 
 export interface NowScreenModel {
@@ -36,6 +38,8 @@ export interface NowScreenModel {
 }
 
 const PAPER_ONLY_SUB = "모의투자만 하고 있어요 · 실거래 잠김";
+const COLLECT_ONLY_HEADLINE = "주문 없이 지켜보는 중이에요";
+const COLLECT_ONLY_SUB = "수집 전용 · 주문 꺼짐 · 실거래 잠김";
 
 export function krwText(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";
@@ -60,9 +64,11 @@ export function buildNowScreen(input: NowScreenInput): NowScreenModel {
   const healthy = !stale && (input.phase === "CONNECTED" || input.phase === "ATTENTION");
   const tone: CalmTone = input.phase === "HALTED" ? "LOSS" : healthy ? "NORMAL" : "ATTENTION";
   const headline = stale ? "최근 값을 보여주고 있어요"
+    : input.phase === "CONNECTED" && input.collectOnly === true ? COLLECT_ONLY_HEADLINE
     : input.phase === "CONNECTED" ? "모두 정상이에요"
     : input.phaseHeadline.replace(/\n/g, " ");
   const sub = stale ? `${input.staleLabel} · 연결되면 자동으로 바뀌어요`
+    : input.phase === "CONNECTED" && input.collectOnly === true ? COLLECT_ONLY_SUB
     : input.phase === "CONNECTED" ? PAPER_ONLY_SUB
     : input.phaseDetail;
   const unverified = stale || !healthy && input.phase !== "HALTED";
