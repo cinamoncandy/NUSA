@@ -183,3 +183,48 @@ describe("unknown control state (UI diagnosis finding 1)", () => {
     expect(document.querySelector("[data-simple-strategy='stop']").disabled).toBe(false);
   });
 });
+
+describe("PAPER strategy start and stop ask first (UI diagnosis finding on one-click control)", () => {
+  const mountControl = (bridge) => {
+    fixture();
+    document.querySelector("#simple-ui-root").insertAdjacentHTML("beforeend", '<p data-simple-last-signal></p><button data-simple-strategy="start">start</button><button data-simple-strategy="stop">stop</button>');
+    delete window.NUSACanonicalUI; delete window.nusa; delete window.nusaApp; delete window.NUSAMobileViewModel;
+    window.nusa = bridge;
+    vi.useFakeTimers();
+    window.eval(source);
+  };
+  afterEach(() => { delete window.nusa; });
+  const calls = { start: 0, stop: 0 };
+  const bridge = () => ({ getSnapshot: async () => null, getControlSnapshot: async () => ({ status: "STOPPED", autoTradeEnabled: false, events: [] }),
+    startStrategy: async () => { calls.start += 1; return { status: "RUNNING", autoTradeEnabled: true, events: [] }; },
+    stopStrategy: async () => { calls.stop += 1; return { status: "STOPPED", autoTradeEnabled: false, events: [] }; } });
+  beforeEach(() => { calls.start = 0; calls.stop = 0; });
+
+  it("declining the question sends nothing; accepting sends exactly one PAPER command", async () => {
+    mountControl(bridge());
+    await vi.advanceTimersByTimeAsync(0);
+    const asked = [];
+    window.confirm = (question) => { asked.push(question); return false; };
+    document.querySelector("[data-simple-strategy='start']").click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.start).toBe(0);
+    expect(asked[0]).toContain("모의(PAPER)");
+    expect(asked[0]).toContain("실제 주문은 발생하지 않습니다");
+    expect(document.querySelector("[data-simple-last-signal]").textContent).toBe("요청을 취소했습니다.");
+    window.confirm = () => true;
+    document.querySelector("[data-simple-strategy='start']").click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.start).toBe(1);
+    expect(calls.stop).toBe(0);
+  });
+
+  it("without a confirm function nothing is sent (fail closed)", async () => {
+    mountControl(bridge());
+    await vi.advanceTimersByTimeAsync(0);
+    delete window.confirm;
+    window.confirm = undefined;
+    document.querySelector("[data-simple-strategy='start']").click();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(calls.start).toBe(0);
+  });
+});
