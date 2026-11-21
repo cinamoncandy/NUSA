@@ -239,7 +239,8 @@ dd { min-width: 0; margin: 0; font-size: 11px; font-weight: var(--font-weight-se
   .v2-header-context > span:last-child, .v2-header-divider { display: none; }
   .v2-status { gap: 7px; }
   .v2-status [data-simple-connection] { font-size: 0; }
-  .v2-mode { max-width: 130px; padding-inline: 8px; font-size: 8px; overflow: hidden; text-overflow: ellipsis; }
+  /* The PAPER / no-live chip is the main safety message on a phone: readable size, wraps instead of being cut. */
+  .v2-mode { max-width: none; padding: 5px 10px; font-size: 11px; line-height: 1.25; white-space: normal; text-align: center; overflow: visible; }
   .v2-content { padding: 28px 14px 96px; }
   .v2-page-title { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
   .v2-page-title h1 { font-size: 30px; }
@@ -277,7 +278,6 @@ dd { min-width: 0; margin: 0; font-size: 11px; font-weight: var(--font-weight-se
   .v2-balance-value { font-size: 39px; }
   .v2-portfolio-bottom strong { font-size: 14px; }
   .v2-order-actions { grid-template-columns: 1fr; }
-  .v2-mode { max-width: 112px; }
   .v2-nav__copy strong { font-size: 8px; }
 }
 

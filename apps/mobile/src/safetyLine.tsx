@@ -11,7 +11,7 @@ export function SafetyLine({ line }: Readonly<{ line: SafetyLineModel }>) {
   return <View style={[styles.row, { borderBottomColor: theme.colors.border }]} testID="safety-line" accessibilityRole="summary" accessibilityLabel={`${line.word}. ${line.detail}`}>
     <View style={[styles.dot, { backgroundColor: color }]} />
     <Text style={[styles.word, { color: line.tone === "ok" ? theme.colors.text : color }]} testID="safety-line-word">{line.word}</Text>
-    <Text style={[styles.detail, { color: theme.colors.textMuted }]} numberOfLines={1}>· {line.detail}</Text>
+    <Text style={[styles.detail, { color: theme.colors.textMuted }]} numberOfLines={2}>· {line.detail}</Text>
   </View>;
 }
 

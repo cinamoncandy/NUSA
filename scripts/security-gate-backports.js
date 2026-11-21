@@ -31,8 +31,8 @@ const OWNER_EXCEPTIONS = Object.freeze({
     package: "picomatch",
     ghsa: "GHSA-fc5q-39xc-vjpf",
     versions: Object.freeze(["2.3.2", "4.0.7"]),
-    expiresOn: "2026-12-02",
-    decision: "owner written decision 2026-11-18 (KST), no fixed version published (latest 4.0.7); ReDoS, dev/build tooling path only"
+    expiresOn: "2026-12-16",
+    decision: "owner written decision 2026-11-18 (KST), extended once on 2026-11-20 (KST, owner option A, expiry 2026-12-02 to 2026-12-16); no fixed version published (latest 4.0.7); ReDoS, dev/build tooling path only; re-check for a fixed version before 2026-12-16"
   }
 });
 
