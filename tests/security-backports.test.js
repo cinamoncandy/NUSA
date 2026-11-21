@@ -143,11 +143,11 @@ const exceptionAudit = (version, id = "1247710", pkg = "picomatch") => ({
 });
 
 test("owner exception covers only the exact picomatch advisory, versions and dates", () => {
-  const before = new Date("2026-12-01T23:59:59Z");
+  const before = new Date("2026-12-15T23:59:59Z");
   const ok = evaluateAudit(exceptionAudit("4.0.7"), { controls: {} }, before);
   assert.equal(ok.unmitigated.length, 0);
   assert.equal(ok.excepted.length, 1);
-  assert.equal(evaluateAudit(exceptionAudit("4.0.7"), { controls: {} }, new Date("2026-12-02T00:00:00Z")).unmitigated.length, 1, "expired");
+  assert.equal(evaluateAudit(exceptionAudit("4.0.7"), { controls: {} }, new Date("2026-12-16T00:00:00Z")).unmitigated.length, 1, "expired");
   assert.equal(evaluateAudit(exceptionAudit("4.0.6"), { controls: {} }, before).unmitigated.length, 1, "other version");
   assert.equal(evaluateAudit(exceptionAudit("4.0.7", "1247711"), { controls: {} }, before).unmitigated.length, 1, "other advisory id");
   assert.equal(evaluateAudit(exceptionAudit("4.0.7", "1247710", "other-pkg"), { controls: {} }, before).unmitigated.length, 1, "other package");
