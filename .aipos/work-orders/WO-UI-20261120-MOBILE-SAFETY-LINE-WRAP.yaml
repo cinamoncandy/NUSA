@@ -1,0 +1,22 @@
+id: WO-UI-20261120-MOBILE-SAFETY-LINE-WRAP
+title: "Mobile: the PAPER/LIVE boundary line is not cut to one line"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "2026-11-20 ('uiux 개선', 계속해): UI diagnosis finding 4 (P1), mobile SafetyLine truncated to one line at large font sizes. Merge after the 2026-11-23 bundled release."
+objective: "The main safety message ('PAPER 전용 · LIVE 잠김') must stay readable at large font sizes and on small phones."
+change:
+  - "apps/mobile/src/safetyLine.tsx: the detail text may use two lines (numberOfLines 1 to 2)."
+  - "tests/mobile-safety-line.test.js: a source pin that the detail is never truncated to one line."
+not_changed:
+  - "No wording, tone, safety state logic, order, authority, limit or capital change."
+  - "Finding 2 of the diagnosis (say in words that orders are OFF) is NOT done here: the mobile app has no runMode data today (no use of /health runtime.runMode or COLLECT_ONLY in apps/mobile), so a truthful 'orders off' line needs the data plumbed first (separate design and PR); a static claim would not be truthful."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "No device or emulator render (the app is Android-only React Native with no web target)."
+acceptance:
+  - "Independent non-author review; exact-head CI; not merged before the 2026-11-23 release."

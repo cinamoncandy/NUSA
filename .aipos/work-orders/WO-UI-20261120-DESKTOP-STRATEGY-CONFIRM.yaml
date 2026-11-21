@@ -1,0 +1,21 @@
+id: WO-UI-20261120-DESKTOP-STRATEGY-CONFIRM
+title: "Desktop: starting or stopping the PAPER strategy asks first"
+status: READY_FOR_REVIEW
+created: 2026-11-20
+owner_decision: "2026-11-20 ('uiux 개선', 다음): UI diagnosis, a one-click strategy start/stop without confirmation (P1). Merge after the 2026-11-23 bundled release."
+objective: "One accidental click must not start or stop the PAPER strategy."
+change:
+  - "apps/desktop/renderer/app-runtime.js: strategyCommand asks window.confirm first ('모의(PAPER) 전략을 시작할까요? 실제 주문은 발생하지 않습니다.' / '...중지할까요?'); a declined or missing confirm sends nothing (fail closed) and says '요청을 취소했습니다.'."
+  - "tests/app-runtime-execution.vitest.js: two jsdom tests (declining sends nothing and the question names PAPER and no real order; accepting sends exactly one command; without confirm nothing is sent). A mutation (disabling the check) fails them."
+not_changed:
+  - "No order, authority, limit, threshold or capital behaviour; the start and stop controls stay PAPER-only; the IPC calls are unchanged."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Not run in the Electron shell; window.confirm is the same dialog the settings reset already uses."
+acceptance:
+  - "Independent non-author review; exact-head CI; not merged before the 2026-11-23 release."
