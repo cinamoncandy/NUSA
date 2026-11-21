@@ -33,7 +33,7 @@ test("the classifier module has no IO, clock, randomness or imports", () => {
 test("the classifier is named only by its module, its test, this pin and the documents: no app, script, test or barrel reaches it", () => {
   const dirs = ["apps", "packages", "scripts", "tests"].map((d) => path.join(root, d));
   const files = dirs.flatMap((d) => (fs.existsSync(d) ? walk(d) : [])).filter((file) => /researchFailureCause|classifyFailureCause|RESEARCH_FAILURE_CAUSES/.test(fs.readFileSync(file, "utf8")));
-  assert.deepEqual(files.map((file) => path.relative(root, file)).sort(), [
+  assert.deepEqual(files.map((file) => path.relative(root, file).split(path.sep).join("/")).sort(), [
     "packages/contracts/src/researchFailureCause.test.ts", "packages/contracts/src/researchFailureCause.ts", "tests/research-failure-cause-isolation.test.js"
   ]);
 });
