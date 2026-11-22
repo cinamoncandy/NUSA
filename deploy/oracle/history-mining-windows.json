@@ -1,6 +1,6 @@
 {
   "discoveryStart": "2026-10-08T00:00:00Z",
-  "discoveryEnd": "2026-11-01T00:00:00Z",
-  "holdbackStart": "2026-11-05T00:00:00Z",
+  "discoveryEnd": "2026-10-26T00:00:00Z",
+  "holdbackStart": "2026-10-30T00:00:00Z",
   "holdbackEnd": "2026-11-19T23:00:00Z"
 }

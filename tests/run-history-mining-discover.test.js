@@ -23,7 +23,7 @@ test("the committed config holds the four windows chosen from the 2026-11-21 can
   assert.equal(path.relative(path.join(__dirname, ".."), wrapper.CONFIG_FILE), path.join("deploy", "oracle", "history-mining-windows.json"));
   const text = fs.readFileSync(wrapper.CONFIG_FILE, "utf8");
   const { iso, ms } = wrapper.parseConfig(text);
-  assert.deepEqual(iso, { discoveryStart: "2026-10-08T00:00:00.000Z", discoveryEnd: "2026-11-01T00:00:00.000Z", holdbackStart: "2026-11-05T00:00:00.000Z", holdbackEnd: "2026-11-19T23:00:00.000Z" });
+  assert.deepEqual(iso, { discoveryStart: "2026-10-08T00:00:00.000Z", discoveryEnd: "2026-10-26T00:00:00.000Z", holdbackStart: "2026-10-30T00:00:00.000Z", holdbackEnd: "2026-11-19T23:00:00.000Z" });
   assert.ok(ms.holdbackStart - ms.discoveryEnd >= 96 * H, "purge of at least 96 hours");
   assert.ok(ms.holdbackEnd <= CUT, "the hold-back ends before the reserved cut");
   assert.ok(ms.discoveryStart >= Date.parse("2026-10-07T08:05:00Z"), "discovery starts after the first candle of every blind market (candle_extent 2026-11-22: first close 2026-10-07 08:05Z at the latest)");

@@ -5,7 +5,7 @@ created: 2026-11-22
 owner_decision: "2026-11-22 ('1' after the question about watching all Upbit markets): step 1 is to run the history-mining rules end to end on the five collected markets first. Windows are chosen by me from counts only (owner delegation: '알아서')."
 objective: "Let the Research service run the read-only discover phase on the 45 days of 1m candles that the 2026-11-21 deeper backfill collected, as step 3 of the runbook in docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md section 10."
 change:
-  - "deploy/oracle/history-mining-windows.json (new): discoveryStart 2026-10-08T00:00Z, discoveryEnd 2026-11-01T00:00Z (24 days), holdbackStart 2026-11-05T00:00Z (purge 96 h), holdbackEnd 2026-11-19T23:00Z (14.96 days, before the 2026-11-20 cut)."
+  - "deploy/oracle/history-mining-windows.json (new): discoveryStart 2026-10-08T00:00Z, discoveryEnd 2026-10-26T00:00Z (18 days), holdbackStart 2026-10-30T00:00Z (purge 96 h), holdbackEnd 2026-11-19T23:00Z (21.96 days, before the 2026-11-20 cut). First choice was 24 / 15 days; the independent review showed a 15-day hold-back gives roughly 40 to 140 trades across the four markets (24 h holds near the floor of 50), so the split moved toward the hold-back BEFORE any candle value was read (counts and times only)."
   - "tests/run-history-mining-discover.test.js: the test that pinned the config as absent now pins the committed values and the validation (purge, cut, first candle); the process-level WAITING_CONFIG case uses an explicit missing config path."
   - "docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md section 10: the chosen windows and the counts they come from."
 basis_counts:
@@ -21,6 +21,8 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "Power: a 14.96-day hold-back across four markets may give too few trades for the look (minimum 50 trades); the look then reports INSUFFICIENT and spends the window, so the owner should know before ordering it. Not run on the real database. The readings of design section 9 still await review (done in this PR's review)."
+unverified: "Power: even 21.96 days across four strongly correlated markets can only detect large edges; a pass is weak evidence and a fail does not rule out small edges. A candidate with fewer than 50 trades in the hold-back makes the look return LOOK_FAIL (testable false) and spends the hold-back window. Not run on the real database. No owner sign-off on the design section 9 readings is recorded: the independent review of PR #3246 found open points (design section 9.2) that must be resolved or accepted by the owner BEFORE the look, not before the discover run."
 acceptance:
-  - "Independent non-author review of the windows and of section 9; exact-head CI; released after the freeze."
+  - "Independent non-author review of the windows (done); exact-head CI; released after the freeze."
+  - "The windows are never edited after the first discover output is seen (no chasing results); a different split needs a new work order and a new, unlooked hold-back."
+  - "Design section 9.2 points resolved or accepted by the owner before the one look is ordered."
