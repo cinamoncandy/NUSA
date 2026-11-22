@@ -91,7 +91,7 @@ test("valid config on a synthetic sqlite file runs discover end to end (read-onl
   const insert = db.prepare("INSERT INTO research_closed_candles(market, interval_ms, close_time_ms, close, volume) VALUES (?,?,?,?,?)");
   // One transaction: 7,200 single-row commits are very slow on a Windows runner (each commit syncs the file) and timed the CI test step out.
   db.exec("BEGIN");
-  ["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"].forEach((market, i) => {
+  ["KRW-BTC", "KRW-ETH", "KRW-NEAR", "KRW-SOL", "KRW-XRP"].forEach((market, i) => {
     const random = makeRandom(7 + i); let price = 1000;
     for (let t = CUT - 60 * DAY; t < CUT; t += H) { price *= 1 + 0.005 * (random() - 0.5); insert.run(market, M, t, price, 1); }
   });

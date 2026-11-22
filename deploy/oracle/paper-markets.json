@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "markets": ["KRW-XRP"],
-  "researchMarkets": ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"],
+  "researchMarkets": ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-NEAR"],
   "experimentMarkets": ["KRW-XRP"],
   "decidedBy": "owner",
   "decidedAt": "2026-10-03",
-  "researchMarketsDecidedAt": "2026-11-19",
-  "note": "PAPER only. Applied over the host NUSA_CLOUD_UPBIT_MARKETS and NUSA_RESEARCH_MARKETS at start. Owner decision 2026-10-03: trade and learn KRW-XRP first. `markets` is the PAPER trading feed and stays KRW-XRP. Owner decision 2026-11-19 (docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md): `researchMarkets` widens ONLY the research candle collection, backfill and gap-fill; `experimentMarkets` is where experiments run and stays KRW-XRP until a pre-registered cross-market hypothesis is merged. No order, limit, capital or authority changes."
+  "researchMarketsDecidedAt": "2026-11-22",
+  "note": "PAPER only. Applied over the host NUSA_CLOUD_UPBIT_MARKETS and NUSA_RESEARCH_MARKETS at start. Owner decision 2026-10-03: trade and learn KRW-XRP first. `markets` is the PAPER trading feed and stays KRW-XRP. Owner decision 2026-11-19 (docs/RESEARCH_MARKET_EXPANSION_DESIGN_2026-11-19.md): `researchMarkets` widens ONLY the research candle collection, backfill and gap-fill; `experimentMarkets` is where experiments run and stays KRW-XRP until a pre-registered cross-market hypothesis is merged. Owner decision 2026-11-22 (docs/RESEARCH_PREREG_AMENDMENT_2026-11-22_NEAR_FOR_DOGE.md): KRW-NEAR replaces KRW-DOGE in `researchMarkets` (five research markets stay five; DOGE history has many holes, NEAR is more liquid). No order, limit, capital or authority changes."
 }

@@ -22,7 +22,7 @@ const { orderBookSource } = require("./lib/orderBookSource.js");
 
 const M = 60_000;
 const H = 60 * M;
-const MARKETS = Object.freeze(["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"]); // alphabetical: the tie-break order
+const MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-NEAR", "KRW-SOL", "KRW-XRP"]); // alphabetical: the tie-break order
 const STUDY_ID = "RULE_CROSSMARKET_MOM_60M_20261119";
 const START = Date.parse("2026-11-21T00:00:00Z");
 const VAL = Date.parse("2026-11-28T00:00:00Z");

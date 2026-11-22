@@ -59,7 +59,7 @@ test("the span, bar and constants are the ones in the document", () => {
   assert.equal(S.K, 4);
   assert.equal(S.BAR, 0.0125);
   assert.equal(S.SEED, 20261119);
-  assert.deepEqual([...MARKETS], ["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"]);
+  assert.deepEqual([...MARKETS], ["KRW-BTC", "KRW-ETH", "KRW-NEAR", "KRW-SOL", "KRW-XRP"]);
   assert.deepEqual(S.PRIMARY, { lookback: 24 * H, hold: H });
   assert.equal(S.DESCRIPTIVE.length, 3);
 });
@@ -137,7 +137,7 @@ test("negative control: a momentum edge smaller than the costs fails after costs
 
 test("a market with a wide spread or thin coverage is not eligible; fewer than 3 eligible markets is INSUFFICIENT_DATA", { timeout: 300_000 }, () => {
   const wide = syntheticDb({ drift: blockDrift, halfSpread: 0.0001 });
-  wide.exec("UPDATE research_orderbook_samples SET best_bid = best_bid * 0.99, best_ask = best_ask * 1.01 WHERE market IN ('KRW-BTC', 'KRW-DOGE', 'KRW-ETH')");
+  wide.exec("UPDATE research_orderbook_samples SET best_bid = best_bid * 0.99, best_ask = best_ask * 1.01 WHERE market IN ('KRW-BTC', 'KRW-NEAR', 'KRW-ETH')");
   const r = S.runStudy({ db: wide, now: AFTER });
   assert.equal(r.status, "INSUFFICIENT_DATA"); assert.equal(r.eligible, 2);
   // A market with a third of its books missing in training (below 90 percent) drops out; four remain and the study still runs.

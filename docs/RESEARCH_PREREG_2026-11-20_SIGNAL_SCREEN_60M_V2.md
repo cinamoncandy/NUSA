@@ -77,3 +77,5 @@ K = 6 (the 4 h target is descriptive and not counted). Holm at the level 0.02 (s
 
 ## 9. What this document does not do
 It does not change any experiment, gate, threshold, limit, capital, order switch or authority, starts no run, writes no study code, and does not widen the experiment markets (`experimentMarkets` stays KRW-XRP).
+
+Amended 2026-11-22: DOGE replaced by NEAR, see docs/RESEARCH_PREREG_AMENDMENT_2026-11-22_NEAR_FOR_DOGE.md

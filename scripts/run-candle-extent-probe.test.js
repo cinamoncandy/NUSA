@@ -27,6 +27,7 @@ test("counts, first and last close, proven-absent and missing minutes per market
   assert.equal(out.BTCAbsentMinutes, 1);
   assert.equal(out.BTCMissingMinutes, 2, "10 minutes - 7 stored - 1 proven absent");
   assert.equal(out.XRPRows, 0); assert.equal(out.XRPFirstMs, 0); assert.equal(out.XRPMissingMinutes, 0);
+  assert.equal(out.NEARRows, 0); assert.equal(out.DOGERows, undefined, "KRW-DOGE left the probe on 2026-11-22");
   for (const v of Object.values(out)) assert.ok(v === "OK" || Number.isSafeInteger(v));
 });
 

@@ -2,13 +2,13 @@
 /**
  * Read-only extent of the stored 1-minute candle history of the five research markets (WO-LEARNING-20261120-CANDLE-EXTENT-PROBE).
  * Runs on the PAPER host inside the nusa-research service, opens NUSA_CLOUD_STATE_DB_PATH READ-ONLY and prints one line:
- *   CANDLE_EXTENT {"status":"OK", "<MKT>Rows", "<MKT>FirstMs", "<MKT>LastMs", "<MKT>AbsentMinutes", "<MKT>MissingMinutes" for BTC, DOGE, ETH, SOL, XRP}
+ *   CANDLE_EXTENT {"status":"OK", "<MKT>Rows", "<MKT>FirstMs", "<MKT>LastMs", "<MKT>AbsentMinutes", "<MKT>MissingMinutes" for BTC, ETH, NEAR, SOL, XRP}
  * Counts and close times only: **no candle value is read** (the query selects close_time_ms and nothing else, so reserved spans of the pre-registered
  * studies stay unread). Rows after 2026-11-20T00:00Z are counted but their values are never selected. It changes nothing, gates nothing, grants nothing.
  * MissingMinutes = minutes between the first and the last stored close that are neither stored nor proven exchange-absent.
  */
 const M = 60_000;
-const MARKETS = Object.freeze(["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"]);
+const MARKETS = Object.freeze(["KRW-BTC", "KRW-ETH", "KRW-NEAR", "KRW-SOL", "KRW-XRP"]);
 
 function probe(db) {
   const out = { status: "OK" };
