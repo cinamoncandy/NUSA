@@ -19,9 +19,14 @@ const good = { discoveryStart: iso(CUT - 50 * DAY), discoveryEnd: iso(CUT - 20 *
 function tmp() { return fs.mkdtempSync(path.join(os.tmpdir(), "hm-wiring-")); }
 function capture(fn) { const lines = []; const code = fn((l) => lines.push(l)); return { code, lines }; }
 
-test("the config file is absent in the repository by default", () => {
-  assert.equal(fs.existsSync(wrapper.CONFIG_FILE), false);
+test("the committed config holds the four windows chosen from the 2026-11-21 candle_extent counts and passes the strict validation", () => {
   assert.equal(path.relative(path.join(__dirname, ".."), wrapper.CONFIG_FILE), path.join("deploy", "oracle", "history-mining-windows.json"));
+  const text = fs.readFileSync(wrapper.CONFIG_FILE, "utf8");
+  const { iso, ms } = wrapper.parseConfig(text);
+  assert.deepEqual(iso, { discoveryStart: "2026-10-08T00:00:00.000Z", discoveryEnd: "2026-11-01T00:00:00.000Z", holdbackStart: "2026-11-05T00:00:00.000Z", holdbackEnd: "2026-11-19T23:00:00.000Z" });
+  assert.ok(ms.holdbackStart - ms.discoveryEnd >= 96 * H, "purge of at least 96 hours");
+  assert.ok(ms.holdbackEnd <= CUT, "the hold-back ends before the reserved cut");
+  assert.ok(ms.discoveryStart >= Date.parse("2026-10-07T08:05:00Z"), "discovery starts after the first candle of every blind market (candle_extent 2026-11-22: first close 2026-10-07 08:05Z at the latest)");
 });
 
 test("absent config: prints exactly WAITING_CONFIG and never opens a database or spawns anything", () => {
@@ -31,7 +36,7 @@ test("absent config: prints exactly WAITING_CONFIG and never opens a database or
   assert.equal(code, 0); assert.equal(spawned, 0);
   assert.deepEqual(lines, ['HISTORY_MINING_DISCOVER {"status":"WAITING_CONFIG"}']);
   // end to end as a process: no database file exists and none is created
-  const r = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8", env: { ...process.env, NUSA_CLOUD_STATE_DB_PATH: path.join(dir, "no.sqlite") } });
+  const r = spawnSync(process.execPath, ["-e", `process.exitCode=require(${JSON.stringify(SCRIPT)}).run({configPath:${JSON.stringify(path.join(dir, "missing.json"))}})`], { encoding: "utf8", env: { ...process.env, NUSA_CLOUD_STATE_DB_PATH: path.join(dir, "no.sqlite") } });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), 'HISTORY_MINING_DISCOVER {"status":"WAITING_CONFIG"}');
   assert.equal(fs.existsSync(path.join(dir, "no.sqlite")), false);

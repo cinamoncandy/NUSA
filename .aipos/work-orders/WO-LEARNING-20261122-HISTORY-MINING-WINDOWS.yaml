@@ -1,0 +1,26 @@
+id: WO-LEARNING-20261122-HISTORY-MINING-WINDOWS
+title: "History mining: commit the four windows chosen from the 2026-11-22 candle_extent counts (discover only; the one look stays the owner's word)"
+status: READY_FOR_REVIEW
+created: 2026-11-22
+owner_decision: "2026-11-22 ('1' after the question about watching all Upbit markets): step 1 is to run the history-mining rules end to end on the five collected markets first. Windows are chosen by me from counts only (owner delegation: '알아서')."
+objective: "Let the Research service run the read-only discover phase on the 45 days of 1m candles that the 2026-11-21 deeper backfill collected, as step 3 of the runbook in docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md section 10."
+change:
+  - "deploy/oracle/history-mining-windows.json (new): discoveryStart 2026-10-08T00:00Z, discoveryEnd 2026-11-01T00:00Z (24 days), holdbackStart 2026-11-05T00:00Z (purge 96 h), holdbackEnd 2026-11-19T23:00Z (14.96 days, before the 2026-11-20 cut)."
+  - "tests/run-history-mining-discover.test.js: the test that pinned the config as absent now pins the committed values and the validation (purge, cut, first candle); the process-level WAITING_CONFIG case uses an explicit missing config path."
+  - "docs/RESEARCH_HISTORY_MINING_DESIGN_2026-11-20.md section 10: the chosen windows and the counts they come from."
+basis_counts:
+  - "candle_extent 2026-11-22 00:28Z: BTC, DOGE, ETH, SOL first close 2026-10-07 08:01-08:05Z, 45.7 days each (65,152 / 57,755 / 64,959 / 63,767 rows); XRP from 2026-09-23 (85,173 rows). Missing minutes: BTC 318, ETH 459, SOL 1,329, DOGE 6,394 (DOGE has the most holes; the script counts only hours with a usable lookback, so holes reduce usable hours, they are not filled)."
+  - "Only counts and times were read; no candle value."
+not_changed:
+  - "scripts/run-history-mining.js and the discover wrapper are unchanged. No look is ever run by the runner. The freeze record is committed BEFORE the one look, which needs the owner's word. No experiment, gate, threshold, limit, capital, order switch or authority change."
+release_plan: "The file ships with the next host release. No release inside 2026-11-24T06:00Z..2026-11-28T06:00Z; recommended after 2026-11-28 (a release stops collection for about 90 minutes). Until then nothing runs on the data (the file is only read from a running release)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Power: a 14.96-day hold-back across four markets may give too few trades for the look (minimum 50 trades); the look then reports INSUFFICIENT and spends the window, so the owner should know before ordering it. Not run on the real database. The readings of design section 9 still await review (done in this PR's review)."
+acceptance:
+  - "Independent non-author review of the windows and of section 9; exact-head CI; released after the freeze."
