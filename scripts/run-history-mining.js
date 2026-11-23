@@ -8,7 +8,7 @@
  *
  * Phases (design section 4): `discover` explores the fixed rule grid in the discovery window only and prints the shortlist (at most 5), the
  * frozen thresholds and the freeze record; the freeze record is committed BEFORE `look`. `look` is the ONE look at the hold-back window: the frozen
- * rules and thresholds are applied unchanged and tested with the circular block bootstrap of the cross-market pre-registration (block 24, B = 10,000,
+ * rules and thresholds are applied unchanged (entry at the NEXT hourly close) and tested with the circular block bootstrap of the cross-market pre-registration (block 24, B = 10,000,
  * centred null, one-sided, over hourly bins of the hold-back so that simultaneous trades of the markets stay together), Bonferroni over the shortlist size only. The result is descriptive: a filter into forward confirmation, not evidence.
  *
  * Blindness: candle values at or after CUT (2026-11-20T00:00Z) are reserved by the pre-registrations and are never selected (the SQL bound is the
@@ -38,6 +38,11 @@ const BLOCK = 24;
 const B = 10_000;
 const SEED = 20261121;
 const LOOKBACK_HOURS = 72;
+// H2 script changes (docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md section 5; WO-LEARNING-20261123-HISTORY-MINING-H2-SCRIPT-CHANGES).
+// They are part of the grid fingerprint, so a freeze record made by the earlier script (same-close entry, no excess test) can never bind this one.
+const ENTRY_RULE = "NEXT_HOURLY_CLOSE"; // the signal at hour t is known at the close of t; the position is entered at the NEXT hourly close (t + 1 h), never at the close that produced the signal
+const PASS_RULE = "NET_STRESS_EXCESS_V2"; // net > 0, stress net > 0, p < alpha, AND excess over the unconditional baseline > 0 with pExcess < alpha (Bonferroni level, same alpha)
+const SENSITIVITY_BLOCKS = Object.freeze([72, 168]); // descriptive only, never part of the pass rule
 
 // ---- the fixed grid (code is the freezing record: its hash is printed) ----
 const SIGNALS = Object.freeze([
@@ -57,7 +62,8 @@ const HOLDS = Object.freeze([1, 4, 12, 24]);
 const RULES = Object.freeze(SIGNALS.flatMap((s) => SIDES.flatMap((side) => QUANTILES.flatMap((q) => HOLDS.map((hold) => Object.freeze({ id: `${s.id}_${side}_Q${Math.round(q * 100)}_H${hold}`, signal: s.id, side, q, hold }))))));
 // The grid fingerprint binds the grid parameters and constants (ids, sides, quantiles, holds, costs, minimums, block, B, seed, purge, cut), NOT the signal
 // formulas or the other function bodies: the freeze record therefore also carries the source commit sha of the code that produced it.
-const GRID_FINGERPRINT = crypto.createHash("sha256").update(JSON.stringify({ SIGNALS: SIGNALS.map((s) => s.id), SIDES, QUANTILES, HOLDS, FEE, COST, STRESS_COST, MIN_TRADES, MAX_SHORTLIST, MAX_OVERLAP, ALPHA_TOTAL, BLOCK, B, SEED, PURGE, CUT })).digest("hex");
+// The H2 version also binds MIN_LOOK_TRADES, the entry rule, the pass rule and the sensitivity blocks.
+const GRID_FINGERPRINT = crypto.createHash("sha256").update(JSON.stringify({ SIGNALS: SIGNALS.map((s) => s.id), SIDES, QUANTILES, HOLDS, FEE, COST, STRESS_COST, MIN_TRADES, MIN_LOOK_TRADES, MAX_SHORTLIST, MAX_OVERLAP, ALPHA_TOTAL, BLOCK, B, SEED, PURGE, CUT, ENTRY_RULE, PASS_RULE, SENSITIVITY_BLOCKS })).digest("hex");
 
 // ---- signals on the hourly closes: h[k] = close at t - k hours (k = 0..72), undefined when missing ----
 function ratio(h, a, b) { return h[a] === undefined || h[b] === undefined ? undefined : h[a] / h[b] - 1; }
@@ -119,7 +125,11 @@ function thresholdsFrom(tables) {
   return out;
 }
 
-/** The trades of one rule in one market: non-overlapping (one position), long only, entry and exit at hourly closes. */
+/**
+ * The trades of one rule in one market: non-overlapping (one position), long only. The signal of decision hour t is known at the close of t; the
+ * position is ENTERED at the next hourly close (t + 1 h) and exited `hold` hours after that entry (ENTRY_RULE). A trade is stamped with its decision hour t
+ * (so it stays inside the window bins); the next decision may be taken at t + hold, whose entry close is exactly this trade's exit close.
+ */
 function tradesFor(rule, rows, closes, thresholds) {
   const th = thresholds[rule.signal][`q${Math.round(rule.q * 100)}`];
   const limit = rule.side === "HIGH" ? th.high : th.low;
@@ -130,13 +140,22 @@ function tradesFor(rule, rows, closes, thresholds) {
     const v = r.values[rule.signal];
     if (v === undefined) continue;
     if (rule.side === "HIGH" ? v < limit : v > limit) continue;
-    const exit = r.t + rule.hold * H;
-    const a = closes.get(r.t); const b = closes.get(exit);
+    const entry = r.t + H;
+    const exit = entry + rule.hold * H;
+    const a = closes.get(entry); const b = closes.get(exit);
     if (a === undefined || b === undefined) { unresolved += 1; continue; }
     out.push({ t: r.t, gross: b / a - 1 });
-    free = exit;
+    free = exit - H;
   }
   return { trades: out, unresolved };
+}
+/** The signal rate of a rule in a set of decision rows: the share of usable decision hours at which the signal is beyond the frozen limit (nominal 1 - q by construction in discovery). */
+function signalRate(rule, perMarket, thresholds) {
+  const th = thresholds[rule.signal][`q${Math.round(rule.q * 100)}`];
+  const limit = rule.side === "HIGH" ? th.high : th.low;
+  let hit = 0; let all = 0;
+  for (const m of perMarket) for (const r of m.rows) { const v = r.values[rule.signal]; if (v === undefined) continue; all += 1; if (limit !== undefined && (rule.side === "HIGH" ? v >= limit : v <= limit)) hit += 1; }
+  return { hit, all, rate: all > 0 ? hit / all : 0 };
 }
 const net = (trade, cost) => trade.gross - cost;
 const mean = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
@@ -153,6 +172,47 @@ function evaluateRule(rule, perMarket, thresholds) {
   return { trades, unresolved };
 }
 
+/** UTC calendar quarter of a decision hour, e.g. "2023Q3". */
+function quarterOf(t) { const d = new Date(t); return `${d.getUTCFullYear()}Q${Math.floor(d.getUTCMonth() / 3) + 1}`; }
+const sign = (x) => (x > 1e-12 ? "+" : x < -1e-12 ? "-" : "0");
+
+/**
+ * The unconditional baseline of a hold: the mean NET (same cost, same next-close entry, same hold) of entering at EVERY usable decision hour of a market
+ * (hours with a usable lookback and both closes present), overlapping entries allowed because every hour is one observation of the drift. Returns the
+ * mean per market and per market x quarter, so a rule's excess is measured against the drift of the same market (and quarter) it traded in.
+ */
+function baselineFor(hold, perMarket, cost = COST) {
+  const byMarket = new Map(); const byQuarter = new Map();
+  const add = (map, key, v) => { const e = map.get(key) || { sum: 0, n: 0 }; e.sum += v; e.n += 1; map.set(key, e); };
+  for (const m of perMarket) {
+    for (const r of m.rows) {
+      const a = m.closes.get(r.t + H); const b = m.closes.get(r.t + H + hold * H);
+      if (a === undefined || b === undefined) continue;
+      const v = b / a - 1 - cost;
+      add(byMarket, m.market, v); add(byQuarter, `${m.market}|${quarterOf(r.t)}`, v);
+    }
+  }
+  const fin = (map) => new Map([...map].map(([k, e]) => [k, { mean: e.sum / e.n, n: e.n }]));
+  return { byMarket: fin(byMarket), byQuarter: fin(byQuarter) };
+}
+/** Excess per trade: its net minus the baseline mean of its market (or, with `quarterly`, of its market and quarter). A resolved trade always has a baseline; a missing one gives 0 excess. */
+function excessOf(trade, baseline, quarterly = false) {
+  const b = quarterly ? baseline.byQuarter.get(`${trade.market}|${quarterOf(trade.t)}`) : baseline.byMarket.get(trade.market);
+  return net(trade, COST) - (b ? b.mean : net(trade, COST));
+}
+/** Descriptive sign tables (never part of the pass rule): net and excess per market and per quarter, so a one-market or one-quarter pass is visible. */
+function signTables(trades, baseline) {
+  const table = (keyOf, quarterly) => {
+    const groups = new Map();
+    for (const t of trades) { const k = keyOf(t); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(t); }
+    return [...groups.keys()].sort().map((k) => {
+      const g = groups.get(k); const mn = mean(g.map((t) => net(t, COST))); const ex = mean(g.map((t) => excessOf(t, baseline, quarterly)));
+      return { key: k, n: g.length, meanNet: round(mn, 6), excess: round(ex, 6), signNet: sign(mn), signExcess: sign(ex) };
+    });
+  };
+  return { byMarket: table((t) => t.market, false), byQuarter: table((t) => quarterOf(t.t), true) };
+}
+
 function overlap(a, b) {
   const sa = new Set(a.map((t) => `${t.market}@${t.t}`)); let shared = 0;
   for (const t of b) if (sa.has(`${t.market}@${t.t}`)) shared += 1;
@@ -165,7 +225,7 @@ function discover({ db, windows }) {
   const markets = [...BLIND_MARKETS, ...DISCOVERY_ONLY_MARKETS];
   const perMarket = markets.map((market) => { const closes = loadHourly(db, market, w.discoveryStart, w.discoveryEnd); return { market, closes, rows: signalTable(closes, w.discoveryStart, w.discoveryEnd) }; });
   const usable = perMarket.reduce((s, m) => s + m.rows.length, 0);
-  if (usable === 0) return { status: "INSUFFICIENT_DATA", gridFingerprint: GRID_FINGERPRINT, trials: RULES.length, usableDecisionHours: 0 };
+  if (usable === 0) return { status: "INSUFFICIENT_DATA", gridFingerprint: GRID_FINGERPRINT, trials: RULES.length, usableDecisionHours: 0, perMarketUsableHours: Object.fromEntries(perMarket.map((m) => [m.market, m.rows.length])) };
   const thresholds = thresholdsFrom(perMarket.map((m) => m.rows));
   const results = [];
   for (const rule of RULES) {
@@ -183,6 +243,7 @@ function discover({ db, windows }) {
   return {
     status: shortlist.length === 0 ? "NO_SHORTLIST" : "SHORTLIST",
     gridFingerprint: GRID_FINGERPRINT, trials: RULES.length, usableDecisionHours: usable,
+    perMarketUsableHours: Object.fromEntries(perMarket.map((m) => [m.market, m.rows.length])),
     eligibleRules: eligible.length, positiveMeanRules: results.filter((r) => r.meanNet > 0 && r.n >= MIN_TRADES).length,
     windows: { discoveryStart: w.discoveryStart, discoveryEnd: w.discoveryEnd, holdbackStart: w.holdbackStart, holdbackEnd: w.holdbackEnd, purgeHours: PURGE / H },
     shortlist: shortlist.map((s) => ({ id: s.rule.id, n: s.n, meanNet: round(s.meanNet, 6), meanStress: round(s.meanStress, 6), unresolved: s.unresolved })),
@@ -205,7 +266,7 @@ function freezeRecord(result, nowIso, sourceCommit = null) {
  * stay together), blocks are 24 consecutive hour bins, the null is centred (each hour's sum minus m x its trade count) and the p-value is one-sided,
  * p = (1 + #{M* >= M - 1e-12}) / (B + 1) with M the observed mean net per trade. Zero variance (all trades equal) is not testable and gives p = 1.
  */
-function timeBlockBootstrapP(items, from, to, random, resamples = B) {
+function timeBlockBootstrapP(items, from, to, random, resamples = B, block = BLOCK) {
   const bins = Math.max(0, Math.round((to - from) / H));
   const sums = new Array(bins).fill(0); const counts = new Array(bins).fill(0);
   let n = 0; let total = 0; let first = null; let varying = false;
@@ -221,15 +282,15 @@ function timeBlockBootstrapP(items, from, to, random, resamples = B) {
   let ge = 0;
   for (let b = 0; b < resamples; b += 1) {
     let num = 0; let den = 0; let filled = 0;
-    while (filled < bins) { const start = Math.floor(random() * bins); for (let k = 0; k < BLOCK && filled < bins; k += 1) { const i = (start + k) % bins; num += centred[i]; den += counts[i]; filled += 1; } }
+    while (filled < bins) { const start = Math.floor(random() * bins); for (let k = 0; k < block && filled < bins; k += 1) { const i = (start + k) % bins; num += centred[i]; den += counts[i]; filled += 1; } }
     const stat = den > 0 ? num / den : 0;
     if (stat >= m - 1e-12) ge += 1;
   }
   return (1 + ge) / (resamples + 1);
 }
 
-/** The descriptive PASS of the look: enough trades, mean net above zero at the base cost AND under the stress cost, p below the per-candidate alpha. */
-function passDecision({ n, meanNet, meanStress, p, alpha }) { return n >= MIN_LOOK_TRADES && meanNet > 0 && meanStress > 0 && p < alpha; }
+/** The descriptive PASS of the look (PASS_RULE): enough trades, mean net above zero at the base cost AND under the stress cost, p below the per-candidate alpha, AND the excess over the unconditional baseline above zero with pExcess below the same alpha. A missing excess value never passes. */
+function passDecision({ n, meanNet, meanStress, p, alpha, excess, pExcess }) { return n >= MIN_LOOK_TRADES && meanNet > 0 && meanStress > 0 && p < alpha && excess > 0 && pExcess < alpha; }
 
 function look({ db, freeze, resamples = B }) {
   const w = checkWindows({ discoveryStart: freeze.windows.discoveryStart, discoveryEnd: freeze.windows.discoveryEnd, holdbackStart: freeze.windows.holdbackStart, holdbackEnd: freeze.windows.holdbackEnd });
@@ -240,6 +301,7 @@ function look({ db, freeze, resamples = B }) {
   const thresholds = {};
   for (const s of SIGNALS) { thresholds[s.id] = {}; for (const q of QUANTILES) thresholds[s.id][`q${Math.round(q * 100)}`] = { high: undefined, low: undefined }; }
   const alpha = ALPHA_TOTAL / Math.max(1, freeze.shortlist.length);
+  const baselines = new Map(HOLDS.map((hold) => [hold, baselineFor(hold, perMarket)]));
   const out = [];
   for (const id of freeze.shortlist) {
     const rule = RULES.find((r) => r.id === id);
@@ -248,14 +310,36 @@ function look({ db, freeze, resamples = B }) {
     const th = thresholds[rule.signal][`q${Math.round(rule.q * 100)}`];
     if (rule.side === "HIGH") th.high = frozen.limit; else th.low = frozen.limit;
     const { trades, unresolved } = evaluateRule(rule, perMarket, thresholds);
+    const baseline = baselines.get(rule.hold);
     const xs = trades.map((t) => net(t, COST));
     const stress = mean(trades.map((t) => net(t, STRESS_COST)));
-    const testable = xs.length >= MIN_LOOK_TRADES;
-    const p = testable ? timeBlockBootstrapP(trades.map((t) => ({ t: t.t, v: net(t, COST) })), w.holdbackStart, w.holdbackEnd, makeRandom(SEED + out.length), resamples) : 1;
-    // PASS (descriptive filter into forward confirmation): enough trades, mean net above zero at the base cost AND under the stress cost, p below the per-candidate alpha.
-    out.push({ id, n: xs.length, testable, meanNet: round(mean(xs), 6), meanStress: round(stress, 6), unresolved, p: round(p, 4), pass: passDecision({ n: xs.length, meanNet: mean(xs), meanStress: stress, p, alpha }) });
+    const testable = xs.length >= MIN_LOOK_TRADES; // under MIN_LOOK_TRADES the look is not testable: never a pass, and the window is spent
+    const netItems = trades.map((t) => ({ t: t.t, v: net(t, COST) }));
+    const excessItems = trades.map((t) => ({ t: t.t, v: excessOf(t, baseline) }));
+    const idx = out.length;
+    const boot = (items, seedOffset, block) => (testable ? timeBlockBootstrapP(items, w.holdbackStart, w.holdbackEnd, makeRandom(SEED + seedOffset), resamples, block) : 1);
+    const p = boot(netItems, idx, BLOCK);
+    const pExcess = boot(excessItems, 1000 + idx, BLOCK);
+    const excess = mean(excessItems.map((x) => x.v));
+    const sensitivity = {};
+    SENSITIVITY_BLOCKS.forEach((blk, j) => { sensitivity[`block${blk}`] = { p: round(boot(netItems, 2000 + 10 * idx + j, blk), 4), pExcess: round(boot(excessItems, 3000 + 10 * idx + j, blk), 4) }; });
+    const sig = signalRate(rule, perMarket, thresholds);
+    const nominal = 1 - rule.q;
+    const pooledBaseline = (() => { const e = [...baseline.byMarket.values()]; const n = e.reduce((a, x) => a + x.n, 0); return n > 0 ? e.reduce((a, x) => a + x.mean * x.n, 0) / n : 0; })();
+    const pass = passDecision({ n: xs.length, meanNet: mean(xs), meanStress: stress, p, alpha, excess, pExcess });
+    out.push({
+      id, n: xs.length, testable, meanNet: round(mean(xs), 6), meanStress: round(stress, 6), unresolved, p: round(p, 4),
+      excess: round(excess, 6), pExcess: round(pExcess, 4), baselineMeanNet: round(pooledBaseline, 6),
+      breakEvenCost: round(mean(trades.map((t) => t.gross)), 6), // round-trip cost at which the mean net is zero
+      entryRateDrift: { signalRate: round(sig.rate, 4), nominalRate: round(nominal, 4), ratio: nominal > 0 ? round(sig.rate / nominal, 4) : null, tradesPerUsableHour: sig.all > 0 ? round(xs.length / sig.all, 4) : 0, usableHours: sig.all },
+      sensitivity, tables: signTables(trades, baseline),
+      pass,
+    });
   }
-  return { status: out.some((c) => c.pass) ? "LOOK_PASS" : "LOOK_FAIL", alphaPerCandidate: alpha, candidates: out };
+  const anyTestable = out.some((c) => c.testable);
+  const result = { status: out.some((c) => c.pass) ? "LOOK_PASS" : "LOOK_FAIL", entryRule: ENTRY_RULE, passRule: PASS_RULE, alphaPerCandidate: alpha, testable: anyTestable, candidates: out };
+  if (!anyTestable) result.reason = "UNDER_MIN_LOOK_TRADES"; // LOOK_FAIL with testable:false: the window is spent
+  return result;
 }
 
 function main(argv) {
@@ -287,4 +371,4 @@ function main(argv) {
 }
 
 if (require.main === module) process.exit(main(process.argv.slice(2)));
-module.exports = { discover, look, freezeRecord, fingerprintOf, overlap, timeBlockBootstrapP, passDecision, checkWindows, loadHourly, signalTable, thresholdsFrom, tradesFor, RULES, SIGNALS, GRID_FINGERPRINT, CUT, PURGE, BLIND_MARKETS, DISCOVERY_ONLY_MARKETS, COST, STRESS_COST, MIN_TRADES, MIN_LOOK_TRADES };
+module.exports = { discover, look, baselineFor, excessOf, signTables, quarterOf, signalRate, ENTRY_RULE, PASS_RULE, SENSITIVITY_BLOCKS, freezeRecord, fingerprintOf, overlap, timeBlockBootstrapP, passDecision, checkWindows, loadHourly, signalTable, thresholdsFrom, tradesFor, RULES, SIGNALS, GRID_FINGERPRINT, CUT, PURGE, BLIND_MARKETS, DISCOVERY_ONLY_MARKETS, COST, STRESS_COST, MIN_TRADES, MIN_LOOK_TRADES };

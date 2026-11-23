@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261123-HISTORY-MINING-H2-SCRIPT-CHANGES
+title: "Offline-history mining step (d): section 5 script changes before any freeze record (excess over baseline, tables, next-close entry; synthetic tests only)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+owner_decision: "2026-11-23 (H2): the changes listed in docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md section 5 land in scripts/run-history-mining.js, reviewed, before any freeze record; the freeze record then binds the new source commit."
+objective: "Make the frozen pass rule robust to drift in a one-regime hold-back and make the one look report what a reader needs, without loosening any rule: excess over the unconditional baseline is part of the pass rule; per-quarter and per-market sign tables, block 72/168 sensitivity, break-even cost and entry-rate drift are reported; entry is at the next hourly close; the discover line carries per-market usable hours; the grid fingerprint changes so an old freeze record cannot bind."
+change:
+  - "scripts/run-history-mining.js: tradesFor enters at the next hourly close (decision hour t, entry close t + 1 h, exit entry + hold, next decision at t + hold); baselineFor (mean net of entering at every usable decision hour with the same hold, per market and per market x quarter); passDecision gains excess > 0 and pExcess < alpha (Bonferroni level, same alpha as net); the look reports excess, pExcess, baselineMeanNet, breakEvenCost (mean gross), entryRateDrift (signal rate against the nominal 1 - q), sensitivity blocks 72 and 168 (descriptive), per-market and per-quarter sign tables of net and excess (descriptive), a top-level testable flag and reason UNDER_MIN_LOOK_TRADES (LOOK_FAIL with testable:false spends the window); the discover line carries perMarketUsableHours; GRID_FINGERPRINT also binds MIN_LOOK_TRADES, the entry rule, the pass rule and the sensitivity blocks. timeBlockBootstrapP takes an optional block length (default 24, unchanged)."
+  - "tests/run-history-mining.test.js (three assertions updated for next-close entry, the new key, the stricter pass rule); tests/run-history-mining-h2.test.js (new; synthetic made-up series only, one SQLite transaction per database)."
+not_changed:
+  - "MIN_TRADES, MIN_LOOK_TRADES, CUT, PURGE, the grid (128 rules), costs, alpha, block 24, B, SEED, the freeze-record fields and the study name HISTORY_MINING_V1 (host workflow projection untouched). No gate, threshold, limit, capital, order switch or authority change. No fetch, no candle value read or printed, no windows config, no host change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Behaviour on real data is unknown: discovery now ranks next-close trades, so the shortlist differs from any earlier run. With next-close entry a planted lag-1 mean reversion shows as a lag-2 edge (test data adapted). The 96 h purge is unchanged: the last discovery exit close (discoveryEnd + 24 h) can equal the first hold-back lookback close (holdbackStart - 72 h) at a purge of exactly 96 h; one shared close point, no shared price interval. The baseline is a per-market mean (not per-hour paired), so its sampling noise is not part of the pExcess null. The host workflow projection of the discover line drops the object field perMarketUsableHours (numbers only); it is read from the local historical run."
+acceptance:
+  - "Independent non-author review; unit tests pass; merged before any freeze record, fetch run or look."
