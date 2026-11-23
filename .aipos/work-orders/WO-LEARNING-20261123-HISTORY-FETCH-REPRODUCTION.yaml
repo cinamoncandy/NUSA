@@ -1,0 +1,19 @@
+id: WO-LEARNING-20261123-HISTORY-FETCH-REPRODUCTION
+title: "Offline-history mining: reproduction of the fetch hashes and timestamp-convention check on already-read days (docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+objective: "Record that a second fetch reproduced the frozen manifest and that the hourly row timestamp convention matches the host store, from counts and hashes only."
+change:
+  - "docs/RESEARCH_HISTORY_FETCH_REPRODUCTION_AND_TIMESTAMP_CHECK_2026-11-23.md (new)."
+not_changed:
+  - "No code, host, release, gate, threshold, limit, capital or authority change. No candle value read or printed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The timestamp check used only the committed 2026-10 files; the 2021-2024 files were not compared."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot."
