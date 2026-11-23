@@ -14,8 +14,8 @@ test("history fetch workflow is dispatch-only, read-only, pinned and never a rel
   assert.doesNotMatch(text, /uses:/, "no third-party action, no checkout");
   assert.doesNotMatch(text, /secrets\./, "no secret");
   assert.doesNotMatch(text, /systemctl|sudo|\/opt\/nusa\/current|\/etc\/nusa/, "does not touch the service or its files");
-  assert.match(text, /\[0-9a-f\]\{40\}/);
-  assert.match(text, /\[0-9a-f\]\{64\}/);
+  assert.match(text, /\[\[ \$SOURCE_SHA =~ \^\[0-9a-f\]\{40\}\$ \]\]/);
+  assert.match(text, /\[\[ \$SCRIPT_SHA256 =~ \^\[0-9a-f\]\{64\}\$ \]\]/);
   assert.match(text, /script hash mismatch/);
   assert.match(text, /env -u GH_READ_TOKEN ionice -c3 nice -n19 node/);
   assert.match(text, /trap 'rm -rf "\$tree" "\$dir"' EXIT/);

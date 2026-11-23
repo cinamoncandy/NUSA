@@ -19,6 +19,9 @@ test("history discover workflow is dispatch-only, read-only, pinned and never a 
   assert.match(run, /fetch script hash mismatch/);
   assert.match(run, /manifest hash differs from the committed one/);
   assert.match(run, /trap 'rm -rf "\$tree" "\$work"' EXIT/);
+  assert.match(run, /\[\[ \$SOURCE_SHA =~ \^\[0-9a-f\]\{40\}\$ \]\]/, "whole-value match, not per-line grep");
+  assert.doesNotMatch(run, /grep -Eq '\^\[0-9a-f\]/);
+  assert.ok(run.indexOf("unset GH_READ_TOKEN") > run.indexOf("fetch script hash mismatch") && run.indexOf("unset GH_READ_TOKEN") < run.indexOf("run-history-mining.js\" discover"), "the token is gone before anything unpinned runs");
 });
 
 test("only the discover phase runs, with the fixed historical windows, never the host windows file or the look", () => {
@@ -31,5 +34,5 @@ test("only the discover phase runs, with the fixed historical windows, never the
 
 test("inputs reach the shell only through env and the annotation carries only the allowed line kinds", () => {
   assert.doesNotMatch(run, /\$\{\{/);
-  assert.match(run, /grep -E '\^\(HISTORY_MANIFEST_SHA256\|HISTORY_MINING_DISCOVER\|HISTORY_MINING_FREEZE\|HISTORY_MINING_ERROR\)'/);
+  assert.match(run, /grep -E '\^\(HISTORY_NODE_VERSION\|HISTORY_MANIFEST_SHA256\|HISTORY_MINING_DISCOVER\|HISTORY_MINING_FREEZE\|HISTORY_MINING_ERROR\)'/);
 });

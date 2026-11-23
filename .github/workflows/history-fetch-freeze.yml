@@ -44,8 +44,8 @@ jobs:
         shell: bash
         run: |
           set +e
-          printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
-          printf '%s' "$SCRIPT_SHA256" | grep -Eq '^[0-9a-f]{64}$' || { echo "::error::script_sha256 must be 64 lowercase hex"; exit 1; }
+          [[ $SOURCE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
+          [[ $SCRIPT_SHA256 =~ ^[0-9a-f]{64}$ ]] || { echo "::error::script_sha256 must be 64 lowercase hex"; exit 1; }
           # The script refuses an output directory inside "its repository root" (the parent of its own scripts/ folder),
           # so it is placed in its own scratch tree and the output goes to a sibling directory.
           tree="$(mktemp -d "$RUNNER_TEMP/history-script.XXXXXX")" || exit 1

@@ -53,9 +53,10 @@ jobs:
         shell: bash
         run: |
           set +e
-          printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
+          # [[ =~ ]] matches the whole value (a multi-line input cannot pass on one good line, which grep -E would allow).
+          [[ $SOURCE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
           for v in "$MINING_SHA256" "$FETCH_SHA256" "$EXPECT_MANIFEST_SHA256"; do
-            printf '%s' "$v" | grep -Eq '^[0-9a-f]{64}$' || { echo "::error::a sha256 input must be 64 lowercase hex"; exit 1; }
+            [[ $v =~ ^[0-9a-f]{64}$ ]] || { echo "::error::a sha256 input must be 64 lowercase hex"; exit 1; }
           done
           tree="$(mktemp -d "$RUNNER_TEMP/history-discover-tree.XXXXXX")" || exit 1
           work="$(mktemp -d "$RUNNER_TEMP/history-discover-work.XXXXXX")" || exit 1
@@ -67,7 +68,9 @@ jobs:
           done
           [ "$(sha256sum "$tree/scripts/run-history-mining.js" | cut -d' ' -f1)" = "$MINING_SHA256" ] || { echo "::error::mining script hash mismatch"; exit 1; }
           [ "$(sha256sum "$tree/scripts/fetch-upbit-60m-history.js" | cut -d' ' -f1)" = "$FETCH_SHA256" ] || { echo "::error::fetch script hash mismatch"; exit 1; }
-          out="$(env -u GH_READ_TOKEN ionice -c3 nice -n19 node "$tree/scripts/fetch-upbit-60m-history.js" "$work/files" 2>&1)"
+          unset GH_READ_TOKEN  # nothing below needs the token; the unpinned helper scripts must not see it
+          nodev="$(node -v 2>&1 | cut -c1-20)"; echo "HISTORY_NODE_VERSION $nodev"
+          out="$(ionice -c3 nice -n19 node "$tree/scripts/fetch-upbit-60m-history.js" "$work/files" 2>&1)"
           status=$?
           if [ "$status" -ne 0 ]; then
             printf '%s\n' "$out" | grep -E '^HISTORY_FETCH_FAILED' ; echo "::error::fetch failed closed"; exit "$status"
@@ -75,18 +78,19 @@ jobs:
           got="$(printf '%s\n' "$out" | sed -n 's/^HISTORY_MANIFEST_SHA256 //p' | tail -1)"
           [ "$got" = "$EXPECT_MANIFEST_SHA256" ] || { echo "HISTORY_MANIFEST_MISMATCH got=$got"; echo "::error::manifest hash differs from the committed one"; exit 1; }
           echo "HISTORY_MANIFEST_REPRODUCED $got"
-          env -u GH_READ_TOKEN node -e '
+          built="$(node -e '
             const fs = require("node:fs"); const path = require("node:path");
             const { buildStore } = require(path.join(process.argv[1], "scripts", "fetch-upbit-60m-history.js"));
             const dir = process.argv[2]; const files = {};
             for (const n of fs.readdirSync(dir)) if (n.endsWith("_60m.csv")) files[n] = fs.readFileSync(path.join(dir, n), "utf8");
             buildStore(process.argv[3], files); console.log("HISTORY_STORE_BUILT files=" + Object.keys(files).length);
-          ' "$tree" "$work/files" "$work/store.sqlite" 2>&1 | grep -E '^HISTORY_STORE_BUILT' || { echo "::error::store build failed"; exit 1; }
+          ' "$tree" "$work/files" "$work/store.sqlite" 2>&1)"
+          printf '%s\n' "$built" | grep -E '^HISTORY_STORE_BUILT' || { printf '%s\n' "$built" | grep -m1 -E 'Error' | cut -c1-160; echo "::error::store build failed"; exit 1; }
           # Windows are fixed here (historical, never the host file). Only `discover` runs; the hold-back is not read by it.
           res="$(NUSA_SOURCE_COMMIT_SHA="$SOURCE_SHA" ionice -c3 nice -n19 node --max-old-space-size=512 "$tree/scripts/run-history-mining.js" discover --db "$work/store.sqlite" \
             --discovery-start 2021-12-20T00:00:00.000Z --discovery-end 2023-06-30T00:00:00.000Z --holdback-start 2023-07-05T00:00:00.000Z --holdback-end 2024-10-31T23:00:00.000Z 2>&1)"
           status=$?
-          key="$(printf '%s\n%s\n' "$out" "$res" | grep -E '^(HISTORY_MANIFEST_SHA256|HISTORY_MINING_DISCOVER|HISTORY_MINING_FREEZE|HISTORY_MINING_ERROR)')"
+          key="$(printf '%s\n%s\n%s\n' "HISTORY_NODE_VERSION $nodev" "$out" "$res" | grep -E '^(HISTORY_NODE_VERSION|HISTORY_MANIFEST_SHA256|HISTORY_MINING_DISCOVER|HISTORY_MINING_FREEZE|HISTORY_MINING_ERROR)')"
           printf '%s\n' "$key"
           body="$(printf '%s' "${key:0:12000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
           echo "::notice title=history-discover status=${status}::${body}"
