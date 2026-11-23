@@ -29,9 +29,9 @@ function makeDb({ markets, phi = {}, seed = 1, from = CUT - 60 * DAY, to = CUT, 
   });
   return db;
 }
-const ALL = ["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"];
+const ALL = ["KRW-BTC", "KRW-ETH", "KRW-NEAR", "KRW-SOL", "KRW-XRP"];
 const windows = { discoveryStart: CUT - 50 * DAY, discoveryEnd: CUT - 20 * DAY, holdbackStart: CUT - 15 * DAY, holdbackEnd: CUT - 1 * H };
-const mr = { "KRW-BTC": -0.5, "KRW-DOGE": -0.5, "KRW-ETH": -0.5, "KRW-SOL": -0.5, "KRW-XRP": -0.5 };
+const mr = { "KRW-BTC": -0.5, "KRW-ETH": -0.5, "KRW-NEAR": -0.5, "KRW-SOL": -0.5, "KRW-XRP": -0.5 };
 
 test("the grid is fixed: 128 rules, none duplicating a pre-registered signal, with a printed fingerprint", () => {
   assert.equal(mining.RULES.length, 128);

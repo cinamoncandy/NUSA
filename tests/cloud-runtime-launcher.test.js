@@ -169,10 +169,10 @@ test("the owner PAPER markets file sets the trading and research markets over th
   const owner = readOwnerPaperMarkets();
   assert.deepEqual([...owner.markets], ["KRW-XRP"], "owner decision 2026-10-03: XRP first");
   assert.ok(OWNER_PAPER_MARKETS_FILE.endsWith(path.join("deploy", "oracle", "paper-markets.json")));
-  const host = { NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-DOGE", NUSA_RESEARCH_MARKETS: "KRW-BTC" };
+  const host = { NUSA_CLOUD_UPBIT_MARKETS: "KRW-BTC,KRW-ETH,KRW-XRP,KRW-SOL,KRW-NEAR", NUSA_RESEARCH_MARKETS: "KRW-BTC" };
   const { env, applied } = build(host, TOKEN, null, owner);
   assert.equal(env.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP");
-  assert.equal(env.NUSA_RESEARCH_MARKETS, "KRW-XRP,KRW-BTC,KRW-ETH,KRW-SOL,KRW-DOGE", "owner decision 2026-11-19: five research markets");
+  assert.equal(env.NUSA_RESEARCH_MARKETS, "KRW-XRP,KRW-BTC,KRW-ETH,KRW-SOL,KRW-NEAR", "owner decision 2026-11-19: five research markets");
   assert.ok(applied.includes("NUSA_CLOUD_UPBIT_MARKETS") && applied.includes("NUSA_RESEARCH_MARKETS"));
   assert.equal(build({}, TOKEN, null, null).env.NUSA_CLOUD_UPBIT_MARKETS, undefined, "no file, nothing applied");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-markets-"));
@@ -237,7 +237,7 @@ test("the owner markets file can widen only the research collection: the PAPER f
   const { readOwnerPaperMarkets, buildRuntimeEnv: build } = require("../scripts/start-cloud-runtime.js");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "owner-markets-research-"));
   const write = (value) => { const f = path.join(dir, "m.json"); fs.writeFileSync(f, JSON.stringify(value)); return f; };
-  const five = ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"];
+  const five = ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-NEAR"];
 
   const widened = readOwnerPaperMarkets(write({ schemaVersion: 1, markets: ["KRW-XRP"], researchMarkets: five }));
   assert.deepEqual([...widened.researchMarkets], five);
@@ -256,7 +256,7 @@ test("the owner markets file can widen only the research collection: the PAPER f
   const current = readOwnerPaperMarkets();
   const currentEnv = build({}, TOKEN, null, current).env;
   assert.equal(currentEnv.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP", "the PAPER trading feed never widens");
-  assert.equal(currentEnv.NUSA_RESEARCH_MARKETS, "KRW-XRP,KRW-BTC,KRW-ETH,KRW-SOL,KRW-DOGE");
+  assert.equal(currentEnv.NUSA_RESEARCH_MARKETS, "KRW-XRP,KRW-BTC,KRW-ETH,KRW-SOL,KRW-NEAR");
   assert.equal(currentEnv.NUSA_RESEARCH_EXPERIMENT_MARKETS, "KRW-XRP", "experiments never widen with the collection");
   // A polluted host environment cannot widen experiments: with a file without researchMarkets the host value is removed.
   const plain = readOwnerPaperMarkets(write({ schemaVersion: 1, markets: ["KRW-XRP"] }));

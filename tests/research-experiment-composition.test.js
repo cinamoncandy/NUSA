@@ -961,7 +961,7 @@ test("five collected markets start no experiment on the new markets and leave th
     return { db, composition };
   };
   const baseline = build(["KRW-XRP"]);
-  const gated = build(["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"], "KRW-XRP");
+  const gated = build(["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-NEAR"], "KRW-XRP");
   try {
     assert.equal(baseline.composition.orchestrator.recover().status, "READY");
     assert.equal(gated.composition.orchestrator.recover().status, "READY");
@@ -971,17 +971,17 @@ test("five collected markets start no experiment on the new markets and leave th
     assert.equal(b.started, 10, "ten variant sessions, as before");
     assert.equal(b.experiments.length, 10);
     assert.equal(JSON.stringify(b.experiments), JSON.stringify(a.experiments), "every experiment identity and result is byte-identical to the XRP-only run");
-    for (const e of b.experiments) assert.ok(!/KRW-(BTC|ETH|SOL|DOGE)/.test(JSON.stringify(e)), "no new market in any experiment");
+    for (const e of b.experiments) assert.ok(!/KRW-(BTC|ETH|SOL|NEAR)/.test(JSON.stringify(e)), "no new market in any experiment");
     // Stored identity (review P2): the experiment rows (dataset, content hash, walk-forward config, result) and the status projection match too.
     const rows = (x) => x.db.connection.prepare("SELECT market, interval, dataset_id, content_sha256, walk_forward_config_json, result_json, hypothesis_id FROM research_experiment_records ORDER BY id").all();
     assert.ok(rows(baseline).length >= 10, "experiment rows exist");
     assert.equal(JSON.stringify(rows(gated)), JSON.stringify(rows(baseline)), "stored experiment rows are identical");
-    assert.ok(rows(gated).every((r) => r.dataset_id === "upbit-1m-closed:KRW-XRP:60000" && !/KRW-(BTC|ETH|SOL|DOGE)/.test(JSON.stringify(r))), "every stored experiment is on the XRP-only dataset");
+    assert.ok(rows(gated).every((r) => r.dataset_id === "upbit-1m-closed:KRW-XRP:60000" && !/KRW-(BTC|ETH|SOL|NEAR)/.test(JSON.stringify(r))), "every stored experiment is on the XRP-only dataset");
     assert.equal(JSON.stringify(gated.composition.orchestrator.statusProjection()), JSON.stringify(baseline.composition.orchestrator.statusProjection()), "status projection is identical");
     const second = gated.composition.tickOnce();
     assert.equal(second.started, 0);
     // Negative control: without the gate the same five markets would start an experiment per variant on every market.
-    const ungated = build(["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]);
+    const ungated = build(["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-NEAR"]);
     try {
       assert.equal(ungated.composition.orchestrator.recover().status, "READY");
       assert.equal(ungated.composition.tickOnce().experiments.length, 50, "without the gate every variant runs on every market (10 variants x 5 markets): the test would notice a missing gate");
@@ -995,6 +995,6 @@ test("the committed owner markets file, through the launcher, gives five collect
   assert.equal(launched.NUSA_CLOUD_UPBIT_MARKETS, "KRW-XRP", "the PAPER feed is not widened");
   const result = readResearchExperimentSettings(env({ NUSA_RESEARCH_MARKETS: launched.NUSA_RESEARCH_MARKETS, NUSA_RESEARCH_EXPERIMENT_MARKETS: launched.NUSA_RESEARCH_EXPERIMENT_MARKETS }));
   assert.equal(result.status, "ENABLED");
-  assert.deepEqual([...result.settings.markets], ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-DOGE"]);
+  assert.deepEqual([...result.settings.markets], ["KRW-XRP", "KRW-BTC", "KRW-ETH", "KRW-SOL", "KRW-NEAR"]);
   assert.deepEqual([...result.settings.experimentMarkets], ["KRW-XRP"]);
 });

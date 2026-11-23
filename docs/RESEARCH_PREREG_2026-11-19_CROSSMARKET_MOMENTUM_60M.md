@@ -62,3 +62,5 @@ Scope: PAPER research only. No order, no account, no runtime wiring, no limit ch
 
 ## 8. What this document does not do
 It does not change any experiment, gate, threshold, limit, capital, order switch or authority, does not start any run, writes no study code, and does not widen the experiment markets (`experimentMarkets` stays KRW-XRP).
+
+Amended 2026-11-22: DOGE replaced by NEAR, see docs/RESEARCH_PREREG_AMENDMENT_2026-11-22_NEAR_FOR_DOGE.md

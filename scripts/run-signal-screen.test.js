@@ -55,7 +55,7 @@ test("the span, the family and the constants are the ones in the pre-registratio
   assert.equal(S.SEED, 20261120); assert.equal(S.B, 10_000); assert.equal(S.K, 6); assert.equal(S.ALPHA, 0.02); assert.equal(S.BLOCK, 24);
   assert.equal(S.MIN_USABLE_HOURS, 600); assert.equal(S.MIN_COMPLETE_BARS, 152);
   assert.deepEqual(S.SIGNALS.map((x) => [x.name, x.s]), [["RET6", -1], ["RET24", 1], ["RET72", 1], ["VOL24", -1], ["SURGE", 1], ["RANGE", 1]]);
-  assert.deepEqual([...S.MARKETS], ["KRW-BTC", "KRW-DOGE", "KRW-ETH", "KRW-SOL", "KRW-XRP"]);
+  assert.deepEqual([...S.MARKETS], ["KRW-BTC", "KRW-ETH", "KRW-NEAR", "KRW-SOL", "KRW-XRP"]);
   const u = makeRandom(S.SEED);
   assert.deepEqual([u(), u(), u()], [0.33736467085460264, 0.38063347140274995, 0.34159181396718497]);
 });
@@ -162,7 +162,7 @@ test("waits until 2027-01-17T00:30Z and then reads values; counts only before", 
   const db = syntheticDb({ drift: noDrift });
   const early = S.runScreen({ db, now: ELIG_START + 3.5 * 24 * H });
   assert.equal(early.status, "WAITING_DATA"); assert.equal(early.daysCollected, 3);
-  assert.deepEqual(Object.keys(early).filter((k) => k.endsWith("Minutes")).sort(), ["btcMinutes", "dogeMinutes", "ethMinutes", "solMinutes", "xrpMinutes"]);
+  assert.deepEqual(Object.keys(early).filter((k) => k.endsWith("Minutes")).sort(), ["btcMinutes", "ethMinutes", "nearMinutes", "solMinutes", "xrpMinutes"]);
   for (const v of Object.values(early)) assert.ok(v === "WAITING_DATA" || Number.isSafeInteger(v));
   assert.equal(S.runScreen({ db, now: EARLIEST_RUN - 60_000 }).status, "WAITING_DATA");
 });

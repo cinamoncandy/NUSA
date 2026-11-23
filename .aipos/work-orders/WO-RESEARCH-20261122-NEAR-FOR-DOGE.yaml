@@ -1,0 +1,29 @@
+id: WO-RESEARCH-20261122-NEAR-FOR-DOGE
+title: "Research markets: KRW-NEAR replaces KRW-DOGE in the live research path"
+status: READY_FOR_REVIEW
+created: 2026-11-22
+owner_decision: "2026-11-22: replace KRW-DOGE with KRW-NEAR everywhere in the live research path. Reason: DOGE's collected 1m history has many holes (about 6,400 missing minutes vs BTC 318, ETH 459, SOL 1,329 per the candle extent of 2026-11-22); NEAR is more liquid (45-day mean about 29 billion KRW per day vs about 15 billion)."
+objective: "Keep five research markets, with a market whose history is complete enough to pass the studies' coverage bars, and record the change as a pre-result amendment."
+change:
+  - "deploy/oracle/paper-markets.json: researchMarkets last entry KRW-DOGE -> KRW-NEAR; researchMarketsDecidedAt 2026-11-22; note updated. markets and experimentMarkets stay KRW-XRP."
+  - "scripts/run-crossmarket-study.js, scripts/run-signal-screen.js: MARKETS (alphabetical: BTC, ETH, NEAR, SOL, XRP); signal screen coverage key nearMinutes."
+  - "scripts/run-history-mining.js: BLIND_MARKETS BTC, ETH, NEAR, SOL (XRP stays discovery-only). GRID_FINGERPRINT does not bind markets, so no pin moved."
+  - "scripts/run-candle-extent-probe.js: NEAR keys (NEARRows ...). The diagnosis projection in .github/workflows/oracle-host-diagnose.yml is generic and needs no change."
+  - "Tests updated: tests/cloud-runtime-launcher.test.js, tests/research-experiment-composition.test.js, tests/run-history-mining.test.js, tests/run-history-mining-discover.test.js, scripts/run-crossmarket-study.test.js, scripts/run-signal-screen.test.js, scripts/run-candle-extent-probe.test.js."
+  - "docs/RESEARCH_PREREG_AMENDMENT_2026-11-22_NEAR_FOR_DOGE.md (pre-result amendment, fingerprint and data-clock analysis); one dated pointer line appended to the four original study documents."
+not_changed:
+  - "No order, limit, capital, threshold, risk gate, experiment identity or hash, analysis plan, decision rule, seed or cost change; the reserved cut 2026-11-20T00:00Z stays; the history-mining windows are not touched (PR #3246)."
+  - "Historical or offline analyses (forward-regime-breakout, offline-*, fetch-futures-history, research-real-market-run) and the apps/cloud/src/runtime.ts comment are untouched."
+  - "No host release is done here. Release plan: ships with the host release of 2026-11-23 (before the 2026-11-24T06:00Z freeze); NEAR is backfilled by the existing NUSA_RESEARCH_BACKFILL_DAYS=45 at restart."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "That NEAR order-book samples and complete bars exist for the cross-market training hours from 2026-11-21 (not checked on the host); the real extent of NEAR's backfill; behaviour on the host after the release; CI on the pushed head."
+acceptance:
+  - "Independent non-author review; exact-head CI; owner-approved host release on 2026-11-23; after the release the candle extent shows NEARRows growing and DOGE no longer probed."
+  - "The first diagnosis after the release is read for the NEAR coverageMinutes of the cross-market study next to the other markets; the owner is told if NEAR is behind (it may be ineligible without order-book samples)."
+  - "The independent review of 2026-11-22 found no P1; its P2 points (state the NEAR eligibility risk plainly, say that the owner decision overrides the word fixed, add the pointer to the market expansion design) are applied."
