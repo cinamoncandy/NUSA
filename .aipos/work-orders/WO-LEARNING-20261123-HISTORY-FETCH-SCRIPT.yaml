@@ -15,6 +15,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "Upbit API rate limits and the exact 'to' boundary semantics were not exercised against the real API (synthetic fake only); the first real fetch is a later reviewed step that must start by checking this on counts and timestamps only."
+unverified: "Independent review fixed: window ends now include the 24 h exit tail (discovery to 2023-07-02, hold-back to 2024-11-02, candle starts exclusive), leading-gap guard, per-page order check, network retry, output-dir guard and non-empty refusal. Upbit API rate limits and the exact 'to' boundary semantics were not exercised against the real API (synthetic fake only); the first real fetch is a later reviewed step that must start by checking this on counts and timestamps only."
 acceptance:
   - "Independent non-author review; unit tests pass; merged before any fetch."

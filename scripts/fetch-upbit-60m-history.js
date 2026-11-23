@@ -17,11 +17,13 @@ const path = require("node:path");
 const BASE = "https://api.upbit.com";
 const HOUR_MS = 3_600_000;
 const MAX_MISSING_SHARE = 0.10;
+const MAX_LEADING_GAP_MS = 7 * 24 * HOUR_MS; // a market whose first candle comes later than this after the window start is not usable for it
 const HEADER = "startMs,open,high,low,close,volume\n";
 // Candle start times, [from, to) in UTC. Discovery and hold-back are separate files; the 96 h purge between them is never fetched.
+// Each `to` lies 24 h past the window end (2023-06-30 / 2024-10-31 plus the exit tail the loader reads), so closes through window end + 24 h exist.
 const WINDOWS = Object.freeze({
-  discovery: Object.freeze({ from: Date.parse("2021-12-20T00:00:00Z"), to: Date.parse("2023-07-01T00:00:00Z") }),
-  holdback: Object.freeze({ from: Date.parse("2023-07-05T00:00:00Z"), to: Date.parse("2024-11-01T00:00:00Z") }),
+  discovery: Object.freeze({ from: Date.parse("2021-12-20T00:00:00Z"), to: Date.parse("2023-07-02T00:00:00Z") }),
+  holdback: Object.freeze({ from: Date.parse("2023-07-05T00:00:00Z"), to: Date.parse("2024-11-02T00:00:00Z") }),
 });
 const MARKETS = Object.freeze({
   "KRW-BTC": ["discovery", "holdback"], "KRW-ETH": ["discovery", "holdback"], "KRW-SOL": ["discovery", "holdback"],
@@ -32,9 +34,11 @@ class HistoryError extends Error { constructor(code) { super(code); this.name = 
 
 async function getJson(fetchImpl, pathAndQuery, sleep) {
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    const response = await fetchImpl(`${BASE}${pathAndQuery}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) });
-    if (response.ok) return response.json();
-    if (response.status !== 429 && response.status < 500) throw new HistoryError(`HTTP_${response.status}`);
+    let response;
+    try { response = await fetchImpl(`${BASE}${pathAndQuery}`, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(20_000) }); } catch { response = null; }
+    if (response?.ok) { try { return await response.json(); } catch { response = null; } }
+    // 4xx other than 429 is final (never retried, never worked around); network errors, bad JSON, 429 and 5xx are retried.
+    if (response != null && !response.ok && response.status !== 429 && response.status < 500) throw new HistoryError(`HTTP_${response.status}`);
     await sleep(1000 * 2 ** attempt);
   }
   throw new HistoryError("HTTP_RETRY_EXHAUSTED");
@@ -52,7 +56,7 @@ async function fetchWindow(market, win, deps) {
     const data = await getJson(deps.fetchImpl, `/v1/candles/minutes/60?market=${market}&to=${encodeURIComponent(isoZ(cursor))}&count=200`, deps.sleep);
     if (!Array.isArray(data)) throw new HistoryError("CANDLES_INVALID");
     if (data.length === 0) break;
-    let last = Infinity;
+    let last = cursor; // every page must lie strictly before the previous page
     for (const r of data) {
       const start = Date.parse(`${r?.candle_date_time_utc}Z`);
       const [o, h, l, c] = [r?.opening_price, r?.high_price, r?.low_price, r?.trade_price].map(num);
@@ -72,6 +76,7 @@ async function fetchWindow(market, win, deps) {
   }
   if (byStart.size === 0) throw new HistoryError("WINDOW_EMPTY");
   const starts = [...byStart.keys()].sort((a, b) => a - b);
+  if (starts[0] - win.from > MAX_LEADING_GAP_MS) throw new HistoryError("FIRST_CANDLE_TOO_LATE_IN_WINDOW");
   const listedHours = (win.to - starts[0]) / HOUR_MS; // the listed span starts at the first candle that exists in the window
   const missingHours = listedHours - starts.length;
   if (missingHours / listedHours > MAX_MISSING_SHARE) throw new HistoryError("MISSING_SHARE_TOO_HIGH");
@@ -106,7 +111,18 @@ function verify(fresh, committed) {
   return { ok: JSON.stringify(m.files) === JSON.stringify(committed.files) && JSON.stringify(m.windows) === JSON.stringify(committed.windows) };
 }
 
+function assertOutsideRepository(outDir) {
+  const repoRoot = fs.realpathSync(path.resolve(__dirname, ".."));
+  let probe = path.resolve(outDir);
+  while (!fs.existsSync(probe)) probe = path.dirname(probe);
+  const real = path.join(fs.realpathSync(probe), path.relative(probe, path.resolve(outDir)));
+  const rel = path.relative(repoRoot, real);
+  if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) throw new HistoryError("OUT_DIR_MUST_BE_OUTSIDE_THE_REPOSITORY");
+}
+
 function write(outDir, { files, manifest }) {
+  assertOutsideRepository(outDir);
+  if (fs.existsSync(outDir) && fs.readdirSync(outDir).length > 0) throw new HistoryError("OUT_DIR_NOT_EMPTY");
   fs.mkdirSync(outDir, { recursive: true });
   for (const [name, text] of Object.entries(files)) fs.writeFileSync(path.join(outDir, name), text);
   fs.writeFileSync(path.join(outDir, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
@@ -141,13 +157,14 @@ function buildStore(dbPath, files) {
   } catch (error) { db.exec("ROLLBACK"); throw error; } finally { db.close(); }
 }
 
-module.exports = { fetchHistory, verify, write, toStoreRows, buildStore, HistoryError, WINDOWS, MARKETS, HOUR_MS };
+module.exports = { fetchHistory, verify, write, toStoreRows, buildStore, assertOutsideRepository, HistoryError, WINDOWS, MARKETS, HOUR_MS };
 
 if (require.main === module) {
   (async () => {
     try {
       const outDir = process.argv[2];
-      if (!outDir || path.resolve(outDir).startsWith(path.resolve(__dirname, ".."))) throw new HistoryError("OUT_DIR_MUST_BE_OUTSIDE_THE_REPOSITORY");
+      if (!outDir) throw new HistoryError("OUT_DIR_REQUIRED");
+      assertOutsideRepository(outDir);
       const result = await fetchHistory();
       write(outDir, result);
       for (const [name, f] of Object.entries(result.manifest.files)) console.log(`HISTORY_FILE ${name} rows=${f.rows} missingShare=${f.missingShare} sha256=${f.sha256}`);
