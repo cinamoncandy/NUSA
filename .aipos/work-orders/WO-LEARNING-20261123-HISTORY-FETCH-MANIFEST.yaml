@@ -1,0 +1,19 @@
+id: WO-LEARNING-20261123-HISTORY-FETCH-MANIFEST
+title: "Offline-history mining step (c): committed manifest of the Upbit 60m history fetch (hashes, counts, timestamps; no price)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+objective: "Record the result of the first real fetch (History Fetch Freeze run 45194702415, script sha256 9e5ab2ee..., source 1e64235b7) before any evaluation reads the data, so a later fetch can be verified against it."
+change:
+  - "docs/research-data/history-mining-upbit-60m-manifest-2026-11-23.json (new): per market and window SHA-256, rows, first/last candle start, listed and missing hours, missing share."
+not_changed:
+  - "No candle value was read or printed; the files were deleted on the host. No host service, release, gate, threshold, limit, capital or authority change. No mining script, windows config or freeze record yet."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Hash reproducibility (a second fetch) is not yet shown; the timestamp-convention check on already-read days (design section 4 rule 4) is not yet done. Missing shares are 0.13 to 0.23 percent per file, far under the 10 percent abort rule; no rule was changed."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot."

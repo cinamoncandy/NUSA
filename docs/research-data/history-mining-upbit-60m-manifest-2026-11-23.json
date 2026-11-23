@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "source": "upbit-public-60m",
+  "fetchedBy": "workflow History Fetch Freeze run 45194702415 on the PAPER host, 2026-11-23T14:29Z",
+  "sourceSha": "1e64235b7ed9a0c87738fa5ce98ab2041b87e6bb",
+  "scriptSha256": "9e5ab2ee5f7e0f8bcdbf5b46391230b47f83785d9f3dde6a97bf61531d37631f",
+  "manifestSha256": "16274426370e8a713c7e20d67c0ce27426a43aedb12eae70af5bb8e8e73e0a82",
+  "windowsCandleStartUtc": {
+    "discovery": [
+      "2021-12-20T00:00:00Z",
+      "2023-07-02T00:00:00Z"
+    ],
+    "holdback": [
+      "2023-07-05T00:00:00Z",
+      "2024-11-02T00:00:00Z"
+    ]
+  },
+  "note": "Counts, timestamps and hashes only; no price. The CSV files were deleted on the host. A later fetch must reproduce these hashes (closed bars are immutable) before any evaluation reads the data. The hold-back file hashes were recorded before any analysis; the one look needs a committed freeze record and the owner's word.",
+  "files": {
+    "KRW-BTC_discovery_60m.csv": {
+      "sha256": "c1ac2510cef1846e04c8846760780cec5d624363593fd236ac7ca535f4620545",
+      "rows": 13398,
+      "firstStartMs": 1639958400000,
+      "lastStartMs": 1688252400000,
+      "listedHours": 13416,
+      "missingHours": 18,
+      "missingShare": 0.0013
+    },
+    "KRW-BTC_holdback_60m.csv": {
+      "sha256": "5a4111e89070f8016d97dbce9c90f83d8dc4e04abc53751987a391b5517d0d95",
+      "rows": 11640,
+      "firstStartMs": 1688515200000,
+      "lastStartMs": 1730502000000,
+      "listedHours": 11664,
+      "missingHours": 24,
+      "missingShare": 0.0021
+    },
+    "KRW-ETH_discovery_60m.csv": {
+      "sha256": "b026689080190c3df043764e6b125f49df9eaf8ad7214a70304463c37a60564f",
+      "rows": 13398,
+      "firstStartMs": 1639958400000,
+      "lastStartMs": 1688252400000,
+      "listedHours": 13416,
+      "missingHours": 18,
+      "missingShare": 0.0013
+    },
+    "KRW-ETH_holdback_60m.csv": {
+      "sha256": "0dd3ba20b34f6a59bf74681ad339377b1530b306e0e7ec765b6888f7bedbe671",
+      "rows": 11640,
+      "firstStartMs": 1688515200000,
+      "lastStartMs": 1730502000000,
+      "listedHours": 11664,
+      "missingHours": 24,
+      "missingShare": 0.0021
+    },
+    "KRW-NEAR_discovery_60m.csv": {
+      "sha256": "17ce8a481e2f23a264a972748dbb14945bcbf571f1cda726f311e318e1cf0c5e",
+      "rows": 13395,
+      "firstStartMs": 1639958400000,
+      "lastStartMs": 1688252400000,
+      "listedHours": 13416,
+      "missingHours": 21,
+      "missingShare": 0.0016
+    },
+    "KRW-NEAR_holdback_60m.csv": {
+      "sha256": "9030baeadc3791560055dfc47f481d8b5c991e2d64615f14e9a275c6e6bb51fc",
+      "rows": 11637,
+      "firstStartMs": 1688515200000,
+      "lastStartMs": 1730502000000,
+      "listedHours": 11664,
+      "missingHours": 27,
+      "missingShare": 0.0023
+    },
+    "KRW-SOL_discovery_60m.csv": {
+      "sha256": "5beff97a8a5a67888a65586d97e5d48bbf458544d955b303998d600317d837c7",
+      "rows": 13398,
+      "firstStartMs": 1639958400000,
+      "lastStartMs": 1688252400000,
+      "listedHours": 13416,
+      "missingHours": 18,
+      "missingShare": 0.0013
+    },
+    "KRW-SOL_holdback_60m.csv": {
+      "sha256": "415bb07d1c1c1c86794c4174ae2d5953d3ee949a9dbe7a3caaee805167a07065",
+      "rows": 11640,
+      "firstStartMs": 1688515200000,
+      "lastStartMs": 1730502000000,
+      "listedHours": 11664,
+      "missingHours": 24,
+      "missingShare": 0.0021
+    },
+    "KRW-XRP_discovery_60m.csv": {
+      "sha256": "0eb3d28730a8d7658849f9f809877634a957b5021cc5caa14f2523ceef91bd4b",
+      "rows": 13397,
+      "firstStartMs": 1639958400000,
+      "lastStartMs": 1688252400000,
+      "listedHours": 13416,
+      "missingHours": 19,
+      "missingShare": 0.0014
+    }
+  }
+}
