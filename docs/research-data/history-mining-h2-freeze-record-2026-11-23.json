@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "HISTORY_MINING_H2_FREEZE_RECORD",
-  "note": "Committed BEFORE the one look at the hold-back (2023-07-05..2024-10-31T23:00Z). Produced by workflow History Fetch Discover run 45290313899 on the PAPER host (source aa2767cf2, manifest 16274426...0a82 reproduced). Discovery used only 2021-12-20..2023-06-30; the hold-back was never loaded. The look needs the owner's explicit word; lookedAt stays null until then.",
+  "note": "Committed BEFORE the one look at the hold-back (2023-07-05..2024-10-31T23:00Z). Produced by workflow History Discover Freeze run 45290313899 on the PAPER host (source aa2767cf2, manifest 16274426...0a82 reproduced). Discovery used only 2021-12-20..2023-06-30; the hold-back was never loaded. The look needs the owner's explicit word; lookedAt stays null until then.",
   "run": {
     "workflow": "history-discover-freeze.yml",
     "runId": 45290313899,
