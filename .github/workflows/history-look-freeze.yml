@@ -1,0 +1,124 @@
+name: History Look Freeze
+
+# The ONE look of the H2 history mining (docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md; freeze record
+# docs/research-data/history-mining-h2-freeze-record-2026-11-23.json, committed before this workflow existed). Dispatch by hand only, and ONLY on the
+# owner's explicit word: the dispatch input `confirm_one_look` must equal the fixed sentence below. NOT a release: no service restart or change.
+# It downloads the reviewed scripts and the committed freeze record at a pinned `source_sha` (scripts and record also pinned by SHA-256), re-fetches the
+# pre-registered Upbit 60m history into a per-run temp directory, aborts unless the fresh manifest hash equals the committed one, builds a temporary SQLite
+# store and runs `run-history-mining.js look` exactly once with the frozen record (lookedAt null). It refuses to run if any earlier run of this workflow
+# succeeded (the look is spent once the LOOK line was printed; a later run could only repeat it). The annotation shows the LOOK line only: aggregate
+# statistics per frozen rule (n, mean net, excess over baseline, p-values, sign tables, break-even cost); no candle value. Everything is deleted on exit.
+# No API key, no order, no checkout, no third-party action. PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Full 40-hex commit sha on main that contains the scripts and the committed freeze record"
+        required: true
+        type: string
+      mining_sha256:
+        description: "SHA-256 (64 hex) of scripts/run-history-mining.js at source_sha"
+        required: true
+        type: string
+      fetch_sha256:
+        description: "SHA-256 (64 hex) of scripts/fetch-upbit-60m-history.js at source_sha"
+        required: true
+        type: string
+      expect_manifest_sha256:
+        description: "SHA-256 (64 hex) of the committed fetch manifest; the run aborts if the fresh fetch differs"
+        required: true
+        type: string
+      freeze_file_sha256:
+        description: "SHA-256 (64 hex) of docs/research-data/history-mining-h2-freeze-record-2026-11-23.json at source_sha"
+        required: true
+        type: string
+      confirm_one_look:
+        description: "Must be exactly: OWNER-WORD-ONE-LOOK-H2-2026-11-23"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: history-look-freeze
+  cancel-in-progress: false
+
+jobs:
+  look:
+    name: The one look at the frozen H2 hold-back
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      MINING_SHA256: ${{ inputs.mining_sha256 }}
+      FETCH_SHA256: ${{ inputs.fetch_sha256 }}
+      EXPECT_MANIFEST_SHA256: ${{ inputs.expect_manifest_sha256 }}
+      FREEZE_FILE_SHA256: ${{ inputs.freeze_file_sha256 }}
+      CONFIRM: ${{ inputs.confirm_one_look }}
+      WORKFLOW_FILE: history-look-freeze.yml
+      RUN_ID: ${{ github.run_id }}
+      GH_READ_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Check the owner confirmation, download pinned scripts and the freeze record, fetch, verify, look once, print the LOOK line, delete everything
+        shell: bash
+        run: |
+          set +e
+          # The owner's explicit word, as a fixed sentence (whole-value match).
+          [[ $CONFIRM == "OWNER-WORD-ONE-LOOK-H2-2026-11-23" ]] || { echo "::error::the owner confirmation sentence is missing or wrong; no look was run"; exit 1; }
+          [[ $SOURCE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
+          for v in "$MINING_SHA256" "$FETCH_SHA256" "$EXPECT_MANIFEST_SHA256" "$FREEZE_FILE_SHA256"; do
+            [[ $v =~ ^[0-9a-f]{64}$ ]] || { echo "::error::a sha256 input must be 64 lowercase hex"; exit 1; }
+          done
+          # One look only: refuse if an earlier run of this workflow already succeeded (the look is spent once a LOOK line was printed).
+          prior="$(curl -fsS --max-time 60 -H "Authorization: Bearer $GH_READ_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/$WORKFLOW_FILE/runs?status=success&per_page=1" | node -e 'let t="";process.stdin.on("data",d=>t+=d).on("end",()=>{try{console.log(String(JSON.parse(t).total_count))}catch{console.log("ERR")}})')"
+          [[ $prior =~ ^[0-9]+$ ]] || { echo "::error::could not read the earlier runs of this workflow; no look was run"; exit 1; }
+          [ "$prior" = "0" ] || { echo "HISTORY_LOOK_REFUSED earlier_successful_runs=$prior"; echo "::error::the one look is already spent"; exit 1; }
+          tree="$(mktemp -d "$RUNNER_TEMP/history-look-tree.XXXXXX")" || exit 1
+          work="$(mktemp -d "$RUNNER_TEMP/history-look-work.XXXXXX")" || exit 1
+          trap 'rm -rf "$tree" "$work"' EXIT
+          mkdir -p "$tree/scripts/lib" "$tree/docs/research-data" || exit 1
+          for f in scripts/run-history-mining.js scripts/fetch-upbit-60m-history.js scripts/run-crossmarket-study.js scripts/lib/orderBookSource.js docs/research-data/history-mining-h2-freeze-record-2026-11-23.json; do
+            curl -fsS --max-time 60 -H "Authorization: Bearer $GH_READ_TOKEN" -H "Accept: application/vnd.github.raw+json" \
+              "https://api.github.com/repos/$REPO/contents/$f?ref=$SOURCE_SHA" -o "$tree/$f" || { echo "::error::could not download $f"; exit 1; }
+          done
+          [ "$(sha256sum "$tree/scripts/run-history-mining.js" | cut -d' ' -f1)" = "$MINING_SHA256" ] || { echo "::error::mining script hash mismatch"; exit 1; }
+          [ "$(sha256sum "$tree/scripts/fetch-upbit-60m-history.js" | cut -d' ' -f1)" = "$FETCH_SHA256" ] || { echo "::error::fetch script hash mismatch"; exit 1; }
+          [ "$(sha256sum "$tree/docs/research-data/history-mining-h2-freeze-record-2026-11-23.json" | cut -d' ' -f1)" = "$FREEZE_FILE_SHA256" ] || { echo "::error::freeze record hash mismatch"; exit 1; }
+          unset GH_READ_TOKEN  # nothing below needs the token; the unpinned helper scripts must not see it
+          # The frozen record: the `.freeze` object of the committed file, lookedAt must be null.
+          node -e '
+            const fs = require("node:fs"); const r = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+            if (!r.freeze || r.freeze.lookedAt !== null || r.freeze.study !== "HISTORY_MINING_V1") { console.error("freeze record not usable"); process.exit(1); }
+            fs.writeFileSync(process.argv[2], JSON.stringify(r.freeze));
+          ' "$tree/docs/research-data/history-mining-h2-freeze-record-2026-11-23.json" "$work/freeze.json" || { echo "::error::freeze record not usable"; exit 1; }
+          nodev="$(node -v 2>&1 | cut -c1-20)"; echo "HISTORY_NODE_VERSION $nodev"
+          out="$(ionice -c3 nice -n19 node "$tree/scripts/fetch-upbit-60m-history.js" "$work/files" 2>&1)"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            printf '%s\n' "$out" | grep -E '^HISTORY_FETCH_FAILED' ; echo "::error::fetch failed closed; no look was run"; exit "$status"
+          fi
+          got="$(printf '%s\n' "$out" | sed -n 's/^HISTORY_MANIFEST_SHA256 //p' | tail -1)"
+          [ "$got" = "$EXPECT_MANIFEST_SHA256" ] || { echo "HISTORY_MANIFEST_MISMATCH got=$got"; echo "::error::manifest hash differs from the committed one; no look was run"; exit 1; }
+          echo "HISTORY_MANIFEST_REPRODUCED $got"
+          built="$(node -e '
+            const fs = require("node:fs"); const path = require("node:path");
+            const { buildStore } = require(path.join(process.argv[1], "scripts", "fetch-upbit-60m-history.js"));
+            const dir = process.argv[2]; const files = {};
+            for (const n of fs.readdirSync(dir)) if (n.endsWith("_60m.csv")) files[n] = fs.readFileSync(path.join(dir, n), "utf8");
+            buildStore(process.argv[3], files); console.log("HISTORY_STORE_BUILT files=" + Object.keys(files).length);
+          ' "$tree" "$work/files" "$work/store.sqlite" 2>&1)"
+          printf '%s\n' "$built" | grep -E '^HISTORY_STORE_BUILT' || { printf '%s\n' "$built" | grep -m1 -E 'Error' | cut -c1-160; echo "::error::store build failed; no look was run"; exit 1; }
+          # THE ONE LOOK: the frozen record, once. The record fixes the windows, the shortlist and the thresholds.
+          res="$(NUSA_SOURCE_COMMIT_SHA="$SOURCE_SHA" ionice -c3 nice -n19 node --max-old-space-size=512 "$tree/scripts/run-history-mining.js" look --db "$work/store.sqlite" --freeze "$work/freeze.json" 2>&1)"
+          status=$?
+          key="$(printf '%s\n%s\n' "HISTORY_NODE_VERSION $nodev" "$res" | grep -E '^(HISTORY_NODE_VERSION|HISTORY_MINING_LOOK|HISTORY_MINING_ERROR)')"
+          printf '%s\n' "$key"
+          body="$(printf '%s' "${key:0:60000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=history-look status=${status}::${body}"
+          # The look is spent once the LOOK line was printed, whatever the exit status (so a re-run cannot repeat it).
+          printf '%s\n' "$key" | grep -q '^HISTORY_MINING_LOOK ' && exit 0
+          exit "$status"
