@@ -123,7 +123,7 @@ test("too little data is reported, not guessed; the printed result carries aggre
   const db = makeDb({ markets: ALL, phi: mr, seed: 9 });
   const found = mining.discover({ db, windows });
   const keys = new Set(Object.keys(found));
-  for (const k of keys) assert.ok(["status", "gridFingerprint", "trials", "usableDecisionHours", "eligibleRules", "positiveMeanRules", "windows", "shortlist", "thresholds"].includes(k), k);
+  for (const k of keys) assert.ok(["status", "gridFingerprint", "trials", "usableDecisionHours", "perMarketUsableHours", "eligibleRules", "positiveMeanRules", "windows", "shortlist", "thresholds"].includes(k), k);
   for (const s of found.shortlist) assert.deepEqual(Object.keys(s).sort(), ["id", "meanNet", "meanStress", "n", "unresolved"]);
 });
 
@@ -176,7 +176,9 @@ test("one-position-per-market logic: a rule never re-enters before its exit; a t
   closes.delete(9 * H); // the exit close of an entry at hour 5 is missing
   const { trades, unresolved } = mining.tradesFor(rule, rows, closes, thresholds);
   const entries = trades.map((x) => x.t / H);
-  assert.deepEqual(entries, [0, 4, 8].filter((h) => closes.has((h + 4) * H)), "entries 4 hours apart; no overlap");
+  // next-close entry: decision 0 enters at hour 1 and exits at hour 5; the next decision is at hour 4 (entry = hour 5 = the exit close), but its exit close 9 is missing, so decision 5 trades (entry 6, exit 10)
+  assert.deepEqual(entries, [0, 5], "decisions hold hours apart; the entry is the next close; no overlap");
+  assert.ok(trades.every((x) => Math.abs(x.gross - (closes.get(x.t + H + 4 * H) / closes.get(x.t + H) - 1)) < 1e-12), "gross is entry close (t + 1 h) to exit close (t + 1 h + hold)");
   assert.ok(unresolved >= 1, "the missing exit close is counted, not filled");
 });
 
@@ -191,7 +193,7 @@ test("the freeze record carries the source commit and its fingerprint binds it",
 });
 
 test("the PASS rule: enough trades, positive at the base cost AND the stress cost, p below alpha", () => {
-  const ok = { n: 60, meanNet: 0.002, meanStress: 0.0005, p: 0.004, alpha: 0.01 };
+  const ok = { n: 60, meanNet: 0.002, meanStress: 0.0005, p: 0.004, alpha: 0.01, excess: 0.001, pExcess: 0.004 };
   assert.equal(mining.passDecision(ok), true);
   assert.equal(mining.passDecision({ ...ok, n: 49 }), false, "too few trades");
   assert.equal(mining.passDecision({ ...ok, meanNet: 0 }), false, "no base edge");
@@ -199,4 +201,9 @@ test("the PASS rule: enough trades, positive at the base cost AND the stress cos
   assert.equal(mining.passDecision({ ...ok, meanStress: 0 }), false);
   assert.equal(mining.passDecision({ ...ok, p: 0.01 }), false, "p must be below alpha, not equal");
   assert.equal(mining.passDecision({ ...ok, p: 0.5 }), false);
+  assert.equal(mining.passDecision({ ...ok, excess: 0 }), false, "no excess over the unconditional baseline");
+  assert.equal(mining.passDecision({ ...ok, excess: -0.001 }), false);
+  assert.equal(mining.passDecision({ ...ok, pExcess: 0.01 }), false, "pExcess must be below alpha, not equal");
+  assert.equal(mining.passDecision({ ...ok, excess: undefined }), false, "a missing excess never passes");
+  assert.equal(mining.passDecision({ ...ok, pExcess: undefined }), false);
 });
