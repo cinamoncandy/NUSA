@@ -1,0 +1,22 @@
+id: WO-LEARNING-20261123-HISTORY-FETCH-HOST-WORKFLOW
+title: "Offline-history mining step (c) preparation: dispatch-only workflow that fetches and hashes the Upbit 60m history on the PAPER host (not a release)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+owner_decision: "2026-11-23: option A, run the real fetch on the PAPER host (Datascale)."
+objective: "Produce the committed manifest of SHA-256 hashes, row counts, first/last timestamps and missing shares for the pre-registered windows, without keeping any file on the host and without printing a price. Closed bars are immutable, so a later run must reproduce the hashes."
+change:
+  - ".github/workflows/history-fetch-freeze.yml (new; workflow_dispatch only; contents read; no checkout, no third-party action, no secret; downloads scripts/fetch-upbit-60m-history.js at a pinned source_sha and refuses it unless its SHA-256 equals the dispatch input; runs it with ionice/nice; files in a per-run temp directory removed on exit; annotation shows counts, missing shares and hashes only)."
+  - "scripts/fetch-upbit-60m-history.js: the CLI also prints one HISTORY_MANIFEST_FILES line (counts, first/last timestamps, missing hours and shares, hashes; no price)."
+  - "tests/history-fetch-freeze-workflow.test.js (new; static contract of the workflow)."
+not_changed:
+  - "No release, restart, service, env file, gate, threshold, limit, capital, order switch or authority change. Not run until reviewed and merged; the run is a separate owner-aware step."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Upbit rate limits, the 'to' boundary semantics and the host's Node version were not exercised; the first run is the test (it fails closed and keeps nothing). Host load: one request every 150 ms at idle priority for a few minutes on a 1 vCPU host."
+acceptance:
+  - "Independent non-author review; tests pass; merged before the run; the run happens before 2026-11-24T06:00Z or after 2026-11-28T06:00Z only if it is judged a host-touching step (it changes no service state)."
