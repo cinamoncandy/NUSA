@@ -1,5 +1,7 @@
 # Oracle PAPER Operations Runbook
 
+> **Naming note (2026-11-23):** The PAPER host now runs on Datascale (runner `nusa-paper-host-datascale`). The word "Oracle" in this document, in `deploy/oracle/`, in script names and in the workflow names `Oracle PAPER Release` and `Oracle Host Diagnose` is a legacy name kept on purpose: workflows and receipts find each other by these names, so they are not renamed. Read "Oracle host" as "the PAPER host".
+
 This runbook deploys the NUSA Cloud runtime to an Oracle Linux host while preserving the current PAPER/read-only safety boundary. It does **not** authorize LIVE trading, private broker mutation, credential expansion, automatic data restore, or Evidence mutation.
 
 ## Invariants

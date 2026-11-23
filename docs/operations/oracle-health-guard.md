@@ -1,5 +1,7 @@
 # Oracle PAPER health guard
 
+> **Naming note (2026-11-23):** The PAPER host now runs on Datascale (runner `nusa-paper-host-datascale`). The word "Oracle" in this document, in `deploy/oracle/`, in script names and in the workflow names `Oracle PAPER Release` and `Oracle Host Diagnose` is a legacy name kept on purpose: workflows and receipts find each other by these names, so they are not renamed. Read "Oracle host" as "the PAPER host".
+
 This document is the source-controlled recovery contract for the existing Oracle PAPER health watchdog. It does not create a second scheduler or control plane. The owner remains the single `nusa-health-guard.timer` / `nusa-health-guard.service` pair.
 
 ## Why this guard exists
