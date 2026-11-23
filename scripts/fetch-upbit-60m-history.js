@@ -168,6 +168,7 @@ if (require.main === module) {
       const result = await fetchHistory();
       write(outDir, result);
       for (const [name, f] of Object.entries(result.manifest.files)) console.log(`HISTORY_FILE ${name} rows=${f.rows} missingShare=${f.missingShare} sha256=${f.sha256}`);
+      console.log(`HISTORY_MANIFEST_FILES ${JSON.stringify(result.manifest.files)}`);
       console.log(`HISTORY_MANIFEST_SHA256 ${sha256(JSON.stringify(result.manifest.files))}`);
     } catch (error) {
       console.error("HISTORY_FETCH_FAILED_CLOSED", error instanceof HistoryError ? error.code : "ERROR");
