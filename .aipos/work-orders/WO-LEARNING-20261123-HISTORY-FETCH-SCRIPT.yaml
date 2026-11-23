@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261123-HISTORY-FETCH-SCRIPT
+title: "Offline-history mining step (b): Upbit 60m fetch script and SQLite builder (synthetic tests only, no real fetch)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+owner_decision: "2026-11-23 (H2): the design of docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md section 4 is implemented as a script before any fetch."
+objective: "Commit the fetch script before fetching (design section 4 rule 1). It fetches public Upbit 60m candles for the pre-registered windows, applies the hole policy, writes frozen files outside the repository plus a hash manifest, and maps them to the host store shape (close row at start + 1 h, interval_ms 60000, non-null checksum, nullable volume)."
+change:
+  - "scripts/fetch-upbit-60m-history.js (new) and scripts/fetch-upbit-60m-history.test.js (new; synthetic made-up series only)."
+not_changed:
+  - "No real fetch, no candle value read or printed, no host, release, window file, mining script, gate, threshold, limit, capital, order switch or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Upbit API rate limits and the exact 'to' boundary semantics were not exercised against the real API (synthetic fake only); the first real fetch is a later reviewed step that must start by checking this on counts and timestamps only."
+acceptance:
+  - "Independent non-author review; unit tests pass; merged before any fetch."
