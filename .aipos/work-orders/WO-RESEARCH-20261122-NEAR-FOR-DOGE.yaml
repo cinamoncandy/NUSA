@@ -25,3 +25,5 @@ authority_impact: none
 unverified: "That NEAR order-book samples and complete bars exist for the cross-market training hours from 2026-11-21 (not checked on the host); the real extent of NEAR's backfill; behaviour on the host after the release; CI on the pushed head."
 acceptance:
   - "Independent non-author review; exact-head CI; owner-approved host release on 2026-11-23; after the release the candle extent shows NEARRows growing and DOGE no longer probed."
+  - "The first diagnosis after the release is read for the NEAR coverageMinutes of the cross-market study next to the other markets; the owner is told if NEAR is behind (it may be ineligible without order-book samples)."
+  - "The independent review of 2026-11-22 found no P1; its P2 points (state the NEAR eligibility risk plainly, say that the owner decision overrides the word fixed, add the pointer to the market expansion design) are applied."

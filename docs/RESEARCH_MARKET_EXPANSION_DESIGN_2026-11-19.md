@@ -41,3 +41,5 @@ More markets with the same rule grids add configurations. The cumulative holdout
 ## 6. Not in this step
 
 No code, host, release, limit, threshold, capital, order switch or authority change. No experiment on the new markets, now or after step A. The PAPER trading feed stays `KRW-XRP`.
+
+Amended 2026-11-22: DOGE replaced by NEAR in the research markets, see docs/RESEARCH_PREREG_AMENDMENT_2026-11-22_NEAR_FOR_DOGE.md
