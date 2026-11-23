@@ -1,0 +1,97 @@
+name: History Discover Freeze
+
+# Step (e)/(f) of the offline-history mining design (docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md sections 3-5).
+# Dispatch by hand only. NOT a release: no service restart or change. On the PAPER host it downloads the reviewed scripts from this repository at a
+# pinned `source_sha` (run-history-mining.js and fetch-upbit-60m-history.js are also pinned by SHA-256), fetches the pre-registered public Upbit 60m
+# history into a per-run temp directory, checks that the manifest hash equals the committed one (`expect_manifest_sha256`), builds a temporary SQLite store
+# and runs ONLY the `discover` phase of the mining script with the fixed historical windows below (a SEPARATE config: never deploy/oracle/history-mining-windows.json).
+# `discover` reads only the discovery window; the hold-back is never loaded and the `look` phase is never invoked here: the one look stays a manual step
+# ordered by the owner after the freeze record is committed. Everything is deleted on exit. The annotation shows the DISCOVER and FREEZE lines (counts, rule ids,
+# discovery-window means and signal quantile thresholds; no candle value). No API key, no order, no checkout, no third-party action. PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Full 40-hex commit sha on main that contains the scripts"
+        required: true
+        type: string
+      mining_sha256:
+        description: "SHA-256 (64 hex) of scripts/run-history-mining.js at source_sha"
+        required: true
+        type: string
+      fetch_sha256:
+        description: "SHA-256 (64 hex) of scripts/fetch-upbit-60m-history.js at source_sha"
+        required: true
+        type: string
+      expect_manifest_sha256:
+        description: "SHA-256 (64 hex) of the committed fetch manifest; the run aborts if the fresh fetch differs"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: history-discover-freeze
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Fetch, verify and discover the pre-registered historical windows
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 45
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      MINING_SHA256: ${{ inputs.mining_sha256 }}
+      FETCH_SHA256: ${{ inputs.fetch_sha256 }}
+      EXPECT_MANIFEST_SHA256: ${{ inputs.expect_manifest_sha256 }}
+      GH_READ_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Download pinned scripts, fetch, verify the manifest, discover (read-only), print the lines, delete everything
+        shell: bash
+        run: |
+          set +e
+          # [[ =~ ]] matches the whole value (a multi-line input cannot pass on one good line, which grep -E would allow).
+          [[ $SOURCE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
+          for v in "$MINING_SHA256" "$FETCH_SHA256" "$EXPECT_MANIFEST_SHA256"; do
+            [[ $v =~ ^[0-9a-f]{64}$ ]] || { echo "::error::a sha256 input must be 64 lowercase hex"; exit 1; }
+          done
+          tree="$(mktemp -d "$RUNNER_TEMP/history-discover-tree.XXXXXX")" || exit 1
+          work="$(mktemp -d "$RUNNER_TEMP/history-discover-work.XXXXXX")" || exit 1
+          trap 'rm -rf "$tree" "$work"' EXIT
+          mkdir -p "$tree/scripts/lib" || exit 1
+          for f in scripts/run-history-mining.js scripts/fetch-upbit-60m-history.js scripts/run-crossmarket-study.js scripts/lib/orderBookSource.js; do
+            curl -fsS --max-time 60 -H "Authorization: Bearer $GH_READ_TOKEN" -H "Accept: application/vnd.github.raw+json" \
+              "https://api.github.com/repos/$REPO/contents/$f?ref=$SOURCE_SHA" -o "$tree/$f" || { echo "::error::could not download $f"; exit 1; }
+          done
+          [ "$(sha256sum "$tree/scripts/run-history-mining.js" | cut -d' ' -f1)" = "$MINING_SHA256" ] || { echo "::error::mining script hash mismatch"; exit 1; }
+          [ "$(sha256sum "$tree/scripts/fetch-upbit-60m-history.js" | cut -d' ' -f1)" = "$FETCH_SHA256" ] || { echo "::error::fetch script hash mismatch"; exit 1; }
+          unset GH_READ_TOKEN  # nothing below needs the token; the unpinned helper scripts must not see it
+          nodev="$(node -v 2>&1 | cut -c1-20)"; echo "HISTORY_NODE_VERSION $nodev"
+          out="$(ionice -c3 nice -n19 node "$tree/scripts/fetch-upbit-60m-history.js" "$work/files" 2>&1)"
+          status=$?
+          if [ "$status" -ne 0 ]; then
+            printf '%s\n' "$out" | grep -E '^HISTORY_FETCH_FAILED' ; echo "::error::fetch failed closed"; exit "$status"
+          fi
+          got="$(printf '%s\n' "$out" | sed -n 's/^HISTORY_MANIFEST_SHA256 //p' | tail -1)"
+          [ "$got" = "$EXPECT_MANIFEST_SHA256" ] || { echo "HISTORY_MANIFEST_MISMATCH got=$got"; echo "::error::manifest hash differs from the committed one"; exit 1; }
+          echo "HISTORY_MANIFEST_REPRODUCED $got"
+          built="$(node -e '
+            const fs = require("node:fs"); const path = require("node:path");
+            const { buildStore } = require(path.join(process.argv[1], "scripts", "fetch-upbit-60m-history.js"));
+            const dir = process.argv[2]; const files = {};
+            for (const n of fs.readdirSync(dir)) if (n.endsWith("_60m.csv")) files[n] = fs.readFileSync(path.join(dir, n), "utf8");
+            buildStore(process.argv[3], files); console.log("HISTORY_STORE_BUILT files=" + Object.keys(files).length);
+          ' "$tree" "$work/files" "$work/store.sqlite" 2>&1)"
+          printf '%s\n' "$built" | grep -E '^HISTORY_STORE_BUILT' || { printf '%s\n' "$built" | grep -m1 -E 'Error' | cut -c1-160; echo "::error::store build failed"; exit 1; }
+          # Windows are fixed here (historical, never the host file). Only `discover` runs; the hold-back is not read by it.
+          res="$(NUSA_SOURCE_COMMIT_SHA="$SOURCE_SHA" ionice -c3 nice -n19 node --max-old-space-size=512 "$tree/scripts/run-history-mining.js" discover --db "$work/store.sqlite" \
+            --discovery-start 2021-12-20T00:00:00.000Z --discovery-end 2023-06-30T00:00:00.000Z --holdback-start 2023-07-05T00:00:00.000Z --holdback-end 2024-10-31T23:00:00.000Z 2>&1)"
+          status=$?
+          key="$(printf '%s\n%s\n%s\n' "HISTORY_NODE_VERSION $nodev" "$out" "$res" | grep -E '^(HISTORY_NODE_VERSION|HISTORY_MANIFEST_SHA256|HISTORY_MINING_DISCOVER|HISTORY_MINING_FREEZE|HISTORY_MINING_ERROR)')"
+          printf '%s\n' "$key"
+          body="$(printf '%s' "${key:0:12000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=history-discover status=${status}::${body}"
+          exit "$status"
