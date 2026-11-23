@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261123-HISTORY-MINING-OFFLINE-HISTORY-DESIGN
+title: "History mining on years of public Upbit history: design proposal (docs only, no fetch, no value read)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+owner_decision: "2026-11-23 (owner question '과거 차트로 하면 안되나'): study using the past charts instead of waiting for 45 days of host data."
+objective: "Fix, before any value is fetched or read, which history is already read (not blind), which is unseen, the proposed splits (H2 time split, H1 unseen markets), the data-integrity steps and the decisions the owner must take."
+change:
+  - "docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md (new)."
+not_changed:
+  - "No code, fetch, host, release, window file (PR #3246 stays draft), gate, threshold, limit, capital, order switch or authority change. No candle value is read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The used-history table is read from the headers and notes of the frozen offline screens, not re-derived; the Upbit candle API depth and rate limits per market were not measured; the timestamp convention between the 60m file and the 1-minute store is not checked yet."
+acceptance:
+  - "Independent non-author review of the table, the splits and the integrity steps; owner decides H1/H2; merged before any fetch."
