@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261123-HISTORY-DISCOVER-HOST-WORKFLOW
+title: "Offline-history mining steps (e)/(f): dispatch-only host workflow that re-fetches, verifies the manifest and runs ONLY discover on the historical windows (not a release)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+owner_decision: "2026-11-23: option A (run on the PAPER host); the owner ordered 'all steps' of the H2 sequence. The one look at the hold-back still needs the owner's explicit word."
+objective: "Produce the discovery shortlist and the freeze record for the historical windows without keeping any file on the host and without reading the hold-back. The fresh fetch must reproduce the committed manifest hash before anything runs."
+change:
+  - ".github/workflows/history-discover-freeze.yml (new; workflow_dispatch only; contents read; no checkout, no third-party action, no secret; downloads four scripts at a pinned source_sha, pins run-history-mining.js and fetch-upbit-60m-history.js by SHA-256, requires the manifest hash input to equal the fresh fetch, builds a temporary SQLite store, runs ONLY 'discover' with fixed historical windows 2021-12-20..2023-06-30 / 2023-07-05..2024-10-31T23:00, prints DISCOVER and FREEZE lines only, deletes everything)."
+  - "tests/history-discover-freeze-workflow.test.js (new; static contract)."
+not_changed:
+  - "No release, restart, service, env file, host windows file (deploy/oracle/history-mining-windows.json stays absent), gate, threshold, limit, capital, order switch or authority change. The look phase is never invoked; the hold-back is never loaded by discover. Not run until reviewed and merged."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Host Node supports node:sqlite (unknown until the first run; it fails closed and keeps nothing); host load of the fetch plus the discover pass on 1 vCPU (idle priority, 45 minute limit); the discovery printout contains discovery-window means and signal quantile thresholds (not candle values), reviewed as acceptable for in-sample discovery."
+acceptance:
+  - "Independent non-author review; tests pass; merged before the run; a discover run is read-only and changes no service state."
