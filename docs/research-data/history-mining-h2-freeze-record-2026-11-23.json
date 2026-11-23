@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "kind": "HISTORY_MINING_H2_FREEZE_RECORD",
+  "note": "Committed BEFORE the one look at the hold-back (2023-07-05..2024-10-31T23:00Z). Produced by workflow History Discover Freeze run 45290313899 on the PAPER host (source aa2767cf2, manifest 16274426...0a82 reproduced). Discovery used only 2021-12-20..2023-06-30; the hold-back was never loaded. The look needs the owner's explicit word; lookedAt stays null until then.",
+  "run": {
+    "workflow": "history-discover-freeze.yml",
+    "runId": 45290313899,
+    "nodeVersion": "v24.22.2"
+  },
+  "discover": {
+    "status": "SHORTLIST",
+    "trials": 128,
+    "usableDecisionHours": 66736,
+    "perMarketUsableHours": {
+      "KRW-BTC": 13348,
+      "KRW-ETH": 13348,
+      "KRW-NEAR": 13345,
+      "KRW-SOL": 13348,
+      "KRW-XRP": 13347
+    },
+    "eligibleRules": 128,
+    "positiveMeanRules": 13,
+    "shortlistN": {
+      "CLOSE_VS_MA24_HIGH_Q90_H24": 721,
+      "RET48_HIGH_Q90_H24": 490,
+      "RET12_HIGH_Q90_H24": 861,
+      "RUNUP24_HIGH_Q80_H24": 1010,
+      "RET48_HIGH_Q80_H24": 901
+    }
+  },
+  "freeze": {
+    "study": "HISTORY_MINING_V1",
+    "gridFingerprint": "045ff2d52f216eb8e3425c65ef926fd82903924fbf5874b8528f55f7951b2c77",
+    "windows": {
+      "discoveryStart": 1639958400000,
+      "discoveryEnd": 1688083200000,
+      "holdbackStart": 1688515200000,
+      "holdbackEnd": 1730415600000,
+      "purgeHours": 96
+    },
+    "shortlist": [
+      "CLOSE_VS_MA24_HIGH_Q90_H24",
+      "RET48_HIGH_Q90_H24",
+      "RET12_HIGH_Q90_H24",
+      "RUNUP24_HIGH_Q80_H24",
+      "RET48_HIGH_Q80_H24"
+    ],
+    "thresholds": {
+      "CLOSE_VS_MA24_HIGH_Q90_H24": {
+        "limit": 0.02402809,
+        "n": 65661
+      },
+      "RET48_HIGH_Q90_H24": {
+        "limit": 0.06434783,
+        "n": 66407
+      },
+      "RET12_HIGH_Q90_H24": {
+        "limit": 0.02973978,
+        "n": 66587
+      },
+      "RUNUP24_HIGH_Q80_H24": {
+        "limit": 0.03738318,
+        "n": 65661
+      },
+      "RET48_HIGH_Q80_H24": {
+        "limit": 0.03293838,
+        "n": 66407
+      }
+    },
+    "alphaPerCandidate": 0.01,
+    "sourceCommit": "aa2767cf2f8ea14ad7d17fe8629f98197ba76723",
+    "createdAt": "2026-11-23T23:38:27.820Z",
+    "lookedAt": null,
+    "fingerprint": "dc65065c8d898668263abe774f53088dde2e35dfdf39eb9f1f601760556fdaa5"
+  }
+}
