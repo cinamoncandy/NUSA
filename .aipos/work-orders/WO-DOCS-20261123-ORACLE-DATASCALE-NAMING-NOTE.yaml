@@ -1,0 +1,19 @@
+id: WO-DOCS-20261123-ORACLE-DATASCALE-NAMING-NOTE
+title: "Naming note: the PAPER host is on Datascale; the Oracle names stay as legacy names (docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+objective: "Stop readers from being misled by the word Oracle without renaming anything that workflows, receipts or tests look up by name."
+change:
+  - "docs/operations/oracle-health-guard.md and docs/operations/oracle-p1-008-runbook.md: one naming note after the title."
+not_changed:
+  - "No file, folder, workflow, job, check or test rename; no code comment, UI string, host, release, gate, threshold, limit, capital or authority change. deployment-convergence-receipt.yml finds the release run by the name 'Oracle PAPER Release', so workflow names must stay."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "A real rename of workflows and paths is a separate, owner-approved change with its own rehearsal; not attempted."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot."
