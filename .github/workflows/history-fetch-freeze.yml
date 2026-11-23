@@ -1,0 +1,67 @@
+name: History Fetch Freeze
+
+# Data step of the offline-history mining design (docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md section 4).
+# Dispatch by hand only. It is NOT a release: it does not restart or change the service. It runs the reviewed script
+# scripts/fetch-upbit-60m-history.js on the PAPER host at a pinned commit, public Upbit GETs only (60-minute candles, five markets,
+# the pre-registered discovery and hold-back windows), writes the files to a per-run temporary directory that is removed when the step ends,
+# and prints only counts, missing shares and SHA-256 hashes as an annotation (never a price) so the manifest can be committed before any
+# evaluation reads the data. Closed bars are immutable, so a later run must reproduce the same hashes. Any HTTP error, gap beyond the
+# hole policy or malformed row aborts the run with nothing kept. No API key, no order, no checkout, no third-party action.
+# The script is downloaded from this repository at `source_sha` with the workflow's read-only token and must match `script_sha256`
+# (so the deployed release does not have to contain it and no release is needed). PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Full 40-hex commit sha on main that contains scripts/fetch-upbit-60m-history.js"
+        required: true
+        type: string
+      script_sha256:
+        description: "SHA-256 (64 hex) of that file at source_sha; the run aborts if it differs"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: history-fetch-freeze
+  cancel-in-progress: false
+
+jobs:
+  freeze:
+    name: Fetch and hash the pre-registered public Upbit 60m history
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 30
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      SCRIPT_SHA256: ${{ inputs.script_sha256 }}
+      GH_READ_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Download the pinned script, verify it, fetch (public GET only), hash, print the manifest, delete the files
+        shell: bash
+        run: |
+          set +e
+          printf '%s' "$SOURCE_SHA" | grep -Eq '^[0-9a-f]{40}$' || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
+          printf '%s' "$SCRIPT_SHA256" | grep -Eq '^[0-9a-f]{64}$' || { echo "::error::script_sha256 must be 64 lowercase hex"; exit 1; }
+          # The script refuses an output directory inside "its repository root" (the parent of its own scripts/ folder),
+          # so it is placed in its own scratch tree and the output goes to a sibling directory.
+          tree="$(mktemp -d "$RUNNER_TEMP/history-script.XXXXXX")" || exit 1
+          dir="$(mktemp -d "$RUNNER_TEMP/history-out.XXXXXX")" || exit 1
+          trap 'rm -rf "$tree" "$dir"' EXIT
+          mkdir -p "$tree/scripts" || exit 1
+          script="$tree/scripts/fetch-upbit-60m-history.js"
+          curl -fsS --max-time 60 -H "Authorization: Bearer $GH_READ_TOKEN" -H "Accept: application/vnd.github.raw+json" \
+            "https://api.github.com/repos/$REPO/contents/scripts/fetch-upbit-60m-history.js?ref=$SOURCE_SHA" -o "$script" || { echo "::error::could not download the script"; exit 1; }
+          actual="$(sha256sum "$script" | cut -d' ' -f1)"
+          [ "$actual" = "$SCRIPT_SHA256" ] || { echo "::error::script hash mismatch (got $actual)"; exit 1; }
+          out="$(env -u GH_READ_TOKEN ionice -c3 nice -n19 node "$script" "$dir/files" 2>&1)"
+          status=$?
+          printf '%s\n' "$out"
+          # Annotation: only the manifest and failure lines (the per-file lines duplicate the JSON), so the hash line is never cut off.
+          key="$(printf '%s\n' "$out" | grep -E '^(HISTORY_MANIFEST|HISTORY_FETCH_FAILED)')"
+          body="$(printf '%s' "${key:0:8000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=history-fetch-manifest status=${status}::${body}"
+          exit "$status"
