@@ -1,0 +1,19 @@
+id: WO-LEARNING-20261123-HISTORY-H2-FREEZE-RECORD
+title: "Offline-history mining: committed discovery result and freeze record of the H2 windows (before the one look; docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+objective: "Commit the discovery shortlist, thresholds and fingerprint BEFORE the hold-back is read, so the later look is bound to them (fingerprint dc65065c8d89..., source aa2767cf2, grid 045ff2d5...)."
+change:
+  - "docs/research-data/history-mining-h2-freeze-record-2026-11-23.json (new): the HISTORY_MINING_FREEZE record verbatim with lookedAt null, plus run provenance and the discover counts."
+not_changed:
+  - "The hold-back was never loaded (discover reads only the discovery window); no look was run; no code, host, release, gate, threshold, limit, capital or authority change. The thresholds are discovery-window signal quantiles, not candle values."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Performance on the hold-back is unknown by design. The shortlist is five long-only momentum-type rules with a 24 hour hold, all discovered in the 2021-12..2023-06 span (mostly a falling market); with one rising hold-back regime the excess-over-baseline condition of the frozen pass rule applies. The one look needs the owner's explicit word and a separate reviewed look workflow (none exists yet)."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot; the freeze record is the binding input of the look."
