@@ -17,10 +17,14 @@ From the headers and notes of the frozen offline screens (`scripts/offline-*.js`
 
 **Not read by any study:** hourly (60m) candles of any market before 2025-01-16 (the daily closes of 2021-2024 were read, hourly values were not); and **every candle of KRW-NEAR and of any market outside the five**. The reserved cut stays: no value at or after 2026-11-20T00:00Z (cross-market study, signal screen).
 
-## 3. Proposed split (the owner decides; recommendation H2)
-- **H2 (recommended): time split in unseen hourly history.** Discovery on 60m candles of BTC, ETH, SOL, XRP and NEAR from the first available bar (about 2021-10, per market) to 2023-06-30; purge 96 hours; hold-back 2023-07-05 .. 2024-12-31 (before the earliest screened hourly bar of 2025-01-16, with a further 96-hour purge). The one look is on the hold-back of BTC, ETH, SOL and NEAR (XRP is discovery-only as before). Both windows are hourly-unseen; the sample is about 1.5 years of hold-back instead of 22 days.
-- **H1 (alternative): unseen markets.** Discovery as in H2 on the five known markets; hold-back on liquid markets nobody has read (NEAR, ADA, SUI, ONDO, AVAX, LINK, selected by a formula fixed before fetching, e.g. 45-day mean traded value rank above a stated bar and at least 400 days of listing). Independent of time and regime, but the new markets move with BTC.
-- **Forward confirmation (both):** the 45 days the host collects (and the PR #3246 windows) stay as the later forward check of any survivor, as in design section 4 step 5. A candidate that passes only the historical look is a hypothesis for the forward test, never evidence of profit and never an order permit.
+## 3. Decision and split (owner chose H2 on 2026-11-23)
+**H2: time split in unseen hourly history.** Measured today with counts and timestamps only (no price read): Upbit serves 60-minute candles at least back to 2021-12 for BTC, ETH, XRP, SOL and NEAR. First daily candles (listing): BTC, ETH, XRP 2017-09-25; SOL 2021-10-15; NEAR 2021-12-15. So the common span of all five markets starts in 2021-12.
+- **Discovery:** 60m candles of BTC, ETH, SOL, XRP and NEAR, 2021-12-20T00:00Z to 2023-06-30T00:00Z (about 1.5 years; a start five days after NEAR's listing).
+- **Purge:** 96 hours (the existing rule: 72-hour lookback plus the longest 24-hour hold).
+- **Hold-back (the one look):** 2023-07-05T00:00Z to 2024-12-31T23:00Z (about 1.5 years), BTC, ETH, SOL and NEAR (XRP is discovery-only as before). It ends two weeks before the earliest hourly bar any earlier screen read (2025-01-16).
+- Both windows lie in hourly history that no study has read. The look has about 25 times the days of the 22-day hold-back of PR #3246 (PR #3246 stays a draft; its windows may be dropped or kept as the forward check).
+- **Forward confirmation:** the 45 days the host collects, and the later days, stay as the forward check of any survivor (design section 4 step 5). A candidate that passes only the historical look is a hypothesis for the forward test, never evidence of profit and never an order permit.
+- **H1** (unseen markets as hold-back) is not chosen; it stays available as an additional, independent check after the one look is spent.
 
 ## 4. Data integrity (before any value is read)
 1. Commit this design and the fetch script **before** fetching (the earlier screens did the same).
@@ -38,7 +42,8 @@ Discover (aggregates only) → freeze record committed BEFORE the look → one l
 - Costs: the fee and the 10 bp / 30 bp cost reading of design section 9 apply; old spreads were wider, which makes old results conservative at best.
 - No order, order book or trade tick history exists on the public API; this route covers candle-based rules only.
 
-## 7. Decisions needed (owner)
-1. H2 or H1 for the one look (recommendation H2).
-2. Whether to spend the single look on historical data first (recommendation: yes, because the host data cannot give a decisive answer, and the forward confirmation stays available).
-No fetch, no code run and no value read happens until this design is reviewed and merged.
+## 7. Decisions and next steps
+1. Decided 2026-11-23 (owner): H2, and the single look is spent on historical data first.
+2. Still needed from the owner before the freeze record: the points of design section 9.2 (buy-and-hold baseline, same-close entry, per-market coverage, power), resolved or accepted. They change `scripts/run-history-mining.js` or what it reports, so they land before any freeze record.
+3. Steps (each is its own reviewed PR; nothing is fetched or read before step 2 is merged): (a) this design, reviewed and merged; (b) `scripts/fetch-upbit-60m-history.js` (public candles only, frozen files plus a SHA-256 manifest, fail closed) and a small builder that writes a temporary SQLite file for `run-history-mining.js` (each 60m candle becomes the hourly close row at start+1 hour), with tests on synthetic data only; (c) the fetch run, the manifest committed, a timestamp check on counts and times; (d) the section 9.2 changes to the mining script; (e) the windows above committed as a config for the historical run (a separate file from the host windows of PR #3246); (f) discover, the freeze record, then the one look only on the owner's word.
+No fetch, no code run and no value read happens before step (a) is merged.
