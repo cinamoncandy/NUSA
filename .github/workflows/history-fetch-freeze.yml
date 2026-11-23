@@ -57,9 +57,11 @@ jobs:
             "https://api.github.com/repos/$REPO/contents/scripts/fetch-upbit-60m-history.js?ref=$SOURCE_SHA" -o "$script" || { echo "::error::could not download the script"; exit 1; }
           actual="$(sha256sum "$script" | cut -d' ' -f1)"
           [ "$actual" = "$SCRIPT_SHA256" ] || { echo "::error::script hash mismatch (got $actual)"; exit 1; }
-          out="$(ionice -c3 nice -n19 node "$script" "$dir/files" 2>&1)"
+          out="$(env -u GH_READ_TOKEN ionice -c3 nice -n19 node "$script" "$dir/files" 2>&1)"
           status=$?
           printf '%s\n' "$out"
-          body="$(printf '%s' "${out:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          # Annotation: only the manifest and failure lines (the per-file lines duplicate the JSON), so the hash line is never cut off.
+          key="$(printf '%s\n' "$out" | grep -E '^(HISTORY_MANIFEST|HISTORY_FETCH_FAILED)')"
+          body="$(printf '%s' "${key:0:8000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
           echo "::notice title=history-fetch-manifest status=${status}::${body}"
           exit "$status"

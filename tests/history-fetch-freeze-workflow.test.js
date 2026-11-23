@@ -17,11 +17,17 @@ test("history fetch workflow is dispatch-only, read-only, pinned and never a rel
   assert.match(text, /\[0-9a-f\]\{40\}/);
   assert.match(text, /\[0-9a-f\]\{64\}/);
   assert.match(text, /script hash mismatch/);
-  assert.match(text, /ionice -c3 nice -n19 node/);
+  assert.match(text, /env -u GH_READ_TOKEN ionice -c3 nice -n19 node/);
   assert.match(text, /trap 'rm -rf "\$tree" "\$dir"' EXIT/);
 });
 
 test("inputs reach the shell only through env, never interpolated into the script body", () => {
   const run = text.slice(text.indexOf("run: |"));
   assert.doesNotMatch(run, /\$\{\{/);
+});
+
+test("the annotation carries the manifest and failure lines and cannot drop the hash line", () => {
+  assert.match(text, /grep -E '\^\(HISTORY_MANIFEST\|HISTORY_FETCH_FAILED\)'/);
+  assert.match(text, /\$\{key:0:8000\}/);
+  assert.doesNotMatch(text, /\$\{out:0:3500\}/);
 });
