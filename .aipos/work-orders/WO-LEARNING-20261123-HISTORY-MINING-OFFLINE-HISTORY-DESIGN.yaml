@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261123-HISTORY-MINING-OFFLINE-HISTORY-DESIGN
+title: "History mining on years of public Upbit history: design proposal (docs only, no fetch, no value read)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+owner_decision: "2026-11-23 (owner question '과거 차트로 하면 안되나'): study using the past charts instead of waiting for 45 days of host data."
+objective: "Owner chose H2 on 2026-11-23. Fix, before any value is fetched or read, which history is already read (not blind), which is unseen, the proposed splits (H2 time split, H1 unseen markets), the data-integrity steps and the decisions the owner must take."
+change:
+  - "docs/RESEARCH_HISTORY_MINING_OFFLINE_HISTORY_DESIGN_2026-11-23.md (new; revised after the independent review: hold-back 2023-07-05..2024-10-31, excess-over-baseline in the frozen pass rule, frozen files kept out of the repository, PR #3246 dropped)."
+not_changed:
+  - "No code, fetch, host, release, window file (PR #3246 stays draft), gate, threshold, limit, capital, order switch or authority change. No candle value is read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The depth probe used timestamps and counts only (60m candles exist back to at least 2021-12 for BTC, ETH, XRP, SOL, NEAR; listings: BTC/ETH/XRP 2017-09-25, SOL 2021-10-15, NEAR 2021-12-15). The used-history table was corrected after the independent review from headers, notes, work orders and committed data files, not re-derived; the 4h path of research-real-market-run.js has no run ledger (hold-back therefore ends 2024-10-31); API rate limits per market were not measured; the timestamp convention check is to be run on already-read days only."
+acceptance:
+  - "Independent non-author review of the table, the splits and the integrity steps; owner decides H1/H2; merged before any fetch."
