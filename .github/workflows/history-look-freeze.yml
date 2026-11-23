@@ -40,6 +40,7 @@ on:
 
 permissions:
   contents: read
+  actions: read  # only to count earlier runs of this workflow (the one-look guard)
 
 concurrency:
   group: history-look-freeze
@@ -119,6 +120,8 @@ jobs:
           printf '%s\n' "$key"
           body="$(printf '%s' "${key:0:60000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
           echo "::notice title=history-look status=${status}::${body}"
-          # The look is spent once the LOOK line was printed, whatever the exit status (so a re-run cannot repeat it).
-          printf '%s\n' "$key" | grep -q '^HISTORY_MINING_LOOK ' && exit 0
-          exit "$status"
+          # The look is spent once a real LOOK result (LOOK_PASS or LOOK_FAIL) was printed, whatever the exit status (so a re-run cannot repeat it).
+          # FREEZE_MISMATCH and ALREADY_LOOKED are returned before any candle is read: they do not spend the look and the run fails.
+          printf '%s\n' "$key" | grep -qE '^HISTORY_MINING_LOOK \{"status":"LOOK_(PASS|FAIL)"' && exit 0
+          [ "$status" -ne 0 ] && exit "$status"
+          exit 1

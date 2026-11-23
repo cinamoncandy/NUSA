@@ -11,7 +11,7 @@ const run = text.slice(text.indexOf("run: |"));
 test("the look workflow is dispatch-only, read-only, pinned and never a release", () => {
   assert.match(text, /^on:\n  workflow_dispatch:/m);
   assert.doesNotMatch(text, /\n  (push|pull_request|schedule):/);
-  assert.match(text, /permissions:\n  contents: read/);
+  assert.match(text, /permissions:\n  contents: read\n  actions: read/, "actions: read is needed to count earlier runs");
   assert.doesNotMatch(text, /uses:/);
   assert.doesNotMatch(text, /secrets\./);
   assert.doesNotMatch(text, /systemctl|sudo|\/opt\/nusa\/current|\/etc\/nusa|NUSA_CLOUD_STATE_DB_PATH/);
@@ -32,7 +32,9 @@ test("the look needs the owner's sentence and runs at most once", () => {
   assert.equal((run.match(/run-history-mining\.js" look /g) || []).length, 1, "exactly one look invocation");
   assert.doesNotMatch(run, /run-history-mining\.js" discover/);
   assert.match(run, /HISTORY_MINING_LOOK /);
-  assert.match(run, /grep -q '\^HISTORY_MINING_LOOK ' && exit 0/, "a printed LOOK line spends the look whatever the exit status");
+  assert.match(run, /grep -qE '\^HISTORY_MINING_LOOK \\\{"status":"LOOK_\(PASS\|FAIL\)"' && exit 0/, "a printed LOOK_PASS or LOOK_FAIL spends the look whatever the exit status");
+  assert.match(run, /FREEZE_MISMATCH and ALREADY_LOOKED[^\n]*do not spend the look/);
+  assert.match(run, /\[ "\$status" -ne 0 \] && exit "\$status"\n\s+exit 1\n/, "any other outcome fails the run");
 });
 
 test("the frozen record binds the look, the token is gone before unpinned code runs, and only allowed lines are shown", () => {
