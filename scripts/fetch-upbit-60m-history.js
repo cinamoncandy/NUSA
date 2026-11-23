@@ -117,7 +117,7 @@ function assertOutsideRepository(outDir) {
   while (!fs.existsSync(probe)) probe = path.dirname(probe);
   const real = path.join(fs.realpathSync(probe), path.relative(probe, path.resolve(outDir)));
   const rel = path.relative(repoRoot, real);
-  if (rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))) throw new HistoryError("OUT_DIR_MUST_BE_OUTSIDE_THE_REPOSITORY");
+  if (rel === "" || (rel !== ".." && !rel.startsWith(".." + path.sep) && !path.isAbsolute(rel))) throw new HistoryError("OUT_DIR_MUST_BE_OUTSIDE_THE_REPOSITORY");
 }
 
 function write(outDir, { files, manifest }) {
