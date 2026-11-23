@@ -1,0 +1,19 @@
+id: WO-AIPOS-20261123-HANDOFF-UPDATE
+title: "Handoff update 2026-11-23: releases 68e755565 and 42a9c182, NEAR swap, H2 history design and fetch script"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+objective: "Record the state of 2026-11-21..23 and the next safe actions in the main handoff so a fresh session can continue from the repository."
+change:
+  - ".aipos/handoffs/2026-11-17-main-handoff.md (appended section)."
+not_changed:
+  - "Docs only: no code, host, release, gate, threshold, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Facts are copied from the session records (GitHub runs and live /health reads); the diagnosis lines for NEAR were not yet refreshed."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot."
