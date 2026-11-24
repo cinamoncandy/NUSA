@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261123-HISTORY-LOOK-HOST-WORKFLOW
+title: "Offline-history mining step (f): the dispatch-only workflow for the ONE look at the frozen H2 hold-back (not a release)"
+status: READY_FOR_REVIEW
+created: 2026-11-23
+owner_decision: "2026-11-23: after the freeze record (docs/research-data/history-mining-h2-freeze-record-2026-11-23.json) the owner answered 'do it' ('해') to the one look on the hold-back."
+objective: "Run run-history-mining.js look exactly once with the committed freeze record, on the PAPER host, with the hash-verified re-fetched data and nothing kept, and print only the aggregate LOOK line."
+change:
+  - ".github/workflows/history-look-freeze.yml (new; workflow_dispatch only; contents read; no checkout, no third-party action, no secret; needs the fixed confirmation sentence input and refuses when any earlier run of the workflow succeeded; downloads the scripts and the freeze record at a pinned source_sha with SHA-256 pins; verifies the re-fetched manifest; one look invocation; a printed LOOK line spends the look whatever the exit status)."
+  - "tests/history-look-freeze-workflow.test.js (new; static contract)."
+not_changed:
+  - "No release, restart, service, host windows file, gate, threshold, limit, capital, order switch or authority change. Not run by this PR; the run is a separate step after review and merge and after the freeze record is on main."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The look runs about 32 s on synthetic data of the same size (idle priority on the host will be slower; 45 minute limit). The result is unknown by design and the one look cannot be repeated; the result is recorded by a later docs PR, whatever it is."
+acceptance:
+  - "Independent non-author review; tests pass; merged after the freeze record; then dispatched once; the result committed unedited."
