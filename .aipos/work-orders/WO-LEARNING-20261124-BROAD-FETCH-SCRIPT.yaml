@@ -15,6 +15,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "Upbit rate limits and the Remaining-Req header format were not exercised against the real API (synthetic fake only); hosted-runner reachability is checked by a later no-data probe; no independent review yet. The mining script (run-broad-mining.js), the hosted-runner workflows and the group list are separate PRs."
+unverified: "Independent review applied: listing probe (daily candles) so a truncated or empty history aborts the group instead of being excluded or read as a late listing (P1); early output check, stricter verify (windows, markets, listing days, exclusions), counter reset on any non-429 outcome, strict number format, quote value plausibility, windows shared with the committed fetch script (P2/P3). Upbit rate limits and the Remaining-Req header format were not exercised against the real API (synthetic fake only); hosted-runner reachability is checked by a later no-data probe; no independent review yet. The mining script (run-broad-mining.js), the hosted-runner workflows and the group list are separate PRs."
 acceptance:
   - "Independent non-author review; tests pass; merged before any fetch."
