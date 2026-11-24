@@ -1,0 +1,2113 @@
+{
+ "schemaVersion": 1,
+ "kind": "UPBIT_KRW_MARKET_METADATA",
+ "fetchedAtUtc": "2026-11-24T01:16Z",
+ "sources": [
+  "GET https://api.upbit.com/v1/market/all?is_details=true (KRW- markets)",
+  "GET https://api.upbit.com/v1/orderbook/instruments?markets=<up to 50 KRW markets> (current tick_size per market)"
+ ],
+ "note": "Metadata only: no candle, price or volume value. tickSize is the CURRENT tick size of the market (Upbit changed tick tiers over time; historical tick sizes of 2021-2023 are not in this file). Stable coins and the six excluded study markets are listed in the design and applied later.",
+ "count": 300,
+ "markets": [
+  {
+   "market": "KRW-0G",
+   "englishName": "0G",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-1INCH",
+   "englishName": "1inch Network",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-2Z",
+   "englishName": "DoubleZero",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-A",
+   "englishName": "Vaulta",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AAVE",
+   "englishName": "Aave",
+   "tickSize": "100",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ADA",
+   "englishName": "Ada",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AERO",
+   "englishName": "Aerodrome Finance",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AGLD",
+   "englishName": "Adventure Gold",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AHT",
+   "englishName": "AhaToken",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AI",
+   "englishName": "Gensyn",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AKT",
+   "englishName": "Akash Network",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ALGO",
+   "englishName": "Algorand",
+   "tickSize": "1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-ALT",
+   "englishName": "Altlayer",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ANIME",
+   "englishName": "Animecoin",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ANKR",
+   "englishName": "Ankr",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-API3",
+   "englishName": "API3",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-APT",
+   "englishName": "Aptos",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ARB",
+   "englishName": "Arbitrum",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ARDR",
+   "englishName": "Ardor",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ARK",
+   "englishName": "Ark",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ARKM",
+   "englishName": "Arkham",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ARX",
+   "englishName": "Arcium",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ASTR",
+   "englishName": "Astar",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ATH",
+   "englishName": "Aethir",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ATOM",
+   "englishName": "Cosmos",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AUCTION",
+   "englishName": "Bounce",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AVAX",
+   "englishName": "Avalanche",
+   "tickSize": "5",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AVNT",
+   "englishName": "Veranta",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AWE",
+   "englishName": "AWE Network",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AXIS",
+   "englishName": "Axis Robotics",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AXL",
+   "englishName": "Axelar",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AXS",
+   "englishName": "Axie Infinity",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-AZTEC",
+   "englishName": "Aztec",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-B3",
+   "englishName": "B3",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BABY",
+   "englishName": "Babylon",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BARD",
+   "englishName": "Lombard",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BAT",
+   "englishName": "Basic Attention Token",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BCH",
+   "englishName": "Bitcoin Cash",
+   "tickSize": "100",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BEAM",
+   "englishName": "Beam",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BERA",
+   "englishName": "Berachain",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BFC",
+   "englishName": "Bifrost",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BIGTIME",
+   "englishName": "Big Time",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BIO",
+   "englishName": "Bio Protocol",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BIRB",
+   "englishName": "Moonbirds",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BLEND",
+   "englishName": "Fluent",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BLUR",
+   "englishName": "Blur",
+   "tickSize": "0.1",
+   "warning": true,
+   "caution": true
+  },
+  {
+   "market": "KRW-BMT",
+   "englishName": "Bubblemaps",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BORA",
+   "englishName": "BORA",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BOUNTY",
+   "englishName": "Chainbounty",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BREV",
+   "englishName": "Brevis",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-BSB",
+   "englishName": "Block Street",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BSV",
+   "englishName": "Bitcoin SV",
+   "tickSize": "10",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BTC",
+   "englishName": "Bitcoin",
+   "tickSize": "1000",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-BTT",
+   "englishName": "BitTorrent",
+   "tickSize": "0.000001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CAP",
+   "englishName": "Cap",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CARDS",
+   "englishName": "Collector Crypt",
+   "tickSize": "1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-CARV",
+   "englishName": "CARV",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CASHCAT",
+   "englishName": "Cash Cat",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CBK",
+   "englishName": "Cobak Token",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CC",
+   "englishName": "Canton",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CELO",
+   "englishName": "Celo",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CFG",
+   "englishName": "Centrifuge",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CFX",
+   "englishName": "Conflux",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CHIP",
+   "englishName": "USD.AI",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-CHZ",
+   "englishName": "Chiliz",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CKB",
+   "englishName": "Nervos Network",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-COMP",
+   "englishName": "Compound",
+   "tickSize": "10",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-COW",
+   "englishName": "CoW Protocol",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CP",
+   "englishName": "Cluster Protocol",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CPOOL",
+   "englishName": "Clearpool",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CRO",
+   "englishName": "Cronos",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CRV",
+   "englishName": "Curve",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CT",
+   "englishName": "Concrete",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CTC",
+   "englishName": "Creditcoin",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CVC",
+   "englishName": "Civic",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-CYBER",
+   "englishName": "Cyber",
+   "tickSize": "1",
+   "warning": true,
+   "caution": false
+  },
+  {
+   "market": "KRW-DATA",
+   "englishName": "Data Network",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-DEEP",
+   "englishName": "DeepBook",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-DKA",
+   "englishName": "dKargo",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-DOGE",
+   "englishName": "Dogecoin",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-DOOD",
+   "englishName": "Doodles",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-DOS",
+   "englishName": "DAPPOS",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-DOT",
+   "englishName": "Polkadot",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-DRV",
+   "englishName": "Derive",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-EDGE",
+   "englishName": "Definitive",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-EGLD",
+   "englishName": "MultiversX",
+   "tickSize": "5",
+   "warning": true,
+   "caution": true
+  },
+  {
+   "market": "KRW-ELF",
+   "englishName": "aelf",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ELSA",
+   "englishName": "HeyElsa",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ENA",
+   "englishName": "Ethena",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ENS",
+   "englishName": "Ethereum Name Service",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ENSO",
+   "englishName": "Enso",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ERA",
+   "englishName": "Caldera",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ESP",
+   "englishName": "Espresso",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ETC",
+   "englishName": "Ethereum Classic",
+   "tickSize": "5",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ETH",
+   "englishName": "Ethereum",
+   "tickSize": "1000",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ETHFI",
+   "englishName": "Ether.fi",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-EUL",
+   "englishName": "Euler",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-EURC",
+   "englishName": "EURC",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-F",
+   "englishName": "SynFutures",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-FCT2",
+   "englishName": "FirmaChain",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-FF",
+   "englishName": "Falcon Finance",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-FIL",
+   "englishName": "Filecoin",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-FLOCK",
+   "englishName": "FLock.io",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-FLUID",
+   "englishName": "Fluid",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-FOLD",
+   "englishName": "The Interfold",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-G",
+   "englishName": "Gravity",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GAME2",
+   "englishName": "GameBuild",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GAS",
+   "englishName": "GAS",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GEOD",
+   "englishName": "GEODNET",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GLM",
+   "englishName": "Golem",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GMT",
+   "englishName": "Stepn",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GRT",
+   "englishName": "The Graph",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GRVT",
+   "englishName": "Grvt",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-GTC",
+   "englishName": "Gitcoin",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HBAR",
+   "englishName": "Hedera",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HIVE",
+   "englishName": "Hive",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HOLO",
+   "englishName": "Holoworld AI",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HOME",
+   "englishName": "Defi App",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HP",
+   "englishName": "Hippo Protocol",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HUNT",
+   "englishName": "HUNT",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HYPE",
+   "englishName": "Hyperliquid",
+   "tickSize": "50",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-HYPER",
+   "englishName": "Hyperlane",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ICP",
+   "englishName": "Internet Computer",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ID",
+   "englishName": "SPACE ID",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-IMX",
+   "englishName": "Immutable X",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-IN",
+   "englishName": "Infinit",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-INJ",
+   "englishName": "Injective",
+   "tickSize": "5",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-IO",
+   "englishName": "io.net",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-IOST",
+   "englishName": "IOST",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-IOTA",
+   "englishName": "IOTA",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-IQ",
+   "englishName": "IQ.wiki",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-IRYS",
+   "englishName": "Irys",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-JPYC",
+   "englishName": "JPY Coin",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-JST",
+   "englishName": "JUST",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-JTO",
+   "englishName": "Jito",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-JUP",
+   "englishName": "Jupiter",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-KAIA",
+   "englishName": "Kaia",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-KAITO",
+   "englishName": "KAITO",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-KAT",
+   "englishName": "Katana",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-KAVA",
+   "englishName": "Kava",
+   "tickSize": "0.1",
+   "warning": true,
+   "caution": true
+  },
+  {
+   "market": "KRW-KERNEL",
+   "englishName": "KernelDAO",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-KITE",
+   "englishName": "Kite",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-KMNO",
+   "englishName": "Kamino Finance",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-KNC",
+   "englishName": "Kyber Network",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-LA",
+   "englishName": "Lagrange",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-LAYER",
+   "englishName": "Solayer",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-LINEA",
+   "englishName": "Linea",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-LINK",
+   "englishName": "Chainlink",
+   "tickSize": "10",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-LIT",
+   "englishName": "Lighter",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-LPT",
+   "englishName": "Livepeer",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-LSK",
+   "englishName": "Lisk",
+   "tickSize": "1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-MANA",
+   "englishName": "Decentraland",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MANTRA",
+   "englishName": "MANTRA",
+   "tickSize": "0.01",
+   "warning": true,
+   "caution": true
+  },
+  {
+   "market": "KRW-MASK",
+   "englishName": "Mask Network",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MBL",
+   "englishName": "MovieBloc",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ME",
+   "englishName": "Magic Eden",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MED",
+   "englishName": "MediBloc",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MEGA",
+   "englishName": "MegaETH",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MET2",
+   "englishName": "Meteora",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-META",
+   "englishName": "Metadium",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-META2",
+   "englishName": "MetaDAO",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MEW",
+   "englishName": "cat in a dogs world",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MINA",
+   "englishName": "Mina",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MIRA",
+   "englishName": "Mira Network",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MLK",
+   "englishName": "MiL.k",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MMT",
+   "englishName": "Momentum",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MNT",
+   "englishName": "Mantle",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MOC",
+   "englishName": "Moss Coin",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MOCA",
+   "englishName": "Moca Network",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MON",
+   "englishName": "Monad",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-MOODENG",
+   "englishName": "Moo Deng",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MORPHO",
+   "englishName": "Morpho",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MOVE",
+   "englishName": "Movement",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MPLX",
+   "englishName": "Metaplex",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MTL",
+   "englishName": "Metal",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-MVL",
+   "englishName": "MVL",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-NCT",
+   "englishName": "Polyswarm",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-NEAR",
+   "englishName": "NEAR Protocol",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-NEO",
+   "englishName": "NEO",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-NEWT",
+   "englishName": "Newton Protocol",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-NIL",
+   "englishName": "Nillion",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-NMR",
+   "englishName": "Numeraire",
+   "tickSize": "10",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-NXPC",
+   "englishName": "Nexpace",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-O",
+   "englishName": "o1.exchange",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ONDO",
+   "englishName": "Ondo Finance",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ONG",
+   "englishName": "ONG",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ONT",
+   "englishName": "Ontology",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-OP",
+   "englishName": "Optimism",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-OPEN",
+   "englishName": "OpenLedger",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-OPG",
+   "englishName": "OpenGradient",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ORBS",
+   "englishName": "Orbs",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ORCA",
+   "englishName": "Orca",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ORDER",
+   "englishName": "Orderly",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PENDLE",
+   "englishName": "Pendle",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PENGU",
+   "englishName": "Pudgy Penguins",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PEPE",
+   "englishName": "Pepe",
+   "tickSize": "0.00001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PIEVERSE",
+   "englishName": "Pieverse",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PLUME",
+   "englishName": "Plume",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-POD",
+   "englishName": "Dolphin",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-POKT",
+   "englishName": "Pocket Network",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-POL",
+   "englishName": "Polygon Ecosystem Token",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-POLYX",
+   "englishName": "Polymesh",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PONS",
+   "englishName": "Pons",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-POWR",
+   "englishName": "Power ledger",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PRL",
+   "englishName": "Perle",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PROM",
+   "englishName": "Prom",
+   "tickSize": "5",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-PROS",
+   "englishName": "Pharos",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PROVE",
+   "englishName": "Succinct",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PUFFER",
+   "englishName": "Puffer",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PUMP",
+   "englishName": "Pump.fun",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PUNDIX",
+   "englishName": "Pundi X",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PYTH",
+   "englishName": "Pyth Network",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-PYUSD",
+   "englishName": "PayPal USD",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-QKC",
+   "englishName": "QuarkChain",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-QTUM",
+   "englishName": "Qtum",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-QUID",
+   "englishName": "Squid",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-RAY",
+   "englishName": "Raydium",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-RE",
+   "englishName": "Re",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-RED",
+   "englishName": "RedStone",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-RENDER",
+   "englishName": "Render Token",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-RLUSD",
+   "englishName": "Ripple USD",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-RSR",
+   "englishName": "Reserve Rights",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SAFE",
+   "englishName": "Safe",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SAHARA",
+   "englishName": "Sahara AI",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SANC",
+   "englishName": "Sanctum",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-SAND",
+   "englishName": "The Sandbox",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SC",
+   "englishName": "Siacoin",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SEI",
+   "englishName": "Sei",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SENT",
+   "englishName": "Sentient",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SHIB",
+   "englishName": "Shiba Inu",
+   "tickSize": "0.00001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SIGN",
+   "englishName": "Sign",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SKR",
+   "englishName": "Seeker",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SKY",
+   "englishName": "Sky Protocol",
+   "tickSize": "1",
+   "warning": true,
+   "caution": true
+  },
+  {
+   "market": "KRW-SLX",
+   "englishName": "Solstice",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SNT",
+   "englishName": "Status Network Token",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SOL",
+   "englishName": "Solana",
+   "tickSize": "50",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SOMI",
+   "englishName": "Somnia",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SONIC",
+   "englishName": "Sonic SVM",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SOON",
+   "englishName": "SOON",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SPK",
+   "englishName": "Spark",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-SPX",
+   "englishName": "SPX6900",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-STEEM",
+   "englishName": "Steem",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-STRAX",
+   "englishName": "Xertra",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-STX",
+   "englishName": "Stacks",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SUI",
+   "englishName": "Sui",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SUN",
+   "englishName": "SUN",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SUPER",
+   "englishName": "SuperVerse",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-SYRUP",
+   "englishName": "Maple Finance",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-T",
+   "englishName": "Threshold",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TAIKO",
+   "englishName": "Taiko",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TAO",
+   "englishName": "Bittensor",
+   "tickSize": "100",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TFUEL",
+   "englishName": "Theta Fuel",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-THETA",
+   "englishName": "Theta Token",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TIA",
+   "englishName": "Celestia",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TOKAMAK",
+   "englishName": "Tokamak Network",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TOSHI",
+   "englishName": "Toshi",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TRAC",
+   "englishName": "OriginTrail",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TREE",
+   "englishName": "Treehouse",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TRUMP",
+   "englishName": "Official Trump",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TRUST",
+   "englishName": "Intuition",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-TRX",
+   "englishName": "TRON",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-UNI",
+   "englishName": "Uniswap",
+   "tickSize": "5",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-UP2",
+   "englishName": "Superform",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-USD1",
+   "englishName": "World Liberty Financial USD",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-USDC",
+   "englishName": "USD Coin",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-USDE",
+   "englishName": "Ethena USDe",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-USDG",
+   "englishName": "Global Dollar",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-USDS",
+   "englishName": "USDS",
+   "tickSize": "5",
+   "warning": true,
+   "caution": true
+  },
+  {
+   "market": "KRW-USDT",
+   "englishName": "Tether",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-VANA",
+   "englishName": "Vana",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-VET",
+   "englishName": "VeChain",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-VIRTUAL",
+   "englishName": "Virtuals Protocol",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-VTHO",
+   "englishName": "VeThor Token",
+   "tickSize": "0.001",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-VVV",
+   "englishName": "Venice Token",
+   "tickSize": "10",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-W",
+   "englishName": "Wormhole",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-WAL",
+   "englishName": "Walrus",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-WAVES",
+   "englishName": "Waves",
+   "tickSize": "1",
+   "warning": true,
+   "caution": false
+  },
+  {
+   "market": "KRW-WAXP",
+   "englishName": "WAX",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-WCT",
+   "englishName": "WalletConnect",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-WET",
+   "englishName": "HumidiFi",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-WIF",
+   "englishName": "dogwifhat",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-WLD",
+   "englishName": "Worldcoin",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-WLFI",
+   "englishName": "World Liberty Financial",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-XAUT",
+   "englishName": "Tether Gold",
+   "tickSize": "1000",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-XCN",
+   "englishName": "Onyxcoin",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-XEC",
+   "englishName": "eCash",
+   "tickSize": "0.00001",
+   "warning": false,
+   "caution": true
+  },
+  {
+   "market": "KRW-XLM",
+   "englishName": "Lumen",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-XPL",
+   "englishName": "Plasma",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-XRP",
+   "englishName": "XRP",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-XTZ",
+   "englishName": "Tezos",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-YGG",
+   "englishName": "Yield Guild Games",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZAMA",
+   "englishName": "Zama",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZBT",
+   "englishName": "ZEROBASE",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZETA",
+   "englishName": "ZetaChain",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZK",
+   "englishName": "ZKsync",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZKC",
+   "englishName": "Boundless",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZKP",
+   "englishName": "zkPass",
+   "tickSize": "0.1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZORA",
+   "englishName": "Zora",
+   "tickSize": "0.01",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZRO",
+   "englishName": "LayerZero",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  },
+  {
+   "market": "KRW-ZRX",
+   "englishName": "0x Protocol",
+   "tickSize": "1",
+   "warning": false,
+   "caution": false
+  }
+ ]
+}
