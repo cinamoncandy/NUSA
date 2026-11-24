@@ -1,0 +1,22 @@
+id: WO-LEARNING-20261124-FORWARD-RET48-SCRIPT
+title: "Forward confirmation of the RET48 rules, step 1: decision script and quarterly hash (synthetic tests only, reads no span value)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: 'other priority work' after the broad route was stopped; implements section 7 step 1 of docs/RESEARCH_PREREG_2026-11-24_FORWARD_CONFIRMATION_RET48_H24.md, which the owner approved ('만들어 / 승인')."
+objective: "Commit the decision script before the span starts (2026-12-11): frozen limits checked against the H2 freeze record, one decision that refuses to run before 2028-03-31, DATA_INTEGRITY_FAIL rules, and the quarterly hash record."
+change:
+  - "scripts/run-history-mining-forward.js (new): imports the unchanged pure functions of run-history-mining.js; commands evaluate and quarter-hash; prints hashes, counts and statistics only."
+  - "tests/run-history-mining-forward.test.js (new): synthetic made-up series only."
+  - "docs/RESEARCH_PREREG_2026-11-24_FORWARD_CONFIRMATION_RET48_H24.md: amendment 6a (per-row hashes in the quarterly segment record), before the span starts."
+not_changed:
+  - "scripts/run-history-mining.js and its hash, the freeze record, any workflow, host, release, gate, threshold, limit, capital or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Independent review (no P1) applied: committed record required, midnight span start, early dates refused on real data, halted market dropped, first quarter hash 2027-03-31. The earlier limit of the section 6 check is closed by the owner-approved amendment 6a ('고쳐' 2026-11-24): the quarterly record lists one 48-bit hash per row of its segment, so a changed or deleted row is caught on every day; late added bars are tolerated. Closing this needs a pre-span amendment (owner). The workflow with the spent-once guard, the quarterly job and the hash commit of these files are separate PRs; no independent review yet."
+acceptance:
+  - "Independent non-author review; tests pass; merged before 2026-12-11 and before any span value is read."
