@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-BROAD-FETCH-SCRIPT
+title: "Broad-universe tooling step 1: group fetch script for Upbit 60m candles (synthetic tests only, no real fetch)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: '시작해' (start the next steps of the broad route after the 20 bp gate passed, #3275); design section 5 item 2."
+objective: "Commit the fetch tool before fetching: market list input, per-market exclusion with a recorded reason, quote value stored, Remaining-Req and 429 stop, disk precheck, per-group manifest."
+change:
+  - "scripts/fetch-upbit-60m-universe.js (new) and scripts/fetch-upbit-60m-universe.test.js (new, synthetic made-up series only)."
+not_changed:
+  - "scripts/fetch-upbit-60m-history.js and its pinned hash, scripts/run-history-mining.js, any workflow, host, release, gate, threshold, limit, capital or authority; no real fetch, no value read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Upbit rate limits and the Remaining-Req header format were not exercised against the real API (synthetic fake only); hosted-runner reachability is checked by a later no-data probe; no independent review yet. The mining script (run-broad-mining.js), the hosted-runner workflows and the group list are separate PRs."
+acceptance:
+  - "Independent non-author review; tests pass; merged before any fetch."
