@@ -39,7 +39,8 @@ test("only the 64 HIGH-side rules of the unchanged grid take part; the windows e
 });
 
 test("the unchanged H2 script keeps its pinned hash and grid fingerprint", () => {
-  const text = fs.readFileSync(path.join(__dirname, "..", "scripts", "run-history-mining.js"));
+  // The pinned hash is of the committed (LF) bytes; a Windows checkout may convert line endings.
+  const text = Buffer.from(fs.readFileSync(path.join(__dirname, "..", "scripts", "run-history-mining.js"), "utf8").replace(/\r\n/g, "\n"), "utf8");
   assert.equal(crypto.createHash("sha256").update(text).digest("hex"), "6914d619ff2724d94545e7417fba8529230a0b6d057dd455858ff0c19cd4da1d");
   assert.equal(mining.GRID_FINGERPRINT, "045ff2d52f216eb8e3425c65ef926fd82903924fbf5874b8528f55f7951b2c77");
 });
