@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-FORWARD-PREREG-WIRING-AMENDMENT
+title: "Forward RET48 pre-registration amendment 7a: decision and quarterly record run inside the host research service (docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: '1번으로 해' (wire the forward script into the research service instead of a dispatch workflow)."
+objective: "A workflow cannot read the host store; record before the span starts that step 2 of section 7 becomes a config-gated, date-guarded wiring in the research service, with a spent-once record of the single decision."
+change:
+  - "docs/RESEARCH_PREREG_2026-11-24_FORWARD_CONFIRMATION_RET48_H24.md: new section 7a (amendment of section 7 step 2)."
+not_changed:
+  - "Rule, thresholds, markets, costs, span, decision date, pass bar, section 6a; no code, workflow, host, release, gate, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The wiring itself (a host release after 2026-12-10, due before 2027-03-31) is a separate reviewed PR; the spent-once record is procedural (a printed first line, committed unedited), not technically enforced."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot before 2026-12-11."
