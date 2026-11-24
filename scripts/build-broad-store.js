@@ -2,7 +2,7 @@
 /**
  * Broad-universe step 4 tooling (docs/RESEARCH_BROAD_UNIVERSE_DISCOVERY_DESIGN_2026-11-24.md section 5 items 3 and 4). Turns the two fetched group directories
  * (the workflow artifacts of scripts/fetch-upbit-60m-universe.js) into the inputs of scripts/run-broad-mining.js discover: a SQLite store with the DISCOVERY-window
- * candles only (the hold-back files are never read here), the sorted market list, the merged listing map and the tier table of the committed 20 bp pool file.
+ * candles only (hold-back files are hashed for the manifest check but never parsed or stored), the sorted market list, the merged listing map and the tier table of the committed 20 bp pool file.
  * Before anything is built every group is checked against the manifest hash COMMITTED in docs/research-data/broad-universe-fetch-manifests-2026-11-24.json:
  * the manifest hash is recomputed exactly as the fetch script prints it, every CSV must match its manifest sha256, no CSV may be missing or extra, no market may be
  * excluded, and the union of markets must equal the committed discovery pool. Any difference throws (fail closed). Prints counts only, never a price.

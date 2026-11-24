@@ -9,7 +9,7 @@ change:
   - "scripts/build-broad-store.js and tests/build-broad-store.test.js (manifest, file and market checks, discovery-window store only)."
   - "docs/research-data/broad-universe-discover-pins-2026-11-24.json, .github/workflows/broad-universe-discover.yml and tests/broad-universe-discover-workflow.test.js."
 not_changed:
-  - "scripts/run-history-mining.js (hash 6914d619... pinned), scripts/run-broad-mining.js and the fetch workflow are untouched; nothing is run by this PR; no host, release, service, gate, threshold, limit, capital or authority change; no Upbit request; the hold-back files are never loaded."
+  - "scripts/run-history-mining.js (hash 6914d619... pinned), scripts/run-broad-mining.js and the fetch workflow are untouched; nothing is run by this PR; no host, release, service, gate, threshold, limit, capital or authority change; no Upbit request; hold-back files are hashed for the manifest check but never parsed or stored."
 safety:
   paper_only: true
   liveAuthority: NONE

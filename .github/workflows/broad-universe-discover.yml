@@ -3,7 +3,7 @@ name: Broad Universe Discover
 # Discovery step of the broad-universe route (docs/RESEARCH_BROAD_UNIVERSE_DISCOVERY_DESIGN_2026-11-24.md section 5 item 4). Dispatch by hand only.
 # It is NOT a release: no service, host or setting is touched. It runs on a GitHub-hosted runner (never the PAPER host) and sends NO network request to Upbit:
 # it reads the two workflow artifacts of the reproduced fetch runs (docs/research-data/broad-universe-fetch-manifests-2026-11-24.json) and runs the reviewed
-# scripts on the DISCOVERY window only (the hold-back files are never loaded).
+# scripts on the DISCOVERY window only (hold-back files are only hashed for the manifest check, never parsed or stored).
 # Everything that is executed or read is hash-pinned: the input `pins_sha256` pins docs/research-data/broad-universe-discover-pins-2026-11-24.json, which lists the
 # sha256 of every script, the pool file and the fetch-manifest record at `source_sha`; each is downloaded with the read-only job token and checked before use.
 # The two artifacts are downloaded by the REST API with the same token (no third-party action), unpacked, and checked against the committed manifest hashes by
@@ -88,6 +88,7 @@ jobs:
           set +e
           [ "$BROAD_INPUTS_OK" = "1" ] || { echo "::error::inputs were not checked"; exit 1; }
           cd "$BROAD_TREE" || exit 1
+          echo "NODE_VERSION $(node -v)"; node -e 'require("node:sqlite")' || { echo "::error::node:sqlite is not available on this runner"; exit 1; }
           export NODE_OPTIONS=--max-old-space-size=6144
           build="$(node scripts/build-broad-store.js --g1 "$BROAD_WORK/g1" --g2 "$BROAD_WORK/g2" --committed docs/research-data/broad-universe-fetch-manifests-2026-11-24.json --pool docs/research-data/broad-universe-filter-count-20bp-2026-11-24.json --out "$BROAD_WORK/out" 2>&1)"
           status=$?
