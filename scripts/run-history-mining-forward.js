@@ -4,7 +4,7 @@
  * PAPER research only: reads research_closed_candles (1 m) READ-ONLY, places no order and writes nothing.
  *
  *   node scripts/run-history-mining-forward.js evaluate --db <state.sqlite> --freeze <freeze-record.json> --span-start <ISO> [--committed <quarterly.json>]
- *   node scripts/run-history-mining-forward.js quarter-hash --db <state.sqlite> --at <ISO>
+ *   node scripts/run-history-mining-forward.js quarter-hash --db <state.sqlite> --at <ISO> [--prev-at <ISO of the previous record>]
  *
  * `evaluate` is the ONE decision; it refuses to run before 2028-03-31T00:00Z. `quarter-hash` prints hashes and counts only (never a value).
  * The frozen pure functions of run-history-mining.js are imported unchanged; this file never edits them (GRID_FINGERPRINT includes CUT).
@@ -73,36 +73,42 @@ function spanHash(perMarket, from, to) {
 }
 
 /**
- * Quarterly record (prereg section 6): rows older than 7 days at `atMs`: (a) hash over (market, close time), (b) hash over (market, close time, close), counts,
- * and per market-day counts and hashes so a later check can find a changed or deleted row.
+ * Quarterly record (prereg section 6, as amended 2026-11-24): the SEGMENT of hourly rows with prevCutoff <= close time < cutoff, where cutoff = at - 7 days
+ * (the settling lag). It holds (a) a hash over (market, close time), (b) a hash over (market, close time, close), counts, and one 48-bit hash per row
+ * (market, close time, close), so a later check finds any changed or deleted row. A bar added later is not listed and is therefore tolerated.
+ * The row hashes hide the close only as far as a deliberate brute force; nobody may compute one (blindness convention of section 2).
  */
-function quarterRecord(db, atMs) {
-  const cutoff = atMs - SETTLING_MS;
-  const a = crypto.createHash("sha256"); const b = crypto.createHash("sha256"); const days = {}; let rows = 0;
+function quarterRecord(db, atMs, prevAtMs = null) {
+  const cutoff = atMs - SETTLING_MS; const prevCutoff = prevAtMs === null ? -Infinity : prevAtMs - SETTLING_MS;
+  const a = crypto.createHash("sha256"); const b = crypto.createHash("sha256"); const rowHashes = {}; let rows = 0;
   for (const market of MARKETS) {
+    rowHashes[market] = [];
     for (const r of db.prepare("SELECT close_time_ms AS t, close AS c FROM research_closed_candles WHERE market = ? AND interval_ms = ? AND close_time_ms < ? ORDER BY close_time_ms ASC").iterate(market, M, cutoff)) {
       const t = Number(r.t); const c = Number(r.c);
-      if (t % H !== 0 || !Number.isFinite(c) || c <= 0) continue;
+      if (t % H !== 0 || t < prevCutoff || !Number.isFinite(c) || c <= 0) continue;
       a.update(`${market}|${t}\n`); b.update(`${market}|${t}|${c}\n`); rows += 1;
-      const d = `${market}|${Math.floor(t / DAY)}`; const e = days[d] || (days[d] = { n: 0, hT: crypto.createHash("sha256"), hTC: crypto.createHash("sha256") });
-      e.n += 1; e.hT.update(`${t}\n`); e.hTC.update(`${t}|${c}\n`);
+      rowHashes[market].push([t / H, sha(`${market}|${t}|${c}`).slice(0, 12)]);
     }
   }
-  const perDay = {}; for (const [k, e] of Object.entries(days)) perDay[k] = { n: e.n, hT: e.hT.digest("hex").slice(0, 16), hTC: e.hTC.digest("hex").slice(0, 16) };
-  return { at: new Date(atMs).toISOString(), cutoff: new Date(cutoff).toISOString(), rows, hashA: a.digest("hex"), hashB: b.digest("hex"), perDay };
+  return { at: new Date(atMs).toISOString(), prevAt: prevAtMs === null ? null : new Date(prevAtMs).toISOString(), cutoff: new Date(cutoff).toISOString(), rows, hashA: a.digest("hex"), hashB: b.digest("hex"), rowHashes };
 }
 
-/**
- * Compare a committed quarterly record with the store now: a day with the same count must have the same hashes (a changed close or a swapped row fails);
- * a day with fewer rows (a deleted row) fails; a day with MORE rows is a tolerated late gap-fill. Known limit: a hash cannot prove that the earlier rows of a day
- * that gained a row are unchanged, so such a day is checked by count growth only: a changed close on a day that also gained a bar, or a deleted row replaced by two
- * added ones, is NOT caught. Closing this needs a pre-span amendment (per-row hashes), decided by the owner.
- */
-function checkCommitted(committed, current) {
-  for (const [k, was] of Object.entries(committed.perDay)) {
-    const now = current.perDay[k];
-    if (!now || now.n < was.n) return { ok: false, reason: `ROW_DELETED ${k}` };
-    if (now.n === was.n && (now.hT !== was.hT || now.hTC !== was.hTC)) return { ok: false, reason: `ROW_CHANGED ${k}` };
+/** The closes of every market now, for checkCommitted (top-of-hour rows only). */
+function currentCloses(db) {
+  const out = {};
+  for (const market of MARKETS) { out[market] = new Map(); for (const r of db.prepare("SELECT close_time_ms AS t, close AS c FROM research_closed_candles WHERE market = ? AND interval_ms = ?").iterate(market, M)) { const t = Number(r.t); const c = Number(r.c); if (t % H === 0 && Number.isFinite(c) && c > 0) out[market].set(t, c); } }
+  return out;
+}
+
+/** Every committed row must still exist with the same close (a deleted or changed row, or a rebuilt store, fails); rows added later are tolerated. */
+function checkCommitted(committed, closes) {
+  for (const [market, list] of Object.entries(committed.rowHashes)) {
+    const now = closes[market]; if (!now) return { ok: false, reason: `ROW_DELETED ${market}` };
+    for (const [h, hash] of list) {
+      const t = h * H; const c = now.get(t);
+      if (c === undefined) return { ok: false, reason: `ROW_DELETED ${market}|${t}` };
+      if (sha(`${market}|${t}|${c}`).slice(0, 12) !== hash) return { ok: false, reason: `ROW_CHANGED ${market}|${t}` };
+    }
   }
   return { ok: true };
 }
@@ -165,9 +171,9 @@ function evaluate({ db, freeze, spanStart, committed = [], now = Date.now(), res
   if (now < DECISION) return { status: "TOO_EARLY", notBefore: new Date(DECISION).toISOString() };
   const bad = verifyFreeze(freeze); if (bad) return { status: bad };
   if (!Array.isArray(committed) || committed.length === 0) return { status: "DATA_INTEGRITY_FAIL", reason: "NO_COMMITTED_RECORD" };
-  if (!committed.every((c) => c && typeof c.perDay === "object" && c.perDay !== null && typeof c.hashA === "string")) return { status: "DATA_INTEGRITY_FAIL", reason: "BAD_COMMITTED_RECORD" };
+  if (!committed.every((c) => c && typeof c.rowHashes === "object" && c.rowHashes !== null && typeof c.hashA === "string")) return { status: "DATA_INTEGRITY_FAIL", reason: "BAD_COMMITTED_RECORD" };
   const perMarket = MARKETS.map((market) => ({ market, closes: loadHourly(db, market, spanStart, DECISION) }));
-  const current = quarterRecord(db, DECISION);
+  const current = currentCloses(db);
   for (const c of committed) { const r = checkCommitted(c, current); if (!r.ok) return { status: "DATA_INTEGRITY_FAIL", reason: r.reason }; }
   const out = decide({ perMarket, spanStart, resamples });
   if (out.status === "BAD_SPAN_START") return out;
@@ -182,7 +188,7 @@ function main(argv) {
   const dbPath = arg(argv, "--db"); if (!dbPath) throw new Error("--db is required");
   const db = new DatabaseSync(dbPath, { readOnly: true });
   try {
-    if (cmd === "quarter-hash") { const at = Date.parse(arg(argv, "--at")); if (!Number.isFinite(at)) throw new Error("--at must be an ISO time"); if (at < FIRST_QUARTER_HASH) throw new Error("the first quarterly record is 2027-03-31 (blindness: no earlier read of span rows)"); console.log(`FORWARD_QUARTER_HASH ${JSON.stringify(quarterRecord(db, at))}`); return 0; }
+    if (cmd === "quarter-hash") { const at = Date.parse(arg(argv, "--at")); if (!Number.isFinite(at)) throw new Error("--at must be an ISO time"); if (at < FIRST_QUARTER_HASH) throw new Error("the first quarterly record is 2027-03-31 (blindness: no earlier read of span rows)"); const prevRaw = arg(argv, "--prev-at"); const prev = prevRaw === undefined ? null : Date.parse(prevRaw); if (prev !== null && !Number.isFinite(prev)) throw new Error("--prev-at must be an ISO time"); console.log(`FORWARD_QUARTER_HASH ${JSON.stringify(quarterRecord(db, at, prev))}`); return 0; }
     if (cmd === "evaluate") {
       const freeze = JSON.parse(fs.readFileSync(arg(argv, "--freeze"), "utf8")); const rec = freeze.freeze || freeze;
       const spanStart = Date.parse(arg(argv, "--span-start"));
@@ -195,4 +201,4 @@ function main(argv) {
   } finally { db.close(); }
 }
 if (require.main === module) { try { process.exit(main(process.argv.slice(2))); } catch (e) { console.error(`ERROR ${e.message}`); process.exit(1); } }
-module.exports = { verifyFreeze, decide, evaluate, quarterRecord, checkCommitted, spanHash, missingShares, loadHourly, DECISION, SPAN_EARLIEST, MARKETS, RULE_LIMITS, PRIMARY, SECONDARY };
+module.exports = { verifyFreeze, decide, evaluate, quarterRecord, currentCloses, checkCommitted, spanHash, missingShares, loadHourly, DECISION, SPAN_EARLIEST, MARKETS, RULE_LIMITS, PRIMARY, SECONDARY };
