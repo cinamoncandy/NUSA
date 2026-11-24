@@ -25,6 +25,10 @@ The design requires a forward pool of **at least 40** markets. It is **29** (26 
 ## Limits
 - Only 92 of 300 markets existed with enough data in the window; delisted markets are not in the list (survivorship).
 - The tick bar is the binding filter (91 pass the value bar, 37 the tick bar); tick tiers are a proxy (current tiers, not 2021-2023 tiers).
+- **Scope of the gate:** the count answers for the discovery-window filter pool (36 before the exclusions, already below 40). The design's forward list is a separate snapshot rule at pre-registration, and markets listed after 2023-06 could enter it; they have no usable window days here and are not counted. The verdict is not shown for that snapshot pool. The owner stopped the route on this count; a snapshot count was not made.
+- **Not reproducible to the digit:** the tier boundaries come from live ticker prices at run time, and neither the tier table nor the ticker snapshot is committed. The two boundary rules (29 and 26) bracket the choice.
+- Upbit omits days without trades, so the daily medians run over trading days only (lenient on the value bar). The tick is applied at the median close, not as a median of daily ticks.
+- Independent review (read-only): no P1; the points above are its P2/P3 findings.
 - The forward pool is finally decided at the pre-registration snapshot, so 29 is an estimate of it, not the pool.
 
 ## Owner decision (2026-11-24: "1")
