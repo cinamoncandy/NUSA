@@ -16,6 +16,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "The tier table of a rerun may differ from the first run (live prices); the 20 bp count itself is a separate PR after the pre-registration is merged; no independent review yet."
+unverified: "Independent review (no P1) applied: argument parsing fails loudly (P2). Clarification of the pre-registration (not a change): the tier table lists current ticker price levels per tick tier (metadata, the same current prices the first count used), the one allowed exception to 'no price value' in section 4 item 2; no candle value, median or volume is written. The tier table of a rerun may differ from the first run (live prices); the 20 bp count itself is a separate PR after the pre-registration is merged; no independent review yet."
 acceptance:
   - "Tests and AIPOS validators pass; merged before the 20 bp count is made."
