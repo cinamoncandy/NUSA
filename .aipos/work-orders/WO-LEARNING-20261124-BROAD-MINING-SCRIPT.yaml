@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-BROAD-MINING-SCRIPT
+title: "Broad-universe tooling step 2: discovery script (time-matched leave-one-out excess, max over block lengths, explicit candidate conditions); synthetic tests only"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: '시작해' (the broad route after the 20 bp gate passed, #3275); design section 5 item 1."
+objective: "Commit the discovery tool before any broad data is fetched: HIGH-side grid only, pooled over the tradable markets after the 30 day listing wait, same-hour leave-one-out baseline over at least 10 markets, decision p-value as the maximum over block lengths 24, 72 and 168, explicit candidate conditions and NO_CANDIDATE as a valid answer, aggregation per rule instead of trade objects, and a freeze record."
+change:
+  - "scripts/run-broad-mining.js (new; `discover` only) and tests/run-broad-mining.test.js (new; synthetic made-up series only)."
+not_changed:
+  - "scripts/run-history-mining.js (required unchanged; its hash 6914d619... and fingerprint stay), the H2 freeze and look workflows, the RET48 forward script, any workflow, host, release, gate, threshold, limit, capital or authority; no data fetched or read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Independent review (no value leak, core statistics sound) applied: per-market spread-floor costs (design section 3; excess measured on gross returns so costs never enter the baseline), listing and tier inputs validated (every market named, duplicates, finite days, no market without candles), source commit required and the freeze record also printed for NO_CANDIDATE, varying-flag from the item values like the frozen bootstrap, at least 20 trades per half, pinned hash and fingerprint of run-history-mining.js, a planted-effect test through the candidate path, block 168 and 10-market boundary tests; the p-value is stated to be unadjusted for the choice among 64 rules. Memory and runtime on the real 56-market window (estimated; the aggregation is designed for 512 MB); the descriptive hold-back veto, the discover workflow and the effective-sample estimate are separate PRs; no independent review yet. Note on the minimum-markets rule: 'at least 10 markets with a usable entry and exit bar' counts the trading market itself (so the leave-one-out baseline uses at least 9 others)."
+acceptance:
+  - "Independent non-author review; tests pass; merged before any broad data is discovered."
