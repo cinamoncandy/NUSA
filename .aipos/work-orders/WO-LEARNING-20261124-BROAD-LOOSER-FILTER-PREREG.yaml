@@ -2,7 +2,7 @@ id: WO-LEARNING-20261124-BROAD-LOOSER-FILTER-PREREG
 title: "Broad-universe route reopened: one looser tradability bar (20 bp) pre-registered before it is counted"
 status: READY_FOR_REVIEW
 created: 2026-11-24
-owner_decision: "2026-11-24: 'a broad route resume (looser filter)' (answer to the question what to restart among the stopped items); the earlier stop ('1') is superseded by this decision."
+owner_decision: "2026-11-24: '넓은 경로 재개(더 느슨한 필터)' (answer to the question what to restart among the stopped items); the earlier stop ('1') is superseded by this decision."
 objective: "Fix, before counting, one alternative bar and the stop rule, so the looser count cannot be tuned toward 40."
 change:
   - "docs/RESEARCH_BROAD_UNIVERSE_LOOSER_FILTER_PREREG_2026-11-24.md (new)."
