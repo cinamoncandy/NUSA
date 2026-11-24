@@ -49,6 +49,9 @@ At the decision, the script computes a SHA-256 over the ordered rows (market, cl
 2. A dispatch-only host workflow with a spent-once guard and the owner's confirmation sentence (like `history-look-freeze.yml`), refusing to run before 2028-03-31, plus the quarterly hash workflow.
 3. A commit of the file hashes of these scripts before the first span data is read. If this document is merged after 2026-12-11, the span start moves as stated in section 2.
 
+## 7a. Amendment of section 7 step 2 (2026-11-24, owner word "1번으로 해"; before the span starts, no span value read)
+A dispatch workflow cannot read the host store (`/var/lib/nusa/state.sqlite` is read only by the host's research service; workflows see its journal only). Step 2 is therefore **replaced** by: the decision and the quarterly record run **inside the host's research service**, wired like the history-mining discover phase (#3239): config-gated and off by default, date-guarded (`evaluate` does nothing before 2028-03-31T00:00Z; `quarter-hash` does nothing before 2027-03-31T00:00Z), read-only on the store, one printed line (`FORWARD_QUARTER_HASH` or `FORWARD_DECISION`) with hashes, counts and statistics only. The one-decision rule is kept by the **spent-once record**: the first `FORWARD_DECISION` line printed (PASS, FAIL, INCONCLUSIVE or DATA_INTEGRITY_FAIL) is the decision; the owner commits it unedited and a later line is void. The quarterly lines are committed by the owner's agent as `FORWARD_QUARTER_HASH` records (without reading them). The wiring is a host release and is **not done before 2026-12-10 holdout end**; it is due before 2027-03-31. Step 3 (commit of the script file hashes) stays due before the span starts.
+
 ## 8. What this does not do
 It does not reopen H2, tune the rules, add markets, change the costs or the 2023-2024 pass bar, or touch the freeze window of 2026-11-24 .. 2026-11-28 (documents and scripts only).
 
