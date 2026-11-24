@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-FORWARD-PREREG-RET48-H24
+title: "Pre-registration: forward confirmation of RET48_HIGH_Q90_H24 (primary) and RET48_HIGH_Q80_H24 (gated secondary) on a future span, decided once on 2028-03-31 (docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: the owner asked for the forward pre-registration and approved it."
+objective: "Fix, before any forward data of the span is analysed, the rules, thresholds, markets, span, decision moment, pass rule, alpha, costs and the meaning of INCONCLUSIVE so that the follow-up of the H2 look cannot be tuned afterwards."
+change:
+  - "docs/RESEARCH_PREREG_2026-11-24_FORWARD_CONFIRMATION_RET48_H24.md (new)."
+not_changed:
+  - "No code, host, release, gate, threshold, limit, capital or authority change; no data read; the H2 look result stands unchanged; Stage B untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Revised after an independent review (2 P1: stop date vs trade count, blindness vs the signal screen V2; P2: baseline, data identity, two-rule logic). The power figures are derived from the published look statistics (standard error about 0.33 percentage points at 340 trades) and are rough. The trade rate of the forward span may differ from the hold-back. The script and workflows of section 7 do not exist yet."
+acceptance:
+  - "Independent non-author review; merged by the release bot before 2026-12-11T00:00Z; implementation PRs follow."
