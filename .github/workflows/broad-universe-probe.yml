@@ -1,0 +1,56 @@
+name: Broad Universe Probe
+
+# No-data probe of the broad-universe route (docs/RESEARCH_BROAD_UNIVERSE_DISCOVERY_DESIGN_2026-11-24.md section 5 item 3): can a GitHub-hosted runner reach the
+# public Upbit API, and how does its quota header behave? Dispatch by hand only. It runs on a GitHub-hosted runner (never the PAPER host), reads no repository
+# code (no checkout, no third-party action, no secret) and sends only public GETs: the market list, one ticker, and twelve single-candle requests spaced 150 ms
+# apart. It prints ONLY HTTP status codes, the quota header (Remaining-Req) and counts; never a body, price or candle value. NOT a release, no service change.
+# PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: broad-universe-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Upbit reachability from a hosted runner (status codes only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Public GETs, print status codes and the quota header only
+        shell: bash
+        run: |
+          set +e
+          get() {  # prints: <label> status=<code> remaining=<header or none> bytes=<size>
+            local label="$1" url="$2" hdr body code rem size
+            hdr="$(mktemp)"; body="$(mktemp)"
+            code="$(curl -sS --max-time 20 -D "$hdr" -o "$body" -w '%{http_code}' -H 'Accept: application/json' "$url" 2>/dev/null)"
+            rem="$(tr -d '\r' < "$hdr" | sed -n 's/^[Rr]emaining-[Rr]eq: //p' | head -1)"
+            size="$(wc -c < "$body" | tr -d ' ')"
+            rm -f "$hdr" "$body"
+            echo "$label status=${code:-000} remaining=${rem:-none} bytes=$size"
+          }
+          nodev="$(node -v 2>&1 | cut -c1-20)"; echo "PROBE_NODE_VERSION $nodev"
+          out="$({
+            get market_all 'https://api.upbit.com/v1/market/all?is_details=false'
+            sleep 0.15
+            get ticker_one 'https://api.upbit.com/v1/ticker?markets=KRW-BTC'
+            for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+              sleep 0.15
+              get "candle_$i" 'https://api.upbit.com/v1/candles/minutes/60?market=KRW-ADA&count=1'
+            done
+          })"
+          printf '%s\n' "$out"
+          ok="$(printf '%s\n' "$out" | grep -c 'status=200')"
+          limited="$(printf '%s\n' "$out" | grep -c 'status=429')"
+          blocked="$(printf '%s\n' "$out" | grep -Ec 'status=(451|403|418)')"
+          summary="PROBE_SUMMARY ok=$ok rate_limited=$limited blocked=$blocked total=14"
+          echo "$summary"
+          body="$(printf '%s\n%s\n' "$summary" "$out" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=broad-universe-probe::${body}"
+          [ "$blocked" = "0" ] && [ "$ok" -ge 1 ]
