@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-BROAD-UNIVERSE-DISCOVERY-DESIGN
+title: "Broad-universe discovery on tradable Upbit KRW markets and a six-month forward confirmation (design, revised after independent review; docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: the owner asked whether a verified strategy can be built from all past charts; answer: not by analysis alone; the owner approved the proposed ORDER of the design ('제안 순서 다 해'). Every step below, the fetch included, still needs its own reviewed PR and the owner's go."
+objective: "Fix, before anything is fetched or read, what counts as unseen, the market universe and its cost proxy, the unchanged grid, the descriptive-only role of the historical data, the tooling steps, and the design of the fast forward confirmation."
+change:
+  - "docs/RESEARCH_BROAD_UNIVERSE_DISCOVERY_DESIGN_2026-11-24.md (new)."
+not_changed:
+  - "No code, host, fetch, release, gate, threshold, limit, capital or authority change. The spent H2 look and the RET48 forward pre-registration stand unchanged."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Revised after an independent review (5 P1: forward overlap with other pre-registrations, time-matched baseline and block length, forward power and optional stopping, shortlist conditions, host load). Second review: one P1 (pool size; now a go/no-go gate with a 40-market minimum and an explicit 'not viable' outcome) and P2s (forward list rule, listing probe, hosted-runner IP and Node, baseline breadth, wording) addressed. Not checked yet: the pool size after the filters, hosted-runner reachability and quota behaviour, the Upbit tick-size table and its source, the number of markets passing the tick and traded-value filters, API rate limits at 200 markets, the effective sample size, the minimum detectable effect, memory and runtime of the new scripts; the survivorship bias cannot be removed from the historical part."
+acceptance:
+  - "Independent non-author review; merged by the release bot before any fetch of a new market."
