@@ -11,7 +11,7 @@ const path = require("node:path");
 
 const WINDOW_FROM = "2021-12-20";
 const WINDOW_TO_EXCLUSIVE = "2023-07-01";
-const TICK_BP_MAX = 10;
+const DEFAULT_TICK_BP_MAX = 10;
 const VALUE_MIN_KRW = 1e9;
 const LISTING_WAIT_DAYS = 30;
 const MIN_DAYS = 30;
@@ -57,6 +57,10 @@ function tickAt(price, tiers, rule) {
 }
 
 async function main() {
+  const tickArg = process.argv.indexOf("--tick-bp");
+  const TICK_BP_MAX = tickArg >= 0 ? Number(process.argv[tickArg + 1]) : DEFAULT_TICK_BP_MAX;
+  if (!(TICK_BP_MAX > 0 && TICK_BP_MAX <= 100)) throw new Error("--tick-bp must be a number in (0, 100]");
+  const outPath = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : undefined;
   const metaPath = path.join(__dirname, "..", "docs", "research-data", "broad-universe-market-metadata-2026-11-24.json");
   const raw = fs.readFileSync(metaPath);
   const metaSha = crypto.createHash("sha256").update(raw).digest("hex");
@@ -69,6 +73,8 @@ async function main() {
     await sleep(150);
   }
   const tiers = buildTiers(markets, prices);
+  const tickerSnapshotSha256 = crypto.createHash("sha256").update(JSON.stringify(Object.keys(prices).sort().map((k) => [k, prices[k]]))).digest("hex");
+  const tierTable = [...tiers.lowest.keys()].sort((a, b) => a - b).map((t) => ({ tick: t, lowestCurrentPrice: tiers.lowest.get(t), highestCurrentPrice: tiers.highest.get(t) }));
   const results = [];
   for (const m of markets) {
     const rows = [];
@@ -108,7 +114,9 @@ async function main() {
     kind: "BROAD_UNIVERSE_FILTER_COUNT",
     window: [WINDOW_FROM, WINDOW_TO_EXCLUSIVE],
     metadataSha256: metaSha,
-    rules: { tickBpMax: TICK_BP_MAX, medianDailyValueMinKrw: VALUE_MIN_KRW, listingWaitDays: LISTING_WAIT_DAYS, minDays: MIN_DAYS, tickBoundary: "lowest current price seen with the higher tick (alt: highest price seen with the lower tick)" },
+    tickerSnapshotSha256,
+    tierTable,
+    rules: { tickBpMax: TICK_BP_MAX, tickBpDefault: DEFAULT_TICK_BP_MAX, medianDailyValueMinKrw: VALUE_MIN_KRW, listingWaitDays: LISTING_WAIT_DAYS, minDays: MIN_DAYS, tickBoundary: "lowest current price seen with the higher tick (alt: highest price seen with the lower tick)" },
     counts: {
       marketsInFile: markets.length,
       withEnoughWindowDays: eligible.length,
@@ -119,11 +127,11 @@ async function main() {
       forwardPoolAfterStudyAndWarning: forward.length,
       forwardPoolAltTickBoundary: forwardAlt.length,
       gateAtLeast40: forward.length >= 40,
+      gateStrictAtLeast40: forwardAlt.length >= 40, // the looser-bar pre-registration gates on the strict tick boundary
     },
     discoveryPool: discovery.map((r) => r.market).sort(),
     forwardPool: forward.map((r) => r.market).sort(),
   };
-  const outPath = process.argv[2];
   if (outPath) fs.writeFileSync(outPath, `${JSON.stringify(out, null, 2)}\n`);
   console.log(JSON.stringify(out.counts));
 }

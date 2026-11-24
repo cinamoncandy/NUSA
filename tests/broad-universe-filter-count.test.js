@@ -54,3 +54,12 @@ test("the script prints counts only and writes no candle value", () => {
   assert.match(src, /console\.log\(JSON\.stringify\(out\.counts\)\)/);
   assert.doesNotMatch(src, /trade_price[^;]*console|console[^;]*trade_price/);
 });
+
+test("the script supports --tick-bp (default 10), records the tier table and a ticker snapshot hash, and gates on the strict count too", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "scripts", "broad-universe-filter-count.js"), "utf8");
+  assert.match(src, /DEFAULT_TICK_BP_MAX = 10/);
+  assert.match(src, /--tick-bp/);
+  assert.match(src, /tickerSnapshotSha256/);
+  assert.match(src, /tierTable/);
+  assert.match(src, /gateStrictAtLeast40: forwardAlt\.length >= 40/);
+});

@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261124-FILTER-COUNT-TICK-BP
+title: "Broad-universe filter count script: --tick-bp option, recorded tier table and ticker snapshot hash, strict-boundary gate (prepared; the 20 bp count is made only after the pre-registration merges)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: broad route resumed with one looser filter; docs/RESEARCH_BROAD_UNIVERSE_LOOSER_FILTER_PREREG_2026-11-24.md section 4 step 2."
+objective: "Prepare the count tool so the looser count is reproducible: default 10 bp reproduces the first count, the tier table and a hash of the ticker snapshot are recorded, and the gate is also reported on the strict boundary."
+change:
+  - "scripts/broad-universe-filter-count.js: --tick-bp option (default 10), tierTable and tickerSnapshotSha256 in the output, gateStrictAtLeast40."
+  - "tests/broad-universe-filter-count.test.js: one more static test."
+not_changed:
+  - "No count is run by this PR; the first result (#3266) stands unedited; no host, release, gate, threshold, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The tier table of a rerun may differ from the first run (live prices); the 20 bp count itself is a separate PR after the pre-registration is merged; no independent review yet."
+acceptance:
+  - "Tests and AIPOS validators pass; merged before the 20 bp count is made."
