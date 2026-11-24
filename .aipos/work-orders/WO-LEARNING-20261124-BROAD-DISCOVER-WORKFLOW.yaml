@@ -1,0 +1,22 @@
+id: WO-LEARNING-20261124-BROAD-DISCOVER-WORKFLOW
+title: "Broad-universe discover workflow: build the store from the two reproduced fetch artifacts and run the discovery script on a hosted runner (hash-pinned, no Upbit request)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: '해' for the manifest record and the discover workflow after both fetch groups were reproduced; the owner's go for the discover RUN itself is still separate."
+objective: "Record the two reproduced fetch manifests (counts and hashes), add a verified store builder and a dispatch-only discover workflow whose every executed or read file is pinned by a committed pins file."
+change:
+  - "docs/research-data/broad-universe-fetch-manifests-2026-11-24.json (recorded manifest hashes of both groups, no candle value)."
+  - "scripts/build-broad-store.js and tests/build-broad-store.test.js (manifest, file and market checks, discovery-window store only)."
+  - "docs/research-data/broad-universe-discover-pins-2026-11-24.json, .github/workflows/broad-universe-discover.yml and tests/broad-universe-discover-workflow.test.js."
+not_changed:
+  - "scripts/run-history-mining.js (hash 6914d619... pinned), scripts/run-broad-mining.js and the fetch workflow are untouched; nothing is run by this PR; no host, release, service, gate, threshold, limit, capital or authority change; no Upbit request; hold-back files are hashed for the manifest check but never parsed or stored."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Behaviour on a real run (memory and runtime of discover on 56 markets, artifact download through the REST API on a hosted runner); the two artifacts expire 2026-11-27T12:41Z (g1) and 13:50Z (g2); if they expire the groups are fetched again (about 70 minutes) and the record is rewritten before a new review."
+acceptance:
+  - "Tests and AIPOS validators pass; independent non-author review; merged by the release bot; the discover run needs the owner's go."
