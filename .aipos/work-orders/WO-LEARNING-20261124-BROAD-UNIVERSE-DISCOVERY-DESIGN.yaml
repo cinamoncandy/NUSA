@@ -15,6 +15,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "Revised after an independent review (5 P1: forward overlap with other pre-registrations, time-matched baseline and block length, forward power and optional stopping, shortlist conditions, host load). Not checked yet: the Upbit tick-size table, the number of markets passing the tick and traded-value filters, API rate limits at 200 markets, the effective sample size, the minimum detectable effect, memory and runtime of the new scripts; the survivorship bias cannot be removed from the historical part."
+unverified: "Revised after an independent review (5 P1: forward overlap with other pre-registrations, time-matched baseline and block length, forward power and optional stopping, shortlist conditions, host load). Second review: one P1 (pool size; now a go/no-go gate with a 40-market minimum and an explicit 'not viable' outcome) and P2s (forward list rule, listing probe, hosted-runner IP and Node, baseline breadth, wording) addressed. Not checked yet: the pool size after the filters, hosted-runner reachability and quota behaviour, the Upbit tick-size table and its source, the number of markets passing the tick and traded-value filters, API rate limits at 200 markets, the effective sample size, the minimum detectable effect, memory and runtime of the new scripts; the survivorship bias cannot be removed from the historical part."
 acceptance:
   - "Independent non-author review; merged by the release bot before any fetch of a new market."
