@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261124-BROAD-UNIVERSE-METADATA
+title: "Broad-universe step 2a: Upbit KRW market list and tick sizes committed before the tradability filter is applied (metadata only)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: the owner approved the order of the broad-universe design ('제안 순서 다 해', '다음'); this is step 2a. The filter count and the go/no-go gate follow as separate PRs."
+objective: "Commit the market list, warning flags and tick sizes with their sources and a hash before any filter is applied, as the design requires."
+change:
+  - "docs/research-data/broad-universe-market-metadata-2026-11-24.json (new): 300 KRW markets, warning and caution flags, current tick size; no candle, price or volume value."
+  - "docs/RESEARCH_BROAD_UNIVERSE_METADATA_2026-11-24.md (new): sources, the fixed rules (tick source, pegged-asset exclusions, study-market exclusion, warnings) and the next steps."
+not_changed:
+  - "No fetch of candles, no filter result, no code, host, release, gate, threshold, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The tick sizes are current values (historical 2021-2023 tiers are not in the file); the pool size after the filter is unknown; this PR depends on the design PR #3264 being merged first."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot after #3264."
