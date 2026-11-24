@@ -56,11 +56,26 @@ function tickAt(price, tiers, rule) {
   return chosen;
 }
 
+/** Arguments: [outPath] [--tick-bp N | --tick-bp=N] in any order; unknown flags, a second path or a bad number fail loudly. */
+function parseArgs(argv) {
+  let tickBp = DEFAULT_TICK_BP_MAX; let outPath;
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === "--tick-bp" || a.startsWith("--tick-bp=")) {
+      const raw = a === "--tick-bp" ? argv[i + 1] : a.slice("--tick-bp=".length);
+      if (a === "--tick-bp") i += 1;
+      if (raw === undefined || !/^\d+(\.\d+)?$/.test(raw)) throw new Error("--tick-bp needs a plain decimal number");
+      tickBp = Number(raw);
+      if (!(tickBp > 0 && tickBp <= 100)) throw new Error("--tick-bp must be a number in (0, 100]");
+    } else if (a.startsWith("--")) throw new Error(`unknown option ${a.split("=")[0]}`);
+    else if (outPath === undefined) outPath = a;
+    else throw new Error("only one output path is allowed");
+  }
+  return { tickBp, outPath };
+}
+
 async function main() {
-  const tickArg = process.argv.indexOf("--tick-bp");
-  const TICK_BP_MAX = tickArg >= 0 ? Number(process.argv[tickArg + 1]) : DEFAULT_TICK_BP_MAX;
-  if (!(TICK_BP_MAX > 0 && TICK_BP_MAX <= 100)) throw new Error("--tick-bp must be a number in (0, 100]");
-  const outPath = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : undefined;
+  const { tickBp: TICK_BP_MAX, outPath } = parseArgs(process.argv.slice(2));
   const metaPath = path.join(__dirname, "..", "docs", "research-data", "broad-universe-market-metadata-2026-11-24.json");
   const raw = fs.readFileSync(metaPath);
   const metaSha = crypto.createHash("sha256").update(raw).digest("hex");
@@ -136,4 +151,4 @@ async function main() {
   console.log(JSON.stringify(out.counts));
 }
 if (require.main === module) main().catch((e) => { console.error(`ERROR ${e.message}`); process.exit(1); });
-module.exports = { median, buildTiers, tickAt };
+module.exports = { median, buildTiers, tickAt, parseArgs };
