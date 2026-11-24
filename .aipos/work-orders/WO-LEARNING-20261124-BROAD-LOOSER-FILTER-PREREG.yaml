@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-BROAD-LOOSER-FILTER-PREREG
+title: "Broad-universe route reopened: one looser tradability bar (20 bp) pre-registered before it is counted"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: '넓은 경로 재개(더 느슨한 필터)' (answer to the question what to restart among the stopped items); the earlier stop ('1') is superseded by this decision."
+objective: "Fix, before counting, one alternative bar and the stop rule, so the looser count cannot be tuned toward 40."
+change:
+  - "docs/RESEARCH_BROAD_UNIVERSE_LOOSER_FILTER_PREREG_2026-11-24.md (new)."
+not_changed:
+  - "No script, fetch, count, host, release, gate, threshold, limit, capital or authority change; the first count (#3266) stands unedited."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The pool size at 20 bp is unknown by design until the count PR; the cost consequence is arithmetic from the design's cost model, not measured."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot before the count is made."
