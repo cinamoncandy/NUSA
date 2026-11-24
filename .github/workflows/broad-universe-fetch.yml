@@ -10,7 +10,7 @@ name: Broad Universe Fetch
 # second time into a second directory and the two manifest hashes must be equal (closed bars are immutable); any difference fails the run.
 # The files of the first run are kept as a short-lived workflow artifact (3 days) so that a later, separately reviewed discover workflow can read
 # them; the artifact action is the first-party upload-artifact pinned by commit sha, the same one ci.yml uses (a stated deviation from the
-# "no third-party action" line of the host workflows). A group that stops on HTTP 429 fails closed and is simply repeated later. PAPER only, LIVE NONE.
+# "no third-party action" line of the host workflows). Dispatch one run at a time: a third queued dispatch replaces the pending one. A group that stops on HTTP 429 fails closed and is simply repeated later. PAPER only, LIVE NONE.
 
 on:
   workflow_dispatch:
@@ -107,19 +107,23 @@ jobs:
           status=$?
           printf '%s\n' "$out1"
           h1="$(printf '%s\n' "$out1" | grep -E '^UNIVERSE_MANIFEST_SHA256' | head -1)"
-          h2=""
+          h2=""; repro="NOT_RUN"
+          # A successful exit without a well-formed manifest hash is a failure (never "match" on two empty strings).
+          if [ "$status" = "0" ] && ! [[ $h1 =~ ^UNIVERSE_MANIFEST_SHA256\ [0-9a-f]{64}$ ]]; then echo "UNIVERSE_FETCH_FAILED_NO_HASH"; status=4; fi
           if [ "$status" = "0" ] && [ "$REPRODUCE" = "true" ]; then
             # shellcheck disable=SC2086
             out2="$(node "$script" "$BROAD_WORK/run2" "g$GROUP" $BROAD_MARKETS 2>&1)"
             s2=$?
             h2="$(printf '%s\n' "$out2" | grep -E '^UNIVERSE_MANIFEST_SHA256' | head -1)"
+            repro="FAILED"
             if [ "$s2" != "0" ]; then status=$s2; printf '%s\n' "$out2" | grep -E '^UNIVERSE_FETCH_FAILED'; fi
+            if [ "$status" = "0" ] && ! [[ $h2 =~ ^UNIVERSE_MANIFEST_SHA256\ [0-9a-f]{64}$ ]]; then echo "UNIVERSE_FETCH_FAILED_NO_HASH"; status=4; fi
             if [ "$status" = "0" ] && [ "$h1" != "$h2" ]; then echo "UNIVERSE_REPRODUCTION_MISMATCH"; status=3; fi
-            [ "$status" = "0" ] && echo "UNIVERSE_REPRODUCTION_MATCH"
+            if [ "$status" = "0" ]; then echo "UNIVERSE_REPRODUCTION_MATCH"; repro="match"; fi
             rm -rf "$BROAD_WORK/run2"
           fi
           # Annotation: hash line, failure and exclusion lines first, then the per-file lines (cut at 8000 characters), never a price.
-          key="$({ printf '%s\n' "$h1"; printf '%s\n' "$out1" | grep -E '^(UNIVERSE_FETCH_FAILED|UNIVERSE_EXCLUDED)'; [ "$REPRODUCE" = "true" ] && echo "reproduce=$([ "$status" = "0" ] && echo match || echo FAILED)"; printf '%s\n' "$out1" | grep -E '^UNIVERSE_FILE'; } | grep -v '^$')"
+          key="$({ printf '%s\n' "$h1"; printf '%s\n' "$out1" | grep -E '^(UNIVERSE_FETCH_FAILED|UNIVERSE_EXCLUDED)'; [ "$REPRODUCE" = "true" ] && echo "reproduce=$repro"; printf '%s\n' "$out1" | grep -E '^UNIVERSE_FILE'; } | grep -v '^$')"
           body="$(printf '%s' "${key:0:8000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
           echo "::notice title=broad-universe-fetch group ${GROUP} status=${status}::${body}"
           [ "$status" = "0" ] && echo "BROAD_FETCH_OK=1" >> "$GITHUB_ENV"
