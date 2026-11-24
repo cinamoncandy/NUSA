@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-FORWARD-SCRIPT-HASHES
+title: "Forward RET48 pre-registration step 3: file hashes of the decision script and its frozen inputs, committed before the span starts"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: continuation of the approved forward pre-registration ('만들어 / 승인', '다음'); step 3 of section 7."
+objective: "Pin the SHA-256 of the decision script, its test, the unchanged mining script, the cross-market helper and the freeze record, at the merged source commit, before 2026-12-11 and before any span value is read."
+change:
+  - "docs/research-data/forward-ret48-script-hashes-2026-11-24.json (new)."
+not_changed:
+  - "No code, workflow, host, release, rule, threshold, window, gate, limit, capital or authority change; no span value read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The pre-registration document is not pinned (amendment 7a changes it); the wiring file and its hash are a later step."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot before 2026-12-11."
