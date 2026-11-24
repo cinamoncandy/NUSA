@@ -16,6 +16,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "Known limit of the prereg section 6 check: a hash cannot prove that the earlier rows of a market-day that gained a late bar are unchanged; such a day is checked by count growth only, and a changed or deleted row in a day with equal or fewer rows is caught. Closing this needs a pre-span amendment (owner). The workflow with the spent-once guard, the quarterly job and the hash commit of these files are separate PRs; no independent review yet."
+unverified: "Independent review (no P1) applied: committed record required, midnight span start, early dates refused on real data, halted market dropped, first quarter hash 2027-03-31. Known limit of the prereg section 6 check (not closed): a hash cannot prove that the earlier rows of a market-day that gained a late bar are unchanged; such a day is checked by count growth only (a changed close on a day that also gained a bar, or a deleted row replaced by two added ones, is NOT caught), while a changed or deleted row in a day with equal or fewer rows is caught. Closing this needs a pre-span amendment (owner). The workflow with the spent-once guard, the quarterly job and the hash commit of these files are separate PRs; no independent review yet."
 acceptance:
   - "Independent non-author review; tests pass; merged before 2026-12-11 and before any span value is read."

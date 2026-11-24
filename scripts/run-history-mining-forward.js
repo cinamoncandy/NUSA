@@ -31,6 +31,7 @@ const MIN_TRADES = 200;
 const MAX_MISSING_SHARE = 0.10;
 const LOOKBACK_H = 72;
 const SETTLING_MS = 7 * DAY;
+const FIRST_QUARTER_HASH = Date.parse("2027-03-31T00:00:00Z");
 const FROZEN_FINGERPRINT = "dc65065c8d898668263abe774f53088dde2e35dfdf39eb9f1f601760556fdaa5";
 
 const mean = (xs) => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
@@ -94,7 +95,8 @@ function quarterRecord(db, atMs) {
 /**
  * Compare a committed quarterly record with the store now: a day with the same count must have the same hashes (a changed close or a swapped row fails);
  * a day with fewer rows (a deleted row) fails; a day with MORE rows is a tolerated late gap-fill. Known limit: a hash cannot prove that the earlier rows of a day
- * that gained a row are unchanged; the day is only checked by count growth.
+ * that gained a row are unchanged, so such a day is checked by count growth only: a changed close on a day that also gained a bar, or a deleted row replaced by two
+ * added ones, is NOT caught. Closing this needs a pre-span amendment (per-row hashes), decided by the owner.
  */
 function checkCommitted(committed, current) {
   for (const [k, was] of Object.entries(committed.perDay)) {
@@ -126,11 +128,27 @@ function evaluateRuleSet(perMarket, from, decision, thresholds, resamples) {
   return out;
 }
 
+/** True when the market has bars in the span, none after its last bar, and that last bar is more than 10 percent of the span before the decision (a halt or delisting, not holes). */
+function isHalted(m, from, to) {
+  let last = null; let have = 0;
+  for (let t = from; t < to; t += H) if (m.closes.has(t)) { last = t; have += 1; }
+  if (last === null) return false;
+  const tail = Math.round((to - last) / H) - 1; const hours = Math.round((to - from) / H);
+  if (tail / hours <= MAX_MISSING_SHARE) return false;
+  const insideHoles = Math.round((last - from) / H) + 1 - have;
+  return insideHoles / hours <= MAX_MISSING_SHARE; // the rest of the span is present: only the tail is missing
+}
+
 /** The decision. `perMarket` = [{ market, closes }] covering the span plus lookback; pure and testable on synthetic data. */
-function decide({ perMarket, spanStart, decisionAt = DECISION, resamples = B }) {
-  if (!(spanStart >= SPAN_EARLIEST) || spanStart % H !== 0) return { status: "BAD_SPAN_START" };
+function decide({ perMarket: allMarkets, spanStart, decisionAt = DECISION, resamples = B, testOnlyEarlyDecision = false }) {
+  if (decisionAt !== DECISION && !testOnlyEarlyDecision) return { status: "BAD_DECISION_DATE" }; // blindness: no other date is ever evaluated on real data
+  if (!(spanStart >= SPAN_EARLIEST) || spanStart % DAY !== 0) return { status: "BAD_SPAN_START" };
+  // A market delisted or halted during the span (its missing hours are one contiguous tail after its last bar) is dropped and the others stay (prereg section 3).
+  const dropped = []; const perMarket = [];
+  for (const m of allMarkets) { if (isHalted(m, spanStart, decisionAt)) dropped.push(m.market); else perMarket.push(m); }
+  if (perMarket.length === 0) return { status: "DATA_INTEGRITY_FAIL", reason: "NO_MARKET_LEFT", dropped };
   const missing = missingShares(perMarket, spanStart, decisionAt);
-  if (missing.some((m) => m.missingShare > MAX_MISSING_SHARE)) return { status: "DATA_INTEGRITY_FAIL", reason: "MISSING_HOURS", missing: missing.map((m) => ({ market: m.market, hours: m.hours, have: m.have })) };
+  if (missing.some((m) => m.missingShare > MAX_MISSING_SHARE)) return { status: "DATA_INTEGRITY_FAIL", reason: "MISSING_HOURS", dropped, missing: missing.map((m) => ({ market: m.market, hours: m.hours, have: m.have })) };
   const windowEnd = decisionAt - 24 * H; // decision hours up to decision - 25 h inclusive
   const withRows = perMarket.map((m) => ({ market: m.market, closes: m.closes, rows: mining.signalTable(m.closes, spanStart, windowEnd) }));
   const thresholds = {};
@@ -140,12 +158,14 @@ function decide({ perMarket, spanStart, decisionAt = DECISION, resamples = B }) 
   const primary = res[PRIMARY];
   const secondaryCounts = primary.pass && res[SECONDARY].pass;
   const status = !primary.testable ? "INCONCLUSIVE" : primary.pass ? "PASS" : "FAIL";
-  return { status, entryRule: mining.ENTRY_RULE, spanStart: new Date(spanStart).toISOString(), decisionAt: new Date(decisionAt).toISOString(), primary, secondary: { ...res[SECONDARY], countsForTheDecision: primary.pass, passes: secondaryCounts }, spanHash: spanHash(perMarket, spanStart, decisionAt), missing: missing.map((m) => ({ market: m.market, hours: m.hours, have: m.have })) };
+  return { status, dropped, entryRule: mining.ENTRY_RULE, spanStart: new Date(spanStart).toISOString(), decisionAt: new Date(decisionAt).toISOString(), primary, secondary: { ...res[SECONDARY], countsForTheDecision: primary.pass, passes: secondaryCounts }, spanHash: spanHash(perMarket, spanStart, decisionAt), missing: missing.map((m) => ({ market: m.market, hours: m.hours, have: m.have })) };
 }
 
 function evaluate({ db, freeze, spanStart, committed = [], now = Date.now(), resamples = B }) {
   if (now < DECISION) return { status: "TOO_EARLY", notBefore: new Date(DECISION).toISOString() };
   const bad = verifyFreeze(freeze); if (bad) return { status: bad };
+  if (!Array.isArray(committed) || committed.length === 0) return { status: "DATA_INTEGRITY_FAIL", reason: "NO_COMMITTED_RECORD" };
+  if (!committed.every((c) => c && typeof c.perDay === "object" && c.perDay !== null && typeof c.hashA === "string")) return { status: "DATA_INTEGRITY_FAIL", reason: "BAD_COMMITTED_RECORD" };
   const perMarket = MARKETS.map((market) => ({ market, closes: loadHourly(db, market, spanStart, DECISION) }));
   const current = quarterRecord(db, DECISION);
   for (const c of committed) { const r = checkCommitted(c, current); if (!r.ok) return { status: "DATA_INTEGRITY_FAIL", reason: r.reason }; }
@@ -162,7 +182,7 @@ function main(argv) {
   const dbPath = arg(argv, "--db"); if (!dbPath) throw new Error("--db is required");
   const db = new DatabaseSync(dbPath, { readOnly: true });
   try {
-    if (cmd === "quarter-hash") { const at = Date.parse(arg(argv, "--at")); if (!Number.isFinite(at)) throw new Error("--at must be an ISO time"); console.log(`FORWARD_QUARTER_HASH ${JSON.stringify(quarterRecord(db, at))}`); return 0; }
+    if (cmd === "quarter-hash") { const at = Date.parse(arg(argv, "--at")); if (!Number.isFinite(at)) throw new Error("--at must be an ISO time"); if (at < FIRST_QUARTER_HASH) throw new Error("the first quarterly record is 2027-03-31 (blindness: no earlier read of span rows)"); console.log(`FORWARD_QUARTER_HASH ${JSON.stringify(quarterRecord(db, at))}`); return 0; }
     if (cmd === "evaluate") {
       const freeze = JSON.parse(fs.readFileSync(arg(argv, "--freeze"), "utf8")); const rec = freeze.freeze || freeze;
       const spanStart = Date.parse(arg(argv, "--span-start"));

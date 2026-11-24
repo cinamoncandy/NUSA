@@ -40,28 +40,29 @@ test("refuses to decide before 2028-03-31T00:00Z", () => {
 });
 
 test("the span may not start before 2026-12-11T00:00Z", () => {
-  assert.equal(f.decide({ perMarket: markets(), spanStart: START - H, decisionAt: START + 60 * DAY, resamples: 50 }).status, "BAD_SPAN_START");
+  assert.equal(f.decide({ perMarket: markets(), spanStart: START - H, decisionAt: START + 60 * DAY, resamples: 50, testOnlyEarlyDecision: true }).status, "BAD_SPAN_START");
+  assert.equal(f.decide({ perMarket: markets(), spanStart: START + H, decisionAt: START + 60 * DAY, resamples: 50, testOnlyEarlyDecision: true }).status, "BAD_SPAN_START", "midnight only");
 });
 
 test("more than 10 percent of hours missing in a market voids the study", () => {
-  const out = f.decide({ perMarket: markets({ holeEvery: 5 }), spanStart: START, decisionAt: START + 60 * DAY, resamples: 50 });
+  const out = f.decide({ perMarket: markets({ holeEvery: 5 }), spanStart: START, decisionAt: START + 60 * DAY, resamples: 50, testOnlyEarlyDecision: true });
   assert.equal(out.status, "DATA_INTEGRITY_FAIL");
   assert.equal(out.reason, "MISSING_HOURS");
 });
 
 test("a decision is PASS, FAIL or INCONCLUSIVE with the frozen counts; the secondary counts only if the primary passes", () => {
-  const out = f.decide({ perMarket: markets(), spanStart: START, decisionAt: START + 120 * DAY, resamples: 200 });
+  const out = f.decide({ perMarket: markets(), spanStart: START, decisionAt: START + 120 * DAY, resamples: 200, testOnlyEarlyDecision: true });
   assert.ok(["PASS", "FAIL", "INCONCLUSIVE"].includes(out.status));
   assert.equal(out.entryRule, "NEXT_HOURLY_CLOSE");
   assert.equal(out.secondary.countsForTheDecision, out.primary.pass);
   if (out.primary.n < 200) assert.equal(out.status, "INCONCLUSIVE");
   assert.match(out.spanHash.sha256, /^[0-9a-f]{64}$/);
-  const again = f.decide({ perMarket: markets(), spanStart: START, decisionAt: START + 120 * DAY, resamples: 200 });
+  const again = f.decide({ perMarket: markets(), spanStart: START, decisionAt: START + 120 * DAY, resamples: 200, testOnlyEarlyDecision: true });
   assert.deepEqual(again, out, "deterministic (fixed seeds)");
 });
 
 test("fewer than 200 resolved primary trades is INCONCLUSIVE, never a pass", () => {
-  const out = f.decide({ perMarket: markets(), spanStart: START, decisionAt: START + 30 * DAY, resamples: 50 });
+  const out = f.decide({ perMarket: markets(), spanStart: START, decisionAt: START + 30 * DAY, resamples: 50, testOnlyEarlyDecision: true });
   assert.equal(out.status, "INCONCLUSIVE");
   assert.equal(out.primary.pass, false);
 });
@@ -97,4 +98,35 @@ test("the script prints no candle value: its output keys are counts, hashes, p-v
   const src = fs.readFileSync(path.join(__dirname, "..", "scripts", "run-history-mining-forward.js"), "utf8");
   assert.doesNotMatch(src, /console\.log\([^)]*closes/);
   assert.equal((src.match(/console\.log/g) || []).length, 2);
+});
+
+test("real data can only be decided at the pre-registered date", () => {
+  assert.equal(f.decide({ perMarket: markets(), spanStart: START, decisionAt: START + 60 * DAY }).status, "BAD_DECISION_DATE");
+});
+
+test("evaluate without a committed quarterly record, or with a malformed one, is DATA_INTEGRITY_FAIL", () => {
+  const db = new DatabaseSync(":memory:");
+  assert.equal(f.evaluate({ db, freeze, spanStart: START, now: f.DECISION }).reason, "NO_COMMITTED_RECORD");
+  assert.equal(f.evaluate({ db, freeze, spanStart: START, now: f.DECISION, committed: [{}] }).reason, "BAD_COMMITTED_RECORD");
+  db.close();
+});
+
+test("a market that stops mid-span is dropped and the others stay; a market with scattered holes voids the study", () => {
+  const pm = markets();
+  const cut = START + 20 * DAY;
+  for (const t of [...pm[3].closes.keys()]) if (t > cut) pm[3].closes.delete(t);
+  const out = f.decide({ perMarket: pm, spanStart: START, decisionAt: START + 120 * DAY, resamples: 50, testOnlyEarlyDecision: true });
+  assert.deepEqual(out.dropped, ["KRW-NEAR"]);
+  assert.notEqual(out.status, "DATA_INTEGRITY_FAIL");
+});
+
+test("trending synthetic markets give a PASS with at least 200 trades; the secondary is gated by the primary; the last decision hour is 25 h before the decision", () => {
+  const trend = f.MARKETS.map((m, i) => { const closes = new Map(); let p = 100; let s = 99 + i; for (let t = START - 80 * H; t <= START + 400 * DAY + 30 * H; t += H) { s = (s * 1103515245 + 12345) % 2147483648; const r = s / 2147483648 - 0.5; p *= 1 + 0.0004 + r * 0.03; closes.set(t, p); } return { market: m, closes }; });
+  const out = f.decide({ perMarket: trend, spanStart: START, decisionAt: START + 400 * DAY, resamples: 300, testOnlyEarlyDecision: true });
+  assert.ok(out.primary.n >= 200, "enough trades");
+  assert.equal(out.primary.testable, true);
+  assert.equal(out.secondary.countsForTheDecision, out.primary.pass);
+  assert.equal(out.secondary.passes, out.primary.pass && out.secondary.pass);
+  const cap = f.decide({ perMarket: trend, spanStart: START, decisionAt: START + 400 * DAY + 0, resamples: 50, testOnlyEarlyDecision: true });
+  assert.ok(["PASS", "FAIL"].includes(cap.status));
 });
