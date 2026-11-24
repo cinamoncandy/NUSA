@@ -11,7 +11,7 @@ const path = require("node:path");
 
 const WINDOW_FROM = "2021-12-20";
 const WINDOW_TO_EXCLUSIVE = "2023-07-01";
-const TICK_BP_MAX = 10;
+const DEFAULT_TICK_BP_MAX = 10;
 const VALUE_MIN_KRW = 1e9;
 const LISTING_WAIT_DAYS = 30;
 const MIN_DAYS = 30;
@@ -56,7 +56,26 @@ function tickAt(price, tiers, rule) {
   return chosen;
 }
 
+/** Arguments: [outPath] [--tick-bp N | --tick-bp=N] in any order; unknown flags, a second path or a bad number fail loudly. */
+function parseArgs(argv) {
+  let tickBp = DEFAULT_TICK_BP_MAX; let outPath;
+  for (let i = 0; i < argv.length; i += 1) {
+    const a = argv[i];
+    if (a === "--tick-bp" || a.startsWith("--tick-bp=")) {
+      const raw = a === "--tick-bp" ? argv[i + 1] : a.slice("--tick-bp=".length);
+      if (a === "--tick-bp") i += 1;
+      if (raw === undefined || !/^\d+(\.\d+)?$/.test(raw)) throw new Error("--tick-bp needs a plain decimal number");
+      tickBp = Number(raw);
+      if (!(tickBp > 0 && tickBp <= 100)) throw new Error("--tick-bp must be a number in (0, 100]");
+    } else if (a.startsWith("--")) throw new Error(`unknown option ${a.split("=")[0]}`);
+    else if (outPath === undefined) outPath = a;
+    else throw new Error("only one output path is allowed");
+  }
+  return { tickBp, outPath };
+}
+
 async function main() {
+  const { tickBp: TICK_BP_MAX, outPath } = parseArgs(process.argv.slice(2));
   const metaPath = path.join(__dirname, "..", "docs", "research-data", "broad-universe-market-metadata-2026-11-24.json");
   const raw = fs.readFileSync(metaPath);
   const metaSha = crypto.createHash("sha256").update(raw).digest("hex");
@@ -69,6 +88,8 @@ async function main() {
     await sleep(150);
   }
   const tiers = buildTiers(markets, prices);
+  const tickerSnapshotSha256 = crypto.createHash("sha256").update(JSON.stringify(Object.keys(prices).sort().map((k) => [k, prices[k]]))).digest("hex");
+  const tierTable = [...tiers.lowest.keys()].sort((a, b) => a - b).map((t) => ({ tick: t, lowestCurrentPrice: tiers.lowest.get(t), highestCurrentPrice: tiers.highest.get(t) }));
   const results = [];
   for (const m of markets) {
     const rows = [];
@@ -108,7 +129,9 @@ async function main() {
     kind: "BROAD_UNIVERSE_FILTER_COUNT",
     window: [WINDOW_FROM, WINDOW_TO_EXCLUSIVE],
     metadataSha256: metaSha,
-    rules: { tickBpMax: TICK_BP_MAX, medianDailyValueMinKrw: VALUE_MIN_KRW, listingWaitDays: LISTING_WAIT_DAYS, minDays: MIN_DAYS, tickBoundary: "lowest current price seen with the higher tick (alt: highest price seen with the lower tick)" },
+    tickerSnapshotSha256,
+    tierTable,
+    rules: { tickBpMax: TICK_BP_MAX, tickBpDefault: DEFAULT_TICK_BP_MAX, medianDailyValueMinKrw: VALUE_MIN_KRW, listingWaitDays: LISTING_WAIT_DAYS, minDays: MIN_DAYS, tickBoundary: "lowest current price seen with the higher tick (alt: highest price seen with the lower tick)" },
     counts: {
       marketsInFile: markets.length,
       withEnoughWindowDays: eligible.length,
@@ -119,13 +142,13 @@ async function main() {
       forwardPoolAfterStudyAndWarning: forward.length,
       forwardPoolAltTickBoundary: forwardAlt.length,
       gateAtLeast40: forward.length >= 40,
+      gateStrictAtLeast40: forwardAlt.length >= 40, // the looser-bar pre-registration gates on the strict tick boundary
     },
     discoveryPool: discovery.map((r) => r.market).sort(),
     forwardPool: forward.map((r) => r.market).sort(),
   };
-  const outPath = process.argv[2];
   if (outPath) fs.writeFileSync(outPath, `${JSON.stringify(out, null, 2)}\n`);
   console.log(JSON.stringify(out.counts));
 }
 if (require.main === module) main().catch((e) => { console.error(`ERROR ${e.message}`); process.exit(1); });
-module.exports = { median, buildTiers, tickAt };
+module.exports = { median, buildTiers, tickAt, parseArgs };
