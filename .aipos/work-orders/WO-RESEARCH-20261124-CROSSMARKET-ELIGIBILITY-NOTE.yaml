@@ -1,0 +1,19 @@
+id: WO-RESEARCH-20261124-CROSSMARKET-ELIGIBILITY-NOTE
+title: "Evidence note: cross-market study eligibility risk and the NEAR holes (docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+objective: "Record, before any study result, what makes a market eligible, the current margin, and what is and is not known about NEAR, so the 2026-12-10 result is read correctly and proposals for after the study are on file."
+change:
+  - "docs/RESEARCH_CROSSMARKET_ELIGIBILITY_RISK_AND_NEAR_HOLES_2026-11-24.md (new)."
+not_changed:
+  - "No code, host, release, rule, threshold, window, gate, limit, capital or authority change; no data edited."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Per-market complete bars and usable books inside the training week and the clustering of NEAR's missing minutes are not available from the daily diagnosis (counts of the whole store only); the order-book gap dates of the last four gap runs are not listed in the diagnosis."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot."
