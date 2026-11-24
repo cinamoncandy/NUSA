@@ -1,0 +1,24 @@
+id: WO-LEARNING-20261124-BROAD-UNIVERSE-FILTER-COUNT
+title: "Broad-universe step 2b: tradability filter count and go/no-go gate (counts and codes only)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: owner said '2b단계 해' after the approved order of the broad-universe design."
+objective: "Apply the committed tradability filter to daily candles of the discovery window and publish counts and passing market codes, then evaluate the go/no-go gate (forward pool of at least 40)."
+change:
+  - "scripts/broad-universe-filter-count.js (new): public daily candles, medians of close and quote traded value only; prints counts."
+  - "docs/research-data/broad-universe-filter-count-2026-11-24.json (new): counts and passing market codes; no price or volume value."
+  - "docs/RESEARCH_BROAD_UNIVERSE_FILTER_COUNT_2026-11-24.md (new): result, gate verdict and options."
+owner_decision_after_result: "2026-11-24 ('1'): stop the broad route; no looser filter, fetch or tooling PR for it."
+result: "Forward pool 29 (26 with the alternative tick boundary), below 40: gate not passed, broad route not viable at this tradability bar."
+not_changed:
+  - "No hourly fetch, no return computed, no host, release, gate, threshold, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Tick tiers are a proxy from current tiers; the script has no unit tests and no independent review yet; the final forward pool is decided at the later snapshot."
+acceptance:
+  - "AIPOS validators pass; independent non-author review of the script; merged by the release bot."
