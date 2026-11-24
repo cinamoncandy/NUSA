@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "kind": "FORWARD_RET48_SCRIPT_HASHES",
+  "note": "Committed before the span starts (2026-12-11T00:00Z) and before any span value is read (prereg section 7 step 3). The decision uses exactly these files; a different hash at decision time means the run is not the pre-registered one. Hashes are SHA-256 of the file bytes at sourceCommit.",
+  "sourceCommit": "8bad218a907b9b04f665a87eaf899fb7b9d30eda",
+  "committedAt": "2026-11-24",
+  "files": {
+    "scripts/run-history-mining-forward.js": "a22387a16d569ff53c4324499f2b71ed4fd898780b2a1d74f3bef43c4a19be68",
+    "tests/run-history-mining-forward.test.js": "9e62a884c0ae2627a5639e4cc25a75308f14edaa5d258930e70464f4b655fa81",
+    "scripts/run-history-mining.js": "6914d619ff2724d94545e7417fba8529230a0b6d057dd455858ff0c19cd4da1d",
+    "scripts/run-crossmarket-study.js": "7ee2dd25c378cd9544e9be7a0fbb82aa3151152499399f1b031a0436e7d8434f",
+    "docs/research-data/history-mining-h2-freeze-record-2026-11-23.json": "d7b81f84ea34f4a300c896d9bc05bbc428b74637ae3476c6ff18a7561f4191cf"
+  },
+  "frozenInputs": {
+    "freezeFingerprint": "dc65065c8d898668263abe774f53088dde2e35dfdf39eb9f1f601760556fdaa5",
+    "gridFingerprint": "045ff2d52f216eb8e3425c65ef926fd82903924fbf5874b8528f55f7951b2c77"
+  },
+  "notPinnedHere": "The pre-registration document hash is not pinned because amendment 7a (PR 3268) changes it; the wiring PR pins the final text. The host wiring file is a later step."
+}
