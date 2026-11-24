@@ -1,0 +1,20 @@
+id: WO-OPS-20261124-AUDIT-AUTHORIZATION-REREAD-RETRY
+title: "Release path: bounded wait for the read-after-write of the exact-head authorization status (draft; owner decides)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+objective: "The audit's step 'Publish exact-head release authorization' re-reads the commit status it just posted. GitHub's status list can lag the POST, so the re-read came back empty (jq -e exit 4) and failed on the first attempt of most PRs on 2026-11-23 (#3252, #3255, #3256, #3257, #3259; each merged after one to two reruns). Wait for the same status id for up to 5 reads, 2 seconds apart, then run the unchanged strict checks."
+change:
+  - ".github/workflows/autopilot-deterministic-audit-release.yml: the observed_status read becomes a bounded loop (5 reads, 2 s apart, same status id, per_page=100); the jq -e validation after it is untouched."
+  - "tests/audit-authorization-reread-retry.test.js (new; static contract: the loop is bounded, the strict checks and every earlier guard remain)."
+not_changed:
+  - "No gate, check, threshold, base/head/hold/draft test, creator check, token scope, merge step or authority change. A missing or wrong status still fails closed (an empty read after the last attempt still ends in the same jq -e failure)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: release_path_reliability_only
+unverified: "The cause (read-after-write lag of the statuses list) is inferred from exit code 4 of jq -e on an empty read, not proven; no second failure signature was seen. This is the release path: draft, independent review, and the owner's decision; never self-merged."
+acceptance:
+  - "Independent non-author review; the owner decides; merged only by the release path."
