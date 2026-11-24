@@ -1,0 +1,12 @@
+{
+  "kind": "broad-universe-fetch-manifests",
+  "date": "2026-11-24",
+  "note": "Recorded from the two reproduced runs of .github/workflows/broad-universe-fetch.yml (hosted runner, public Upbit 60m candles, reproduce=true: each group was fetched twice and the manifest hashes were equal). Counts and hashes only. manifestSha256 is the UNIVERSE_MANIFEST_SHA256 line of the fetch script (sha256 of the files, excluded and listing parts of the group manifest, which holds the sha256 of every CSV). No market was excluded. Written before any candle value was read.",
+  "fetchSourceSha": "23c78ca6a960108d3d60e5d5f1ffb1136a18d1c9",
+  "poolFile": "docs/research-data/broad-universe-filter-count-20bp-2026-11-24.json",
+  "poolSha256": "8c145fed3cd2e0d88919418ff7c2c3af0fd1a62e02efa6c1a9c3872211ea330d",
+  "groups": {
+    "g1": { "runId": 45390462688, "markets": 28, "csvFiles": 54, "manifestSha256": "139a92c3d3adebea9a8325d1c01194409ab0b3d44a40b879a26693f3b30db0a2", "artifactZipSha256": "1d3b6ccb8205f517e6e4213dbbda0a63166d90328bb182d6b4819053376c7346", "reproduced": true, "excluded": 0 },
+    "g2": { "runId": 45401083423, "markets": 28, "csvFiles": 53, "manifestSha256": "40bf0d0e3718c259f01bfa829448664ec4088fe2cd2e7d2c2b382de76f8d57be", "artifactZipSha256": "e0173d213b0f4b02694157e609c6e0f942612674cfe14c09a8140962fca400c0", "reproduced": true, "excluded": 0 }
+  }
+}
