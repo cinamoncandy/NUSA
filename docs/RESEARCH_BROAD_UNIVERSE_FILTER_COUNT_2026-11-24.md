@@ -27,6 +27,9 @@ The design requires a forward pool of **at least 40** markets. It is **29** (26 
 - The tick bar is the binding filter (91 pass the value bar, 37 the tick bar); tick tiers are a proxy (current tiers, not 2021-2023 tiers).
 - The forward pool is finally decided at the pre-registration snapshot, so 29 is an estimate of it, not the pool.
 
-## Options (owner decision, not taken here)
+## Owner decision (2026-11-24: "1")
+The owner chose option 1: **the broad route stops here.** No looser filter, no fetch, no tooling PR for it. The RET48 forward test and the cross-market study stay the confirmation paths. Reopening the broad route needs a new owner decision and a new pre-registration.
+
+## Options that were offered
 1. Stop the broad route; the RET48 forward test and the cross-market study stay the confirmation paths.
 2. Pre-register a looser filter **from these counts** before any candle is fetched (the design allows it), with the cost consequence and the lowered trade floor written down. The counts are only a basis: the choice must be fixed before use and must not be tuned on returns.

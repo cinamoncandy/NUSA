@@ -8,6 +8,7 @@ change:
   - "scripts/broad-universe-filter-count.js (new): public daily candles, medians of close and quote traded value only; prints counts."
   - "docs/research-data/broad-universe-filter-count-2026-11-24.json (new): counts and passing market codes; no price or volume value."
   - "docs/RESEARCH_BROAD_UNIVERSE_FILTER_COUNT_2026-11-24.md (new): result, gate verdict and options."
+owner_decision_after_result: "2026-11-24 ('1'): stop the broad route; no looser filter, fetch or tooling PR for it."
 result: "Forward pool 29 (26 with the alternative tick boundary), below 40: gate not passed, broad route not viable at this tradability bar."
 not_changed:
   - "No hourly fetch, no return computed, no host, release, gate, threshold, limit, capital or authority change."
