@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-BROAD-PROBE-WORKFLOW
+title: "Broad-universe no-data probe: can a GitHub-hosted runner reach public Upbit, and how does the quota header behave (status codes only)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: '시작해' for the broad route; design section 5 item 3 requires a no-data probe before the fetch PR."
+objective: "A dispatch-only workflow on a GitHub-hosted runner that sends 14 public GETs and prints only status codes, the Remaining-Req header and byte counts."
+change:
+  - ".github/workflows/broad-universe-probe.yml (new) and tests/broad-universe-probe-workflow.test.js (static contract)."
+not_changed:
+  - "No fetch of candle data (single-candle requests are discarded unread), no host, release, service, gate, threshold, limit, capital or authority change; not run by this PR."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Behaviour on a live run (the first dispatch is the probe itself); rotating hosted IPs may give different results on different days; the format of the Remaining-Req header is read, not assumed."
+acceptance:
+  - "Static workflow tests and AIPOS validators pass; merged by the release bot; dispatched once after the merge."
