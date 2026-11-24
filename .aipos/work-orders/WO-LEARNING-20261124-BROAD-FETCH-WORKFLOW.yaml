@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261124-BROAD-FETCH-WORKFLOW
+title: "Broad-universe fetch workflow: one group of the 20 bp discovery pool on a GitHub-hosted runner, hash-pinned scripts, optional reproduction"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: '승인' for the next broad-route tooling step after the probe passed (14 of 14 public GETs, no block) and #3277 merged; the owner's go for the fetch RUN itself is still separate."
+objective: "A dispatch-only workflow on a hosted runner that downloads the reviewed fetch script, its base script and the committed pool file at a pinned commit (each hash-checked), fetches one of two fixed 28-market groups, prints only counts and hashes, optionally reproduces the group once, and keeps the files as a 3-day workflow artifact."
+change:
+  - ".github/workflows/broad-universe-fetch.yml (new) and tests/broad-universe-fetch-workflow.test.js (static contract)."
+not_changed:
+  - "No fetch is run by this PR. No host, release, service, gate, threshold, limit, capital or authority change; nothing on the PAPER host (the broad fetch stays off the host before 2026-12-10)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Behaviour on a real run (the first dispatch is the first fetch); run time per group (estimated 1 to 2 hours, twice with reproduction); hosted IPs can hit HTTP 429, which fails the group closed and is repeated later; the discover workflow that reads the artifacts is a separate PR."
+acceptance:
+  - "Static workflow tests and AIPOS validators pass; independent non-author review; merged by the release bot; the fetch run itself needs the owner's go."

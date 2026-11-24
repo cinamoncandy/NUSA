@@ -1,0 +1,138 @@
+name: Broad Universe Fetch
+
+# Data step of the broad-universe route (docs/RESEARCH_BROAD_UNIVERSE_DISCOVERY_DESIGN_2026-11-24.md section 5 items 3 and 4). Dispatch by hand only.
+# It is NOT a release: no service, host or setting is touched. It runs on a GitHub-hosted runner (never the PAPER host: the broad fetch must not
+# run there before 2026-12-10) and sends public Upbit GETs only (60-minute candles, no key, no account, no order).
+# The market list is the committed 20 bp discovery pool (docs/research-data/broad-universe-filter-count-20bp-2026-11-24.json), sorted and split into
+# two fixed groups; the input only picks the group. The pool file and both scripts are downloaded at `source_sha` with the read-only job token and
+# must match their pinned SHA-256 (so no checkout and no release is needed); the token is not visible to the fetch step.
+# The fetch step prints only counts, missing shares, exclusions and SHA-256 hashes (never a price). With reproduce=true the group is fetched a
+# second time into a second directory and the two manifest hashes must be equal (closed bars are immutable); any difference fails the run.
+# The files of the first run are kept as a short-lived workflow artifact (3 days) so that a later, separately reviewed discover workflow can read
+# them; the artifact action is the first-party upload-artifact pinned by commit sha, the same one ci.yml uses (a stated deviation from the
+# "no third-party action" line of the host workflows). Dispatch one run at a time: a third queued dispatch replaces the pending one. A group that stops on HTTP 429 fails closed and is simply repeated later. PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Full 40-hex commit sha on main that contains both scripts and the pool file"
+        required: true
+        type: string
+      universe_script_sha256:
+        description: "SHA-256 (64 hex) of scripts/fetch-upbit-60m-universe.js at source_sha"
+        required: true
+        type: string
+      base_script_sha256:
+        description: "SHA-256 (64 hex) of scripts/fetch-upbit-60m-history.js at source_sha"
+        required: true
+        type: string
+      pool_sha256:
+        description: "SHA-256 (64 hex) of docs/research-data/broad-universe-filter-count-20bp-2026-11-24.json at source_sha"
+        required: true
+        type: string
+      group:
+        description: "Market group: 1 or 2 (the sorted discovery pool split in two halves)"
+        required: true
+        type: string
+      reproduce:
+        description: "true: fetch the group a second time and require the same manifest hash; false: fetch once"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: broad-universe-fetch
+  cancel-in-progress: false
+
+jobs:
+  fetch:
+    name: Fetch and hash one group of the broad-universe 60m history (hosted runner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      UNIVERSE_SHA256: ${{ inputs.universe_script_sha256 }}
+      BASE_SHA256: ${{ inputs.base_script_sha256 }}
+      POOL_SHA256: ${{ inputs.pool_sha256 }}
+      GROUP: ${{ inputs.group }}
+      REPRODUCE: ${{ inputs.reproduce }}
+    steps:
+      - name: Check the inputs, download the pinned files with the read-only token, verify their hashes, choose the group
+        shell: bash
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          [[ $SOURCE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
+          for v in UNIVERSE_SHA256 BASE_SHA256 POOL_SHA256; do [[ ${!v} =~ ^[0-9a-f]{64}$ ]] || { echo "::error::$v must be 64 lowercase hex"; exit 1; }; done
+          [[ $GROUP =~ ^[12]$ ]] || { echo "::error::group must be 1 or 2"; exit 1; }
+          [[ $REPRODUCE =~ ^(true|false)$ ]] || { echo "::error::reproduce must be true or false"; exit 1; }
+          # The script refuses an output directory inside its repository root (the parent of its own scripts/ folder): scripts in one tree, output in a sibling.
+          tree="$(mktemp -d "$RUNNER_TEMP/broad-script.XXXXXX")"
+          work="$(mktemp -d "$RUNNER_TEMP/broad-out.XXXXXX")"
+          mkdir -p "$tree/scripts" "$tree/data"
+          get() {  # <repo path> <file> <expected sha256>
+            curl -fsS --max-time 60 -H "Authorization: Bearer $GH_READ_TOKEN" -H "Accept: application/vnd.github.raw+json" \
+              "https://api.github.com/repos/$REPO/contents/$1?ref=$SOURCE_SHA" -o "$2" || { echo "::error::could not download $1"; exit 1; }
+            actual="$(sha256sum "$2" | cut -d' ' -f1)"
+            [ "$actual" = "$3" ] || { echo "::error::hash mismatch for $1 (got $actual)"; exit 1; }
+          }
+          get scripts/fetch-upbit-60m-universe.js "$tree/scripts/fetch-upbit-60m-universe.js" "$UNIVERSE_SHA256"
+          get scripts/fetch-upbit-60m-history.js "$tree/scripts/fetch-upbit-60m-history.js" "$BASE_SHA256"
+          get docs/research-data/broad-universe-filter-count-20bp-2026-11-24.json "$tree/data/pool.json" "$POOL_SHA256"
+          markets="$(node -e '
+            const pool = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).discoveryPool;
+            if (!Array.isArray(pool) || pool.length < 40 || new Set(pool).size !== pool.length || !pool.every((m) => /^KRW-[A-Z0-9]{1,15}$/.test(m))) process.exit(2);
+            const sorted = [...pool].sort(); const half = Math.ceil(sorted.length / 2);
+            process.stdout.write((process.argv[2] === "1" ? sorted.slice(0, half) : sorted.slice(half)).join(" "));
+          ' "$tree/data/pool.json" "$GROUP")" || { echo "::error::the pool file is not usable"; exit 1; }
+          [ -n "$markets" ] || { echo "::error::empty group"; exit 1; }
+          echo "BROAD_TREE=$tree" >> "$GITHUB_ENV"
+          echo "BROAD_WORK=$work" >> "$GITHUB_ENV"
+          echo "BROAD_MARKETS=$markets" >> "$GITHUB_ENV"
+          echo "BROAD_INPUTS_OK=1" >> "$GITHUB_ENV"
+          echo "Group $GROUP: $(wc -w <<<"$markets" | tr -d ' ') markets"
+      - name: Fetch the group (public GET only, no token), print counts and hashes, optionally reproduce
+        shell: bash
+        run: |
+          set +e
+          [ "$BROAD_INPUTS_OK" = "1" ] || { echo "::error::inputs were not checked"; exit 1; }
+          script="$BROAD_TREE/scripts/fetch-upbit-60m-universe.js"
+          # shellcheck disable=SC2086
+          out1="$(node "$script" "$BROAD_WORK/run1" "g$GROUP" $BROAD_MARKETS 2>&1)"
+          status=$?
+          printf '%s\n' "$out1"
+          h1="$(printf '%s\n' "$out1" | grep -E '^UNIVERSE_MANIFEST_SHA256' | head -1)"
+          h2=""; repro="NOT_RUN"
+          # A successful exit without a well-formed manifest hash is a failure (never "match" on two empty strings).
+          if [ "$status" = "0" ] && ! [[ $h1 =~ ^UNIVERSE_MANIFEST_SHA256\ [0-9a-f]{64}$ ]]; then echo "UNIVERSE_FETCH_FAILED_NO_HASH"; status=4; fi
+          if [ "$status" = "0" ] && [ "$REPRODUCE" = "true" ]; then
+            # shellcheck disable=SC2086
+            out2="$(node "$script" "$BROAD_WORK/run2" "g$GROUP" $BROAD_MARKETS 2>&1)"
+            s2=$?
+            h2="$(printf '%s\n' "$out2" | grep -E '^UNIVERSE_MANIFEST_SHA256' | head -1)"
+            repro="FAILED"
+            if [ "$s2" != "0" ]; then status=$s2; printf '%s\n' "$out2" | grep -E '^UNIVERSE_FETCH_FAILED'; fi
+            if [ "$status" = "0" ] && ! [[ $h2 =~ ^UNIVERSE_MANIFEST_SHA256\ [0-9a-f]{64}$ ]]; then echo "UNIVERSE_FETCH_FAILED_NO_HASH"; status=4; fi
+            if [ "$status" = "0" ] && [ "$h1" != "$h2" ]; then echo "UNIVERSE_REPRODUCTION_MISMATCH"; status=3; fi
+            if [ "$status" = "0" ]; then echo "UNIVERSE_REPRODUCTION_MATCH"; repro="match"; fi
+            rm -rf "$BROAD_WORK/run2"
+          fi
+          # Annotation: hash line, failure and exclusion lines first, then the per-file lines (cut at 8000 characters), never a price.
+          key="$({ printf '%s\n' "$h1"; printf '%s\n' "$out1" | grep -E '^(UNIVERSE_FETCH_FAILED|UNIVERSE_EXCLUDED)'; [ "$REPRODUCE" = "true" ] && echo "reproduce=$repro"; printf '%s\n' "$out1" | grep -E '^UNIVERSE_FILE'; } | grep -v '^$')"
+          body="$(printf '%s' "${key:0:8000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=broad-universe-fetch group ${GROUP} status=${status}::${body}"
+          [ "$status" = "0" ] && echo "BROAD_FETCH_OK=1" >> "$GITHUB_ENV"
+          exit "$status"
+      - name: Keep the files of the first run for three days (workflow artifact)
+        if: env.BROAD_FETCH_OK == '1'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: broad-fetch-g${{ inputs.group }}
+          path: ${{ env.BROAD_WORK }}/run1
+          retention-days: 3
+          if-no-files-found: error
