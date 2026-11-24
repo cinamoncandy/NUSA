@@ -1,0 +1,609 @@
+{
+  "schemaVersion": 1,
+  "kind": "HISTORY_MINING_H2_LOOK_RESULT",
+  "note": "The ONE look at the frozen H2 hold-back, recorded unedited (transcribed from the run log; the run log and the freeze record are the authority). No rule was changed after the look; it cannot be repeated.",
+  "run": {
+    "workflow": "history-look-freeze.yml",
+    "runId": 45295343044,
+    "sourceSha": "9c4dd32679fd3e1528f210c6273d8cd3624dff15",
+    "freezeFileSha256": "d7b81f84ea34f4a300c896d9bc05bbc428b74637ae3476c6ff18a7561f4191cf",
+    "manifestSha256": "16274426370e8a713c7e20d67c0ce27426a43aedb12eae70af5bb8e8e73e0a82",
+    "nodeVersion": "v24.22.2",
+    "startedAt": "2026-11-24T00:13:12Z"
+  },
+  "freezeFingerprint": "dc65065c8d898668263abe774f53088dde2e35dfdf39eb9f1f601760556fdaa5",
+  "look": {
+    "status": "LOOK_FAIL",
+    "entryRule": "NEXT_HOURLY_CLOSE",
+    "passRule": "NET_STRESS_EXCESS_V2",
+    "alphaPerCandidate": 0.01,
+    "testable": true,
+    "candidates": [
+      {
+        "id": "CLOSE_VS_MA24_HIGH_Q90_H24",
+        "n": 476,
+        "testable": true,
+        "meanNet": 0.006054,
+        "meanStress": 0.004054,
+        "unresolved": 0,
+        "p": 0.0047,
+        "excess": 0.003392,
+        "pExcess": 0.071,
+        "baselineMeanNet": 0.002004,
+        "breakEvenCost": 0.007054,
+        "entryRateDrift": {
+          "signalRate": 0.0962,
+          "nominalRate": 0.1,
+          "ratio": 0.962,
+          "tradesPerUsableHour": 0.0104,
+          "usableHours": 45685
+        },
+        "sensitivity": {
+          "block72": {
+            "p": 0.0056,
+            "pExcess": 0.0766
+          },
+          "block168": {
+            "p": 0.0066,
+            "pExcess": 0.0862
+          }
+        },
+        "tables": {
+          "byMarket": [
+            {
+              "key": "KRW-BTC",
+              "n": 58,
+              "meanNet": 0.00712,
+              "excess": 0.006141,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-ETH",
+              "n": 71,
+              "meanNet": 0.003042,
+              "excess": 0.003085,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-NEAR",
+              "n": 181,
+              "meanNet": 0.00164,
+              "excess": -0.000898,
+              "signNet": "+",
+              "signExcess": "-"
+            },
+            {
+              "key": "KRW-SOL",
+              "n": 166,
+              "meanNet": 0.011782,
+              "excess": 0.007239,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ],
+          "byQuarter": [
+            {
+              "key": "2023Q3",
+              "n": 37,
+              "meanNet": 0.001072,
+              "excess": 0.001043,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2023Q4",
+              "n": 113,
+              "meanNet": 0.015521,
+              "excess": 0.003147,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q1",
+              "n": 122,
+              "meanNet": 0.010044,
+              "excess": 0.0027,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q2",
+              "n": 84,
+              "meanNet": -0.002769,
+              "excess": 3.2e-05,
+              "signNet": "-",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q3",
+              "n": 94,
+              "meanNet": 0.001027,
+              "excess": 0.002331,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q4",
+              "n": 26,
+              "meanNet": -5.2e-05,
+              "excess": 0.001153,
+              "signNet": "-",
+              "signExcess": "+"
+            }
+          ]
+        },
+        "pass": false
+      },
+      {
+        "id": "RET48_HIGH_Q90_H24",
+        "n": 340,
+        "testable": true,
+        "meanNet": 0.009236,
+        "meanStress": 0.007236,
+        "unresolved": 0,
+        "p": 0.003,
+        "excess": 0.006359,
+        "pExcess": 0.0265,
+        "baselineMeanNet": 0.002004,
+        "breakEvenCost": 0.010236,
+        "entryRateDrift": {
+          "signalRate": 0.1003,
+          "nominalRate": 0.1,
+          "ratio": 1.0026,
+          "tradesPerUsableHour": 0.0074,
+          "usableHours": 46162
+        },
+        "sensitivity": {
+          "block72": {
+            "p": 0.0034,
+            "pExcess": 0.0296
+          },
+          "block168": {
+            "p": 0.0032,
+            "pExcess": 0.0316
+          }
+        },
+        "tables": {
+          "byMarket": [
+            {
+              "key": "KRW-BTC",
+              "n": 33,
+              "meanNet": 0.011119,
+              "excess": 0.010139,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-ETH",
+              "n": 38,
+              "meanNet": 0.004439,
+              "excess": 0.004483,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-NEAR",
+              "n": 137,
+              "meanNet": 0.007719,
+              "excess": 0.005181,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-SOL",
+              "n": 132,
+              "meanNet": 0.01172,
+              "excess": 0.007177,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ],
+          "byQuarter": [
+            {
+              "key": "2023Q3",
+              "n": 22,
+              "meanNet": 0.002124,
+              "excess": 0.00131,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2023Q4",
+              "n": 93,
+              "meanNet": 0.018252,
+              "excess": 0.004755,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q1",
+              "n": 100,
+              "meanNet": 0.011077,
+              "excess": 0.003613,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q2",
+              "n": 50,
+              "meanNet": 0.001627,
+              "excess": 0.004484,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q3",
+              "n": 61,
+              "meanNet": 0.004832,
+              "excess": 0.005955,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q4",
+              "n": 14,
+              "meanNet": -0.006281,
+              "excess": -0.005434,
+              "signNet": "-",
+              "signExcess": "-"
+            }
+          ]
+        },
+        "pass": false
+      },
+      {
+        "id": "RET12_HIGH_Q90_H24",
+        "n": 558,
+        "testable": true,
+        "meanNet": 0.005725,
+        "meanStress": 0.003725,
+        "unresolved": 1,
+        "p": 0.0078,
+        "excess": 0.003104,
+        "pExcess": 0.0876,
+        "baselineMeanNet": 0.002004,
+        "breakEvenCost": 0.006725,
+        "entryRateDrift": {
+          "signalRate": 0.0974,
+          "nominalRate": 0.1,
+          "ratio": 0.974,
+          "tradesPerUsableHour": 0.0121,
+          "usableHours": 46306
+        },
+        "sensitivity": {
+          "block72": {
+            "p": 0.0078,
+            "pExcess": 0.0902
+          },
+          "block168": {
+            "p": 0.0097,
+            "pExcess": 0.1
+          }
+        },
+        "tables": {
+          "byMarket": [
+            {
+              "key": "KRW-BTC",
+              "n": 70,
+              "meanNet": 0.005694,
+              "excess": 0.004715,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-ETH",
+              "n": 88,
+              "meanNet": 0.001829,
+              "excess": 0.001873,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-NEAR",
+              "n": 209,
+              "meanNet": 0.003137,
+              "excess": 0.0006,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-SOL",
+              "n": 191,
+              "meanNet": 0.010364,
+              "excess": 0.005821,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ],
+          "byQuarter": [
+            {
+              "key": "2023Q3",
+              "n": 45,
+              "meanNet": 0.002462,
+              "excess": 0.00252,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2023Q4",
+              "n": 126,
+              "meanNet": 0.016578,
+              "excess": 0.004322,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q1",
+              "n": 137,
+              "meanNet": 0.008002,
+              "excess": 0.00068,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q2",
+              "n": 104,
+              "meanNet": -0.003829,
+              "excess": -0.001081,
+              "signNet": "-",
+              "signExcess": "-"
+            },
+            {
+              "key": "2024Q3",
+              "n": 118,
+              "meanNet": 0.001525,
+              "excess": 0.002905,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q4",
+              "n": 28,
+              "meanNet": 0.00418,
+              "excess": 0.004623,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ]
+        },
+        "pass": false
+      },
+      {
+        "id": "RUNUP24_HIGH_Q80_H24",
+        "n": 643,
+        "testable": true,
+        "meanNet": 0.006333,
+        "meanStress": 0.004333,
+        "unresolved": 1,
+        "p": 0.0025,
+        "excess": 0.003588,
+        "pExcess": 0.0561,
+        "baselineMeanNet": 0.002004,
+        "breakEvenCost": 0.007333,
+        "entryRateDrift": {
+          "signalRate": 0.1919,
+          "nominalRate": 0.2,
+          "ratio": 0.9597,
+          "tradesPerUsableHour": 0.0141,
+          "usableHours": 45685
+        },
+        "sensitivity": {
+          "block72": {
+            "p": 0.0037,
+            "pExcess": 0.0605
+          },
+          "block168": {
+            "p": 0.0046,
+            "pExcess": 0.0644
+          }
+        },
+        "tables": {
+          "byMarket": [
+            {
+              "key": "KRW-BTC",
+              "n": 70,
+              "meanNet": 0.009074,
+              "excess": 0.008095,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-ETH",
+              "n": 88,
+              "meanNet": 0.003629,
+              "excess": 0.003672,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-NEAR",
+              "n": 251,
+              "meanNet": 0.004536,
+              "excess": 0.001999,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-SOL",
+              "n": 234,
+              "meanNet": 0.008457,
+              "excess": 0.003914,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ],
+          "byQuarter": [
+            {
+              "key": "2023Q3",
+              "n": 51,
+              "meanNet": 0.001932,
+              "excess": 0.002029,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2023Q4",
+              "n": 144,
+              "meanNet": 0.01592,
+              "excess": 0.002769,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q1",
+              "n": 165,
+              "meanNet": 0.00996,
+              "excess": 0.002535,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q2",
+              "n": 119,
+              "meanNet": -0.000121,
+              "excess": 0.002689,
+              "signNet": "-",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q3",
+              "n": 134,
+              "meanNet": 0.000361,
+              "excess": 0.001675,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q4",
+              "n": 30,
+              "meanNet": 0.00012,
+              "excess": 0.001037,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ]
+        },
+        "pass": false
+      },
+      {
+        "id": "RET48_HIGH_Q80_H24",
+        "n": 683,
+        "testable": true,
+        "meanNet": 0.006059,
+        "meanStress": 0.004059,
+        "unresolved": 14,
+        "p": 0.0008,
+        "excess": 0.003625,
+        "pExcess": 0.0337,
+        "baselineMeanNet": 0.002004,
+        "breakEvenCost": 0.007059,
+        "entryRateDrift": {
+          "signalRate": 0.2223,
+          "nominalRate": 0.2,
+          "ratio": 1.1117,
+          "tradesPerUsableHour": 0.0148,
+          "usableHours": 46162
+        },
+        "sensitivity": {
+          "block72": {
+            "p": 0.0034,
+            "pExcess": 0.0478
+          },
+          "block168": {
+            "p": 0.0046,
+            "pExcess": 0.0615
+          }
+        },
+        "tables": {
+          "byMarket": [
+            {
+              "key": "KRW-BTC",
+              "n": 116,
+              "meanNet": 0.004806,
+              "excess": 0.003826,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-ETH",
+              "n": 129,
+              "meanNet": 0.002077,
+              "excess": 0.00212,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-NEAR",
+              "n": 217,
+              "meanNet": 0.008088,
+              "excess": 0.00555,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "KRW-SOL",
+              "n": 221,
+              "meanNet": 0.007049,
+              "excess": 0.002506,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ],
+          "byQuarter": [
+            {
+              "key": "2023Q3",
+              "n": 61,
+              "meanNet": 0.000279,
+              "excess": 0.000725,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2023Q4",
+              "n": 156,
+              "meanNet": 0.013957,
+              "excess": 0.002693,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q1",
+              "n": 180,
+              "meanNet": 0.007909,
+              "excess": 0.000882,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q2",
+              "n": 107,
+              "meanNet": -0.000398,
+              "excess": 0.002306,
+              "signNet": "-",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q3",
+              "n": 135,
+              "meanNet": 0.003948,
+              "excess": 0.005475,
+              "signNet": "+",
+              "signExcess": "+"
+            },
+            {
+              "key": "2024Q4",
+              "n": 44,
+              "meanNet": 0.000676,
+              "excess": 0.000288,
+              "signNet": "+",
+              "signExcess": "+"
+            }
+          ]
+        },
+        "pass": false
+      }
+    ]
+  }
+}

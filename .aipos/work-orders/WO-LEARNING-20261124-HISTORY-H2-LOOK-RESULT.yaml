@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261124-HISTORY-H2-LOOK-RESULT
+title: "Offline-history mining: the one look at the H2 hold-back, recorded unedited (LOOK_FAIL); no promotion"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-23: the owner ordered the one look ('해'); the result is recorded whatever it is."
+objective: "Commit the unedited result of the one look (History Look Freeze run 45295343044) and its plain-language reading, so the outcome cannot be quietly replaced by a later look."
+change:
+  - "docs/research-data/history-mining-h2-look-result-2026-11-23.json (new): the LOOK object transcribed from the run log, run provenance, and a check that the freeze fingerprint equals the committed freeze record."
+  - "docs/RESEARCH_HISTORY_MINING_H2_LOOK_RESULT_2026-11-24.md (new): reading, limits and what follows."
+not_changed:
+  - "No code, host, release, gate, threshold, limit, capital, order switch or authority change; no rule changed after the look; nothing promoted to PAPER; Stage B untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The JSON was transcribed from the run log by hand and checked for internal consistency (trade counts of the market and quarter tables sum to n for all five rules; the freeze fingerprint equals the committed record); the run log of run 45295343044 stays the authority. The confirmation on a future span needs its own pre-registration and the owner's decision."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot."
