@@ -1,0 +1,19 @@
+id: WO-LEARNING-20261124-FILTER-COUNT-TESTS
+title: "Unit tests for the broad-universe filter count script (closes the 'no unit tests' caveat of #3266)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+objective: "Cover median, tier table and both tick-boundary rules of scripts/broad-universe-filter-count.js with synthetic data."
+change:
+  - "tests/broad-universe-filter-count.test.js (new; synthetic made-up markets only)."
+not_changed:
+  - "scripts/broad-universe-filter-count.js and its recorded result; no code, workflow, host, release, rule, threshold, gate, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The network and pagination path of the script is not covered (the result was produced by one real run); the broad route is stopped by the owner."
+acceptance:
+  - "AIPOS validators and the new tests pass; merged by the release bot."
