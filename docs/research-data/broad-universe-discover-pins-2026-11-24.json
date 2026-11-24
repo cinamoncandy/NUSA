@@ -1,0 +1,22 @@
+{
+  "kind": "broad-universe-discover-pins",
+  "date": "2026-11-24",
+  "note": "sha256 of every file the discover workflow downloads and executes or reads (scripts/run-history-mining.js is the unchanged H2 script, hash 6914d619...). The workflow input pins_sha256 pins THIS file. runs are the two reproduced fetch runs whose artifacts the workflow reads.",
+  "runs": {
+    "g1": 45390462688,
+    "g2": 45401083423
+  },
+  "scripts": {
+    "scripts/build-broad-store.js": "1da1d1ae6deac3b1b991841eb63702b08175fcbb1aadfef6146122d061c8557f",
+    "scripts/run-broad-mining.js": "f475e1fefc5633c1e6dd3c28b64a782238b202e35d4284d28f4133db0474c3e4",
+    "scripts/run-history-mining.js": "6914d619ff2724d94545e7417fba8529230a0b6d057dd455858ff0c19cd4da1d",
+    "scripts/run-crossmarket-study.js": "7ee2dd25c378cd9544e9be7a0fbb82aa3151152499399f1b031a0436e7d8434f",
+    "scripts/lib/orderBookSource.js": "f4c8f988b17d94db1a7c98268020f187102b93eb5a25430857d174cd171b7464",
+    "scripts/broad-universe-filter-count.js": "fe2a74f46efc8dc08816f2bd549f0a91a81494c906f4031314e6bc68867bcb25",
+    "scripts/fetch-upbit-60m-history.js": "9e5ab2ee5f7e0f8bcdbf5b46391230b47f83785d9f3dde6a97bf61531d37631f"
+  },
+  "data": {
+    "docs/research-data/broad-universe-filter-count-20bp-2026-11-24.json": "8c145fed3cd2e0d88919418ff7c2c3af0fd1a62e02efa6c1a9c3872211ea330d",
+    "docs/research-data/broad-universe-fetch-manifests-2026-11-24.json": "5b58098df344ea53402c0773c655d3578309df143a21d9d428b28e2a023306e5"
+  }
+}

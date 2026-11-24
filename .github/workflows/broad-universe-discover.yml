@@ -1,0 +1,103 @@
+name: Broad Universe Discover
+
+# Discovery step of the broad-universe route (docs/RESEARCH_BROAD_UNIVERSE_DISCOVERY_DESIGN_2026-11-24.md section 5 item 4). Dispatch by hand only.
+# It is NOT a release: no service, host or setting is touched. It runs on a GitHub-hosted runner (never the PAPER host) and sends NO network request to Upbit:
+# it reads the two workflow artifacts of the reproduced fetch runs (docs/research-data/broad-universe-fetch-manifests-2026-11-24.json) and runs the reviewed
+# scripts on the DISCOVERY window only (the hold-back files are never loaded).
+# Everything that is executed or read is hash-pinned: the input `pins_sha256` pins docs/research-data/broad-universe-discover-pins-2026-11-24.json, which lists the
+# sha256 of every script, the pool file and the fetch-manifest record at `source_sha`; each is downloaded with the read-only job token and checked before use.
+# The two artifacts are downloaded by the REST API with the same token (no third-party action), unpacked, and checked against the committed manifest hashes by
+# scripts/build-broad-store.js (every CSV, no extra or missing file, no excluded market, markets equal the committed pool). The token is not visible to the
+# build or discover step. The run prints only counts, thresholds, rule ids, aggregates and the freeze record (never a price) and keeps nothing: it is repeatable
+# while the artifacts last (3 days). NO_CANDIDATE is a valid answer and also prints a freeze record. PAPER only, LIVE NONE.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "Full 40-hex commit sha on main that contains the pins file, the scripts and the data files"
+        required: true
+        type: string
+      pins_sha256:
+        description: "SHA-256 (64 hex) of docs/research-data/broad-universe-discover-pins-2026-11-24.json at source_sha"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: broad-universe-discover
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover on the broad-universe discovery window (hosted runner, no Upbit request)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      PINS_SHA256: ${{ inputs.pins_sha256 }}
+    steps:
+      - name: Check the inputs, download the pinned files and the two artifacts with the read-only token, verify the pins
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -e
+          [[ $SOURCE_SHA =~ ^[0-9a-f]{40}$ ]] || { echo "::error::source_sha must be 40 lowercase hex"; exit 1; }
+          [[ $PINS_SHA256 =~ ^[0-9a-f]{64}$ ]] || { echo "::error::pins_sha256 must be 64 lowercase hex"; exit 1; }
+          tree="$(mktemp -d "$RUNNER_TEMP/broad-tree.XXXXXX")"
+          work="$(mktemp -d "$RUNNER_TEMP/broad-work.XXXXXX")"
+          get() {  # <repo path> <local file> <expected sha256>
+            mkdir -p "$(dirname "$2")"
+            curl -fsS --max-time 60 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github.raw+json" \
+              "https://api.github.com/repos/$REPO/contents/$1?ref=$SOURCE_SHA" -o "$2" || { echo "::error::could not download $1"; exit 1; }
+            actual="$(sha256sum "$2" | cut -d' ' -f1)"
+            [ "$actual" = "$3" ] || { echo "::error::hash mismatch for $1 (got $actual)"; exit 1; }
+          }
+          get docs/research-data/broad-universe-discover-pins-2026-11-24.json "$tree/pins.json" "$PINS_SHA256"
+          # One "path sha256" line per pinned file; every path must be under scripts/ or docs/research-data/ and look like a plain relative path.
+          node -e '
+            const p = JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));
+            const all = { ...p.scripts, ...p.data };
+            const ok = Object.entries(all).every(([k, v]) => /^(scripts|docs\/research-data)\/[A-Za-z0-9._\/-]+$/.test(k) && !k.includes("..") && /^[0-9a-f]{64}$/.test(v));
+            if (!ok || Object.keys(all).length < 8 || !/^[0-9]+$/.test(String(p.runs?.g1)) || !/^[0-9]+$/.test(String(p.runs?.g2))) process.exit(2);
+            for (const [k, v] of Object.entries(all)) console.log(`${k} ${v}`);
+            console.error(`RUNS ${p.runs.g1} ${p.runs.g2}`);
+          ' "$tree/pins.json" > "$tree/pins.list" 2> "$tree/runs.txt" || { echo "::error::the pins file is not usable"; exit 1; }
+          while read -r path hash; do get "$path" "$tree/files/$path" "$hash"; done < "$tree/pins.list"
+          read -r _ g1run g2run < "$tree/runs.txt"
+          for g in 1 2; do
+            run="$([ "$g" = 1 ] && echo "$g1run" || echo "$g2run")"
+            [[ $run =~ ^[0-9]+$ ]] || { echo "::error::bad run id"; exit 1; }
+            aid="$(gh api "repos/$REPO/actions/runs/$run/artifacts" --jq ".artifacts[] | select(.name == \"broad-fetch-g$g\" and .expired == false) | .id" | head -1)"
+            [[ $aid =~ ^[0-9]+$ ]] || { echo "::error::artifact broad-fetch-g$g not found or expired"; exit 1; }
+            gh api "repos/$REPO/actions/artifacts/$aid/zip" > "$work/g$g.zip"
+            mkdir "$work/g$g" && unzip -q "$work/g$g.zip" -d "$work/g$g" && rm "$work/g$g.zip"
+          done
+          echo "BROAD_TREE=$tree/files" >> "$GITHUB_ENV"
+          echo "BROAD_WORK=$work" >> "$GITHUB_ENV"
+          echo "BROAD_INPUTS_OK=1" >> "$GITHUB_ENV"
+          echo "pinned files verified: $(wc -l < "$tree/pins.list" | tr -d ' ')"
+      - name: Build the store from the verified artifacts and run discover (no token, no network)
+        shell: bash
+        run: |
+          set +e
+          [ "$BROAD_INPUTS_OK" = "1" ] || { echo "::error::inputs were not checked"; exit 1; }
+          cd "$BROAD_TREE" || exit 1
+          export NODE_OPTIONS=--max-old-space-size=6144
+          build="$(node scripts/build-broad-store.js --g1 "$BROAD_WORK/g1" --g2 "$BROAD_WORK/g2" --committed docs/research-data/broad-universe-fetch-manifests-2026-11-24.json --pool docs/research-data/broad-universe-filter-count-20bp-2026-11-24.json --out "$BROAD_WORK/out" 2>&1)"
+          status=$?
+          printf '%s\n' "$build"
+          if [ "$status" != "0" ]; then echo "::error::the store was not built"; exit "$status"; fi
+          out="$(NUSA_SOURCE_COMMIT_SHA="$SOURCE_SHA" node scripts/run-broad-mining.js discover --db "$BROAD_WORK/out/store.sqlite" --markets "$BROAD_WORK/out/markets.json" --listing "$BROAD_WORK/out/listing.json" --tiers "$BROAD_WORK/out/tiers.json" 2>&1)"
+          status=$?
+          printf '%s\n' "$out"
+          # Annotation: the freeze record first (it is what gets committed), then the discover result; cut at 8000 characters.
+          key="$({ printf '%s\n' "$out" | grep -E '^BROAD_MINING_(FREEZE|ERROR)'; printf '%s\n' "$out" | grep -E '^BROAD_MINING_DISCOVER'; } | grep -v '^$')"
+          body="$(printf '%s' "${key:0:8000}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          echo "::notice title=broad-universe-discover status=${status}::${body}"
+          exit "$status"
