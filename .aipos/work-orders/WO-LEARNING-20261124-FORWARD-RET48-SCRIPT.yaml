@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261124-FORWARD-RET48-SCRIPT
+title: "Forward confirmation of the RET48 rules, step 1: decision script and quarterly hash (synthetic tests only, reads no span value)"
+status: READY_FOR_REVIEW
+created: 2026-11-24
+owner_decision: "2026-11-24: 'other priority work' after the broad route was stopped; implements section 7 step 1 of docs/RESEARCH_PREREG_2026-11-24_FORWARD_CONFIRMATION_RET48_H24.md, which the owner approved ('만들어 / 승인')."
+objective: "Commit the decision script before the span starts (2026-12-11): frozen limits checked against the H2 freeze record, one decision that refuses to run before 2028-03-31, DATA_INTEGRITY_FAIL rules, and the quarterly hash record."
+change:
+  - "scripts/run-history-mining-forward.js (new): imports the unchanged pure functions of run-history-mining.js; commands evaluate and quarter-hash; prints hashes, counts and statistics only."
+  - "tests/run-history-mining-forward.test.js (new): synthetic made-up series only."
+not_changed:
+  - "scripts/run-history-mining.js and its hash, the freeze record, any workflow, host, release, gate, threshold, limit, capital or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Known limit of the prereg section 6 check: a hash cannot prove that the earlier rows of a market-day that gained a late bar are unchanged; such a day is checked by count growth only, and a changed or deleted row in a day with equal or fewer rows is caught. Closing this needs a pre-span amendment (owner). The workflow with the spent-once guard, the quarterly job and the hash commit of these files are separate PRs; no independent review yet."
+acceptance:
+  - "Independent non-author review; tests pass; merged before 2026-12-11 and before any span value is read."
