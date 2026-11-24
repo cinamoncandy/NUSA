@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { median, buildTiers, tickAt } = require("../scripts/broad-universe-filter-count.js");
+const { median, buildTiers, tickAt, parseArgs } = require("../scripts/broad-universe-filter-count.js");
 
 /** Synthetic made-up markets only: current price and current tick size per market. */
 const markets = [
@@ -53,4 +53,22 @@ test("the script prints counts only and writes no candle value", () => {
   assert.equal((src.match(/console\.log/g) || []).length, 1);
   assert.match(src, /console\.log\(JSON\.stringify\(out\.counts\)\)/);
   assert.doesNotMatch(src, /trade_price[^;]*console|console[^;]*trade_price/);
+});
+
+test("the script supports --tick-bp (default 10), records the tier table and a ticker snapshot hash, and gates on the strict count too", () => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "scripts", "broad-universe-filter-count.js"), "utf8");
+  assert.match(src, /DEFAULT_TICK_BP_MAX = 10/);
+  assert.match(src, /--tick-bp/);
+  assert.match(src, /tickerSnapshotSha256/);
+  assert.match(src, /tierTable/);
+  assert.match(src, /gateStrictAtLeast40: forwardAlt\.length >= 40/);
+});
+
+test("argument parsing: default 10 bp, the flag in any position and form, the path anywhere, and silent mistakes fail loudly", () => {
+  assert.deepEqual(parseArgs([]), { tickBp: 10, outPath: undefined });
+  assert.deepEqual(parseArgs(["out.json"]), { tickBp: 10, outPath: "out.json" });
+  assert.deepEqual(parseArgs(["out.json", "--tick-bp", "20"]), { tickBp: 20, outPath: "out.json" });
+  assert.deepEqual(parseArgs(["--tick-bp", "20", "out.json"]), { tickBp: 20, outPath: "out.json" });
+  assert.deepEqual(parseArgs(["--tick-bp=20", "out.json"]), { tickBp: 20, outPath: "out.json" });
+  for (const bad of [["--tick-bp"], ["--tick-bp", "--x"], ["--tick-bp", "0"], ["--tick-bp", "101"], ["--tick-bp", "0x14"], ["--tick-bp=2e1"], ["--tick"], ["a.json", "b.json"]]) assert.throws(() => parseArgs(bad), Error, JSON.stringify(bad));
 });
