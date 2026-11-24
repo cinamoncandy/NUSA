@@ -342,8 +342,9 @@ jobs:
           # read, exit 4 of the jq -e below). Wait for the SAME status id to appear: up to 5 reads, 2 s apart; the validation below is unchanged and still fails closed.
           observed_status=""
           for attempt in 1 2 3 4 5; do
-            observed_status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses?per_page=100" --jq ".[] | select(.id == $status_id)")"
+            observed_status="$(GH_TOKEN="$AUTH_GH_TOKEN" gh api "repos/$GITHUB_REPOSITORY/commits/$EXPECTED_HEAD/statuses?per_page=100" --jq ".[] | select(.id == $status_id)" || true)"
             [ -n "$observed_status" ] && break
+            echo "authorization status $status_id not yet visible (read $attempt of 5)"
             sleep 2
           done
           jq -e --argjson id "$status_id" --arg context "$AUTH_CONTEXT" --arg target "$expected_target_url" --arg status_url "$expected_status_url" --arg creator "$expected_creator" '.id == $id and .state == "success" and .context == $context and .target_url == $target and .url == $status_url and .creator.login == $creator' <<<"$observed_status" >/dev/null

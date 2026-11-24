@@ -12,7 +12,8 @@ test("the authorization re-read waits for the same status id (bounded) and the v
   assert.ok(step.length > 500, "step found");
   assert.match(step, /for attempt in 1 2 3 4 5; do/);
   assert.match(step, /select\(\.id == \$status_id\)/);
-  assert.match(step, /\[ -n "\$observed_status" \] && break\n\s+sleep 2/);
+  assert.match(step, /\[ -n "\$observed_status" \] && break\n\s+echo "authorization status \$status_id not yet visible \(read \$attempt of 5\)"\n\s+sleep 2/);
+  assert.match(step, /select\(\.id == \$status_id\)" \|\| true\)"/, "a transient gh error is retried; the final strict check still rejects an empty read");
   // both strict checks remain, after the loop, and still fail closed under set -e
   const loopEnd = step.indexOf("done", step.indexOf("for attempt in"));
   const after = step.slice(loopEnd);
