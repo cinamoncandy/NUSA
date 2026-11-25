@@ -20,13 +20,15 @@ interface Props {
   readonly orderCount: number | null;
   /** Today's PAPER fill count; each rise makes the wave lock into one line. */
   readonly fillCount?: number | null;
+  /** One calm line under the number (why zero is normal). Null draws nothing. */
+  readonly countNote?: string | null;
   readonly stats: readonly { readonly label: string; readonly value: string; readonly tone: CalmTone }[];
   /** Server-reported time of its last heartbeat (ms). The scan line sweeps when this advances. */
   readonly lastHeartbeatAt?: number | null;
 }
 
 /** "지금" instrument view for every state without the risk gate: hero line, the decision core, the decision odometer, ledger. Presentation only. */
-export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, fillCount = null, stats, lastHeartbeatAt = null }: Props) {
+export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, fillCount = null, countNote = null, stats, lastHeartbeatAt = null }: Props) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
   const live = !dim && decisionCount != null;
@@ -39,7 +41,8 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCo
     </View>
     <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
       <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} live={live} />
-      {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={44} reducedMotion={reduced} />}
+      {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={64} reducedMotion={reduced} />}
+      {countNote ? <Text style={styles.countNote} testID="now-count-note">{countNote}</Text> : null}
     </Reveal>
     <GlassPanel style={styles.ledger}>
       {stats.filter((s) => s.label !== "판단").map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={[styles.row, i === 0 && styles.firstRow]}>
@@ -73,7 +76,8 @@ const styles = StyleSheet.create({
   equityValue: { color: calmColors.text, fontSize: 34, lineHeight: 40, letterSpacing: -1, fontVariant: ["tabular-nums"] },
   equityCaption: { fontSize: readableFont(12), marginTop: 4, letterSpacing: 0.4 },
   countWrap: { paddingHorizontal: 20, marginTop: 14 },
-  empty: { color: calmColors.muted, fontSize: 44 },
+  empty: { color: calmColors.muted, fontSize: 64 },
+  countNote: { color: calmColors.muted, fontSize: readableFont(13), marginTop: 6 },
   ledger: { marginHorizontal: 14, marginTop: 16, paddingVertical: 2 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: aiIslandPalette.glassEdge },
   firstRow: { borderTopWidth: 0 },

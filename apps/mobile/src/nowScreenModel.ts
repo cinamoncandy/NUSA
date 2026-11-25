@@ -34,11 +34,14 @@ export interface NowScreenModel {
   readonly delta: string | null;
   readonly deltaTone: CalmTone;
   readonly why: string | null;
+  /** Under the big decision number: why zero is normal (COLLECT_ONLY only, when the server really counted zero). Null otherwise. */
+  readonly countNote: string | null;
   readonly stats: readonly { readonly label: string; readonly value: string; readonly tone: CalmTone }[];
 }
 
 const PAPER_ONLY_SUB = "모의투자만 하고 있어요 · 실거래 잠김";
 const COLLECT_ONLY_HEADLINE = "주문 없이 지켜보는 중이에요";
+const COLLECT_ONLY_COUNT_NOTE = "수집 전용이라 0건이 정상이에요";
 const COLLECT_ONLY_SUB = "수집 전용 · 주문 꺼짐 · 실거래 잠김";
 
 export function krwText(value: number | null | undefined): string {
@@ -83,6 +86,7 @@ export function buildNowScreen(input: NowScreenInput): NowScreenModel {
     delta: deltaText(input.totalPnl, input.startingEquity),
     deltaTone: calmDeltaTone(input.totalPnl),
     why,
+    countNote: !stale && healthy && input.collectOnly === true && input.decisionCount === 0 ? COLLECT_ONLY_COUNT_NOTE : null,
     stats: Object.freeze([
       { label: "판단", value: countText(input.decisionCount), tone: "NORMAL" as CalmTone },
       { label: "주문", value: countText(input.paperOrderCount), tone: (input.paperOrderCount ?? 0) > 0 ? "ORDER" as CalmTone : "NORMAL" as CalmTone },
