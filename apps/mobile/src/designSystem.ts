@@ -104,6 +104,15 @@ export const calmPalette = Object.freeze({
 } as const);
 
 /** Wave palette (Now tab wave and the app accent, owner-chosen 2026-10-26): blue, cyan and violet light, pink only for my PAPER orders. */
+/** Colours of the lattice sphere on 지금 (design E): the lit-white, ice and edge tints. */
+export const latticePalette = Object.freeze({
+  white: "#F4F8FB",
+  edge: "#E8EEF4",
+  back: "#C9D4DE",
+  ice: "#BFE9FF",
+  flash: "#FFFFFF",
+});
+
 export const wavePalette = Object.freeze({
   blue: "#4F7BFF",
   cyan: "#3FD3FF",
