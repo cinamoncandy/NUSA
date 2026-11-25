@@ -1,6 +1,6 @@
 id: WO-UI-20261125-UIUX-PREVIEW-BUILD
 title: "DO NOT MERGE: preview branch that bundles the phase 4 mobile drafts and keeps the debug APK of its CI build so the owner can install the draft UI on a phone"
-status: DRAFT_DO_NOT_MERGE
+status: IN_PROGRESS
 created: 2026-11-25
 implementation_branch: claude/uiux-preview-build
 owner_decision: "2026-11-25: the owner asked for other work during the freeze (\"다른 작업\"); this serves the owner's wish to see the new screens on a phone before the freeze ends. Nothing here is merged."
