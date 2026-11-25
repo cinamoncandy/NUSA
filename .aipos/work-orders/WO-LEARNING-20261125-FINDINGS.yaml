@@ -1,0 +1,19 @@
+id: WO-LEARNING-20261125-FINDINGS
+title: "Findings 2026-11-25: CANDLES_STALE explained, tradeflow v1 FAILED_CLOSED observed and not explained"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+objective: "Record what the read-only host diagnosis of 2026-11-25 showed, what was reproduced offline, and what is still unknown, before the version 2 study first evaluates on 2026-11-29 09:15 KST."
+change:
+  - "docs/FINDINGS_2026-11-25.md (new)."
+not_changed:
+  - "No code, workflow, host, release, rule, threshold, gate, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The real cause of the tradeflow v1 failure; whether the v1 order-book rows are still in the store or the archive table; the offline run used a synthetic model of the data."
+acceptance:
+  - "AIPOS validators pass; merged by the release bot."
