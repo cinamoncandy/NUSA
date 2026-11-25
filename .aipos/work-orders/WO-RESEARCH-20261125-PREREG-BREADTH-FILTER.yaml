@@ -5,7 +5,7 @@ created: 2026-11-25
 implementation_branch: claude/prereg-breadth-filter
 owner_decision: "2026-11-25: after the history screen (1 of 6 filters passed, PR #3313) the owner said \"사전등록해\"."
 follows: "docs/RESEARCH_REGIME_FILTER_RESULT_2026-11-25.md (PR #3313); docs/RESEARCH_THREE_DIRECTIONS_2026-11-25.md."
-objective: "Docs only. One rule (basket held only when at least half of the markets are above their own 50-day mean, else cash), fixed list of 56 markets, first held day 2026-12-06, last held day 2027-06-06, one decision on a hosted runner after 2027-06-07T03:00Z, five pass conditions including a placebo test, NOT_INFORMATIVE if the benchmark drawdown is under 20 percent. Registers on merge before 2026-12-06T00:00Z."
+objective: "Docs only. One rule (basket held only when at least half of the markets are above their own 50-day mean, else cash), fixed list of 56 markets, first held day 2026-12-06, last held day 2027-06-06, one decision on a hosted runner after 2027-06-07T03:00Z, seven pass conditions including a placebo test and an activity band, NOT_INFORMATIVE if the benchmark drawdown is under 20 percent or the data fail. Independent read-only review done; its two blockers (drawdown-zero ratio, negative benchmark) and the suggestions are applied. Registers on merge before 2026-12-06T00:00Z."
 change:
   - "docs/RESEARCH_PREREG_BREADTH_FILTER_2026-11-25.md and this work order."
 not_changed:
@@ -19,6 +19,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass."
-unverified: "The design has had no independent review yet; the dates (decision 2027-06-07T03:00Z) are my choice, aligned with the weekly-trend study, and the owner may ask for an earlier checkpoint before merge; no power number was computed."
+unverified: "The independent review fixes are applied but not reviewed again; the dates (decision 2027-06-07T03:00Z) are my choice, aligned with the weekly-trend study, and the owner may ask for an earlier checkpoint before merge; no power number was computed."
 acceptance:
   - "Independent read-only review, then merge through the release path before 2026-12-06T00:00Z; the fetch and evaluate workflows are separate work orders and PRs."
