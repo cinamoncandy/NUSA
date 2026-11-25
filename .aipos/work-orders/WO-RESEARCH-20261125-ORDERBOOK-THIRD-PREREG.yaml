@@ -2,8 +2,8 @@ id: WO-RESEARCH-20261125-ORDERBOOK-THIRD-PREREG
 title: "Order-book study third run: pre-registration (same rules, new forward span 2026-11-17..2026-12-10)"
 status: READY_FOR_REVIEW
 created: 2026-11-25
-owner_decision: "2026-11-25: after the host reading showed order-book coverage 94.8 percent (bar 90 percent) the owner decided: \"등록해, 그 기간으로 진행해\" (register it, proceed with that span). Registration takes effect on merge after an independent non-author review."
-objective: "Register the third run of the order-book study with identical rules and a new span (train 2026-11-17..11-25 existing, validation 11-25..11-28, holdout 11-28..12-10, run no earlier than 2026-12-10 00:30Z) so the L1 candidate supply is not blocked by the 2026-11-04..11-12 coverage gap that probably caused eligible=0."
+owner_decision: "2026-11-25: the owner decided \"등록해, 그 기간으로 진행해\"; after the independent review found the first span (train 2026-11-17..11-25) unlikely to reach per-market eligibility, the owner chose \"기간을 앞으로 옮긴다\" (move the span forward). Registration takes effect on merge after an independent non-author review and must happen before 2026-11-26T00:00Z."
+objective: "Register the third run of the order-book study with identical rules and a new forward span (train 2026-11-26..12-04, validation 12-04..12-07, holdout 12-07..12-10, run no earlier than 2026-12-10T02:00Z) so the L1 candidate supply is not blocked again by gaps in the training span. The cause of the second run's eligible=0 is not known and the document says so."
 change:
   - "docs/RESEARCH_PREREG_2026-11-25_ORDERBOOK_60M_THIRD.md only."
 not_changed:
@@ -15,6 +15,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "That the training-span coverage caused eligible=0 (inferred from the script and the 2026-11-20 coverage reading, not proven); that the archive holds every training hour of 2026-11-17..11-25; that at least 4 markets pass the 90 percent and 20 bp eligibility; "
+unverified: "The cause of eligible=0 in the second run (gaps, the 20 bp spread bar or the archive read path); that the new span will have at least 173 usable training decision rows for at least 4 markets (the /health coverage figure does not prove it); that the archive holds every training hour; the host retention setting (14 or 28 days)."
 acceptance:
-  - "Independent non-author review, then registration by merge; the study-script span PR is a separate step (reaches the host with the first release after 2026-12-10)."
+  - "Independent non-author review, then registration by merge before 2026-11-26T00:00Z (else void); the code PR (SPANS plus the study-id allowlists in cloud, contracts and mobile) is a separate step that reaches the host with the first release after 2026-12-10."
