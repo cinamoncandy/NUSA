@@ -9,7 +9,8 @@ import { plainScreenChip } from "./stageTraceModel";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { CalmRow } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
-import { readableFont } from "./designSystem";
+import { latticePalette, readableFont } from "./designSystem";
+import { chainLinePercents, loopChain } from "./loopChainModel";
 import { CostWaterfall, NullComparison, OverfitGate, PaperResultBars, StudyTimeline } from "./learningPanels";
 
 type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown; /** Server heartbeat learningLoop (display only): measured numbers for the panels; null when absent. */ readonly learningLoop?: unknown; /** Server heartbeat orderBookStudy (display only): the pre-registered study result; null when absent. */ readonly orderBookStudy?: unknown; /** The server is healthy with no order path (COLLECT_ONLY): a paused loop is worded as the designed state. */ readonly collectOnly?: boolean };
@@ -37,12 +38,7 @@ export function LearningView(props: Props) {
       <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
     </PressScale>
     <View style={styles.labelWrap}><SectionLabel left="루프 · 모의투자" right={`${model.steps.filter((x) => x.state === "DONE").length} / ${model.steps.length}`} /></View>
-    <View style={styles.track} accessibilityLabel={model.steps.map((s) => `${s.label} ${s.state === "DONE" ? "확인" : s.state === "BLOCKED" ? "막힘" : "없음"}`).join(", ")}>
-      {model.steps.map((step) => <View key={step.label} style={styles.step}>
-        <View style={[styles.node, step.state === "DONE" ? styles.done : step.state === "BLOCKED" ? styles.blocked : null]} />
-        <Text style={styles.stepLabel}>{step.label}</Text>
-      </View>)}
-    </View>
+    <LoopChainStrip steps={model.steps} />
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
     {model.rows.length === 0 || model.periodLabel == null ? null : <Text style={styles.period} testID="learning-result-period">{model.periodLabel}</Text>}
@@ -55,16 +51,34 @@ export function LearningView(props: Props) {
   </ScrollView></AiShell>;
 }
 
+/** The loop as one chain: confirmed nodes lit, the line lit up to the last confirmed one, the next unconfirmed step ringed in ice. Static. */
+function LoopChainStrip({ steps }: { readonly steps: readonly { readonly label: string; readonly state: "DONE" | "NONE" | "BLOCKED" }[] }) {
+  const chain = loopChain(steps);
+  const line = chainLinePercents(steps.length, chain.lastDone);
+  return <View style={styles.track} testID="learning-loop-chain" accessibilityLabel={steps.map((s) => `${s.label} ${s.state === "DONE" ? "확인" : s.state === "BLOCKED" ? "막힘" : "없음"}`).join(", ")}>
+    <View style={[styles.chainLine, { left: `${line.start}%`, right: `${100 - line.end}%` }]} />
+    {chain.lastDone >= 0 ? <View style={[styles.chainLit, { left: `${line.start}%`, right: `${100 - line.litEnd}%` }]} /> : null}
+    {steps.map((step, i) => <View key={step.label} style={styles.step}>
+      <View style={[styles.node, step.state === "DONE" ? styles.done : step.state === "BLOCKED" ? styles.blocked : chain.nextIndex === i ? styles.next : null]} />
+      <Text style={styles.stepLabel}>{step.label}</Text>
+    </View>)}
+  </View>;
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: "transparent" },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   sub: { color: calmColors.muted, fontSize: readableFont(14), lineHeight: 21, paddingHorizontal: 20, marginTop: 10, marginBottom: 8 },
   labelWrap: { paddingHorizontal: 20, marginTop: 10 },
-  track: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14 },
+  track: { flexDirection: "row", justifyContent: "space-between", marginHorizontal: 20, paddingVertical: 14, position: "relative" },
+  // The line sits behind the nodes at the height of their centres (14 px nodes, 14 px strip padding).
+  chainLine: { position: "absolute", top: 14 + 7, height: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
+  chainLit: { position: "absolute", top: 14 + 7 - 0.5, height: 1.5, backgroundColor: calmColors.text, opacity: 0.7 },
   step: { alignItems: "center", gap: 6, flex: 1 },
-  node: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: calmColors.muted },
+  node: { width: 14, height: 14, borderRadius: 7, borderWidth: 1.5, borderColor: calmColors.muted, backgroundColor: calmColors.ground },
   done: { backgroundColor: calmColors.text, borderColor: calmColors.text },
   blocked: { borderColor: calmColors.attention },
+  next: { borderColor: latticePalette.ice, borderWidth: 2 },
   stepLabel: { color: calmColors.muted, fontSize: readableFont(12) },
   narrow: { color: calmColors.attention, fontSize: readableFont(14), lineHeight: 21, marginHorizontal: 20, marginBottom: 6 },
   list: { paddingHorizontal: 20 },
