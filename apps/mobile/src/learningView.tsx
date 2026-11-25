@@ -12,7 +12,7 @@ import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 import { CostWaterfall, NullComparison, OverfitGate, PaperResultBars, StudyTimeline } from "./learningPanels";
 
-type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown; /** Server heartbeat learningLoop (display only): measured numbers for the panels; null when absent. */ readonly learningLoop?: unknown; /** Server heartbeat orderBookStudy (display only): the pre-registered study result; null when absent. */ readonly orderBookStudy?: unknown };
+type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server heartbeat learningFunnel (display only); null when stale or absent. */ readonly learningFunnel?: unknown; /** Server heartbeat learningLoop (display only): measured numbers for the panels; null when absent. */ readonly learningLoop?: unknown; /** Server heartbeat orderBookStudy (display only): the pre-registered study result; null when absent. */ readonly orderBookStudy?: unknown; /** The server is healthy with no order path (COLLECT_ONLY): a paused loop is worded as the designed state. */ readonly collectOnly?: boolean };
 
 /**
  * "학습" — calm redesign of the PAPER tab. The summary is new; the full read-only monitors
@@ -21,8 +21,8 @@ type Props = React.ComponentProps<typeof PaperShadowMonitorView> & { /** Server 
 export function LearningView(props: Props) {
   const [details, setDetails] = useState(false);
   const reduced = useReducedMotion();
-  const { learningFunnel, learningLoop, orderBookStudy, ...monitorProps } = props;
-  const model = buildLearningScreen(props.paper);
+  const { learningFunnel, learningLoop, orderBookStudy, collectOnly, ...monitorProps } = props;
+  const model = buildLearningScreen(props.paper, { collectOnly: collectOnly === true });
   const funnel = buildLearningFunnel(learningFunnel);
   if (details) return <AiShell chip={plainScreenChip("LEARN")}><View style={styles.screen}>
     <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.back} testID="learning-summary-back"><Text style={styles.backText}>‹ 학습 요약</Text></Pressable>
@@ -45,6 +45,7 @@ export function LearningView(props: Props) {
     </View>
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
+    {model.rows.length === 0 || model.periodLabel == null ? null : <Text style={styles.period} testID="learning-result-period">{model.periodLabel}</Text>}
     <View style={styles.list}>{model.rows.map((row, i) => <Reveal key={row.label} index={2 + i} reducedMotion={reduced}><CalmRow label={row.label} value={row.value} tone={row.tone} /></Reveal>)}</View>
     <CostWaterfall raw={learningLoop} />
     <NullComparison raw={learningLoop} />
@@ -67,6 +68,7 @@ const styles = StyleSheet.create({
   stepLabel: { color: calmColors.muted, fontSize: readableFont(12) },
   narrow: { color: calmColors.attention, fontSize: readableFont(14), lineHeight: 21, marginHorizontal: 20, marginBottom: 6 },
   list: { paddingHorizontal: 20 },
+  period: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 18, paddingHorizontal: 20, marginTop: 2, marginBottom: 4 },
   fold: { marginHorizontal: 20, marginTop: 8, minHeight: 52, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   foldText: { color: calmColors.text, fontSize: readableFont(14) },
   back: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, backgroundColor: "transparent" },
