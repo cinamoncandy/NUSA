@@ -69,17 +69,39 @@ test("nodes are dimmer and greyer without data; back nodes are small and faint",
 
 test("source pin: 지금 draws the sphere from the counts it has, never for the still islands, and the sphere reads no data of its own", () => {
   const now = read("instrumentNow.tsx");
-  assert.match(now, /<LatticeSphere decisionCount=\{live \? decisionCount : null\} orderCount=\{live \? orderCount : null\} fillCount=\{live \? fillCount : null\} live=\{live\}/);
+  assert.match(now, /<LatticeSphere decisionCount=\{live \? decisionCount : null\} orderCount=\{live \? orderCount : null\} fillCount=\{live \? fillCount : null\} live=\{live && tone === "NORMAL"\}/);
   assert.doesNotMatch(now, /IslandCore/, "the island is gone from 지금");
   const sphere = read("latticeSphere.tsx");
   assert.doesNotMatch(sphere, /fetch\(|decisionTrace|Math\.random/);
   assert.match(sphere, /const moving = reducedMotion === false;/, "still until the OS answers and under reduce-motion");
-  assert.match(sphere, /live \? nodeLight\(v, live_, now\) : \{ light: 0, order: 0 \}/, "no light without data");
+  assert.match(sphere, /live \? nodeLight\(v, shown, now\) : \{ light: 0, order: 0 \}/, "no light without data");
   assert.doesNotMatch(read("latticeSphereModel.ts"), /Math\.random|Date\.now/, "pure");
 });
 
-test("source pin: the records corner sphere lights nothing, turns only with a live heartbeat, and does not catch touches", () => {
+test("without motion nothing travels: a rise is a brief still highlight, then nothing", () => {
+  assert.equal(m.staticPulseMs(-1), Number.POSITIVE_INFINITY);
+  assert.equal(m.staticPulseMs(0), 40);
+  assert.equal(m.staticPulseMs(m.LATTICE_STATIC_MS - 1), 40, "the same early frame the whole time");
+  assert.equal(m.staticPulseMs(m.LATTICE_STATIC_MS), Number.POSITIVE_INFINITY);
+  assert.ok(m.pulseLight(0, m.staticPulseMs(10)) > 0.9, "the origin is lit");
+  assert.equal(m.pulseLight(0, m.staticPulseMs(m.LATTICE_STATIC_MS + 5)), 0, "and then it is gone");
+  const src = read("latticeSphere.tsx");
+  assert.match(src, /if \(!active \|\| !moving\) return undefined;/, "no frame loop without motion");
+  assert.match(src, /moving \? now - p\.born : staticPulseMs\(now - p\.born\)/);
+  assert.match(src, /const turning = moving && live && !still;/);
+  assert.match(src, /t\.acc \+= /, "the angle is kept when turning stops, so it never jumps");
+  assert.doesNotMatch(src.slice(src.indexOf("const scene = useMemo")), /pulses\.current = /, "the scene memo has no side effects on the pulses");
+});
+
+test("the plain nodes are drawn as a few point sets, not one element per node", () => {
+  const src = read("latticeSphere.tsx");
+  assert.match(src, /import \{[^}]*\bPoints\b[^}]*\} from "@shopify\/react-native-skia"/);
+  assert.match(src, /scene\.plain\.map\(\(pts, b\) =>/);
+  assert.doesNotMatch(src, /scene\.nodes\.map/, "no per-node element list");
+});
+
+test("source pin: the records corner sphere lights nothing, never turns, and does not catch touches", () => {
   const view = read("recordsView.tsx");
-  assert.match(view, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{hb != null\} width=\{CORNER_SIZE\}/);
+  assert.match(view, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{hb != null\} still width=\{CORNER_SIZE\}/, "still: it never turns on a screen without a health signal");
   assert.match(view, /<View style=\{styles\.corner\} pointerEvents="none" testID="records-sphere">/);
 });

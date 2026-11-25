@@ -5,7 +5,7 @@ created: 2026-11-25
 implementation_branch: claude/uiux-p4f-records-sphere
 owner_decision: "2026-11-25: design E and \"섬 대신 구\"; both follow-ups approved (\"둘 다 이어서 진행해\"); the five tabs stay."
 follows: "design E 기록 board (a small sphere as a header ornament); docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md section 5.1."
-objective: "In apps/mobile/src/recordsView.tsx draw a 104 px LatticeSphere in the top-right corner of the header. It lights nothing (no counts passed), does not catch touches, turns slowly only while a live server heartbeat is present and the OS allows motion, and is grey and still when the heartbeat is null (stale or absent) or under reduce-motion."
+objective: "In apps/mobile/src/recordsView.tsx draw a 104 px LatticeSphere in the top-right corner of the header. It lights nothing (no counts passed), does not catch touches and never turns and has no frame loop (the `still` prop: this screen has no health signal, so a turning sphere would look like a healthy running system); a fresh heartbeat only keeps it white instead of grey. Changed after the independent review of 2026-11-25."
 change:
   - "apps/mobile/src/recordsView.tsx (one View and the corner style); tests/mobile-lattice-sphere.test.js: 1 source-pin test."
 not_changed:
@@ -18,7 +18,7 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
 validation:
-  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 893 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 895 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
 unverified: "Whether the corner sphere overlaps the large header words (오늘의 로그) on a small phone or at a large font size, and its cost next to the day ridge (no device here). The owner's phone capture is the check; if it overlaps, move it into the section label row or delete the block. It will conflict textually with the records-tiles PR (#3300) only if both edit the same lines; they do not."
 acceptance:
   - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 기록 screen."

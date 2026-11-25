@@ -134,3 +134,11 @@ export function pulsesForCounts(prevDecisions: number | null, nextDecisions: num
   for (let i = 0; i < total; i += 1) out.push({ born: now + i * 320, order: i >= total - orders, origin });
   return Object.freeze(out);
 }
+
+/** How long a still highlight stays when the sphere may not move (reduce-motion, or before the OS answers). */
+export const LATTICE_STATIC_MS = 1500;
+
+/** The pulse age to draw when nothing may move: a fixed early frame (the origin lit) while the highlight lasts, then nothing. */
+export function staticPulseMs(age: number): number {
+  return age >= 0 && age < LATTICE_STATIC_MS ? 40 : Number.POSITIVE_INFINITY;
+}
