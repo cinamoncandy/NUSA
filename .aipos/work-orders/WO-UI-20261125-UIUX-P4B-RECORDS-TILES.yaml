@@ -20,6 +20,7 @@ authority_impact: none
 validation:
   - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 879 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
 emulator_fixes: "After the CI emulator capture (Pixel 6, Android 15): the 2x2 grid holds; two hint lines are reserved in every tile (tileHint minHeight 34) so the titles of neighbouring tiles line up."
+hint_change: "Owner approved (2026-11-25, \"그렇게해\"): the 주문 기록 hint is shortened from \"모의 주문과 체결, 수수료까지\" to \"주문과 체결, 수수료\" because the emulator capture showed it breaking inside a word (수수료까 / 지) in a tile. Wording only; the entry and its destination are unchanged."
 unverified: "How the tiles look on a device and at large font sizes (no device rendering here): the owner's phone capture is the check."
 acceptance:
   - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 기록 screen."

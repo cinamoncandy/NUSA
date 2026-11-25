@@ -42,3 +42,10 @@ test("source pin: the four 'what happened' entries render as tiles and every ent
   assert.match(view, /<Text style=\{\[styles\.hint, styles\.tileHint\]\}>/);
   assert.match(view, /tileHint: \{ minHeight: 34 \}/, "two hint lines reserved so tile titles align");
 });
+
+test("the 주문 기록 hint is short enough to stay on one line in a tile (no break inside a word)", () => {
+  const records = load("recordsScreenModel");
+  const entry = records.RECORDS_GROUPS.flatMap((g) => g.items).find((i) => i.destination === "OrderHistory");
+  assert.equal(entry.hint, "주문과 체결, 수수료");
+  assert.ok([...entry.hint].length <= 12);
+});
