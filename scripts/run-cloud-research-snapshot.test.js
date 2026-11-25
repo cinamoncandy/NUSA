@@ -49,7 +49,7 @@ test("each trade-flow study failure is logged with its own version", () => {
     run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
       spawnSync: (executable, args, options) => (args.includes("scripts/run-tradeflow-study.js") && options.env.NUSA_TRADEFLOW_STUDY_ID === "ML_TRADEFLOW_60M_20261114" ? { status: 1 } : { status: 0 }) });
   } finally { console.error = original; }
-  assert.deepEqual(messages.filter((m) => m.includes("TRADEFLOW_STUDY_FAILED_CLOSED")), ["[cloud-research-snapshot] TRADEFLOW_STUDY_FAILED_CLOSED:V2"]);
+  assert.deepEqual(messages.filter((m) => m.includes("TRADEFLOW_STUDY_FAILED_CLOSED")), ["[cloud-research-snapshot] TRADEFLOW_STUDY_FAILED_CLOSED:V2 exit=1 signal=none spawn=none"]);
 });
 
 test("a cross-market study failure is logged and never blocks canonical Research", () => {
@@ -175,4 +175,13 @@ test("a history mining failure is logged and never blocks canonical Research; th
   const source = require("node:fs").readFileSync(path.join(__dirname, "run-cloud-research-snapshot.js"), "utf8");
   assert.doesNotMatch(source, /run-history-mining\.js/, "the runner only names the discover wrapper");
   assert.doesNotMatch(source, /["']look["']/, "the look phase is never invoked by the runner");
+});
+
+test("the child outcome line holds only fixed fields: exit status, signal name and spawn error code, never a message", () => {
+  const { spawnOutcome } = require("./run-cloud-research-snapshot.js");
+  assert.equal(spawnOutcome({ status: 1 }), "exit=1 signal=none spawn=none");
+  assert.equal(spawnOutcome({ status: null, signal: "SIGTERM", error: { code: "ETIMEDOUT", message: "spawnSync node ETIMEDOUT /secret/path" } }), "exit=none signal=SIGTERM spawn=ETIMEDOUT");
+  assert.equal(spawnOutcome({ status: null, signal: "SIGABRT" }), "exit=none signal=SIGABRT spawn=none");
+  assert.equal(spawnOutcome({ status: 9.5, signal: "bad signal!", error: { code: "has space" } }), "exit=none signal=none spawn=none");
+  assert.equal(spawnOutcome(undefined), "exit=none signal=none spawn=none");
 });

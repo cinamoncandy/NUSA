@@ -195,7 +195,20 @@ function runStudy({ db, now = Date.now() }) {
   };
 }
 
-module.exports = { runStudy, evaluate, featuresAt, tickSeries, compareTicks, START, VAL, HOLD, END, SPANS, STUDY_ID, K, VERSION };
+/**
+ * The failure line names the KIND of the error and nothing else (diagnosis only; no rule, statistic or output of a result changes): the error name, its code
+ * (for example ERR_SQLITE_ERROR) and a SQLite result code, each only if it is a short identifier or a small integer. The error MESSAGE is never printed
+ * (it can carry a path, a market or a value).
+ */
+function failureClass(error) {
+  const ident = (v) => (typeof v === "string" && /^[A-Za-z0-9_]{1,40}$/.test(v) ? v : "");
+  const name = ident(error && error.name) || "Error";
+  const code = ident(error && error.code);
+  const errcode = error && Number.isSafeInteger(error.errcode) && error.errcode >= 0 && error.errcode < 100000 ? error.errcode : null;
+  return `class=${name}${code ? `/${code}` : ""}${errcode === null ? "" : ` sqlite=${errcode}`}`;
+}
+
+module.exports = { failureClass, runStudy, evaluate, featuresAt, tickSeries, compareTicks, START, VAL, HOLD, END, SPANS, STUDY_ID, K, VERSION };
 
 if (require.main === module) {
   try {
@@ -204,5 +217,5 @@ if (require.main === module) {
     if (!path.startsWith("/")) throw new Error("state path");
     const db = new DatabaseSync(path, { readOnly: true });
     try { console.log("TRADEFLOW_STUDY", JSON.stringify({ ...runStudy({ db }), studyVersion: VERSION })); } finally { db.close(); }
-  } catch { console.error(`TRADEFLOW_STUDY_FAILED_CLOSED:V${VERSION}`); process.exitCode = 1; }
+  } catch (error) { console.error(`TRADEFLOW_STUDY_FAILED_CLOSED:V${VERSION} ${failureClass(error)}`); process.exitCode = 1; }
 }

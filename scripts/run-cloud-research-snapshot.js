@@ -37,6 +37,14 @@ function buildResearchEnv(source = process.env) {
   return env;
 }
 
+/** How a bounded child ended, as fixed fields only: the exit status, the signal name and the spawn error code (a timeout is ETIMEDOUT with SIGTERM). Never a message. */
+function spawnOutcome(result) {
+  const status = Number.isSafeInteger(result && result.status) ? String(result.status) : "none";
+  const signal = typeof (result && result.signal) === "string" && /^SIG[A-Z0-9]{1,12}$/.test(result.signal) ? result.signal : "none";
+  const code = typeof (result && result.error && result.error.code) === "string" && /^[A-Z0-9_]{1,30}$/.test(result.error.code) ? result.error.code : "none";
+  return `exit=${status} signal=${signal} spawn=${code}`;
+}
+
 function run(options = {}) {
   const env = buildResearchEnv(options.env ?? process.env);
   const cwd = options.cwd ?? process.cwd();
@@ -60,7 +68,7 @@ function run(options = {}) {
   // failure cannot fail Research; a hung run can still delay it by up to its 600 s timeout. Each journal line names its study through `studyVersion`.
   for (const [studyId, version] of [["ML_TRADEFLOW_60M_20261113", 1], ["ML_TRADEFLOW_60M_20261114", 2]]) {
     const tradeflow = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-tradeflow-study.js"], { cwd, env: { ...env, NUSA_TRADEFLOW_STUDY_ID: studyId }, stdio: "inherit", shell: false, timeout: 600000 });
-    if (tradeflow.error || tradeflow.signal || tradeflow.status !== 0) console.error(`[cloud-research-snapshot] TRADEFLOW_STUDY_FAILED_CLOSED:V${version}`);
+    if (tradeflow.error || tradeflow.signal || tradeflow.status !== 0) console.error(`[cloud-research-snapshot] TRADEFLOW_STUDY_FAILED_CLOSED:V${version} ${spawnOutcome(tradeflow)}`);
   }
   // Pre-registered CROSSMARKET study (docs/RESEARCH_PREREG_2026-11-19_CROSSMARKET_MOMENTUM_60M.md; read-only; WAITING_DATA, counts only, until 2026-12-10T00:30Z).
   // Its failure cannot fail Research; a hung run can still delay it by up to its 600 s timeout.
@@ -96,4 +104,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { buildResearchEnv, DEFAULT_COST_MODEL_VERSION, run };
+module.exports = { buildResearchEnv, DEFAULT_COST_MODEL_VERSION, run, spawnOutcome };
