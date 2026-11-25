@@ -90,7 +90,7 @@ test("App and the learning view pass the served schedule from the heartbeat to t
   const read = (p) => fs.readFileSync(p, "utf8").replace(/\r\n/g, "\n");
   assert.equal((read("apps/mobile/App.tsx").match(/studySchedule=\{snapshot\?\.operations\.heartbeat\?\.studySchedule \?\? null\}/g) || []).length, 2, "both render sites");
   const view = read("apps/mobile/src/learningView.tsx");
-  assert.match(view, /studySchedule, \.\.\.monitorProps/, "not forwarded to the monitor");
+  assert.match(view, /studySchedule, (collectOnly, )?\.\.\.monitorProps/, "not forwarded to the monitor");
   assert.match(view, /<StudyTimeline nowMs=\{Date\.now\(\)\} orderBookStudy=\{orderBookStudy\} studySchedule=\{studySchedule\} \/>/);
   assert.match(read("apps/mobile/src/learningPanels.tsx"), /parseStudySchedule\(studySchedule\) \?\? undefined/);
 });
