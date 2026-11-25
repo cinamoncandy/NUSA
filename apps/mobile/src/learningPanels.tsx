@@ -1,5 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
+import { StudyLattice } from "./latticeSphere";
 import { SectionLabel } from "./instrumentKit";
 import { IslandMark } from "./islandMark";
 import { calmColors, calmToneColor } from "./uiKitModel";
@@ -14,12 +15,16 @@ const rowColor = (kind: "GAIN" | "LOSS" | "COST" | "RESULT", bp: number): string
 /** Registered studies: a vertical line, one dot per study, the next verdict highlighted. Dates are the frozen designs' verdict times. */
 export function StudyTimeline({ nowMs, orderBookStudy }: { readonly nowMs: number; /** Server heartbeat orderBookStudy (display only); untrusted, null when absent. */ readonly orderBookStudy?: unknown }) {
   const rows = buildStudyTimeline(nowMs, undefined, orderBookStudy);
+  const [width, setWidth] = React.useState(0);
+  const nextIndex = rows.findIndex((r) => r.next);
   return <View style={styles.block} testID="learning-studies" accessibilityLabel={rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}>
     <SectionLabel left="사전 등록 연구" right="사전 등록" />
+    <View onLayout={(e) => setWidth(Math.round(e.nativeEvent.layout.width))} style={styles.lattice}>{width > 0 && rows.length > 0 ? <StudyLattice count={rows.length} nextIndex={nextIndex >= 0 ? nextIndex : null} width={width} /> : null}</View>
     <View style={styles.tl}>
       <View style={styles.tlLine} />
-      {rows.map((r) => <View key={r.id} style={styles.ev}>
+      {rows.map((r, i) => <View key={r.id} style={styles.ev}>
         <View style={[styles.dot, r.next ? styles.dotNext : null]} />
+        <Text style={styles.evNo}>{i + 1}</Text>
         <Text style={styles.date}>{r.dateLabel}</Text>
         <Text style={styles.evName}>{r.name}</Text>
         <Text style={[styles.evStatus, { color: calmToneColor(r.tone) }]}>{r.status}</Text>
@@ -136,7 +141,9 @@ const styles = StyleSheet.create({
   note: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 18 },
   tl: { paddingLeft: 26, gap: 20, marginTop: 6 },
   tlLine: { position: "absolute", left: 5, top: 8, bottom: 8, width: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
+  lattice: { alignItems: "center", marginTop: 4 },
   ev: { gap: 2 },
+  evNo: { position: "absolute", right: 0, top: 4, color: calmColors.muted, fontSize: readableFont(12), fontVariant: ["tabular-nums"] },
   dot: { position: "absolute", left: -26, top: 9, width: 11, height: 11, borderRadius: 6, borderWidth: 1.5, borderColor: calmColors.muted, backgroundColor: calmColors.ground },
   dotNext: { borderColor: calmColors.order, backgroundColor: calmColors.order },
   date: { color: calmColors.text, fontSize: 34, fontWeight: "500", letterSpacing: -0.5, fontVariant: ["tabular-nums"] },
