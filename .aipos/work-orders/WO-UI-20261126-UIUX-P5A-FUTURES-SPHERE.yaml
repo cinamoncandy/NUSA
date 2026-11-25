@@ -1,5 +1,5 @@
 id: WO-UI-20261126-UIUX-P5A-FUTURES-SPHERE
-title: "Mobile UI v7 phase 5a: 선물 draws the still grey lattice sphere instead of the old island (one visual language across the tabs)"
+title: "Mobile UI v7 phases 5a and 5b: 선물 draws the still grey lattice sphere; short row groups on 선물 and 학습 become tiles like 기록"
 status: READY_FOR_REVIEW
 created: 2026-11-26
 implementation_branch: claude/uiux-p5-lattice-language
@@ -8,6 +8,7 @@ follows: "docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md (design E); WO-UI-20261125-UIUX
 objective: "First slice of the renewal: the 선물 tab drew the old island wave while 지금, 학습 and 기록 draw the lattice sphere. 선물 now draws the same lattice sphere, grey and still (the futures paper is not started: no data, no motion, no lights). The text and the rows of the screen are unchanged."
 change:
   - "apps/mobile/src/futuresView.tsx: LatticeSphere (live=false, still, width at most 260) replaces IslandCore; tests/mobile-island-core.test.js: the source pin follows."
+  - "5b: apps/mobile/src/uiKit.tsx CalmTiles (two columns, odd last tile full width, label, value in its tone, hint); 선물 shows its 상태 group and 학습 its result rows (성과 · 모의투자) as tiles; the usage bars, the other groups and the measurement period line stay; tests/mobile-calm-tiles.test.js."
 not_changed:
   - "The 실거래 tab (its safety circuit stays: it explains why no real order is possible), any server, cloud, gate, threshold, limit, capital, host or authority."
 safety:
@@ -18,7 +19,7 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
 validation:
-  - "node scripts/lint-mobile.js passes; tests/mobile-*.test.js and tests/uiux-*.test.js pass (901); AIPOS yaml and drift validators pass."
+  - "node scripts/lint-mobile.js passes; tests/mobile-*.test.js and tests/uiux-*.test.js pass (903); AIPOS yaml and drift validators pass."
 unverified: "How it looks on the owner's phone (no device here); the owner's capture after the build is the check."
 acceptance:
   - "Independent non-author read-only review, then merge by the release bot; keep main quiet until the Android release is published."

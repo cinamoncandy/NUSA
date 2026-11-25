@@ -9,7 +9,7 @@ import { FUTURES_SAMPLE_NOW, FUTURES_SAMPLE_SNAPSHOT } from "./futuresSample";
 import { buildFuturesScreen } from "./futuresScreenModel";
 import { futuresSafetyRows } from "./futuresSafetyRows";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
-import { CalmRow } from "./uiKit";
+import { CalmRow, CalmTiles } from "./uiKit";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 import { fieldFonts } from "./fieldFonts";
@@ -35,7 +35,7 @@ export function FuturesView({ futures = null }: Readonly<{ futures?: unknown }>)
     {preview ? <View style={styles.banner} testID="futures-preview-banner" accessible accessibilityLabel="예시 데이터예요. 실제 거래가 아니에요"><Text style={[fieldFonts.mono, styles.bannerText]}>예시 데이터 · 실제 거래가 아니에요</Text></View> : null}
     {sections.map((s, g) => <Reveal key={s.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={s.title} right={`${s.rows.length}`} />
-      {s.rows.map((row, i) => <View key={`${i}-${row.label}`}>
+      {s.title === "상태" ? <CalmTiles rows={s.rows} testID="futures-status-tiles" /> : s.rows.map((row, i) => <View key={`${i}-${row.label}`}>
         <CalmRow label={row.label} hint={row.hint} value={row.value} tone={row.tone} />
         {s.bars && "bar" in row && row.bar ? <UsageBar bar={row.bar} tone={row.tone} /> : null}
       </View>)}

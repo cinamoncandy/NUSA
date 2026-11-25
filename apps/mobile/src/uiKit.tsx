@@ -36,6 +36,22 @@ export function CalmRow({ label, hint, value, tone = "NORMAL" }: Readonly<{ labe
   </View>;
 }
 
+/**
+ * The tile form of a short group of rows (UI v7, the same tile as 기록): label on top, the value large in its tone, the hint below.
+ * Two columns; an odd last tile takes the full width. Display only: it shows exactly the rows it is given.
+ */
+export function CalmTiles({ rows, testID }: Readonly<{ rows: readonly { label: string; hint?: string; value: string; tone?: CalmTone }[]; testID?: string }>) {
+  return <View style={styles.tiles} testID={testID}>
+    {rows.map((row, i) => <View key={`${i}-${row.label}`} style={[styles.tileCell, rows.length % 2 === 1 && i === rows.length - 1 && styles.tileFull]}>
+      <View style={styles.tile} accessible accessibilityLabel={`${row.label}. ${row.value}.${row.hint ? ` ${row.hint}` : ""}`}>
+        <Text style={styles.tileLabel}>{row.label}</Text>
+        <Text style={[styles.tileValue, fieldFonts.monoMedium, { color: calmToneColor(row.tone ?? "NORMAL") }]} numberOfLines={2}>{row.value}</Text>
+        {row.hint ? <Text style={styles.tileHint} numberOfLines={2}>{row.hint}</Text> : null}
+      </View>
+    </View>)}
+  </View>;
+}
+
 export function CalmTitle({ text }: Readonly<{ text: string }>) {
   return <Text accessibilityRole="header" style={[styles.title, fieldFonts.display]}>{text}</Text>;
 }
@@ -57,5 +73,13 @@ const styles = StyleSheet.create({
   rowLabel: { color: calmColors.text, fontSize: readableFont(15) },
   rowHint: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 17 },
   rowValue: { fontSize: readableFont(14), fontWeight: "600", textAlign: "right", flexShrink: 1 },
+  tiles: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+  // The equal-width rule sits on the cell (a plain View), the same way as the 기록 tiles.
+  tileCell: { width: "48%", flexGrow: 1 },
+  tileFull: { width: "100%" },
+  tile: { minHeight: 96, padding: 14, gap: 4, justifyContent: "space-between", borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, borderRadius: 16 },
+  tileLabel: { color: calmColors.muted, fontSize: readableFont(12) },
+  tileValue: { fontSize: readableFont(20), lineHeight: 28 },
+  tileHint: { color: calmColors.muted, fontSize: readableFont(12), lineHeight: 17 },
   title: { color: calmColors.text, fontSize: 30, lineHeight: 38, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 },
 });
