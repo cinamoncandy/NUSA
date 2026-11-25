@@ -11,9 +11,12 @@ const steps = (states) => states.map((state, i) => ({ label: `s${i}`, state }));
 // UI v7 phase 5d (docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md): the learning loop as one chain in the sphere's language.
 test("the chain lights the confirmed nodes and rings only the next unconfirmed step", () => {
   assert.deepEqual({ ...m.loopChain(steps(["DONE", "NONE", "NONE", "NONE", "NONE", "NONE"])) }, { lastDone: 0, nextIndex: 1 });
-  assert.deepEqual({ ...m.loopChain(steps(["NONE", "NONE", "NONE"])) }, { lastDone: -1, nextIndex: 0 });
+  assert.deepEqual({ ...m.loopChain(steps(["NONE", "NONE", "NONE"])) }, { lastDone: -1, nextIndex: null }, "nothing confirmed: nothing is ringed (the server did not say which step is next)");
   assert.deepEqual({ ...m.loopChain(steps(["DONE", "DONE", "DONE"])) }, { lastDone: 2, nextIndex: null }, "everything confirmed: no next ring");
   assert.equal(m.loopChain(steps(["DONE", "DONE", "BLOCKED", "NONE"])).nextIndex, null, "a blocked step keeps its attention colour and gets no ring");
+  assert.deepEqual({ ...m.loopChain(steps(["DONE", "BLOCKED", "DONE"])) }, { lastDone: 0, nextIndex: null }, "the line stops at the first gap: it never implies a confirmed chain across a blocked step");
+  assert.deepEqual({ ...m.loopChain(steps(["DONE", "NONE", "DONE"])) }, { lastDone: 0, nextIndex: 1 });
+  assert.deepEqual({ ...m.loopChain(steps(["NONE", "DONE", "DONE"])) }, { lastDone: -1, nextIndex: null }, "a later step confirmed without the first one: no lit line, no ring");
   assert.equal(m.loopChain(steps([])).lastDone, -1);
   assert.equal(m.loopChain(steps([])).nextIndex, null);
 });

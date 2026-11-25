@@ -71,7 +71,7 @@ const styles = StyleSheet.create({
   sub: { color: calmColors.muted, fontSize: readableFont(14), lineHeight: 21, paddingHorizontal: 20, marginTop: 10, marginBottom: 8 },
   labelWrap: { paddingHorizontal: 20, marginTop: 10 },
   track: { flexDirection: "row", justifyContent: "space-between", marginHorizontal: 20, paddingVertical: 14, position: "relative" },
-  // The line sits behind the nodes at the height of their centres (14 px nodes, 14 px strip padding).
+  // The line sits behind the nodes at the height of their centres (14 px nodes, 14 px strip padding): the hairline top is 21 (14 + 7); the 1.5 px lit line starts half a pixel higher so both are centred on the same y.
   chainLine: { position: "absolute", top: 14 + 7, height: StyleSheet.hairlineWidth, backgroundColor: calmColors.line },
   chainLit: { position: "absolute", top: 14 + 7 - 0.5, height: 1.5, backgroundColor: calmColors.text, opacity: 0.7 },
   step: { alignItems: "center", gap: 6, flex: 1 },
