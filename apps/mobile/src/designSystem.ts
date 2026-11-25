@@ -111,6 +111,7 @@ export const latticePalette = Object.freeze({
   back: "#C9D4DE",
   ice: "#BFE9FF",
   flash: "#FFFFFF",
+  markerFill: "#0B0D10",
 });
 
 export const wavePalette = Object.freeze({
