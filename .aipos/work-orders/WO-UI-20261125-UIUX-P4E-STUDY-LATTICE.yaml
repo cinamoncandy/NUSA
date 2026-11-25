@@ -18,7 +18,8 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
 validation:
-  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 894 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 897 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+review_fixes: "Independent read-only review (2026-11-25): the marker numbers no longer scale with the OS font (allowFontScaling off, fixed line height, smaller two-digit numbers); the label never names a marker that is not drawn when there are more studies than markers."
 unverified: "The Skia drawing and the number overlays have never run (no device here): marker overlap at 8 studies on a small phone, number alignment with the drawn rings, and large-font behaviour are unchecked. The owner's phone capture is the check. A merge with the study-schedule PR (#3297) will touch StudyTimeline's props: keep both."
 acceptance:
   - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 학습 screen."

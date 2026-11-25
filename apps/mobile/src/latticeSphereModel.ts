@@ -135,6 +135,14 @@ export function pulsesForCounts(prevDecisions: number | null, nextDecisions: num
   return Object.freeze(out);
 }
 
+/** How long a still highlight stays when the sphere may not move (reduce-motion, or before the OS answers). */
+export const LATTICE_STATIC_MS = 1500;
+
+/** The pulse age to draw when nothing may move: a fixed early frame (the origin lit) while the highlight lasts, then nothing. */
+export function staticPulseMs(age: number): number {
+  return age >= 0 && age < LATTICE_STATIC_MS ? 40 : Number.POSITIVE_INFINITY;
+}
+
 /**
  * Numbered study markers on the sphere (the learning screen): `count` front-facing nodes, spread out (farthest-point choice, no
  * randomness), numbered clockwise from the top so marker n is study n. Fewer than `count` come back only if the sphere has no room.

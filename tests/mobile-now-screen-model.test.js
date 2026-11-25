@@ -97,6 +97,7 @@ test("the zero note appears only for a healthy live COLLECT_ONLY server that rea
   assert.equal(buildNowScreen({ ...zero, staleLabel: "마지막 확인 2분 전" }).countNote, null, "a cached value never carries it");
   assert.equal(buildNowScreen({ ...zero, phase: "DEGRADED", phaseHeadline: "H", phaseDetail: "D" }).countNote, null);
   assert.equal(buildNowScreen({ ...zero, phase: "HALTED", phaseHeadline: "H", phaseDetail: "D" }).countNote, null);
+  assert.equal(buildNowScreen({ ...zero, phase: "ATTENTION", phaseHeadline: "H", phaseDetail: "D" }).countNote, null, "an attention state never gets the calm explanation");
 });
 
 test("source pin: the note is hidden while blocked and the big number is 64 px", () => {

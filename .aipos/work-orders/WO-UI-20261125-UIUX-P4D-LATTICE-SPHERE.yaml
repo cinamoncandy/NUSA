@@ -18,7 +18,8 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
 validation:
-  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 892 pass, 0 fail (compiled dist); the compiled TypeScript has no error; the geometry and a mid-pulse frame were drawn once from the model into a static image and looked right; AIPOS validators pass."
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 894 pass, 0 fail (compiled dist); the compiled TypeScript has no error; the geometry and a mid-pulse frame were drawn once from the model into a static image and looked right; AIPOS validators pass."
+review_fixes: "Independent read-only review (2026-11-25) findings fixed: under reduce-motion or before the OS answers nothing travels any more (a real rise is a 1.5 s still highlight, no frame loop); the turn angle is kept when turning stops so it never jumps; the sphere turns and glows only in the NORMAL tone (a halted or attention state with a fresh heartbeat is grey); the scene memo no longer mutates the pulses; plain nodes are drawn as four point sets and lit edges as two merged paths instead of about 160 elements and one path per edge; a `still` prop keeps a sphere from turning."
 unverified: "The Skia drawing itself has never run (no device or Skia renderer here): look, frame rate and battery cost of about 160 circles plus edges at 30 fps are unmeasured. The owner's phone capture is the check; if it is slow the fix is to lower the frame rate or hold the pose. The earlier last-minute dot strip of the island is not carried over (HeartbeatPulse remains)."
 acceptance:
   - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 지금 screen."

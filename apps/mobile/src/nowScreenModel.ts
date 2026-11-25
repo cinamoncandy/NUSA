@@ -86,7 +86,7 @@ export function buildNowScreen(input: NowScreenInput): NowScreenModel {
     delta: deltaText(input.totalPnl, input.startingEquity),
     deltaTone: calmDeltaTone(input.totalPnl),
     why,
-    countNote: !stale && healthy && input.collectOnly === true && input.decisionCount === 0 ? COLLECT_ONLY_COUNT_NOTE : null,
+    countNote: !stale && healthy && input.phase === "CONNECTED" && input.collectOnly === true && input.decisionCount === 0 ? COLLECT_ONLY_COUNT_NOTE : null,
     stats: Object.freeze([
       { label: "판단", value: countText(input.decisionCount), tone: "NORMAL" as CalmTone },
       { label: "주문", value: countText(input.paperOrderCount), tone: (input.paperOrderCount ?? 0) > 0 ? "ORDER" as CalmTone : "NORMAL" as CalmTone },
