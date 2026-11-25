@@ -3,12 +3,8 @@ import { AppState, Text, View } from "react-native";
 import { Canvas, Circle, Group, Path, Points, RadialGradient, Skia, vec } from "@shopify/react-native-skia";
 import { fillRise } from "./waveCoreModel";
 import { LATTICE_FILL_MS, LATTICE_MAX_PULSES, LATTICE_PULSE_MS, LATTICE_REST_YAW, LATTICE_STATIC_MS, LATTICE_TILT, LATTICE_YAW_RATE, buildLattice, studyMarkers, fillWash, nodeLight, nodeOpacity, nodeRadius, pulsesForCounts, rotate, staticPulseMs, unrotate, type LatticePulse, type Vec3 } from "./latticeSphereModel";
-import { wavePalette } from "./designSystem";
+import { latticePalette, wavePalette } from "./designSystem";
 
-const WHITE = "#F4F8FB";
-const EDGE = "#E8EEF4";
-const BACK = "#C9D4DE";
-const ICE = "#BFE9FF";
 // Depth buckets for the plain (unlit) nodes: one Points draw per bucket instead of one Circle per node.
 const BUCKETS: readonly { readonly min: number; readonly max: number; readonly z: number }[] = [
   { min: -2, max: 0, z: -0.5 }, { min: 0, max: 1 / 3, z: 1 / 6 }, { min: 1 / 3, max: 2 / 3, z: 0.5 }, { min: 2 / 3, max: 2, z: 5 / 6 },
@@ -145,7 +141,7 @@ export function LatticeSphere({ decisionCount, orderCount, fillCount = null, liv
 
   const validCount = decisionCount != null && Number.isSafeInteger(decisionCount);
   const label = `판단 구. ${validCount ? `오늘 판단 ${decisionCount.toLocaleString("en-US")}번` : "판단 수를 받지 못했어요"}${orderCount == null || !Number.isSafeInteger(orderCount) ? "" : `, 모의 주문 ${orderCount.toLocaleString("en-US")}번`}. 구의 빛은 새 판단(하늘색), 주문(분홍), 체결(흰색)이 생길 때만 켜져요`;
-  const tone = live ? EDGE : wavePalette.idle;
+  const tone = live ? latticePalette.edge : wavePalette.idle;
   return <View style={{ width: size, height: size, alignSelf: "center" }} testID={testID} accessible accessibilityLabel={label}>
     <Canvas style={{ width: size, height: size }} pointerEvents="none">
       <Circle cx={scene.cx} cy={scene.cy} r={scene.R * 1.12} opacity={live ? 0.5 : 0.18}>
@@ -153,16 +149,16 @@ export function LatticeSphere({ decisionCount, orderCount, fillCount = null, liv
       </Circle>
       <Circle cx={scene.cx} cy={scene.cy} r={scene.R} color="rgba(14,18,22,0.55)" />
       <Circle cx={scene.cx} cy={scene.cy} r={scene.R} style="stroke" strokeWidth={1} color={tone} opacity={live ? 0.35 : 0.2} />
-      <Path path={scene.back} style="stroke" strokeWidth={0.6} color={live ? BACK : wavePalette.idle} opacity={live ? 0.13 : 0.1} />
+      <Path path={scene.back} style="stroke" strokeWidth={0.6} color={live ? latticePalette.back : wavePalette.idle} opacity={live ? 0.13 : 0.1} />
       <Path path={scene.front} style="stroke" strokeWidth={0.7} color={tone} opacity={live ? 0.5 : 0.22} />
       {scene.glowCount > 0 ? <>
-        <Path path={scene.glowIce} style="stroke" strokeWidth={1.3} strokeCap="round" color={ICE} opacity={0.7} />
+        <Path path={scene.glowIce} style="stroke" strokeWidth={1.3} strokeCap="round" color={latticePalette.ice} opacity={0.7} />
         <Path path={scene.glowPink} style="stroke" strokeWidth={1.3} strokeCap="round" color={wavePalette.pink} opacity={0.7} />
       </> : null}
-      {scene.plain.map((pts, b) => pts.length === 0 ? null : <Points key={`b${b}`} points={pts} mode="points" style="stroke" strokeCap="round" strokeWidth={2 * nodeRadius(BUCKETS[b]!.z, 1)} color={live ? (BUCKETS[b]!.z > 0 ? WHITE : BACK) : wavePalette.idle} opacity={nodeOpacity(BUCKETS[b]!.z, live)} />)}
+      {scene.plain.map((pts, b) => pts.length === 0 ? null : <Points key={`b${b}`} points={pts} mode="points" style="stroke" strokeCap="round" strokeWidth={2 * nodeRadius(BUCKETS[b]!.z, 1)} color={live ? (BUCKETS[b]!.z > 0 ? latticePalette.white : latticePalette.back) : wavePalette.idle} opacity={nodeOpacity(BUCKETS[b]!.z, live)} />)}
       {scene.lit.map((n, i) => <Group key={`l${i}`}>
-        <Circle cx={n.x} cy={n.y} r={3 + 5 * n.l} color={n.pink ? wavePalette.pink : ICE} opacity={0.35 * n.l} />
-        <Circle cx={n.x} cy={n.y} r={nodeRadius(n.z, 1) + 1.2 * n.l} color={n.pink ? wavePalette.pink : "#FFFFFF"} opacity={Math.min(1, 0.4 + n.l)} />
+        <Circle cx={n.x} cy={n.y} r={3 + 5 * n.l} color={n.pink ? wavePalette.pink : latticePalette.ice} opacity={0.35 * n.l} />
+        <Circle cx={n.x} cy={n.y} r={nodeRadius(n.z, 1) + 1.2 * n.l} color={n.pink ? wavePalette.pink : latticePalette.flash} opacity={Math.min(1, 0.4 + n.l)} />
       </Group>)}
     </Canvas>
   </View>;
@@ -193,15 +189,15 @@ export function StudyLattice({ count, nextIndex, width, testID = "learning-latti
   return <View style={{ width: size, height: size, alignSelf: "center" }} testID={testID} accessible accessibilityLabel={label}>
     <Canvas style={{ width: size, height: size }} pointerEvents="none">
       <Circle cx={scene.cx} cy={scene.cy} r={scene.R} color="rgba(14,18,22,0.55)" />
-      <Circle cx={scene.cx} cy={scene.cy} r={scene.R} style="stroke" strokeWidth={1} color={EDGE} opacity={0.3} />
-      <Path path={scene.back} style="stroke" strokeWidth={0.6} color={BACK} opacity={0.12} />
-      <Path path={scene.front} style="stroke" strokeWidth={0.7} color={EDGE} opacity={0.45} />
-      {scene.P.map((p, i) => <Circle key={i} cx={scene.cx + p[0] * scene.R} cy={scene.cy - p[1] * scene.R} r={nodeRadius(p[2], 0.85)} color={p[2] > 0 ? WHITE : BACK} opacity={nodeOpacity(p[2], true)} />)}
+      <Circle cx={scene.cx} cy={scene.cy} r={scene.R} style="stroke" strokeWidth={1} color={latticePalette.edge} opacity={0.3} />
+      <Path path={scene.back} style="stroke" strokeWidth={0.6} color={latticePalette.back} opacity={0.12} />
+      <Path path={scene.front} style="stroke" strokeWidth={0.7} color={latticePalette.edge} opacity={0.45} />
+      {scene.P.map((p, i) => <Circle key={i} cx={scene.cx + p[0] * scene.R} cy={scene.cy - p[1] * scene.R} r={nodeRadius(p[2], 0.85)} color={p[2] > 0 ? latticePalette.white : latticePalette.back} opacity={nodeOpacity(p[2], true)} />)}
       {scene.markers.map((m, k) => <Group key={`m${k}`}>
-        <Circle cx={m.x} cy={m.y} r={10} color="#0B0D10" />
-        <Circle cx={m.x} cy={m.y} r={10} style="stroke" strokeWidth={k === nextIndex ? 1.6 : 1} color={k === nextIndex ? ICE : WHITE} opacity={k === nextIndex ? 1 : 0.6} />
+        <Circle cx={m.x} cy={m.y} r={10} color={latticePalette.markerFill} />
+        <Circle cx={m.x} cy={m.y} r={10} style="stroke" strokeWidth={k === nextIndex ? 1.6 : 1} color={k === nextIndex ? latticePalette.ice : latticePalette.white} opacity={k === nextIndex ? 1 : 0.6} />
       </Group>)}
     </Canvas>
-    {scene.markers.map((m, k) => <Text key={`t${k}`} allowFontScaling={false} numberOfLines={1} style={{ position: "absolute", left: m.x - 10, top: m.y - 7, width: 20, height: 14, lineHeight: 14, textAlign: "center", color: k === nextIndex ? ICE : WHITE, fontSize: k >= 9 ? 9 : 11, fontWeight: "600", fontVariant: ["tabular-nums"] }} importantForAccessibility="no-hide-descendants">{k + 1}</Text>)}
+    {scene.markers.map((m, k) => <Text key={`t${k}`} allowFontScaling={false} numberOfLines={1} style={{ position: "absolute", left: m.x - 10, top: m.y - 7, width: 20, height: 14, lineHeight: 14, textAlign: "center", color: k === nextIndex ? latticePalette.ice : latticePalette.white, fontSize: k >= 9 ? 9 : 11, fontWeight: "600", fontVariant: ["tabular-nums"] }} importantForAccessibility="no-hide-descendants">{k + 1}</Text>)}
   </View>;
 }
