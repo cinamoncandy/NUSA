@@ -28,7 +28,9 @@ const DAY = 86_400_000;
 const QUARTER_WINDOW_MS = 7 * DAY; // the Research timer runs daily: seven tries per quarter
 const DECISION_WINDOW_MS = 30 * DAY;
 const CHUNK = 30_000;
-const GENUINE_INTEGRITY = /^(MISSING_HOURS|NO_MARKET_LEFT|ROW_DELETED |ROW_CHANGED )/;
+const GENUINE_INTEGRITY = /^(MISSING_HOURS|NO_MARKET_LEFT|(ROW_DELETED|ROW_CHANGED) KRW-[A-Z0-9]{1,15}\|\d+)$/;
+const HEX64 = /^[0-9a-f]{64}$/;
+const HEX12 = /^[0-9a-f]{12}$/;
 const QUARTER_ENDS = Object.freeze(["2027-03-31T00:00:00Z", "2027-06-30T00:00:00Z", "2027-09-30T00:00:00Z", "2027-12-31T00:00:00Z"].map((s) => Date.parse(s)));
 const WAITING_CONFIG = 'FORWARD_RET48 {"status":"WAITING_CONFIG"}';
 const WAITING_DATE = 'FORWARD_RET48 {"status":"WAITING_DATE"}';
@@ -47,6 +49,21 @@ function parseConfig(text) {
   if (t < forward.SPAN_EARLIEST) throw new Error("spanStart is before 2026-12-11");
   if (t > QUARTER_ENDS[0]) throw new Error("spanStart is after the first quarter end");
   return t;
+}
+
+/** A committed quarterly record must have exactly the shape quarterRecord prints: otherwise a file defect would read as a deleted row and spend the one decision. */
+function wellFormedRecord(c) {
+  if (c === null || typeof c !== "object" || Array.isArray(c)) return false;
+  if (typeof c.at !== "string" || !Number.isFinite(Date.parse(c.at)) || !Number.isSafeInteger(c.rows) || c.rows < 0) return false;
+  if (!HEX64.test(String(c.hashA)) || !HEX64.test(String(c.hashB))) return false;
+  const rh = c.rowHashes;
+  if (rh === null || typeof rh !== "object" || Array.isArray(rh)) return false;
+  let n = 0;
+  for (const [market, list] of Object.entries(rh)) {
+    if (!forward.MARKETS.includes(market) || !Array.isArray(list)) return false;
+    for (const e of list) { if (!Array.isArray(e) || e.length !== 2 || !Number.isSafeInteger(e[0]) || e[0] <= 0 || !HEX12.test(String(e[1]))) return false; n += 1; }
+  }
+  return n === c.rows;
 }
 
 /** What this hour does: "WAIT", {quarter: atMs, prevAtMs} or "DECISION". Pure; the clock is passed in. */
@@ -78,7 +95,7 @@ function run(options = {}) {
       const bad = forward.verifyFreeze(freeze); if (bad) throw new Error(`decision not evaluable: ${bad}`);
       if (!fs.existsSync(committedPath)) throw new Error("decision not evaluable: committed records file is absent");
       const committed = JSON.parse(fs.readFileSync(committedPath, "utf8"));
-      if (!Array.isArray(committed) || committed.length === 0 || !committed.every((c) => c && typeof c.rowHashes === "object" && c.rowHashes !== null && typeof c.hashA === "string")) throw new Error("decision not evaluable: committed records are empty or malformed");
+      if (!Array.isArray(committed) || committed.length === 0 || !committed.every(wellFormedRecord)) throw new Error("decision not evaluable: committed records are empty or malformed");
       const out = forward.evaluate({ db, freeze, spanStart, committed, now });
       const genuine = out.status === "PASS" || out.status === "FAIL" || out.status === "INCONCLUSIVE" || (out.status === "DATA_INTEGRITY_FAIL" && GENUINE_INTEGRITY.test(String(out.reason)));
       if (!genuine) throw new Error(`decision not evaluable: ${String(out.status)} ${String(out.reason || "")}`.trim());
@@ -98,4 +115,4 @@ if (require.main === module) {
   catch (error) { console.error(`FORWARD_RET48_FAILED_CLOSED ${String(error && error.message).slice(0, 120)}`); process.exitCode = 1; }
 }
 
-module.exports = { run, parseConfig, planFor, CONFIG_FILE, COMMITTED_FILE, QUARTER_ENDS, WAITING_CONFIG, WAITING_DATE, CHUNK };
+module.exports = { run, parseConfig, planFor, wellFormedRecord, CONFIG_FILE, COMMITTED_FILE, QUARTER_ENDS, WAITING_CONFIG, WAITING_DATE, CHUNK };

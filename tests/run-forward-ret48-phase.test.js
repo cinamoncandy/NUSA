@@ -98,6 +98,15 @@ test("a decision run that cannot evaluate prints no FORWARD_DECISION and fails c
     assert.throws(() => phase.run({ configPath: cfg, committedPath, env, now, log: c.log }), /decision not evaluable/, label);
     assert.deepEqual(c.lines, [], `${label}: nothing is printed as a decision`);
   }
+  // a committed record with a wrong shape would read as a deleted row: it must not be printed as a decision either
+  for (const bad of [{ ...record, rowHashes: { "KRW-BTC": "abcd" } }, { ...record, rowHashes: { "KRW-BTC": [[]] } }, { ...record, rowHashes: { "KRW-BTC": [["x", "y"]] } },
+    { ...record, rowHashes: { ...record.rowHashes, "KRW-XRP": [] } }, { ...record, rowHashes: "x" }, { ...record, hashB: "nothex" }, { ...record, rows: record.rows + 1 }, { ...record, at: "x" }]) {
+    const f2 = path.join(dir, "shape.json"); fs.writeFileSync(f2, JSON.stringify([bad]));
+    const c2 = capture();
+    assert.throws(() => phase.run({ configPath: cfg, committedPath: f2, env, now, log: c2.log }), /decision not evaluable/);
+    assert.deepEqual(c2.lines, []);
+  }
+  assert.equal(phase.wellFormedRecord(record), true);
   const badFreeze = path.join(dir, "freeze.json"); fs.writeFileSync(badFreeze, JSON.stringify({ study: "X" }));
   const f = capture();
   assert.throws(() => phase.run({ configPath: cfg, committedPath: committed, freezePath: badFreeze, env, now, log: f.log }), /FREEZE_MISMATCH/);
