@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261125-CROSSSECTION-SCREEN
+title: "Research: discovery screen of six cross-sectional daily families (low volatility, short reversal, volume-spike reversal, BTC-lag laggards, volatility contraction, vol-adjusted momentum); offline"
+status: IN_PROGRESS
+created: 2026-11-25
+implementation_branch: claude/crosssection-screen
+owner_decision: "2026-11-25: history first, forward confirmation for survivors (\"과거 차트로 테스트해서 통과하면 앞으로 쌓일 데이터로 검증을 하면 되지\"); then \"다 해\" for the cross-sectional families plus the three own hypotheses (volume-spike reversal, BTC-lag laggards, volatility contraction)."
+follows: "docs/RESEARCH_FAMOUS_SCREEN_RESULT_2026-11-25.md; docs/RESEARCH_STRATEGY_COLLECTION_2026-11-25.md."
+objective: "scripts/offline-crosssection-screen.js, committed with every rule and bar BEFORE the first fetch or run. Fetches public Upbit daily candles (no key, no order) into a directory outside the repository and prints a table. K=6. History was already read, so the second filter only gates eligibility for a forward pre-registration."
+change:
+  - "scripts/offline-crosssection-screen.js and this work order; the result note follows in a later commit."
+not_changed:
+  - "Any workflow, host, release, rule, threshold, gate, risk limit, capital or authority; no order-book value and no S2-S4 holdout value is read; the system never reads these prices; Codex's L1-L8 work."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "Survivorship (current markets only); costs are flat 15 bp a side, not per-market spreads; daily candles cannot see the intraday lag of the BTC-lag idea; the second filter reuses an already-read last year."
+acceptance:
+  - "Result recorded honestly; survivors, if any, go to a separate forward pre-registration."
