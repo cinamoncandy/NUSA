@@ -56,7 +56,7 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
           <Text style={[fieldFonts.mono, styles.tileNo]}>{String(i + 1).padStart(2, "0")}</Text>
           <View>
             <Text style={styles.tileTitle}>{item.title}</Text>
-            <Text style={styles.hint}>{item.hint}</Text>
+            <Text style={[styles.hint, styles.tileHint]}>{item.hint}</Text>
           </View>
         </PressScale></View>)}
       </View> : group.items.map((item) => <PressScale
@@ -135,6 +135,8 @@ const styles = StyleSheet.create({
   // PressScale wraps its Pressable in an Animated.View, so the equal-width rule sits on this cell, not on the tile.
   tileCell: { width: "48%", flexGrow: 1 },
   tile: { minHeight: 112, padding: 14, justifyContent: "space-between", borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, borderRadius: 16 },
+  // Two lines are always reserved for the hint so the titles of neighbouring tiles line up (an emulator capture showed one hint wrapping and the other not).
+  tileHint: { minHeight: 34 },
   tileNo: { color: calmColors.muted, fontSize: readableFont(12) },
   tileTitle: { color: calmColors.text, fontSize: readableFont(17), fontWeight: "600", marginBottom: 2 },
   rowMain: { flex: 1, gap: 2 },

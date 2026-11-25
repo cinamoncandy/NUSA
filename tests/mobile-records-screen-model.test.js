@@ -39,4 +39,6 @@ test("source pin: the four 'what happened' entries render as tiles and every ent
   assert.match(view, /<View key=\{item\.destination\} style=\{styles\.tileCell\}><PressScale/);
   assert.match(view, /tileCell: \{ width: "48%", flexGrow: 1 \}/);
   assert.doesNotMatch(view, /tile: \{[^}]*flexBasis/, "no width rule on the inner Pressable");
+  assert.match(view, /<Text style=\{\[styles\.hint, styles\.tileHint\]\}>/);
+  assert.match(view, /tileHint: \{ minHeight: 34 \}/, "two hint lines reserved so tile titles align");
 });

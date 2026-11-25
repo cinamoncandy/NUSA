@@ -19,6 +19,7 @@ safety:
 authority_impact: none
 validation:
   - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 879 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+emulator_fixes: "After the CI emulator capture (Pixel 6, Android 15): the 2x2 grid holds; two hint lines are reserved in every tile (tileHint minHeight 34) so the titles of neighbouring tiles line up."
 unverified: "How the tiles look on a device and at large font sizes (no device rendering here): the owner's phone capture is the check."
 acceptance:
   - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 기록 screen."
