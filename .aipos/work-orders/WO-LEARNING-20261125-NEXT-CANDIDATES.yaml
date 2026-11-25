@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261125-NEXT-CANDIDATES
+title: "Learning loop: review of next candidate directions (docs only, proposal; no new family before the results of 2026-11-29, 12-05 and 12-10)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: the owner asked what is left for the learning loop and said \"다 해\" (do all of it) after the options were listed."
+objective: "Record the open studies and dates, why no new hypothesis family is registered now (multiple-comparison budget, the cost wall, short data, the COLLECT_ONLY mode being the real L1 blocker), the candidate directions in order, and the recommendation to decide the next family after the three results."
+change:
+  - "docs/LEARNING_NEXT_CANDIDATES_2026-11-25.md only."
+not_changed:
+  - "No study, script, workflow, host, rule, threshold, gate, limit, capital or authority. Codex's L1-L8 structure work is not touched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The statement that the cost wall explains the earlier failures is a reading of the recorded results (rule family exhausted, H2 and broad NO_CANDIDATE), not a measured decomposition; the host numbers are those of the 2026-11-25 11:29 KST read."
+acceptance:
+  - "AIPOS validators pass; docs only, normal bot merge."
