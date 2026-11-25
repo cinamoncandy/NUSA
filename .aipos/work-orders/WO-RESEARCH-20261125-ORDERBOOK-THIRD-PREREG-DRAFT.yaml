@@ -1,0 +1,20 @@
+id: WO-RESEARCH-20261125-ORDERBOOK-THIRD-PREREG-DRAFT
+title: "Order-book study third run: a DRAFT pre-registration for the owner (same rules, new forward span 2026-11-17..2026-12-10)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: the owner asked for the next learning-loop step after the host reading showed order-book coverage 94.8 percent (bar 90 percent). This document is a proposal; it is not registered until the owner says so."
+objective: "Record a proposed third run of the order-book study with identical rules and a new span (train 2026-11-17..11-25 existing, validation 11-25..11-28, holdout 11-28..12-10, run no earlier than 2026-12-10 00:30Z) so the L1 candidate supply is not blocked by the 2026-11-04..11-12 coverage gap that probably caused eligible=0."
+change:
+  - "docs/RESEARCH_PREREG_DRAFT_2026-11-25_ORDERBOOK_60M_THIRD.md only."
+not_changed:
+  - "scripts/run-orderbook-study.js, any rule, threshold, gate, limit, capital, host or authority. No order-book value was read: only counts of hours with a book."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "That the training-span coverage caused eligible=0 (inferred from the script and the 2026-11-20 coverage reading, not proven); that the archive holds every training hour of 2026-11-17..11-25; that at least 4 markets pass the 90 percent and 20 bp eligibility; the span numbers are a proposal."
+acceptance:
+  - "Owner decision, independent non-author review, then registration by merge; the study-script span PR is a separate step."
