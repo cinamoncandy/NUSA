@@ -87,3 +87,22 @@ test("source pin: nowView passes the collect-only flag to both the screen model 
   assert.equal((view.match(/collectOnly: fieldInput\.collectOnly === true/g) ?? []).length, 2, "one for buildNowScreen and one for nowStatusChip");
   assert.match(view, /buildHomeFieldInput\(\{ snapshot: stale \? null : snapshot,/, "a cached snapshot never reaches the flag");
 });
+
+test("the zero note appears only for a healthy live COLLECT_ONLY server that really counted zero", () => {
+  const zero = { ...base, decisionCount: 0, paperOrderCount: 0, fillCount: 0, collectOnly: true };
+  assert.equal(buildNowScreen(zero).countNote, "수집 전용이라 0건이 정상이에요");
+  assert.equal(buildNowScreen({ ...zero, decisionCount: null }).countNote, null, "no count: nothing claimed");
+  assert.equal(buildNowScreen({ ...zero, decisionCount: 3 }).countNote, null, "a real decision removes the note");
+  assert.equal(buildNowScreen({ ...zero, collectOnly: false }).countNote, null, "without COLLECT_ONLY zero is not explained away");
+  assert.equal(buildNowScreen({ ...zero, staleLabel: "마지막 확인 2분 전" }).countNote, null, "a cached value never carries it");
+  assert.equal(buildNowScreen({ ...zero, phase: "DEGRADED", phaseHeadline: "H", phaseDetail: "D" }).countNote, null);
+  assert.equal(buildNowScreen({ ...zero, phase: "HALTED", phaseHeadline: "H", phaseDetail: "D" }).countNote, null);
+  assert.equal(buildNowScreen({ ...zero, phase: "ATTENTION", phaseHeadline: "H", phaseDetail: "D" }).countNote, null, "an attention state never gets the calm explanation");
+});
+
+test("source pin: the note is hidden while blocked and the big number is 64 px", () => {
+  const view = fs.readFileSync(path.join(SRC, "nowView.tsx"), "utf8");
+  assert.match(view, /countNote=\{blocked \? null : model\.countNote\}/);
+  const inst = fs.readFileSync(path.join(SRC, "instrumentNow.tsx"), "utf8");
+  assert.match(inst, /<Odometer value=\{decisionCount\} size=\{64\}/);
+});
