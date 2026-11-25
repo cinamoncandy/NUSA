@@ -1,0 +1,25 @@
+id: WO-UI-20261125-UIUX-P4D-LATTICE-SPHERE
+title: "Mobile UI/UX v6 phase 4d: the live 지금 screen draws a lattice sphere (162 nodes, 480 edges) instead of the island"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/uiux-p4d-lattice-sphere
+owner_decision: "2026-11-25: design E (a node-and-edge sphere, from the owner's reference image) and \"섬 대신 구\" (a sphere instead of the island). This supersedes the earlier \"섬을 유지\" for the 지금 screen only; the five tabs stay."
+follows: "docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md sections 3.1 and 5.1; supersedes WO-UI-20261125-UIUX-P4C-ISLAND-DIAL (the island on 지금 is gone, so its dial is moot)."
+objective: "Replace IslandCore on the live 지금 screen by LatticeSphere. It lights only from real count rises: a decision rise sends a ring of light over the sphere from the point facing the viewer, an order rise makes the ring pink, a fill washes it white. It turns slowly only while live and allowed to move; under reduce-motion (or before the OS answers) one fixed pose; with no data grey, dim and still. No number is drawn inside it (the odometer below stays, now 64 px). Pure geometry and rules in latticeSphereModel.ts, drawn with Skia in latticeSphere.tsx; no randomness, no data source of its own."
+change:
+  - "apps/mobile/src/latticeSphereModel.ts and latticeSphere.tsx (new); apps/mobile/src/instrumentNow.tsx (the graphic swapped); tests/mobile-lattice-sphere.test.js (7 tests); tests/mobile-decision-core.test.js and tests/mobile-island-core.test.js (the two source pins that named the island on 지금)."
+not_changed:
+  - "IslandCore stays for the 실거래 and 선물 still islands and keeps its own tests; HeartbeatPulse, the risk-gate view, tabs, navigation, other screens, the server, the cloud, any gate, threshold, limit, capital, host or authority. No new colour token (existing wave palette, a light ice-blue and white)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 894 pass, 0 fail (compiled dist); the compiled TypeScript has no error; the geometry and a mid-pulse frame were drawn once from the model into a static image and looked right; AIPOS validators pass."
+review_fixes: "Independent read-only review (2026-11-25) findings fixed: under reduce-motion or before the OS answers nothing travels any more (a real rise is a 1.5 s still highlight, no frame loop); the turn angle is kept when turning stops so it never jumps; the sphere turns and glows only in the NORMAL tone (a halted or attention state with a fresh heartbeat is grey); the scene memo no longer mutates the pulses; plain nodes are drawn as four point sets and lit edges as two merged paths instead of about 160 elements and one path per edge; a `still` prop keeps a sphere from turning."
+unverified: "The Skia drawing itself has never run (no device or Skia renderer here): look, frame rate and battery cost of about 160 circles plus edges at 30 fps are unmeasured. The owner's phone capture is the check; if it is slow the fix is to lower the frame rate or hold the pose. The earlier last-minute dot strip of the island is not carried over (HeartbeatPulse remains)."
+acceptance:
+  - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 지금 screen."
