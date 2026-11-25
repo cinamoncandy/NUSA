@@ -42,7 +42,8 @@ export interface NowScreenModel {
 const PAPER_ONLY_SUB = "모의투자만 하고 있어요 · 실거래 잠김";
 const COLLECT_ONLY_HEADLINE = "주문 없이 지켜보는 중이에요";
 const COLLECT_ONLY_COUNT_NOTE = "수집 전용이라 0건이 정상이에요";
-const COLLECT_ONLY_SUB = "수집 전용 · 주문 꺼짐 · 실거래 잠김";
+// The safety facts (collect-only, orders off, live locked) already sit in the top band and the status chip; this line says what is happening instead of repeating them.
+const COLLECT_ONLY_SUB = "연구는 데이터를 모으는 중이에요";
 
 export function krwText(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "—";

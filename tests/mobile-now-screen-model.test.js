@@ -69,7 +69,7 @@ test("why joins the order reason with the decision explanation", () => {
 test("a healthy COLLECT_ONLY server reads as watching without orders, not as 'all normal'; every other phase is unchanged", () => {
   const collect = buildNowScreen({ ...base, collectOnly: true });
   assert.equal(collect.headline, "주문 없이 지켜보는 중이에요");
-  assert.equal(collect.sub, "수집 전용 · 주문 꺼짐 · 실거래 잠김");
+  assert.equal(collect.sub, "연구는 데이터를 모으는 중이에요", "the safety facts are in the top band and the chip; the line says what is happening");
   assert.equal(collect.dim, false);
   assert.equal(buildNowScreen({ ...base }).headline, "모두 정상이에요", "without the flag nothing changes");
   assert.equal(buildNowScreen({ ...base, collectOnly: false }).headline, "모두 정상이에요");
@@ -105,4 +105,15 @@ test("source pin: the note is hidden while blocked and the big number is 64 px",
   assert.match(view, /countNote=\{blocked \? null : model\.countNote\}/);
   const inst = fs.readFileSync(path.join(SRC, "instrumentNow.tsx"), "utf8");
   assert.match(inst, /<Odometer value=\{decisionCount\} size=\{64\}/);
+});
+
+test("source pin: on 지금 the decision number comes before the sphere, and the label says the server counts (not 'LIVE')", () => {
+  const inst = fs.readFileSync(path.join(SRC, "instrumentNow.tsx"), "utf8");
+  assert.ok(inst.indexOf("style={styles.countWrap}") < inst.indexOf("<LatticeSphere "), "number first, above the fold");
+  assert.ok(inst.indexOf("<LatticeSphere ") < inst.indexOf("<GlassPanel style={styles.ledger}>"));
+  assert.match(inst, /right=\{live \? "서버 집계" : "—"\}/);
+  assert.doesNotMatch(inst, /"LIVE"/, "no pink LIVE word next to a 'LIVE locked' band");
+  assert.match(inst, /width=\{Math\.min\(width, SPHERE_MAX\)\}/, "sphere capped so it fits above the tab bar");
+  assert.match(inst, /const SPHERE_MAX = 300;/);
+  assert.match(inst, /empty: \{ color: calmColors\.muted, fontSize: 40, lineHeight: 48 \}/, "the no-count dash is small");
 });
