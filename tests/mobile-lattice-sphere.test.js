@@ -100,6 +100,12 @@ test("the plain nodes are drawn as a few point sets, not one element per node", 
   assert.doesNotMatch(src, /scene\.nodes\.map/, "no per-node element list");
 });
 
+test("source pin: the records corner sphere lights nothing, never turns, and does not catch touches", () => {
+  const view = read("recordsView.tsx");
+  assert.match(view, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{hb != null\} still width=\{CORNER_SIZE\}/, "still: it never turns on a screen without a health signal");
+  assert.match(view, /<View style=\{styles\.corner\} pointerEvents="none" testID="records-sphere">/);
+});
+
 test("study markers: one per study, front-facing, spread out, numbered clockwise from the top, the same every time", () => {
   assert.deepEqual(m.studyMarkers(0, m.LATTICE_REST_YAW, m.LATTICE_TILT), []);
   assert.deepEqual(m.studyMarkers(Number.NaN, m.LATTICE_REST_YAW, m.LATTICE_TILT), []);
