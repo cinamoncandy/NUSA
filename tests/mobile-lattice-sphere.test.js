@@ -77,3 +77,9 @@ test("source pin: 지금 draws the sphere from the counts it has, never for the 
   assert.match(sphere, /live \? nodeLight\(v, live_, now\) : \{ light: 0, order: 0 \}/, "no light without data");
   assert.doesNotMatch(read("latticeSphereModel.ts"), /Math\.random|Date\.now/, "pure");
 });
+
+test("source pin: the records corner sphere lights nothing, turns only with a live heartbeat, and does not catch touches", () => {
+  const view = read("recordsView.tsx");
+  assert.match(view, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{hb != null\} width=\{CORNER_SIZE\}/);
+  assert.match(view, /<View style=\{styles\.corner\} pointerEvents="none" testID="records-sphere">/);
+});
