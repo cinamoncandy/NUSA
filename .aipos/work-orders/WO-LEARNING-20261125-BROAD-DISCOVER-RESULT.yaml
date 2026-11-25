@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261125-BROAD-DISCOVER-RESULT
+title: "Broad-universe discovery result record: NO_CANDIDATE (one run, counts and the freeze record only)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: '기록 PR 진행해' after the single discover run (run 45505624947) returned NO_CANDIDATE."
+objective: "Record the result of the one pre-registered broad-universe discovery run and close the broad route as designed (NO_CANDIDATE ends it)."
+change:
+  - "docs/RESEARCH_BROAD_UNIVERSE_DISCOVER_RESULT_2026-11-25.md, docs/research-data/broad-universe-discover-result-2026-11-25.json and tests/broad-universe-discover-result.test.js (recomputes the freeze fingerprint)."
+not_changed:
+  - "No script, workflow, host, release, service, gate, threshold, limit, capital or authority change; no data read; the hold-back files were never read; no rerun."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The job log is the only source of the printed numbers (copied by hand into the record; the freeze fingerprint recomputes and the per-market hours add up to the printed total); which level condition the single positive-mean rule failed was not printed and is not investigated."
+acceptance:
+  - "Tests and AIPOS validators pass; merged by the release bot."
