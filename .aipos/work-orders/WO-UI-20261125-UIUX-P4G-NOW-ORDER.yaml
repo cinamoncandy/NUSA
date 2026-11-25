@@ -1,0 +1,24 @@
+id: WO-UI-20261125-UIUX-P4G-NOW-ORDER
+title: "Mobile UI/UX v6 phase 4g: on 지금 the decision number comes before the sphere, the repeated safety line is replaced, and the pink LIVE word is renamed"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/uiux-p4g-now-order
+owner_decision: "2026-11-25: after the owner's phone capture of the current 지금 screen, \"해\" and \"숫자는 구 밖으로\" (the number stays outside the sphere; it is not drawn inside it)."
+follows: "docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md sections 1 and 3.1 (number first, one safety fact per screen); the owner's capture showed the number 0 at the very bottom half hidden by the tab bar, the same safety words three times (top band, status chip, sub line) and a pink LIVE word next to a LIVE-locked band."
+objective: "Three presentation changes on 지금. (1) In InstrumentNow the decision count block (label, 64 px odometer, zero note) moves above the sphere, so the number is visible without scrolling; the ledger stays below. (2) In COLLECT_ONLY the sub line no longer repeats the top band and the chip (\"수집 전용 · 주문 꺼짐 · 실거래 잠김\"); it says \"연구는 데이터를 모으는 중이에요\". (3) The pink right-hand label of the count block \"LIVE\" becomes \"서버 집계\" (it only ever meant that the server is counting). Every other state keeps its words."
+change:
+  - "apps/mobile/src/instrumentNow.tsx (block order, label); apps/mobile/src/nowScreenModel.ts (COLLECT_ONLY_SUB); tests/mobile-now-screen-model.test.js (one expectation, one source pin)."
+not_changed:
+  - "The sphere, the status chip, the top safety band, the risk-gate view, other screens, the server, the cloud, any gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 895 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+unverified: "How the new order fits one phone screen (no device here). By the owner's capture the headline plus sub take about 35 percent of the height, so the number should now sit near the middle, but the exact fold depends on the phone and the font size. The owner's capture after the next build is the check."
+acceptance:
+  - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 지금 screen."

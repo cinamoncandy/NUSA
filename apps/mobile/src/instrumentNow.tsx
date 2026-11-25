@@ -27,7 +27,7 @@ interface Props {
   readonly lastHeartbeatAt?: number | null;
 }
 
-/** "지금" instrument view for every state without the risk gate: hero line, the decision core, the decision odometer, ledger. Presentation only. */
+/** "지금" instrument view for every state without the risk gate: hero line, the decision odometer (number first, above the fold), the lattice sphere, ledger. Presentation only. */
 export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, fillCount = null, countNote = null, stats, lastHeartbeatAt = null }: Props) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
@@ -35,15 +35,15 @@ export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCo
   return <View style={dim ? styles.dim : undefined} testID="now-hero">
     <InstrumentHero index="01 / 지금" lines={splitHeroLines(headline).map((text) => ({ text, color: calmToneColor(tone) }))} label={headline} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
+    <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
+      <SectionLabel left="판단 · 오늘" right={live ? "서버 집계" : "—"} live={live} />
+      {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={64} reducedMotion={reduced} />}
+      {countNote ? <Text style={styles.countNote} testID="now-count-note">{countNote}</Text> : null}
+    </Reveal>
     <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
       {width > 0 ? <LatticeSphere decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} fillCount={live ? fillCount : null} live={live && tone === "NORMAL"} width={width} reducedMotion={reduced} /> : null}
       {width > 0 && live ? <HeartbeatPulse lastHeartbeatAt={lastHeartbeatAt} width={width} reducedMotion={reduced} /> : null}
     </View>
-    <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
-      <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} live={live} />
-      {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={64} reducedMotion={reduced} />}
-      {countNote ? <Text style={styles.countNote} testID="now-count-note">{countNote}</Text> : null}
-    </Reveal>
     <GlassPanel style={styles.ledger}>
       {stats.filter((s) => s.label !== "판단").map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={[styles.row, i === 0 && styles.firstRow]}>
         <Text style={styles.rowLabel}>{s.label}</Text>
