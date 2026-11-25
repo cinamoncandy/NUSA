@@ -214,3 +214,25 @@ test("the shoreline shine stays inside the shore and never blinks", () => {
     previous = s;
   }
 });
+
+test("the observation dial: geometry fits the box, ticks are fixed, the sweep turns only while live and allowed to move", () => {
+  assert.equal(m.dialGeometry(40, 300), null, "too small to draw");
+  assert.equal(m.dialGeometry(Number.NaN, 300), null);
+  const g = m.dialGeometry(320, 280);
+  assert.ok(g.r <= 140 - 2 + 1e-9 && g.cx === 160 && g.cy === 140, "the ring fits the shorter side");
+  const segs = m.dialTickSegments(g);
+  assert.equal(segs.length, m.DIAL_TICKS);
+  for (const [x0, y0, x1, y1] of segs) assert.ok(Math.hypot(x0 - g.cx, y0 - g.cy) <= g.r + 1e-6 && Math.hypot(x1 - g.cx, y1 - g.cy) < g.r);
+  assert.equal(m.dialSweepStart(7, false, true), -90, "no data: the sweep rests");
+  assert.equal(m.dialSweepStart(7, true, false), -90, "reduce-motion or unknown: the sweep rests");
+  assert.equal(m.dialSweepStart(Number.NaN, true, true), -90);
+  assert.notEqual(m.dialSweepStart(1, true, true), -90);
+  assert.ok(m.dialRingOpacity(true) > m.dialRingOpacity(false), "no data is fainter");
+});
+
+test("source pin: the dial is drawn only for the live Now island (never the still ones) and stops its sweep without data", () => {
+  const src = read("islandCore.tsx");
+  assert.match(src, /const g = still != null \? null : dialGeometry\(width, height\);/);
+  assert.match(src, /\{live && !scene\.grey \? <Group origin=/);
+  assert.match(src, /dialSweepStart\(scene\.phase, live, motion === false\)/);
+});

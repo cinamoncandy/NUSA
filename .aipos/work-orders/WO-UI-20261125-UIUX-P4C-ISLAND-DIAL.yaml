@@ -1,0 +1,24 @@
+id: WO-UI-20261125-UIUX-P4C-ISLAND-DIAL
+title: "Mobile UI/UX v6 phase 4c: a faint observation dial (ring, 24 ticks, one sweep arc) around the live 지금 island; the island itself is unchanged"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/uiux-p4c-island-dial
+owner_decision: "2026-11-25: keep the island and improve it (\"섬을 유지 하는데 개선해줘\"); both next slices approved (\"둘 다\"); design C."
+follows: "docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md section 5.1 (motion only as proof of live observation; stops without data and under reduce-motion)."
+objective: "Draw a thin ring with 24 ticks behind the island rows in the live 지금 island, plus one 70-degree sweep arc that turns slowly with the island's own phase. Rules: no ring for the still islands (실거래, 선물); with no data the ring is fainter and grey and has no sweep; under reduce-motion (or before the OS answers) the sweep rests at the top and does not turn; the dial invents no value, shows no number and adds no text. Pure geometry and rules live in islandCoreModel.ts (dialGeometry, dialTickSegments, dialSweepStart, dialRingOpacity) with tests."
+change:
+  - "apps/mobile/src/islandCoreModel.ts (dial helpers), apps/mobile/src/islandCore.tsx (one memo and one Skia group before the island rows); tests/mobile-island-core.test.js: 2 tests."
+not_changed:
+  - "The island rows, sea, pulses, badge and strip, the still islands, tabs, navigation, other screens, the server, the cloud, any gate, threshold, limit, capital, host or authority. No new colour token (island palette horizon and idle only)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 887 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+unverified: "How the ring looks behind the island and whether the sweep reads as calm or busy on a device (no device rendering or frame timing here); an extra Skia group per frame has not been measured. The owner's phone capture is the check; if it is busy or slow the fix is to delete the dial block."
+acceptance:
+  - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 지금 screen."

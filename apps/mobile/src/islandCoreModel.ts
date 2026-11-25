@@ -250,3 +250,39 @@ export function islandSteps(averageGapMs: number): number {
 export function islandMinFrameGapMs(averageGapMs: number): number {
   return averageGapMs > 25 ? 33 : 0;
 }
+
+/**
+ * The observation dial around the island (UI/UX v6 phase 4c, design C). Pure geometry and rules; presentation only.
+ * The ring and its 24 ticks are always the same shape; only the sweep arc moves, and only while the island is live.
+ */
+export const DIAL_TICKS = 24;
+export const DIAL_SWEEP_DEG = 70;
+
+export interface DialGeometry { readonly cx: number; readonly cy: number; readonly r: number }
+
+/** Centre and radius of the ring for a box; it always fits inside the box with a 2 px margin. Null for a box too small to draw. */
+export function dialGeometry(width: number, height: number): DialGeometry | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 80 || height < 80) return null;
+  const r = Math.max(0, Math.min(width, height) / 2 - 2);
+  return Object.freeze({ cx: width / 2, cy: height / 2, r });
+}
+
+/** Tick segments (x0,y0,x1,y1) from the ring inward; every third tick is longer. */
+export function dialTickSegments(g: DialGeometry): readonly (readonly [number, number, number, number])[] {
+  return Array.from({ length: DIAL_TICKS }, (_, i) => {
+    const a = (i / DIAL_TICKS) * Math.PI * 2 - Math.PI / 2;
+    const len = i % 3 === 0 ? 10 : 5;
+    return [g.cx + Math.cos(a) * g.r, g.cy + Math.sin(a) * g.r, g.cx + Math.cos(a) * (g.r - len), g.cy + Math.sin(a) * (g.r - len)] as const;
+  });
+}
+
+/** The sweep's start angle in degrees. It turns only while live and allowed to move; otherwise it rests at the top (-90). */
+export function dialSweepStart(phase: number, live: boolean, moving: boolean): number {
+  if (!live || !moving || !Number.isFinite(phase)) return -90;
+  return ((phase * 45) % 360) - 90;
+}
+
+/** Ring opacity: faint when live, fainter when there is no data. The ring never looks "healthy" without data. */
+export function dialRingOpacity(live: boolean): number {
+  return live ? 0.4 : 0.16;
+}

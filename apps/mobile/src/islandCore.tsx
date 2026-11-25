@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AppState, StyleSheet, Text, View } from "react-native";
 import { BlurMask, Canvas, Circle, Group, LinearGradient, Path, RadialGradient, Rect, Skia, vec, type SkPath } from "@shopify/react-native-skia";
-import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, islandSteps, lowFadeY, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, ISLAND_END_FADE, SEA_GLINTS, SEA_LINES, seaGlint, shoreShine, rowShiftPx, seaFlash, tideLight, easeToward, seaLineWidth, starTwinkle, seaShimmer, seaWave, smoothDt, swellDepth } from "./islandCoreModel";
+import { type IslandStill, ISLAND_PULSE_MS, ISLAND_LAND_EPS, ISLAND_ROWS, ISLAND_SEA_END, ISLAND_SHORE, ISLAND_STEPS, ISLAND_STILL_DRIFT, islandBreath, islandHeight, islandMinFrameGapMs, islandSteps, lowFadeY, rowBase, rowColor, rowGlow, rowLift, rowLight, rowOpacity, rowPhase, rowSpan, ISLAND_END_FADE, SEA_GLINTS, SEA_LINES, seaGlint, shoreShine, rowShiftPx, seaFlash, tideLight, easeToward, seaLineWidth, starTwinkle, seaShimmer, seaWave, smoothDt, swellDepth, dialGeometry, dialTickSegments, dialSweepStart, dialRingOpacity, DIAL_SWEEP_DEG } from "./islandCoreModel";
 import { fillLock, fillRise, historyTicks, pulseKick, pulsesForRise, restAmplitude, springStep, WAVE_HISTORY_MS, type WavePulse } from "./waveCoreModel";
 import { calmColors } from "./uiKitModel";
 import { islandPalette, readableFont, wavePalette } from "./designSystem";
@@ -185,6 +185,16 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [frame, width, height, live, motion, still]);
 
+  // The observation dial (design C): a faint ring with 24 ticks around the live island; its sweep arc turns only while live and allowed to move.
+  const dial = useMemo(() => {
+    const g = still != null ? null : dialGeometry(width, height);
+    if (g == null) return null;
+    const ticks = Skia.Path.Make();
+    for (const [x0, y0, x1, y1] of dialTickSegments(g)) { ticks.moveTo(x0, y0); ticks.lineTo(x1, y1); }
+    const arc = Skia.Path.Make();
+    arc.addArc(Skia.XYWHRect(g.cx - g.r, g.cy - g.r, g.r * 2, g.r * 2), 0, DIAL_SWEEP_DEG);
+    return { g, ticks, arc };
+  }, [width, height, still]);
   const shoreY = height * ISLAND_SHORE;
   const stripY = Math.round(height * 0.93);
   const validCount = decisionCount != null && Number.isSafeInteger(decisionCount);
@@ -197,6 +207,13 @@ export function IslandCore({ decisionCount, orderCount, fillCount = null, live, 
         <RadialGradient c={vec(width / 2, height * 0.35)} r={width * 0.6} colors={[scene.pink > 0.05 ? wavePalette.pink : wavePalette.glow, "transparent"]} />
       </Rect>}
       {scene.grey || still != null ? null : STARS.map(([sx, sy, r], i) => <Circle key={`st${i}`} cx={sx * width} cy={4 + sy * height * 0.2} r={r} color={islandPalette.star} opacity={(0.15 + 0.3 * ((i * 7) % 5) / 4) * starTwinkle(i, scene.phase)} />)}
+      {dial == null ? null : <Group opacity={dialRingOpacity(live && !scene.grey)}>
+        <Circle cx={dial.g.cx} cy={dial.g.cy} r={dial.g.r} style="stroke" strokeWidth={1} color={scene.grey ? wavePalette.idle : islandPalette.horizon} />
+        <Path path={dial.ticks} style="stroke" strokeWidth={1} color={scene.grey ? wavePalette.idle : islandPalette.horizon} />
+        {live && !scene.grey ? <Group origin={vec(dial.g.cx, dial.g.cy)} transform={[{ rotate: (dialSweepStart(scene.phase, live, motion === false) * Math.PI) / 180 }]}>
+          <Path path={dial.arc} style="stroke" strokeWidth={2.5} strokeCap="round" color={islandPalette.horizon} />
+        </Group> : null}
+      </Group>}
       <Group layer>
       {scene.rows.map((row) => <Group key={row.key}>
         <Path path={row.body} color={GROUND} />
