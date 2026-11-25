@@ -3,11 +3,11 @@ title: "Mobile UI/UX v6: new design spec (proposal; docs only) and the phased bu
 status: READY_FOR_REVIEW
 created: 2026-11-25
 owner_decision: "2026-11-25: after the diagnosis and the phone captures the owner said \"새로 다 만들어줘\" (build it all anew)."
-objective: "Replace the stale v5 spec with a v6 proposal: the five tabs stay as they are (owner: "지금 화면 그대로", 2026-11-25), one safety line per screen, number-first screens, honest state-to-presentation rules (a by-design COLLECT_ONLY pause is neutral), study list served by the cloud, and five build phases, each a draft PR with independent review and an owner device check."
+objective: "Replace the stale v5 spec with a v6 proposal: the five tabs stay as they are (owner decision of 2026-11-25: keep the screen as it is), one safety line per screen, number-first screens, honest state-to-presentation rules (a by-design COLLECT_ONLY pause is neutral), study list served by the cloud, and five build phases, each a draft PR with independent review and an owner device check."
 change:
   - "docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md only."
 not_changed:
-  - "No app, cloud, workflow, host, rule, threshold, gate, limit, capital or authority change. The tab layout is unchanged: the owner decided "지금 화면 그대로"; the earlier proposal to move 실거래 and 선물 into 더보기 was withdrawn."
+  - "No app, cloud, workflow, host, rule, threshold, gate, limit, capital or authority change. The tab layout is unchanged: the owner decided to keep the screen as it is; the earlier proposal to move 실거래 and 선물 into 더보기 was withdrawn."
 safety:
   paper_only: true
   liveAuthority: NONE
