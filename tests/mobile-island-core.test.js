@@ -45,9 +45,9 @@ test("row colour runs violet at the back to cyan at the front, and fog fades the
   assert.ok(m.rowOpacity(0.5, 4, 0) > m.rowOpacity(0.5, 3, 0), "every fifth row is stronger");
 });
 
-test("the Now tab draws the island; the badge shows only a real decision count", () => {
+test("the Now tab now draws the lattice sphere (2026-11-25); the island core still has its badge rule and serves the still islands", () => {
   const now = read("instrumentNow.tsx");
-  assert.match(now, /import \{ IslandCore \} from "\.\/islandCore";/);
+  assert.match(now, /import \{ LatticeSphere \} from "\.\/latticeSphere";/);
   assert.doesNotMatch(now, /WaveCore|ContourCore/);
   const core = read("islandCore.tsx");
   assert.match(core, /const badgeText = still != null \? still\.badge : validCount \? `오늘 판단 \$\{decisionCount\.toLocaleString\("en-US"\)\}` : null;/);
