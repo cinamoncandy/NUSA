@@ -15,6 +15,7 @@ test("CalmTiles shows exactly the rows it is given in two columns, the last odd 
   assert.match(tiles, /accessibilityLabel=\{`\$\{row\.label\}\. \$\{row\.value\}\./);
   assert.match(tiles, /calmToneColor\(row\.tone \?\? "NORMAL"\)/);
   assert.doesNotMatch(tiles, /Math\.random|Date\.now|fetch\(/, "no value of its own");
+  assert.doesNotMatch(tiles, /numberOfLines/, "a long value or hint is never cut (it can carry a warning)");
   assert.match(kit, /tileCell: \{ width: "48%", flexGrow: 1 \}/, "the width rule sits on a plain View cell, as on the 기록 tiles");
 });
 

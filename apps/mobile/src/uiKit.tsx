@@ -45,8 +45,8 @@ export function CalmTiles({ rows, testID }: Readonly<{ rows: readonly { label: s
     {rows.map((row, i) => <View key={`${i}-${row.label}`} style={[styles.tileCell, rows.length % 2 === 1 && i === rows.length - 1 && styles.tileFull]}>
       <View style={styles.tile} accessible accessibilityLabel={`${row.label}. ${row.value}.${row.hint ? ` ${row.hint}` : ""}`}>
         <Text style={styles.tileLabel}>{row.label}</Text>
-        <Text style={[styles.tileValue, fieldFonts.monoMedium, { color: calmToneColor(row.tone ?? "NORMAL") }]} numberOfLines={2}>{row.value}</Text>
-        {row.hint ? <Text style={styles.tileHint} numberOfLines={2}>{row.hint}</Text> : null}
+        <Text style={[styles.tileValue, fieldFonts.monoMedium, { color: calmToneColor(row.tone ?? "NORMAL") }]}>{row.value}</Text>
+        {row.hint ? <Text style={styles.tileHint}>{row.hint}</Text> : null}
       </View>
     </View>)}
   </View>;
