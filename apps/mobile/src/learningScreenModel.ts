@@ -15,12 +15,31 @@ export interface LearningScreenModel {
   readonly sub: string;
   readonly steps: readonly LoopStep[];
   readonly narrowest: string | null;
+  /** The span the PAPER result rows were measured over, from the server's own account events (KST dates); never guessed. */
+  readonly periodLabel: string | null;
   readonly rows: readonly LearningRow[];
+}
+
+export interface LearningScreenOptions {
+  /** The server is healthy and has no order path (COLLECT_ONLY): a PAUSED loop is the designed state there, not a problem. */
+  readonly collectOnly?: boolean;
+}
+
+const KST_OFFSET_MS = 9 * 3_600_000;
+const kstDate = (ms: number): string => new Date(ms + KST_OFFSET_MS).toISOString().slice(0, 10);
+
+/** First and last account event of the timeline, as KST dates; null when the server reported no account event. */
+export function resultPeriodLabel(state: PaperLearningScreenState): string | null {
+  const times = state.timeline.filter((event) => event.account != null && Number.isFinite(event.occurredAt)).map((event) => event.occurredAt);
+  if (times.length === 0) return null;
+  const first = kstDate(Math.min(...times));
+  const last = kstDate(Math.max(...times));
+  return first === last ? `측정 기간 ${first}` : `측정 기간 ${first} ~ ${last}`;
 }
 
 const money = (value: number): string => `${value < 0 ? "−" : value > 0 ? "+" : ""}₩${Math.round(Math.abs(value)).toLocaleString("ko-KR")}`;
 
-export function buildLearningScreen(state: PaperLearningScreenState): LearningScreenModel {
+export function buildLearningScreen(state: PaperLearningScreenState, options: LearningScreenOptions = {}): LearningScreenModel {
   const connected = state.dataSource !== "NOT_CONFIGURED" && state.dataSource !== "UNAVAILABLE" && state.dataSource !== "PROJECTION_ABSENT";
   const riskBlocked = state.latestRisk?.status === "FAIL";
   const steps: LoopStep[] = [
@@ -31,13 +50,18 @@ export function buildLearningScreen(state: PaperLearningScreenState): LearningSc
     { label: "체결", state: state.latestFill != null ? "DONE" : "NONE" },
     { label: "평가", state: state.latestEvidence?.outcome != null ? "DONE" : "NONE" },
   ];
-  const tone: CalmTone = !connected ? "ATTENTION" : state.status === "HALTED" || state.status === "ERROR" ? "LOSS" : state.status === "PAUSED" || riskBlocked ? "ATTENTION" : "NORMAL";
+  // COLLECT_ONLY has no order path, so the loop is paused by design: neutral wording and colour, never an alarm. A halt, an error
+  // or a risk block still wins, and missing data is still shown as missing.
+  const collectOnlyPause = connected && options.collectOnly === true && state.status === "PAUSED" && !riskBlocked && state.halt == null;
+  const tone: CalmTone = !connected ? "ATTENTION" : state.status === "HALTED" || state.status === "ERROR" ? "LOSS" : collectOnlyPause ? "NORMAL" : state.status === "PAUSED" || riskBlocked ? "ATTENTION" : "NORMAL";
   const headline = !connected ? "학습 정보를 받지 못했어요"
     : state.status === "HALTED" ? "학습이 멈춰 있어요"
     : state.status === "ERROR" ? "학습에 오류가 있어요"
+    : collectOnlyPause ? "수집 전용이라 판단은 쉬어요"
     : state.status === "PAUSED" ? "학습이 잠시 쉬고 있어요"
     : "모의투자로 배우는 중이에요";
   const sub = !connected ? "빈 값은 결과가 없다는 뜻이 아니에요"
+    : collectOnlyPause ? "주문이 꺼져 있어서 판단은 0건이에요 · 연구는 데이터를 모으는 중이에요"
     : state.halt != null ? "멈춘 이유는 아래 자세히 보기에 있어요"
     : state.latestEvidence?.outcome == null ? "아직 평가 결론은 없어요" : "최근 평가 결론이 있어요";
   const narrowest = riskBlocked ? `가장 좁아지는 곳: 안전 (${state.latestRisk!.reason})` : null;
@@ -49,7 +73,8 @@ export function buildLearningScreen(state: PaperLearningScreenState): LearningSc
     { label: "승률", value: p.winRate == null ? "—" : `${Math.round(p.winRate * 100)}%`, tone: "NORMAL" },
     { label: "최대 낙폭", value: `${(p.maxDrawdown * 100).toFixed(1)}%`, tone: p.maxDrawdown > 0 ? "LOSS" : "MUTED" },
   ] : [];
-  return Object.freeze({ tone, headline, sub, steps: Object.freeze(steps), narrowest, rows: Object.freeze(rows) });
+  const periodLabel = connected ? (resultPeriodLabel(state) ?? "측정 기간을 알 수 없어요") : null;
+  return Object.freeze({ tone, headline, sub, steps: Object.freeze(steps), narrowest, periodLabel, rows: Object.freeze(rows) });
 }
 
 /**

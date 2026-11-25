@@ -69,3 +69,52 @@ test("hero lines share one font size that fits the widest line and never exceed 
   // Latin text is narrower than Korean at the same size
   assert.equal(heroFontSize(["NUSA를", "깨우는 중"], 350), 54);
 });
+
+// UI/UX v6 phase 1 (docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md): a paused loop in COLLECT_ONLY is the designed state, and results carry their span.
+const paused = { ...base, status: "PAUSED", latestRisk: null };
+test("COLLECT_ONLY with a paused loop is worded neutrally and says why; without the flag nothing changes", () => {
+  const on = buildLearningScreen(paused, { collectOnly: true });
+  assert.equal(on.headline, "수집 전용이라 판단은 쉬어요");
+  assert.equal(on.tone, "NORMAL");
+  assert.match(on.sub, /주문이 꺼져 있어서 판단은 0건/);
+  const off = buildLearningScreen(paused);
+  assert.equal(off.headline, "학습이 잠시 쉬고 있어요");
+  assert.equal(off.tone, "ATTENTION");
+  assert.equal(buildLearningScreen(paused, { collectOnly: false }).headline, "학습이 잠시 쉬고 있어요");
+});
+
+test("the COLLECT_ONLY wording never hides a halt, an error, a risk block or missing data", () => {
+  assert.equal(buildLearningScreen({ ...paused, status: "HALTED" }, { collectOnly: true }).tone, "LOSS");
+  assert.equal(buildLearningScreen({ ...paused, status: "ERROR" }, { collectOnly: true }).headline, "학습에 오류가 있어요");
+  const blocked = buildLearningScreen({ ...paused, latestRisk: { status: "FAIL", reason: "CONSECUTIVE_LOSS_LIMIT" } }, { collectOnly: true });
+  assert.equal(blocked.tone, "ATTENTION");
+  assert.equal(blocked.headline, "학습이 잠시 쉬고 있어요");
+  assert.match(blocked.narrowest, /CONSECUTIVE_LOSS_LIMIT/);
+  for (const dataSource of ["NOT_CONFIGURED", "UNAVAILABLE", "PROJECTION_ABSENT"]) {
+    const m = buildLearningScreen({ ...paused, dataSource }, { collectOnly: true });
+    assert.equal(m.headline, "학습 정보를 받지 못했어요");
+    assert.equal(m.periodLabel, null);
+    assert.equal(m.rows.length, 0);
+  }
+  const halted = buildLearningScreen({ ...paused, halt: { code: "X" } }, { collectOnly: true });
+  assert.equal(halted.headline, "학습이 잠시 쉬고 있어요", "a server halt explanation is not the designed COLLECT_ONLY pause");
+});
+
+test("the result rows carry the span of the server's account events in KST, or say the span is unknown", () => {
+  const at = (iso) => ({ occurredAt: Date.parse(iso), account: { equity: 1, realizedPnL: -1, unrealizedPnL: 0 } });
+  const span = buildLearningScreen({ ...paused, timeline: [at("2026-10-14T20:00:00Z"), { occurredAt: Date.parse("2026-11-01T00:00:00Z") }, at("2026-11-02T14:59:00Z")] });
+  assert.equal(span.periodLabel, "측정 기간 2026-10-15 ~ 2026-11-02", "20:00Z is 05:00 KST of the next day");
+  assert.equal(buildLearningScreen({ ...paused, timeline: [at("2026-11-02T01:00:00Z")] }).periodLabel, "측정 기간 2026-11-02");
+  assert.equal(buildLearningScreen({ ...paused, timeline: [{ occurredAt: Date.parse("2026-11-01T00:00:00Z") }] }).periodLabel, "측정 기간을 알 수 없어요", "no account event: the span is not guessed");
+  assert.equal(buildLearningScreen(paused).periodLabel, "측정 기간을 알 수 없어요");
+});
+
+test("App and the learning view pass the COLLECT_ONLY fact from the server snapshot and show the span", () => {
+  const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8").replace(/\r\n/g, "\n");
+  const app = read("apps/mobile/App.tsx");
+  assert.equal((app.match(/<PaperShadowMonitorView paper=\{paperLearningState\} collectOnly=\{!paperProjectionPending && isCollectOnlyObservation\(snapshot\)\}/g) || []).length, 2, "both render sites");
+  const view = read("apps/mobile/src/learningView.tsx");
+  assert.match(view, /buildLearningScreen\(props\.paper, \{ collectOnly: collectOnly === true \}\)/);
+  assert.match(view, /testID="learning-result-period"/);
+  assert.match(view, /collectOnly, \.\.\.monitorProps/, "the flag is not forwarded to the monitor");
+});
