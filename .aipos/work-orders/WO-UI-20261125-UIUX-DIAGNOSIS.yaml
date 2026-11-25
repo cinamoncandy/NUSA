@@ -3,7 +3,7 @@ title: "Mobile UI/UX renewal: code-level diagnosis (docs only; no code change)"
 status: READY_FOR_REVIEW
 created: 2026-11-25
 owner_decision: "2026-11-25: \"UIUX 리뉴얼해\"; scope question answered \"전체 진단부터\"."
-objective: "Record what the mobile app's navigation and screens are, what is wrong or unclear (2 of 5 tabs unusable, canonical design spec out of date, a third navigation model, study schedule hard-coded in the app), what could not be checked without a device, and the proposed order of work."
+objective: "Record what the mobile app's navigation and screens are, what is wrong or unclear (2 of 5 tabs unusable, canonical design spec out of date, a third navigation model, study schedule hard-coded in the app), what the owner's three phone captures show (the same fact three times on one screen, big headlines pushing numbers down, the learning tab showing a normal COLLECT_ONLY state as an orange problem, an old loss without a period, the bottom bar covering the last list row), what could not be checked, and the proposed order of work."
 change:
   - "docs/UIUX_DIAGNOSIS_2026-11-25.md only."
 not_changed:
@@ -15,6 +15,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "Rendering, contrast, real touch targets, font sizes and one-hand use (need device captures); that mobileNavigation.ts is unused by the screens (only mobileAppShell.ts imports it, not confirmed beyond a grep)."
+unverified: "Contrast numbers, real touch targets, one-hand use and the other screens (only three captures); whether the -6,925 loss is an old PAPER period (the period field was not found in code); that mobileNavigation.ts is unused by the screens (only mobileAppShell.ts imports it, not confirmed beyond a grep)."
 acceptance:
   - "AIPOS validators pass; docs only, normal bot merge; owner decides the tab layout before any UI code PR."
