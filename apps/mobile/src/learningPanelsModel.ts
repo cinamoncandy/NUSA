@@ -31,7 +31,8 @@ export function parseStudySchedule(raw: unknown): ReadonlyArray<RegisteredStudy>
     if (typeof r.name !== "string" || r.name.length < 1 || r.name.length > 40 || /[\u0000-\u001f<>]/.test(r.name)) return null;
     if (typeof r.verdictAtMs !== "number" || !Number.isSafeInteger(r.verdictAtMs) || r.verdictAtMs < Date.UTC(2026, 0, 1) || r.verdictAtMs > Date.UTC(2031, 0, 1)) return null;
     if (typeof r.frozen !== "boolean") return null;
-    if (r.resultStudyId !== undefined && (typeof r.resultStudyId !== "string" || !/^ML_[A-Z0-9_]{1,60}$/.test(r.resultStudyId))) return null;
+    // A row may only name the result of its own study (the registered pair); anything else makes the whole schedule unusable.
+    if (r.resultStudyId !== undefined && (typeof r.resultStudyId !== "string" || !Object.prototype.hasOwnProperty.call(RESULT_STUDY_ID_BY_ROW, r.id) || RESULT_STUDY_ID_BY_ROW[r.id] !== r.resultStudyId)) return null;
     out.push(Object.freeze({ id: r.id, name: r.name, verdictAtMs: r.verdictAtMs, frozen: r.frozen, ...(r.resultStudyId === undefined ? {} : { resultStudyId: r.resultStudyId }) }));
   }
   return Object.freeze(out);
@@ -90,7 +91,7 @@ export function buildStudyTimeline(nowMs: number, studies: ReadonlyArray<Registe
     const left = Math.ceil((s.verdictAtMs - nowMs) / DAY);
     const dateLabel = `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
     const past = s.verdictAtMs <= nowMs;
-    const resultStudyId = s.resultStudyId ?? RESULT_STUDY_ID_BY_ROW[s.id];
+    const resultStudyId = s.resultStudyId ?? (Object.prototype.hasOwnProperty.call(RESULT_STUDY_ID_BY_ROW, s.id) ? RESULT_STUDY_ID_BY_ROW[s.id] : undefined);
     const result = past && resultStudyId !== undefined ? parseStudyResult(orderBookStudy, resultStudyId) : null;
     if (past && resultStudyId !== undefined) {
       const markets = result == null ? "" : ` · 대상 시장 ${result.eligible}개`;

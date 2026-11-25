@@ -16,17 +16,36 @@ test("the host schedule is itself valid, unique, in the registered window and ma
   for (const s of RESEARCH_STUDY_SCHEDULE) if (s.resultStudyId !== undefined) assert.ok(ORDERBOOK_STUDY_IDS.includes(s.resultStudyId), s.id);
   const dates = Object.fromEntries(RESEARCH_STUDY_SCHEDULE.map((s) => [s.id, new Date(s.verdictAtMs).toISOString()]));
   assert.equal(dates["호가3"], "2026-12-10T02:00:00.000Z", "docs/RESEARCH_PREREG_2026-11-25_ORDERBOOK_60M_THIRD.md");
-  assert.equal(dates["체결흐름2"], "2026-11-29T00:15:00.000Z", "first research job on 2026-11-29 09:15 KST");
+  assert.equal(dates["체결흐름2"], "2026-11-29T00:16:00.000Z", "docs: the first daily research run after 2026-11-28T06:30Z");
   assert.equal(dates["RET48"], "2028-03-31T00:00:00.000Z");
   assert.ok(RESEARCH_STUDY_SCHEDULE.length >= 7, "more studies than the four rows the app used to hard-code");
 });
 
 test("the contract accepts a good schedule and rejects the whole value for any bad row", () => {
   assert.equal(contracts.isValidStudySchedule([row()]), true);
-  assert.equal(contracts.isValidStudySchedule([row({ resultStudyId: "ML_ORDERBOOK_60M_20261126" })]), true);
+  assert.equal(contracts.isValidStudySchedule([row({ id: "호가3", name: "호가 연구 3차(ML)", resultStudyId: "ML_ORDERBOOK_60M_20261126" })]), true);
   const bad = [[], null, "x", Array.from({ length: 17 }, (_, i) => row({ id: `s${i}` })), [row(), row()], [row({ extra: 1 })], [row({ id: "" })], [row({ id: "a b" })], [row({ name: "" })], [row({ name: "x".repeat(41) })], [row({ name: "a<b" })], [row({ name: "a\u0000b" })],
-    [row({ verdictAtMs: 1.5 })], [row({ verdictAtMs: 0 })], [row({ verdictAtMs: Date.UTC(2040, 0, 1) })], [row({ verdictAtMs: "2026-12-10" })], [row({ frozen: "yes" })], [row({ resultStudyId: "orderbook" })], [row({ resultStudyId: 5 })], [null], [[1]]];
+    [row({ verdictAtMs: 1.5 })], [row({ verdictAtMs: 0 })], [row({ verdictAtMs: Date.UTC(2040, 0, 1) })], [row({ verdictAtMs: "2026-12-10" })], [row({ frozen: "yes" })], [row({ resultStudyId: "orderbook" })], [row({ resultStudyId: 5 })], [row({ resultStudyId: "ML_ORDERBOOK_60M_20261029" })], [row({ id: "호가2", resultStudyId: "ML_ORDERBOOK_60M_20261029" })], [row({ id: "__proto__", resultStudyId: "ML_ORDERBOOK_60M_20261029" })], [row({ id: "constructor" , resultStudyId: "ML_X" })], [null], [[1]]];
   for (const b of bad) assert.equal(contracts.isValidStudySchedule(b), false, JSON.stringify(b)?.slice(0, 60));
+});
+
+test("the contract and the app validate identically (the two copies cannot drift): fixed cases plus a deterministic fuzz", () => {
+  const cases = [[row()], [row({ id: "호가", name: "호가 연구(ML)", resultStudyId: "ML_ORDERBOOK_60M_20261029" })], [row({ id: "호가", resultStudyId: "ML_ORDERBOOK_60M_20261111" })], [row({ id: "toString" })], [row({ id: "__proto__" })], RESEARCH_STUDY_SCHEDULE, [], null, "x", [row({ name: "a\u007fb" })], [row({ verdictAtMs: Date.UTC(2031, 0, 1) })], [row({ verdictAtMs: Date.UTC(2031, 0, 1) + 1 })]];
+  let seed = 12345;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  const ids = ["호가", "호가2", "호가3", "S2~S4", "a", "x y", "", "constructor", "__proto__"];
+  const results = [undefined, "ML_ORDERBOOK_60M_20261029", "ML_ORDERBOOK_60M_20261111", "ML_ORDERBOOK_60M_20261126", "bad", 7];
+  for (let i = 0; i < 4000; i += 1) {
+    const n = Math.floor(rnd() * 4);
+    cases.push(Array.from({ length: n }, () => {
+      const r = { id: ids[Math.floor(rnd() * ids.length)], name: rnd() < 0.9 ? "연구" : "x".repeat(41), verdictAtMs: rnd() < 0.9 ? Date.UTC(2026, 10, 25) + Math.floor(rnd() * 1e10) : 1.5, frozen: rnd() < 0.9 };
+      const rs = results[Math.floor(rnd() * results.length)];
+      if (rs !== undefined) r.resultStudyId = rs;
+      if (rnd() < 0.05) r.extra = 1;
+      return r;
+    }));
+  }
+  for (const c of cases) assert.equal(m.parseStudySchedule(c) !== null, contracts.isValidStudySchedule(c), JSON.stringify(c)?.slice(0, 120));
 });
 
 test("the operations snapshot keeps a valid schedule and drops a malformed one on its own", () => {
@@ -57,7 +76,8 @@ test("the app draws the served schedule, shows only its own result id, and falls
   assert.deepEqual(served.map((r) => r.id), ["호가", "호가2", "체결흐름2", "S2~S4", "교차시장", "호가3", "S5", "RET48"]);
   assert.equal(served.find((r) => r.id === "체결흐름2").dateLabel, "11-29");
   assert.match(served.find((r) => r.id === "RET48").status, /^설계 고정됨 · \d+일 남음$/);
-  // a served row's result is read only for its own resultStudyId
+  // a served row's result is read only for its own resultStudyId, and a row cannot name another study's result
+  assert.equal(m.parseStudySchedule([row({ id: "체결흐름2", resultStudyId: "ML_ORDERBOOK_60M_20261029" })]), null);
   const third = { schemaVersion: 1, studyId: "ML_ORDERBOOK_60M_20261126", status: "HOLDOUT_FAIL", eligible: 5, discoveryPass: false };
   const after = Date.parse("2026-12-10T09:00:00Z");
   assert.match(m.buildStudyTimeline(after, parsed, third).find((r) => r.id === "호가3").status, /^불합격/);

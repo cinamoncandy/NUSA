@@ -517,6 +517,7 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
 }
 
 /** Display only. At most 16 rows; any unknown key, over-long text, non-integer or out-of-range time, non-boolean flag or bad result id makes the whole schedule unusable (the app then keeps its built-in list). */
+const STUDY_RESULT_ID_BY_ROW: Readonly<Record<string, string>> = Object.freeze({ "호가": "ML_ORDERBOOK_60M_20261029", "호가2": "ML_ORDERBOOK_60M_20261111", "호가3": "ML_ORDERBOOK_60M_20261126" });
 export function isValidStudySchedule(value: unknown): boolean {
   if (!Array.isArray(value) || value.length === 0 || value.length > 16) return false;
   const ids = new Set<string>();
@@ -529,7 +530,8 @@ export function isValidStudySchedule(value: unknown): boolean {
     if (typeof r.name !== "string" || r.name.length < 1 || r.name.length > 40 || /[\u0000-\u001f<>]/.test(r.name)) return false;
     if (typeof r.verdictAtMs !== "number" || !Number.isSafeInteger(r.verdictAtMs) || r.verdictAtMs < Date.UTC(2026, 0, 1) || r.verdictAtMs > Date.UTC(2031, 0, 1)) return false;
     if (typeof r.frozen !== "boolean") return false;
-    if (r.resultStudyId !== undefined && (typeof r.resultStudyId !== "string" || !/^ML_[A-Z0-9_]{1,60}$/.test(r.resultStudyId))) return false;
+    // A row may only name the result of its own study: the pair must be the registered one (a row cannot show another study's result).
+    if (r.resultStudyId !== undefined && (typeof r.resultStudyId !== "string" || !Object.prototype.hasOwnProperty.call(STUDY_RESULT_ID_BY_ROW, r.id) || STUDY_RESULT_ID_BY_ROW[r.id] !== r.resultStudyId)) return false;
   }
   return true;
 }
