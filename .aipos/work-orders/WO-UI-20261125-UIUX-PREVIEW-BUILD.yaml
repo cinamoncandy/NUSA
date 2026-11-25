@@ -1,0 +1,23 @@
+id: WO-UI-20261125-UIUX-PREVIEW-BUILD
+title: "DO NOT MERGE: preview branch that bundles the phase 4 mobile drafts and keeps the debug APK of its CI build so the owner can install the draft UI on a phone"
+status: DRAFT_DO_NOT_MERGE
+created: 2026-11-25
+implementation_branch: claude/uiux-preview-build
+owner_decision: "2026-11-25: the owner asked for other work during the freeze (\"다른 작업\"); this serves the owner's wish to see the new screens on a phone before the freeze ends. Nothing here is merged."
+objective: "A throwaway integration branch: the heads of #3306 (which holds #3296, #3299, #3302), #3303, #3304 and #3300 merged together, plus one workflow step in android-product-ux-acceptance.yml that uploads the exact debug APK (3-day retention) only when the PR head branch starts with claude/uiux-preview. Normal PRs are unaffected. The APK installs as the separate app id com.nusa.mobile.preview (the CI emulator already starts that id), so it does not replace the owner's installed app."
+change:
+  - "Merge commits of the four mobile branches; .github/workflows/android-product-ux-acceptance.yml (one conditional upload step); tests/mobile-lattice-sphere.test.js (both sides of a merge conflict kept)."
+not_changed:
+  - "main, the host, the cloud, release workflows, signing, any gate, threshold, limit, capital or authority. The study-schedule server change (#3297) is not in this branch."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 901 pass, 0 fail (compiled dist); tests/android-release-pipeline-hardening.test.js and tests/mobile-product-v5.test.js pass; the workflow parses as YAML."
+unverified: "That the uploaded APK installs and starts on the owner's phone: it is the CI debug build (EXPO_PUBLIC_NUSA_API_BASE_URL from the repository variable, embedded JS bundle); it has not been installed anywhere by me. The GitHub artifact needs a signed-in account with repository access to download."
+acceptance:
+  - "Never merged. Close the PR when the real PRs are merged after the freeze (2026-11-28 15:00 KST)."

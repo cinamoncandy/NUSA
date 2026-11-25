@@ -159,6 +159,14 @@ jobs:
           grep -q "paper-learning-monitor" qa/android-product-ux/07-paper-evidence-open.xml
           grep -q "now-screen" qa/android-product-ux/13-home-return.xml
           printf 'touch_navigation=PASS\nframes=%s\nevidence_disclosure=PASS\nsettings_close=PASS\nreturn_home=PASS\n' "$(find qa/android-product-ux -name '*.png' | wc -l)" > qa/android-product-ux/report.txt
+      # Preview branches only (claude/uiux-preview*): keep the exact debug APK so the owner can install the draft UI on a phone. Never on normal PRs.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: startsWith(github.head_ref, 'claude/uiux-preview')
+        with:
+          name: nusa-preview-apk-${{ github.event.pull_request.head.sha || github.sha }}
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 3
+          if-no-files-found: error
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
         with:
