@@ -24,30 +24,43 @@ test("the only action is the sha-pinned first-party upload and nothing mutates t
     assert.doesNotMatch(commands, f, `forbidden: ${f}`);
   }
   assert.match(commands, /> "\$RECORDS_FILE"/);
-  assert.match(text, /RECORDS_FILE: \$\{\{ runner\.temp \}\}\//);
+  assert.match(text, /        env:\n          RECORDS_FILE: \$\{\{ runner\.temp \}\}\//, "runner context only at step level");
+  assert.doesNotMatch(text.split("    steps:")[0], /runner\./, "runner context is not available in job-level env");
   assert.match(text, /retention-days: 3/);
 });
 
-test("the filter keeps only the two record shapes and the window is bounded", () => {
+function runStep(journal, days, { exitCode = 0 } = {}) {
   const script = text.split("run: |\n")[1].split("      - name: Upload")[0].replace(/^ {10}/gm, "");
-  const fake = `#!/bin/sh
-echo "noise line"
-echo "FORWARD_QUARTER_HASH_PART 1/2 sha256=${"a".repeat(64)} {\\"rows\\":3}"
-echo "FORWARD_QUARTER_HASH_PART 1/2 sha256=short {}"
-echo "price KRW-BTC 123"
-echo 'FORWARD_DECISION {"verdict":"PASS","n":5}'
-echo "FORWARD_DECISION not braces"
-`;
   const dir = fs.mkdtempSync(require("node:os").tmpdir() + "/fr-");
-  fs.writeFileSync(`${dir}/journalctl`, fake, { mode: 0o755 });
+  fs.writeFileSync(`${dir}/journal.txt`, journal);
+  fs.writeFileSync(`${dir}/journalctl`, `#!/bin/sh\ncat "${dir}/journal.txt"\nexit ${exitCode}\n`, { mode: 0o755 });
   for (const n of ["ionice", "nice", "timeout"]) fs.writeFileSync(`${dir}/${n}`, '#!/bin/sh\nwhile [ "$1" != "journalctl" ]; do shift; done\nexec "$@"\n', { mode: 0o755 });
   const out = `${dir}/out.txt`;
-  const run = (days) => spawnSync("bash", ["-c", script], { env: { PATH: `${dir}:${process.env.PATH}`, SINCE_DAYS: days, RECORDS_FILE: out }, encoding: "utf8" });
-  const ok = run("10");
-  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
-  const kept = fs.readFileSync(out, "utf8").trim().split("\n");
-  assert.equal(kept.length, 2);
-  assert.match(kept[0], /^FORWARD_QUARTER_HASH_PART 1\/2 sha256=a{64} /);
-  assert.match(kept[1], /^FORWARD_DECISION \{/);
-  for (const bad of ["0", "32", "x", "", "5;id"]) assert.notEqual(run(bad).status, 0, bad);
+  const r = spawnSync("bash", ["-c", script], { env: { PATH: `${dir}:${process.env.PATH}`, SINCE_DAYS: days, RECORDS_FILE: out }, encoding: "utf8" });
+  return { ...r, kept: fs.existsSync(out) ? fs.readFileSync(out, "utf8").trim().split("\n").filter(Boolean) : [] };
+}
+const H = "a".repeat(64);
+const part = (i, n, body) => `FORWARD_QUARTER_HASH_PART ${i}/${n} sha256=${H} ${body}\n`;
+
+test("keeps only the two record shapes (including non-ASCII and a 30,000-character chunk) and the window is bounded", () => {
+  const big = "x".repeat(30000);
+  const r = runStep(`noise\n${part(1, 2, '{"rows":3}')}${part(2, 2, big)}FORWARD_QUARTER_HASH_PART 1/2 sha256=short {}\nprice KRW-BTC 123\nFORWARD_DECISION {"verdict":"PASS","reason":"한글"}\nFORWARD_DECISION not braces\n`, "10");
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.equal(r.kept.length, 3);
+  assert.equal(r.kept[1].length, `FORWARD_QUARTER_HASH_PART 2/2 sha256=${H} `.length + 30000);
+  assert.match(r.kept[2], /한글/);
+  assert.match(r.stdout, /complete/);
+  for (const bad of ["0", "32", "x", "", "5;id", "99999999999999999999", "001"]) assert.notEqual(runStep(part(1, 1, "{}"), bad).status, 0, bad);
+});
+
+test("fails loudly on a journal error, an empty result, a missing part or a lone EXIT line", () => {
+  assert.notEqual(runStep(part(1, 1, "{}"), "10", { exitCode: 1 }).status, 0, "journalctl failed");
+  const empty = runStep("", "10");
+  assert.notEqual(empty.status, 0);
+  assert.match(empty.stdout, /NO_RECORD_LINES/);
+  const gap = runStep(part(1, 3, "{}") + part(3, 3, "{}"), "10");
+  assert.notEqual(gap.status, 0);
+  assert.match(gap.stdout, /INCOMPLETE_PARTS/);
+  assert.equal(runStep("EXIT=0\n" + part(1, 1, "{}"), "10").status, 0, "a journal line reading EXIT=0 cannot spoof the exit code and does not break the file");
+  assert.notEqual(runStep(part(1, 1, "{}").trimEnd() + "\nEXIT=0", "10", { exitCode: 3 }).status, 0, "a spoofed EXIT=0 cannot hide a failing journalctl");
 });

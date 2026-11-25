@@ -31,23 +31,31 @@ jobs:
     timeout-minutes: 5
     env:
       SINCE_DAYS: ${{ inputs.since_days }}
-      RECORDS_FILE: ${{ runner.temp }}/forward-records-${{ github.run_id }}-${{ github.run_attempt }}.txt
     steps:
       - name: Copy forward-record lines from the research journal
         shell: bash
+        env:
+          RECORDS_FILE: ${{ runner.temp }}/forward-records-${{ github.run_id }}-${{ github.run_attempt }}.txt
         run: |
           set +e
-          case "$SINCE_DAYS" in ''|*[!0-9]*) echo "since_days must be a whole number"; exit 1;; esac
+          if ! printf '%s' "$SINCE_DAYS" | grep -Eq '^[0-9]{1,2}$'; then echo "since_days must be a whole number 1-31"; exit 1; fi
           if [ "$SINCE_DAYS" -lt 1 ] || [ "$SINCE_DAYS" -gt 31 ]; then echo "since_days must be 1-31"; exit 1; fi
-          raw="$({ ionice -c3 nice -n19 timeout 60 journalctl -u nusa-research.service --since "-${SINCE_DAYS} days" --no-pager -o cat 2>/dev/null; echo "EXIT=$?"; } )"
+          raw="$({ ionice -c3 nice -n19 timeout 60 journalctl -u nusa-research.service --since "-${SINCE_DAYS} days" --no-pager -o cat 2>&1; echo "EXIT=$?"; } )"
           code="$(printf '%s\n' "$raw" | tail -n 1)"
-          part='^FORWARD_QUARTER_HASH_PART [0-9]+/[0-9]+ sha256=[0-9a-f]{64} [ -~]*$'
-          dec='^FORWARD_DECISION \{[ -~]*\}$'
-          printf '%s\n' "$raw" | grep -E "$part|$dec" > "$RECORDS_FILE"
           echo "journal_${code}"
-          echo "lines=$(wc -l < "$RECORDS_FILE")"
+          # journalctl hints about missing permission or other users' messages are printed (they are not record lines).
+          printf '%s\n' "$raw" | grep -aiE 'insufficient permissions|not seeing messages|no journal files' | head -3
+          # Any printable character, including non-ASCII, may follow the fixed prefix; only control characters are refused.
+          printf '%s\n' "$raw" | grep -aE '^FORWARD_(QUARTER_HASH_PART [0-9]+/[0-9]+ sha256=[0-9a-f]{64} |DECISION \{)[^[:cntrl:]]*$' > "$RECORDS_FILE"
+          lines="$(wc -l < "$RECORDS_FILE")"
+          echo "lines=$lines"
           echo "bytes=$(wc -c < "$RECORDS_FILE")"
+          echo "service_lines_seen=$(printf '%s\n' "$raw" | grep -ac .)"
           if [ "$code" != "EXIT=0" ]; then echo "journal not read cleanly; do not treat an empty file as proof"; exit 1; fi
+          if [ "$lines" -eq 0 ]; then echo "NO_RECORD_LINES: none found in the last $SINCE_DAYS days (journal rotated, no read permission, or not printed yet)"; exit 1; fi
+          # Completeness: for every sha256 set, parts 1..n must all be present.
+          if ! grep -aE '^FORWARD_QUARTER_HASH_PART ' "$RECORDS_FILE" | awk '{split($2,a,"/"); k=$3; n[k]=a[2]; seen[k","a[1]]=1} END {bad=0; for (k in n) for (i=1;i<=n[k];i++) if (!((k","i) in seen)) bad=1; exit bad}'; then echo "INCOMPLETE_PARTS: a quarterly record is missing a part; do not use it"; exit 1; fi
+          echo "complete"
       - name: Upload the records file (3 days)
         # First-party upload action pinned by commit sha (same pin as broad-universe-fetch.yml); the only action on the host runner.
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
