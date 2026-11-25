@@ -35,4 +35,8 @@ test("source pin: the four 'what happened' entries render as tiles and every ent
   assert.equal((view.match(/testID=\{`more-\$\{item\.destination\}`\}/g) ?? []).length, 2, "tile and row both keep the testID");
   assert.equal((view.match(/onPress=\{\(\) => onOpen\(item\.destination\)\}/g) ?? []).length, 2);
   assert.match(view, /minHeight: 112/, "tile touch target");
+  // PressScale wraps the Pressable in an Animated.View: the equal-width rule must sit on a plain View cell around it, or the grid collapses.
+  assert.match(view, /<View key=\{item\.destination\} style=\{styles\.tileCell\}><PressScale/);
+  assert.match(view, /tileCell: \{ width: "48%", flexGrow: 1 \}/);
+  assert.doesNotMatch(view, /tile: \{[^}]*flexBasis/, "no width rule on the inner Pressable");
 });
