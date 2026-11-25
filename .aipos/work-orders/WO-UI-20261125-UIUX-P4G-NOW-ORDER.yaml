@@ -19,6 +19,7 @@ safety:
 authority_impact: none
 validation:
   - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 895 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+emulator_fixes: "After the CI emulator capture of this branch (Pixel 6, Android 15, no server): the sphere is capped at 300 px (it was cut off by the tab bar), the no-count dash is 40 px instead of 64 (it left a large gap above the sphere) and the gap above the sphere is 6 px instead of 18. The server-connected look still cannot be seen in the emulator."
 unverified: "How the new order fits one phone screen (no device here). By the owner's capture the headline plus sub take about 35 percent of the height, so the number should now sit near the middle, but the exact fold depends on the phone and the font size. The owner's capture after the next build is the check."
 acceptance:
   - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 지금 screen."

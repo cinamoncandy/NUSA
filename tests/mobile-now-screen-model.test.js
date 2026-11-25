@@ -113,4 +113,7 @@ test("source pin: on 지금 the decision number comes before the sphere, and the
   assert.ok(inst.indexOf("<LatticeSphere ") < inst.indexOf("<GlassPanel style={styles.ledger}>"));
   assert.match(inst, /right=\{live \? "서버 집계" : "—"\}/);
   assert.doesNotMatch(inst, /"LIVE"/, "no pink LIVE word next to a 'LIVE locked' band");
+  assert.match(inst, /width=\{Math\.min\(width, SPHERE_MAX\)\}/, "sphere capped so it fits above the tab bar");
+  assert.match(inst, /const SPHERE_MAX = 300;/);
+  assert.match(inst, /empty: \{ color: calmColors\.muted, fontSize: 40, lineHeight: 48 \}/, "the no-count dash is small");
 });
