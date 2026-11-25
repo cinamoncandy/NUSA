@@ -201,11 +201,13 @@ function runStudy({ db, now = Date.now() }) {
  * (it can carry a path, a market or a value).
  */
 function failureClass(error) {
-  const ident = (v) => (typeof v === "string" && /^[A-Za-z0-9_]{1,40}$/.test(v) ? v : "");
-  const name = ident(error && error.name) || "Error";
-  const code = ident(error && error.code);
-  const errcode = error && Number.isSafeInteger(error.errcode) && error.errcode >= 0 && error.errcode < 100000 ? error.errcode : null;
-  return `class=${name}${code ? `/${code}` : ""}${errcode === null ? "" : ` sqlite=${errcode}`}`;
+  try {
+    const ident = (v) => (typeof v === "string" && /^[A-Za-z0-9_]{1,40}$/.test(v) ? v : "");
+    const name = ident(error && error.name) || "Error";
+    const code = ident(error && error.code);
+    const errcode = error && Number.isSafeInteger(error.errcode) && error.errcode >= 0 && error.errcode < 100000 ? error.errcode : null;
+    return `class=${name}${code ? `/${code}` : ""}${errcode === null ? "" : ` sqlite=${errcode}`}`;
+  } catch { return "class=Error"; }
 }
 
 module.exports = { failureClass, runStudy, evaluate, featuresAt, tickSeries, compareTicks, START, VAL, HOLD, END, SPANS, STUDY_ID, K, VERSION };

@@ -187,6 +187,7 @@ test("the failure line names the kind of the error only, never its message", () 
   assert.equal(failureClass(sqlite), "class=Error/ERR_SQLITE_ERROR sqlite=5");
   assert.equal(failureClass({ name: "bad name!", code: "x y", errcode: 1.5 }), "class=Error");
   assert.equal(failureClass(null), "class=Error");
+  assert.equal(failureClass({ get name() { throw new Error("hostile"); } }), "class=Error");
   assert.doesNotMatch(failureClass(sqlite), /locked|state\.sqlite|\/var/);
 });
 
