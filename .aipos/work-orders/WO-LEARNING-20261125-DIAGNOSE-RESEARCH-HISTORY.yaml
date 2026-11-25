@@ -15,6 +15,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "Behaviour on the host (the step was run only against a fake journalctl and systemctl); the journal may not name the cause at all (the study prints no error class), in which case the counts are all zero and the next step is the diagnostic print of FINDINGS_2026-11-25.md section 3."
+unverified: "A count of zero proves nothing when journal_exit or kernel_exit is not 0 (124 = timed out, other = unreadable, for example no permission for journalctl -k); the step prints those exit codes first. Behaviour on the host (the step was run only against a fake journalctl and systemctl; the projection of study lines is tested on crafted input: lines without a timestamp are skipped, never printed); the journal may not name the cause at all (the study prints no error class), in which case the counts are all zero and the next step is the diagnostic print of FINDINGS_2026-11-25.md section 3."
 acceptance:
   - "Tests and AIPOS validators pass; independent review; merged by the release bot after the freeze (2026-11-28 15:00 KST) and dispatched once before the research job of 2026-11-29 09:15 KST."
