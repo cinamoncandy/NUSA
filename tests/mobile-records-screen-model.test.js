@@ -27,3 +27,12 @@ test("no LIVE entry and no English codes in titles", () => {
     assert.doesNotMatch(item.title, /[A-Z]{3,}/);
   }
 });
+
+test("source pin: the four 'what happened' entries render as tiles and every entry keeps its more- testID and onOpen", () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const view = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "recordsView.tsx"), "utf8");
+  assert.match(view, /g === 0 \? <View style=\{styles\.tiles\} testID="records-tiles">/);
+  assert.equal((view.match(/testID=\{`more-\$\{item\.destination\}`\}/g) ?? []).length, 2, "tile and row both keep the testID");
+  assert.equal((view.match(/onPress=\{\(\) => onOpen\(item\.destination\)\}/g) ?? []).length, 2);
+  assert.match(view, /minHeight: 112/, "tile touch target");
+});

@@ -45,7 +45,22 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
     </View>}
     {RECORDS_GROUPS.map((group, g) => <Reveal key={group.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={group.title} right={`${group.items.length}`} />
-      {group.items.map((item) => <PressScale
+      {g === 0 ? <View style={styles.tiles} testID="records-tiles">
+        {group.items.map((item, i) => <PressScale
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}, ${item.hint}`}
+          key={item.destination}
+          onPress={() => onOpen(item.destination)}
+          style={({ pressed }) => [styles.tile, { opacity: pressed ? 0.6 : 1 }]}
+          testID={`more-${item.destination}`}
+        >
+          <Text style={[fieldFonts.mono, styles.tileNo]}>{String(i + 1).padStart(2, "0")}</Text>
+          <View>
+            <Text style={styles.tileTitle}>{item.title}</Text>
+            <Text style={styles.hint}>{item.hint}</Text>
+          </View>
+        </PressScale>)}
+      </View> : group.items.map((item) => <PressScale
         accessibilityRole="button"
         accessibilityLabel={`${item.title}, ${item.hint}`}
         key={item.destination}
@@ -116,6 +131,11 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   group: { paddingHorizontal: 20, marginTop: 14 },
   row: { flexDirection: "row", alignItems: "center", minHeight: 60, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line, gap: 12 },
+  // The four things that happened sit as a 2x2 grid of tiles (touch target well above 48 px); other groups stay as rows.
+  tiles: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+  tile: { flexBasis: "47%", flexGrow: 1, minHeight: 112, padding: 14, justifyContent: "space-between", borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, borderRadius: 16 },
+  tileNo: { color: calmColors.muted, fontSize: readableFont(12) },
+  tileTitle: { color: calmColors.text, fontSize: readableFont(17), fontWeight: "600", marginBottom: 2 },
   rowMain: { flex: 1, gap: 2 },
   rowTitle: { color: calmColors.text, fontSize: readableFont(16) },
   hint: { color: calmColors.muted, fontSize: readableFont(12) },

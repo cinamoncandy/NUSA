@@ -1,0 +1,24 @@
+id: WO-UI-20261125-UIUX-P4B-RECORDS-TILES
+title: "Mobile UI/UX v6 phase 4b: the four 'what happened' entries on 기록 become a 2x2 tile grid"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/uiux-p4b-records-tiles
+owner_decision: "2026-11-25: design C chosen, phase 4 started, and both next slices approved (\"둘 다\"); the five tabs stay."
+follows: "docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md section 3.3 (records first, big touch targets) and design C 기록 board."
+objective: "Layout only. In apps/mobile/src/recordsView.tsx the first group (주문 기록, 판단 기록, 성과, 자산) renders as a 2x2 grid of tiles (number 01-04, title, one-line hint; minHeight 112, hairline border, radius 16). The other groups stay as rows. Every entry keeps its more-<destination> testID, its accessibility label and its onOpen call. No counts or values are added to the tiles: nothing is shown that the app does not already have."
+change:
+  - "apps/mobile/src/recordsView.tsx (tiles branch and styles); tests/mobile-records-screen-model.test.js: 1 source-pin test."
+not_changed:
+  - "RECORDS_GROUPS and its entries, navigation, the timeline and ridge, other screens, the server, the cloud, any gate, threshold, limit, capital, host or authority. No new colour token."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node --test tests/mobile-*.test.js tests/uiux-*.test.js: 879 pass, 0 fail (compiled dist); the compiled TypeScript has no error; AIPOS validators pass."
+unverified: "How the tiles look on a device and at large font sizes (no device rendering here): the owner's phone capture is the check."
+acceptance:
+  - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 기록 screen."
