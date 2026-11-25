@@ -7,6 +7,7 @@ import type { MoreDestination } from "./navigationContract";
 import { RECORDS_GROUPS } from "./recordsScreenModel";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { fieldFonts } from "./fieldFonts";
+import { LatticeSphere } from "./latticeSphere";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
@@ -30,6 +31,8 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
   const hourEvents = row == null ? [] : events.filter((e) => e.at >= row.startAt && e.at < row.startAt + 3_600_000);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="records-view">
     <InstrumentHero index="05 / 기록" lines={[{ text: "오늘의" }, { text: "로그" }]} />
+    {/* A small lattice sphere in the corner: it never turns (this screen has no health signal, so it must not look like a healthy running system); a fresh heartbeat only keeps it white instead of grey. It lights nothing here. */}
+    <View style={styles.corner} pointerEvents="none" testID="records-sphere"><LatticeSphere decisionCount={null} orderCount={null} live={hb != null} still width={CORNER_SIZE} reducedMotion={reduced} testID="records-sphere-graphic" /></View>
     {hb == null || !terrain.hasTrace || row == null ? null : <View style={styles.ridge} testID="records-ridge" onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
       <SectionLabel left="하루 · 한 줄 = 한 시간" right="눌러서 고르기" />
       {width > 0 ? <DecisionRidge model={terrain} tone={terrain.stop != null ? "limit" : "live"} decisionCount={null} width={width} reducedMotion={reduced} selectedRow={rowIndex} onSelectRow={pick} testID="records-ridge-graphic" /> : null}
@@ -95,7 +98,10 @@ function TimelineRow({ event, last }: { readonly event: TimelineEvent; readonly 
   </View>;
 }
 
+const CORNER_SIZE = 104;
+
 const styles = StyleSheet.create({
+  corner: { position: "absolute", right: 14, top: 8, width: CORNER_SIZE, height: CORNER_SIZE },
   ridge: { paddingHorizontal: 20, marginTop: 22 },
   hour: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   hourTitle: { color: calmColors.text, fontSize: readableFont(14) },

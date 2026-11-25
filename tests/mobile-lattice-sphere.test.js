@@ -130,4 +130,9 @@ test("study sphere numbers do not scale with the OS font and the label never nam
   const sixteen = m.studyMarkers(16, m.LATTICE_REST_YAW, m.LATTICE_TILT);
   assert.ok(sixteen.length >= 12, "most of 16 markers fit on the front");
   assert.equal(new Set(sixteen.map((k) => k.node)).size, sixteen.length);
+
+test("source pin: the records corner sphere lights nothing, never turns, and does not catch touches", () => {
+  const view = read("recordsView.tsx");
+  assert.match(view, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{hb != null\} still width=\{CORNER_SIZE\}/, "still: it never turns on a screen without a health signal");
+  assert.match(view, /<View style=\{styles\.corner\} pointerEvents="none" testID="records-sphere">/);
 });
