@@ -115,7 +115,7 @@ test("other studies are not touched by the result object", () => {
 test("the result is wired from the heartbeat, with no raw colour in the model and CRLF-safe source reads", () => {
   const read = (p) => fs.readFileSync(path.join(__dirname, "..", p), "utf8").replace(/\r\n/g, "\n");
   assert.match(read("apps/mobile/App.tsx"), /orderBookStudy=\{snapshot\?\.operations\.heartbeat\?\.orderBookStudy \?\? null\}/);
-  assert.match(read("apps/mobile/src/learningView.tsx"), /<StudyTimeline nowMs=\{Date\.now\(\)\} orderBookStudy=\{orderBookStudy\} \/>/);
+  assert.match(read("apps/mobile/src/learningView.tsx"), /<StudyTimeline nowMs=\{Date\.now\(\)\} orderBookStudy=\{orderBookStudy\} studySchedule=\{studySchedule\} \/>/);
   assert.doesNotMatch(read("apps/mobile/src/learningPanelsModel.ts"), /#[0-9a-fA-F]{3,8}\b/);
 });
 

@@ -101,6 +101,7 @@ import {
 } from "./engineeringOperatingReadModel";
 import { composeResearchExperiments } from "./researchExperimentComposition";
 import { readOrderBookStudyDisplay } from "./researchStudyResult";
+import { RESEARCH_STUDY_SCHEDULE } from "./researchStudySchedule";
 import { learningLoopVerdict } from "./learningLoopVerdict";
 import { learningPipelineProjection } from "./learningPipelineStage";
 import { OrderBookCoverageWatch } from "./orderBookCoverage";
@@ -435,6 +436,8 @@ export function startCloudRuntime(
       return study == null ? {} : { orderBookStudy: study };
     } catch { return {}; }
   };
+  // Display only: the registered research studies and their first verdict times (a fixed list; nothing is read or measured).
+  const studyScheduleHeartbeat = (): { studySchedule: typeof RESEARCH_STUDY_SCHEDULE } => ({ studySchedule: RESEARCH_STUDY_SCHEDULE });
   const readHeartbeat = (): PersonalPaperRuntimeHeartbeat => {
     if (productionPaperBoundary == null && !config.upbitPublicDataEnabled) return Object.freeze({ ...heartbeat });
     rollBuyWindow(Date.now());
@@ -450,7 +453,7 @@ export function startCloudRuntime(
     const research = researchProgress != null
       ? { researchCollection: researchProgress }
       : { researchCollectionState: researchSettings?.status === "DISABLED" ? "DISABLED" as const : researchSettings?.status === "INVALID" ? "INVALID" as const : "UNAVAILABLE" as const };
-    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat(), ...orderBookStudyHeartbeat() });
+    return Object.freeze({ ...heartbeat, ...paper, ...feed, ...research, ...learningFunnelHeartbeat(), ...learningLoopHeartbeat(), ...orderBookStudyHeartbeat(), ...studyScheduleHeartbeat() });
   };
   const tokenVerifier = createSharedSecretTokenVerifier(config.dashboardToken, env);
   const durableRepository = snapshotRepository ?? (env.NUSA_CLOUD_STATE_DB_PATH === undefined ? undefined : createSnapshotRepository(config.cloudStateDbPath));

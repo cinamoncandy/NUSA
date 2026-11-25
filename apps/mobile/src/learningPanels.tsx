@@ -4,7 +4,7 @@ import { SectionLabel } from "./instrumentKit";
 import { IslandMark } from "./islandMark";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { readableFont } from "./designSystem";
-import { buildStudyTimeline } from "./learningPanelsModel";
+import { buildStudyTimeline, parseStudySchedule } from "./learningPanelsModel";
 import { buildLearningLoopPanels } from "./learningLoopModel";
 
 const fmt = (n: number): string => (n > 0 ? `+${n.toFixed(1)}` : n.toFixed(1));
@@ -12,8 +12,8 @@ const rowColor = (kind: "GAIN" | "LOSS" | "COST" | "RESULT", bp: number): string
   kind === "RESULT" ? (bp < 0 ? calmColors.attention : calmColors.text) : kind === "GAIN" ? calmColors.text : calmColors.muted;
 
 /** Registered studies: a vertical line, one dot per study, the next verdict highlighted. Dates are the frozen designs' verdict times. */
-export function StudyTimeline({ nowMs, orderBookStudy }: { readonly nowMs: number; /** Server heartbeat orderBookStudy (display only); untrusted, null when absent. */ readonly orderBookStudy?: unknown }) {
-  const rows = buildStudyTimeline(nowMs, undefined, orderBookStudy);
+export function StudyTimeline({ nowMs, orderBookStudy, studySchedule }: { readonly nowMs: number; /** Server heartbeat orderBookStudy (display only); untrusted, null when absent. */ readonly orderBookStudy?: unknown; /** Server heartbeat studySchedule (display only); untrusted: a bad or absent value falls back to the built-in list. */ readonly studySchedule?: unknown }) {
+  const rows = buildStudyTimeline(nowMs, parseStudySchedule(studySchedule) ?? undefined, orderBookStudy);
   return <View style={styles.block} testID="learning-studies" accessibilityLabel={rows.map((r) => `${r.id} ${r.dateLabel} ${r.status}`).join(". ")}>
     <SectionLabel left="사전 등록 연구" right="사전 등록" />
     <View style={styles.tl}>
