@@ -77,3 +77,25 @@ test("source pin: 지금 draws the sphere from the counts it has, never for the 
   assert.match(sphere, /live \? nodeLight\(v, live_, now\) : \{ light: 0, order: 0 \}/, "no light without data");
   assert.doesNotMatch(read("latticeSphereModel.ts"), /Math\.random|Date\.now/, "pure");
 });
+
+test("study markers: one per study, front-facing, spread out, numbered clockwise from the top, the same every time", () => {
+  assert.deepEqual(m.studyMarkers(0, m.LATTICE_REST_YAW, m.LATTICE_TILT), []);
+  assert.deepEqual(m.studyMarkers(Number.NaN, m.LATTICE_REST_YAW, m.LATTICE_TILT), []);
+  const a = m.studyMarkers(8, m.LATTICE_REST_YAW, m.LATTICE_TILT), b = m.studyMarkers(8, m.LATTICE_REST_YAW, m.LATTICE_TILT);
+  assert.equal(a.length, 8);
+  assert.deepEqual(a, b);
+  assert.equal(new Set(a.map((k) => k.node)).size, 8, "distinct nodes");
+  const ang = a.map((k) => { const t = Math.atan2(k.x, k.y); return t < 0 ? t + Math.PI * 2 : t; });
+  assert.deepEqual([...ang].sort((x, y) => x - y), ang, "clockwise from the top");
+  for (let i = 0; i < a.length; i += 1) for (let j = i + 1; j < a.length; j += 1) assert.ok(Math.hypot(a[i].x - a[j].x, a[i].y - a[j].y) > 0.2, "markers do not sit on top of each other");
+  assert.equal(m.studyMarkers(99, m.LATTICE_REST_YAW, m.LATTICE_TILT).length <= 16, true, "capped");
+});
+
+test("source pin: the learning list numbers its rows like the sphere, and the study sphere has no loop and no data of its own", () => {
+  const panels = read("learningPanels.tsx");
+  assert.match(panels, /<StudyLattice count=\{rows\.length\} nextIndex=\{nextIndex >= 0 \? nextIndex : null\}/);
+  assert.match(panels, /\{rows\.map\(\(r, i\) => <View key=\{r\.id\} style=\{styles\.ev\}>/);
+  assert.match(panels, /<Text style=\{styles\.evNo\}>\{i \+ 1\}<\/Text>/);
+  const src = read("latticeSphere.tsx"), study = src.slice(src.indexOf("export function StudyLattice"));
+  assert.doesNotMatch(study, /requestAnimationFrame|setInterval|useEffect|fetch\(|Math\.random|Date\.now/);
+});
