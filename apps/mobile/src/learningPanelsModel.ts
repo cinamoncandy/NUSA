@@ -9,6 +9,33 @@ export interface RegisteredStudy {
   readonly name: string;
   readonly verdictAtMs: number;
   readonly frozen: boolean;
+  /** The order-book study id whose result this row may show (server schedule); built-in rows fall back to RESULT_STUDY_ID_BY_ROW. */
+  readonly resultStudyId?: string;
+}
+
+/**
+ * The studies the host serves in the heartbeat (`studySchedule`, display only). The object is untrusted: anything that is not
+ * exactly the shape (at most 16 rows, no unknown key, bounded text and time, unique ids) is ignored as a whole and the built-in list
+ * is used, so a bad or missing value can only fall back, never invent a study.
+ */
+export function parseStudySchedule(raw: unknown): ReadonlyArray<RegisteredStudy> | null {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > 16) return null;
+  const ids = new Set<string>();
+  const out: RegisteredStudy[] = [];
+  for (const row of raw) {
+    if (row == null || typeof row !== "object" || Array.isArray(row)) return null;
+    const r = row as Record<string, unknown>;
+    if (Object.keys(r).some((k) => !["id", "name", "verdictAtMs", "frozen", "resultStudyId"].includes(k))) return null;
+    if (typeof r.id !== "string" || !/^[0-9A-Za-z가-힣~_-]{1,24}$/u.test(r.id) || ids.has(r.id)) return null;
+    ids.add(r.id);
+    if (typeof r.name !== "string" || r.name.length < 1 || r.name.length > 40 || /[\u0000-\u001f<>]/.test(r.name)) return null;
+    if (typeof r.verdictAtMs !== "number" || !Number.isSafeInteger(r.verdictAtMs) || r.verdictAtMs < Date.UTC(2026, 0, 1) || r.verdictAtMs > Date.UTC(2031, 0, 1)) return null;
+    if (typeof r.frozen !== "boolean") return null;
+    // A row may only name the result of its own study (the registered pair); anything else makes the whole schedule unusable.
+    if (r.resultStudyId !== undefined && (typeof r.resultStudyId !== "string" || !Object.prototype.hasOwnProperty.call(RESULT_STUDY_ID_BY_ROW, r.id) || RESULT_STUDY_ID_BY_ROW[r.id] !== r.resultStudyId)) return null;
+    out.push(Object.freeze({ id: r.id, name: r.name, verdictAtMs: r.verdictAtMs, frozen: r.frozen, ...(r.resultStudyId === undefined ? {} : { resultStudyId: r.resultStudyId }) }));
+  }
+  return Object.freeze(out);
 }
 
 /** Verdict times are the first print times of the registered designs (UTC). */
@@ -64,7 +91,7 @@ export function buildStudyTimeline(nowMs: number, studies: ReadonlyArray<Registe
     const left = Math.ceil((s.verdictAtMs - nowMs) / DAY);
     const dateLabel = `${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
     const past = s.verdictAtMs <= nowMs;
-    const resultStudyId = RESULT_STUDY_ID_BY_ROW[s.id];
+    const resultStudyId = s.resultStudyId ?? (Object.prototype.hasOwnProperty.call(RESULT_STUDY_ID_BY_ROW, s.id) ? RESULT_STUDY_ID_BY_ROW[s.id] : undefined);
     const result = past && resultStudyId !== undefined ? parseStudyResult(orderBookStudy, resultStudyId) : null;
     if (past && resultStudyId !== undefined) {
       const markets = result == null ? "" : ` · 대상 시장 ${result.eligible}개`;

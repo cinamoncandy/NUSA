@@ -56,6 +56,16 @@ export interface PersonalPaperTodayRealized {
  * Display only: the final result of the pre-registered ORDERBOOK study as the host Research service wrote it. Read-only; PASS here means
  * only "a candidate for PAPER-only verification", never LIVE or any authority. Absent when the result file is absent or malformed.
  */
+/** Display only: one row of the research study schedule the host serves (names and first verdict times of the registered designs; nothing here is a measurement). */
+export interface PersonalPaperStudyScheduleEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly verdictAtMs: number;
+  readonly frozen: boolean;
+  /** The order-book study id whose result this row may show; absent for studies whose result the app does not read. */
+  readonly resultStudyId?: string;
+}
+
 export interface PersonalPaperOrderBookStudy {
   readonly schemaVersion: 1;
   readonly studyId: "ML_ORDERBOOK_60M_20261029" | "ML_ORDERBOOK_60M_20261111" | "ML_ORDERBOOK_60M_20261126";
@@ -193,6 +203,8 @@ export interface PersonalPaperRuntimeHeartbeat {
   readonly learningLoop?: PersonalPaperLearningLoop;
   /** Display only: the pre-registered ORDERBOOK study result (see PersonalPaperOrderBookStudy). Absent until the host writes a valid result. */
   readonly orderBookStudy?: PersonalPaperOrderBookStudy;
+  /** Display only: the registered research studies and their first verdict times, served by the host so a new study needs no app build. Absent on an older host; the app then uses its built-in list. */
+  readonly studySchedule?: readonly PersonalPaperStudyScheduleEntry[];
   /** Display only: the same window's decisions and orders per 5 minutes, for the app's decision terrain. Absent without a canonical PAPER boundary. */
   readonly decisionTrace?: PersonalPaperDecisionTrace;
   /** Display only: PAPER futures positions and limit usage. Absent while the futures engine has not traded; a malformed value is dropped on its own. */
@@ -501,6 +513,27 @@ function dropMalformedDisplayCounters(heartbeat: PersonalPaperRuntimeHeartbeat |
   if (record.futures !== undefined && !isValidFuturesSnapshot(record.futures)) delete record.futures;
   if (record.learningLoop !== undefined && !isValidLearningLoop(record.learningLoop)) delete record.learningLoop;
   if (record.orderBookStudy !== undefined && !isValidOrderBookStudy(record.orderBookStudy)) delete record.orderBookStudy;
+  if (record.studySchedule !== undefined && !isValidStudySchedule(record.studySchedule)) delete record.studySchedule;
+}
+
+/** Display only. At most 16 rows; any unknown key, over-long text, non-integer or out-of-range time, non-boolean flag or bad result id makes the whole schedule unusable (the app then keeps its built-in list). */
+const STUDY_RESULT_ID_BY_ROW: Readonly<Record<string, string>> = Object.freeze({ "호가": "ML_ORDERBOOK_60M_20261029", "호가2": "ML_ORDERBOOK_60M_20261111", "호가3": "ML_ORDERBOOK_60M_20261126" });
+export function isValidStudySchedule(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 16) return false;
+  const ids = new Set<string>();
+  for (const row of value) {
+    if (row == null || typeof row !== "object" || Array.isArray(row)) return false;
+    const r = row as Record<string, unknown>;
+    if (Object.keys(r).some((k) => !["id", "name", "verdictAtMs", "frozen", "resultStudyId"].includes(k))) return false;
+    if (typeof r.id !== "string" || !/^[0-9A-Za-z가-힣~_-]{1,24}$/u.test(r.id) || ids.has(r.id)) return false;
+    ids.add(r.id);
+    if (typeof r.name !== "string" || r.name.length < 1 || r.name.length > 40 || /[\u0000-\u001f<>]/.test(r.name)) return false;
+    if (typeof r.verdictAtMs !== "number" || !Number.isSafeInteger(r.verdictAtMs) || r.verdictAtMs < Date.UTC(2026, 0, 1) || r.verdictAtMs > Date.UTC(2031, 0, 1)) return false;
+    if (typeof r.frozen !== "boolean") return false;
+    // A row may only name the result of its own study: the pair must be the registered one (a row cannot show another study's result).
+    if (r.resultStudyId !== undefined && (typeof r.resultStudyId !== "string" || !Object.prototype.hasOwnProperty.call(STUDY_RESULT_ID_BY_ROW, r.id) || STUDY_RESULT_ID_BY_ROW[r.id] !== r.resultStudyId)) return false;
+  }
+  return true;
 }
 
 /** Display only. Any unknown key, wrong version/study id/status, non-boolean or non-integer value makes the whole object unusable. */

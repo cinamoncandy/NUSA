@@ -1,0 +1,24 @@
+id: WO-UI-20261125-UIUX-P3-STUDY-SCHEDULE
+title: "Mobile UI/UX v6 phase 3: the host serves the research study schedule; the app draws it (display only)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/uiux-p3-study-schedule
+owner_decision: "2026-11-25: \"진행해\" (after the phase list of docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md; finding 3 of docs/UIUX_DIAGNOSIS_2026-11-25.md)."
+stacked_on: "claude/orderbook-third-span (#3291: the third order-book run). Merge #3291 first; this PR then re-targets main."
+objective: "The studies timeline on the 학습 tab was a hard-coded list of four rows (and every new study needed an app build, a contract allowlist and a release). The host now serves the registered studies in the heartbeat (`studySchedule`: id, name, first verdict time, frozen, optional order-book result id); the app draws that list and falls back to its built-in list when the field is absent or malformed. The list now has eight rows (adds 체결흐름2 11-29, 교차시장 12-10, RET48 2028-03-31 beside the existing ones)."
+change:
+  - "packages/contracts/src/personalPaperOperations.ts: PersonalPaperStudyScheduleEntry, heartbeat field studySchedule, isValidStudySchedule (at most 16 rows, no unknown key, bounded text and time, unique ids; a bad value is dropped as a whole). apps/cloud/src/researchStudySchedule.ts (a fixed list) and apps/cloud/src/runtime.ts (studyScheduleHeartbeat in every heartbeat). apps/mobile: parseStudySchedule and resultStudyId in learningPanelsModel.ts, a studySchedule prop through App.tsx, learningView.tsx and learningPanels.tsx. tests/study-schedule.test.js (7 tests) and two pinned-source regexes updated."
+not_changed:
+  - "No study, script, rule, threshold, gate, limit, capital, authority or other heartbeat field. Nothing is read or measured to build the list; results are still shown only from the validated orderBookStudy object of the row's own result id. The first verdict times are those of the frozen pre-registrations."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "tests/study-schedule.test.js (7), node --test tests/mobile-*.test.js and learning-loop-contract (854 pass, 1 fail: mobile-ai-island-kit, which fails in some sandboxes with a missing module whether or not this change is present, and passes in others), tests/cloud-runtime-*.test.js and cloud-operations-foundation (139 pass); no TypeScript error in the changed files."
+unverified: "Behaviour on the host and the phone (the server part reaches the host only with the first release after 2026-12-10; the app falls back to its built-in list until then, in either order of app build and release); the dates of the new rows are those of the pre-registrations and the 2026-11-29 09:15 KST research job (RET48 shows its final verdict date, its first record is 2027-03-31); the signal-screen study is not listed because its verdict date is not fixed in the repository; rendering on a device."
+acceptance:
+  - "Independent non-author review; merge by the release bot after #3291 and after the freeze (2026-11-28 15:00 KST); host release only after 2026-12-10 at the owner's word."
