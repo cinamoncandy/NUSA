@@ -66,7 +66,7 @@ test("only a final result is handed off, atomically, beside the state database",
   const saved = JSON.parse(fs.readFileSync(path.join(dir, RESULT_FILE), "utf8"));
   const { STUDY_ID } = require("./run-orderbook-study.js");
   assert.equal(saved.studyId, STUDY_ID, "a result is attributed to the study that produced it (independent review P1 on #3084)");
-  assert.equal(saved.studyId, "ML_ORDERBOOK_60M_20261111");
+  assert.equal(saved.studyId, "ML_ORDERBOOK_60M_20261126");
   assert.equal(saved.schemaVersion, 1);
   assert.equal(fs.existsSync(path.join(dir, `${RESULT_FILE}.tmp`)), false);
   // a caller-supplied studyId or schemaVersion can never override the selected study (review P2 on #3084)
@@ -74,15 +74,18 @@ test("only a final result is handed off, atomically, beside the state database",
   assert.equal(JSON.parse(fs.readFileSync(path.join(dir, RESULT_FILE), "utf8")).studyId, STUDY_ID);
 });
 
-test("the default span is the second pre-registered run and the first run's span is still selectable", () => {
+test("the default span is the third pre-registered run and the first two runs' spans are still selectable", () => {
   const { SPANS, STUDY_ID } = require("./run-orderbook-study.js");
-  assert.equal(STUDY_ID, "ML_ORDERBOOK_60M_20261111");
+  assert.equal(STUDY_ID, "ML_ORDERBOOK_60M_20261126");
   const iso = (ms) => new Date(ms).toISOString();
+  const third = SPANS.ML_ORDERBOOK_60M_20261126;
+  assert.deepEqual([iso(third.START), iso(third.VAL), iso(third.HOLD), iso(third.END)], ["2026-11-26T00:00:00.000Z", "2026-12-04T00:00:00.000Z", "2026-12-07T00:00:00.000Z", "2026-12-10T00:00:00.000Z"], "docs/RESEARCH_PREREG_2026-11-25_ORDERBOOK_60M_THIRD.md section 3");
   const second = SPANS.ML_ORDERBOOK_60M_20261111;
   assert.deepEqual([iso(second.START), iso(second.VAL), iso(second.HOLD), iso(second.END)], ["2026-11-04T00:00:00.000Z", "2026-11-12T00:00:00.000Z", "2026-11-14T00:00:00.000Z", "2026-11-18T00:00:00.000Z"]);
   const first = SPANS.ML_ORDERBOOK_60M_20261029;
   assert.deepEqual([iso(first.START), iso(first.VAL), iso(first.HOLD), iso(first.END)], ["2026-10-15T00:00:00.000Z", "2026-10-23T00:00:00.000Z", "2026-10-25T00:00:00.000Z", "2026-10-29T00:00:00.000Z"]);
-  assert.ok(Object.isFrozen(SPANS) && Object.isFrozen(second));
+  assert.ok(Object.isFrozen(SPANS) && Object.isFrozen(second) && Object.isFrozen(third));
+  assert.equal((third.VAL - third.START) / 3_600_000, 192, "train is 192 decision hours");
 });
 
 test("an unknown study id is refused, never mapped to another span", () => {

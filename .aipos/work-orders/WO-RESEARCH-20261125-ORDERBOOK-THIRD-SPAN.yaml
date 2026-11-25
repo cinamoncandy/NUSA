@@ -1,0 +1,20 @@
+id: WO-RESEARCH-20261125-ORDERBOOK-THIRD-SPAN
+title: "Order-book study third run: the study id ML_ORDERBOOK_60M_20261126, its span and the study-id allowlists (code only; reaches the host with the first release after 2026-12-10)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: \"등록해, 그 기간으로 진행해\" and \"기간을 앞으로 옮긴다\" (docs/RESEARCH_PREREG_2026-11-25_ORDERBOOK_60M_THIRD.md, merged #3290). Section 6.2 of that file names this code step."
+objective: "Make the registered span runnable and its result displayable: add the third run to SPANS of scripts/run-orderbook-study.js (train 2026-11-26..12-04, validation 12-04..12-07, holdout 12-07..12-10; earliest answer 2026-12-10T02:00Z, before that WAITING_DATA and no database access), make it the default id, and add the id to every allowlist that would reject its result: ORDERBOOK_STUDY_IDS (apps/cloud/src/researchStudyResult.ts), the type and validator in packages/contracts/src/personalPaperOperations.ts, and a new row 호가3 with its own id mapping in apps/mobile/src/learningPanelsModel.ts."
+change:
+  - "scripts/run-orderbook-study.js (SPANS, default id), scripts/run-orderbook-study.test.js; apps/cloud/src/researchStudyResult.ts and its test; packages/contracts/src/personalPaperOperations.ts; apps/mobile/src/learningPanelsModel.ts; tests/mobile-learning-panels.test.js."
+not_changed:
+  - "Every rule, feature, cost, model, eligibility bar, PASS condition and K of the study (shared by all runs); the first and second spans stay selectable by NUSA_ORDERBOOK_STUDY_ID; no threshold, gate, limit, capital, host or authority. Display only on mobile."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Behaviour on the host (the code runs there only after the first release after 2026-12-10); that the archive holds every training hour; that at least 4 markets reach per-market eligibility; the mobile row on a device."
+acceptance:
+  - "Tests and AIPOS validators pass; independent non-author review; merged by the release bot; NO host release before 2026-12-10 (holdout end); the run happens on the first research job after that release at or after 2026-12-10T02:00Z."
