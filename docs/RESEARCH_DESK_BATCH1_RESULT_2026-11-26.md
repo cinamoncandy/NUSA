@@ -7,7 +7,7 @@ Korean summary (한 줄): 새 규칙 12가지(일봉 종목 비교 6, 5분봉 �
 ## How the desk worked (the idea taken from the owner's reference video of a "one-person hedge fund")
 - **PM (this session):** wrote the hypotheses with their economic reasons and the pass bars (same bars as the earlier screens, not loosened).
 - **Two analysts (subagents, one per data set):** each wrote its full rule text and bars to a `PREREG.md` and recorded its SHA-256 **before** writing or running its script; neither changed a rule or a bar after seeing a result. The two prereg files are committed unchanged: `docs/research-data/desk-batch1-prereg-a-2026-11-26.md` (sha256 `7ccc192b5cade041f6d4016e5130975ea67b763fd0134b9f7bb48846ab5b0a95`) and `...-b-2026-11-26.md` (sha256 `5414d88600b81b9c0a507f1724b5ef681de68416c72ab28f84ba19950def5bf9`).
-- **Committee (this session):** re-ran both scripts once and confirmed the printed tables are identical to the analysts' reports. Code that decides what is allowed to reach any market does not exist here: nothing in this batch can place an order.
+- **Committee (this session):** re-ran both scripts once and confirmed the printed tables are identical to the analysts' reports. Nothing in this batch can place an order: it reads price files only.
 - Scripts: `scripts/offline-desk-a-screen.js <dir>`, `scripts/offline-desk-b-screen.js <dir>`; the data directories are fetched by `scripts/offline-crosssection-screen.js fetch` and `scripts/offline-scalp-screen.js fetch` (public Upbit GETs, outside the repository).
 
 ## Result A: six cross-sectional daily families (56 markets, K=6, second-filter p bar 8.33e-3)
@@ -36,7 +36,7 @@ Window market returns were -15.5%, -19.7%, -8.2%, +8.5%, -19.9%, -9.0%: only one
 ## Reading
 - Nothing in B has a gross edge above the 0.20 percent taker round trip; the best raw number (SUN_NIGHT, +0.027% gross) is a fraction of the cost and does not hold in part 2. Three rules also fail the trade-count minimums.
 - In A, the one discovery pass is what chance alone gives: 6 families, a 6-window rule, one pass; the last year does not confirm it.
-- With the earlier screens (97 + 12 + 6 + 6 + 8 + 6 for the second cross-section round counted before) the history screens now cover **141 rules, none eligible** for a forward pre-registration.
+- With the earlier screens (97 + 12 + 6 + 6 + 8 = 129) the history screens now cover **141 rules (129 + 12), none eligible** for a forward pre-registration.
 
 ## Disclosures
 - Survivorship (current markets only, worst for LISTING_AGE and SIZE_REV); fills at the signal close (optimistic); flat costs; the last year was partly read by earlier screens; the p values use a normal approximation. LISTING_AGE had no cohort in the last 365 days, so its second filter could not be tested.
