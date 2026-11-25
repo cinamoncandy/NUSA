@@ -1,0 +1,58 @@
+name: Oracle Host Forward Records Export
+
+# READ-ONLY export of the RET48 forward-confirmation lines from the PAPER host's research journal (prereg 7a, #3283 phase).
+# Why: the host research service prints FORWARD_QUARTER_HASH_PART lines of up to 30,000 characters and one FORWARD_DECISION line.
+# The diagnosis annotations hold only about 3,500 characters, so they cannot carry them. This job copies ONLY lines of those two shapes
+# (hashes, counts and statistics, never prices) into one run-scoped file in the runner temp directory and uploads it as a 3-day artifact.
+# It never writes outside RUNNER_TEMP, restarts or deploys nothing, reads no credential or env file and the store, checks out no
+# repository code and calls no external service except the first-party artifact upload. Dispatch by hand only. PAPER only, LIVE NONE.
+# The journal rotates: dispatch within days of 2027-03-31 and of 2028-03-31, not months later.
+
+on:
+  workflow_dispatch:
+    inputs:
+      since_days:
+        description: "How many days of the research journal to scan (1-31)"
+        required: false
+        default: "10"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: oracle-host-forward-records
+  cancel-in-progress: false
+
+jobs:
+  export:
+    name: Read-only forward records export
+    runs-on: [self-hosted, Linux, nusa-paper-host]
+    timeout-minutes: 5
+    env:
+      SINCE_DAYS: ${{ inputs.since_days }}
+      RECORDS_FILE: ${{ runner.temp }}/forward-records-${{ github.run_id }}-${{ github.run_attempt }}.txt
+    steps:
+      - name: Copy forward-record lines from the research journal
+        shell: bash
+        run: |
+          set +e
+          case "$SINCE_DAYS" in ''|*[!0-9]*) echo "since_days must be a whole number"; exit 1;; esac
+          if [ "$SINCE_DAYS" -lt 1 ] || [ "$SINCE_DAYS" -gt 31 ]; then echo "since_days must be 1-31"; exit 1; fi
+          raw="$({ ionice -c3 nice -n19 timeout 60 journalctl -u nusa-research.service --since "-${SINCE_DAYS} days" --no-pager -o cat 2>/dev/null; echo "EXIT=$?"; } )"
+          code="$(printf '%s\n' "$raw" | tail -n 1)"
+          part='^FORWARD_QUARTER_HASH_PART [0-9]+/[0-9]+ sha256=[0-9a-f]{64} [ -~]*$'
+          dec='^FORWARD_DECISION \{[ -~]*\}$'
+          printf '%s\n' "$raw" | grep -E "$part|$dec" > "$RECORDS_FILE"
+          echo "journal_${code}"
+          echo "lines=$(wc -l < "$RECORDS_FILE")"
+          echo "bytes=$(wc -c < "$RECORDS_FILE")"
+          if [ "$code" != "EXIT=0" ]; then echo "journal not read cleanly; do not treat an empty file as proof"; exit 1; fi
+      - name: Upload the records file (3 days)
+        # First-party upload action pinned by commit sha (same pin as broad-universe-fetch.yml); the only action on the host runner.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: forward-records-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/forward-records-${{ github.run_id }}-${{ github.run_attempt }}.txt
+          retention-days: 3
+          if-no-files-found: error
