@@ -13,7 +13,7 @@ const commands = workflow.split("\n").filter((l) => !l.trimStart().startsWith("#
 test("the real gate refuses every case and clears the controls", () => {
   const { rows, pass } = rehearse(clean);
   assert.equal(pass, true, JSON.stringify(rows.filter((r) => !r.ok)));
-  assert.equal(rows.filter((r) => r.expect === "BLOCK").length, 23);
+  assert.equal(rows.filter((r) => r.expect === "BLOCK").length, 30);
   assert.deepEqual(rows.filter((r) => r.expect === "CLEAR").map((r) => r.name), ["control-clear", "control-worker-unreachable"]);
 });
 
@@ -28,8 +28,8 @@ test("a gate that releases anything, or blocks everything, fails the rehearsal",
 test("the command line prints one line per case and exits 0 only on PASS", () => {
   const ok = spawnSync(process.execPath, ["scripts/release-control-rehearsal.js", "config/release-control.json"], { encoding: "utf8" });
   assert.equal(ok.status, 0);
-  assert.match(ok.stdout, /RELEASE_CONTROL_REHEARSAL_RESULT PASS cases=25/);
-  assert.equal(ok.stdout.trim().split("\n").length, 26);
+  assert.match(ok.stdout, /RELEASE_CONTROL_REHEARSAL_RESULT PASS cases=32/);
+  assert.equal(ok.stdout.trim().split("\n").length, 33);
   assert.doesNotMatch(ok.stdout, /ok=false/);
 });
 

@@ -5,6 +5,7 @@
 // It feeds the REAL config/release-control.json (read from main by the workflow) and mutated copies of it to the gate and prints one line per case.
 // Every refusal case must BLOCK; the positive control (the unmodified real file with everything matching) must be CLEAR, so an
 // always-BLOCK gate cannot pass the rehearsal. It reads no network, writes nothing, changes no decision of any workflow and is not wired into the audit.
+// Not rehearsed: a directory or symlink at the path, odd whitespace inside valid JSON, and the case-7 scenario of a PR head copy that clears itself (the head copy is deliberately not a gate input, so case 7 only shows that a HOLD on the audited base blocks on both reads).
 // Cases 1 (404) and 11 (concurrent audits, stale status) are workflow behaviour; case 1 is rehearsed by the workflow's real fetch of a missing path, case 11 is read from the workflow.
 
 const fs = require("node:fs");
@@ -34,11 +35,18 @@ function rehearse(cleanText, decideRelease = realGate) {
     ["2-duplicate-key-second", input({ secondReadText: dupHold })],
     ["3-global-freeze", input({ firstReadText: withFile({ globalReleaseFreeze: true }) })],
     ["4-hold-active", input({ firstReadText: withFile({ holdState: "HOLD" }) })],
+    ["4-hold-lowercase", input({ firstReadText: withFile({ holdState: "hold" }) })],
+    ["4-hold-unknown-value", input({ firstReadText: withFile({ holdState: "PAUSED" }) })],
+    ["4-hold-empty", input({ firstReadText: withFile({ holdState: "" }) })],
+    ["4-hold-null", input({ firstReadText: withFile({ holdState: null }) })],
+    ["2-top-level-array", input({ firstReadText: "[]" })],
+    ["2-top-level-null", input({ firstReadText: "null" })],
+    ["2-whitespace-only", input({ firstReadText: " \n\t " })],
     ["5-live-authority", input({ firstReadText: withFile({ liveAuthority: "LIVE" }) })],
     ["5-production-mutation", input({ firstReadText: withFile({ productionMutationAllowed: true }) })],
     ["5-ai-authority", input({ firstReadText: withFile({ aiAuthority: "FULL" }) })],
     ["6-hold-between-reads", input({ secondReadText: withFile({ holdState: "HOLD" }) })],
-    ["7-pr-cannot-clear-itself", input({ firstReadText: withFile({ holdState: "HOLD" }), secondReadText: withFile({ holdState: "HOLD" }) })],
+    ["7-hold-on-base-both-reads", input({ firstReadText: withFile({ holdState: "HOLD" }), secondReadText: withFile({ holdState: "HOLD" }) })],
     ["8-other-base", input({ identity: { repository: "o/r", prNumber: 7, headSha: HEAD, baseSha: OTHER } })],
     ["8-bad-head", input({ identity: { repository: "o/r", prNumber: 7, headSha: "nothex", baseSha: MAIN } })],
     ["8-bad-pr", input({ identity: { repository: "o/r", prNumber: 0, headSha: HEAD, baseSha: MAIN } })],

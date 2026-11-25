@@ -1,9 +1,9 @@
 id: WO-OPS-20261125-RELEASE-CONTROL-REHEARSAL
-title: "Cloudflare removal S3b: a dispatch-only rehearsal harness that runs the release-control gate on the real file and 23 mutated refusal cases"
+title: "Cloudflare removal S3b: a dispatch-only rehearsal harness that runs the release-control gate on the real file and 30 mutated refusal cases"
 status: READY_FOR_REVIEW
 created: 2026-11-25
 owner_decision: "2026-11-25: the owner said \"해\" to the next S3 step named in docs/CLOUDFLARE_REMOVAL_S3_DESIGN_2026-11-20.md section 6b (the rehearsal harness as its own PR with an independent review). The switch itself (S3b) is NOT part of this and stays an owner-by-hand merge."
-objective: "Produce the rehearsal evidence the S3 design requires before S3b: scripts/release-control-rehearsal.js feeds the real config/release-control.json and mutated copies to scripts/release-control-gate.js (cases 1-10 and 12, 23 refusals) plus two positive controls (an always-BLOCK gate fails), and .github/workflows/release-control-rehearsal.yml (workflow_dispatch only, ubuntu-latest, contents: read, no secret, no token, no status, no Cloudflare call) reads the files from main through the API, rehearses case 1 on a real missing-path 404, and prints one line per case."
+objective: "Produce the rehearsal evidence the S3 design requires before S3b: scripts/release-control-rehearsal.js feeds the real config/release-control.json and mutated copies to scripts/release-control-gate.js (cases 1-10 and 12, 30 refusals) plus two positive controls (an always-BLOCK gate fails), and .github/workflows/release-control-rehearsal.yml (workflow_dispatch only, ubuntu-latest, contents: read, no secret, no token, no status, no Cloudflare call) reads the files from main through the API, rehearses case 1 on a real missing-path 404, and prints one line per case."
 change:
   - "scripts/release-control-rehearsal.js, .github/workflows/release-control-rehearsal.yml, tests/release-control-rehearsal.test.js (4 tests); tests/release-control-gate.test.js: the 'not wired' test now excludes the rehearsal workflow by name (the audit workflow still must not reference the gate)."
 not_changed:
@@ -15,6 +15,6 @@ safety:
   realOrderAuthority: false
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
-unverified: "The workflow has never run (it can only be dispatched after merge, from main). Case 11 (concurrent audits, a stale nusa/release-authorized status) and the audit workflow glue are not rehearsed here; they are read in the workflow and checked in the first real S3b run. The printed lines still have to be recorded in an evidence PR before S3b."
+unverified: "The workflow has never run (it can only be dispatched after merge, from main). Not rehearsed: a directory or symlink at the path, odd whitespace inside valid JSON, and the head-clears-itself scenario of case 7 (the PR head copy is not a gate input, so case 7 only shows that a HOLD on the audited base blocks on both reads); case 12 covers the Worker BLOCK direction only. Case 11 (concurrent audits, a stale nusa/release-authorized status) and the audit workflow glue are not rehearsed here; they are read in the workflow and checked in the first real S3b run. The printed lines still have to be recorded in an evidence PR before S3b."
 acceptance:
   - "Tests and AIPOS validators pass; independent non-author review; normal bot merge (this PR touches no protected release-control path: verify with scripts/release-control-path-rule.js); then the owner or CORE dispatches the workflow once and the lines go into an evidence PR."
