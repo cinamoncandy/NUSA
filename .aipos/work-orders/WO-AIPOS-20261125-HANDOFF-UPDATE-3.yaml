@@ -1,0 +1,20 @@
+id: WO-AIPOS-20261125-HANDOFF-UPDATE-3
+title: "Handoff: the registered third order-book run, the learning-loop state and the UI/UX renewal drafts (2026-11-25 14:05 KST)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: owner \"다음\" (next) with the open work listed; a handoff that names #3290-#3297 keeps the next session from losing them."
+objective: "Append one dated section to the newest handoff: the registration of the third order-book run and its honest eligibility risk, the learning-loop state, AIPOS hygiene, the UI/UX renewal drafts and their order, and the owner-only items."
+change:
+  - ".aipos/handoffs/2026-11-17-main-handoff.md: one appended section; no other file."
+not_changed:
+  - "No code, workflow, host, rule, threshold, gate, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "PR states and trigger times are as read on 2026-11-25 and must be re-verified on GitHub before acting."
+acceptance:
+  - "AIPOS validators pass; docs only, normal bot merge."
