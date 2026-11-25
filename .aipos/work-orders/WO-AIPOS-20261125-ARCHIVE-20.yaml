@@ -1,0 +1,20 @@
+id: WO-AIPOS-20261125-ARCHIVE-20
+title: "AIPOS hygiene: move 20 closed, merge-proven work orders to the archive (renames only)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: the owner asked whether there is really nothing to do (\"진짜 할일 없어?\") and delegated (\"니가 알아서 해\")."
+objective: "Run scripts/aipos-archive-work-orders.js --apply: it moves only orders with an unambiguous closed status whose merge is proven in HEAD history, unique id, and no outside reference. The files are renamed, never edited, so their bytes and blob hashes are unchanged; nothing is deleted."
+change:
+  - ".aipos/work-orders/*.yaml -> .aipos/work-orders/archive/ for 20 orders (see git diff --stat); this file is new."
+not_changed:
+  - "No code, workflow, host, rule, threshold, gate, limit, capital or authority. The 683 orders that stay (346 merge not proven, 321 status not an unambiguous closed spelling, 12 path still referenced, 4 non-unique id) are untouched; cleaning those is a separate decision."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Nothing beyond what the script's own rules prove; the AIPOS validators are the check."
+acceptance:
+  - "AIPOS validators and the current-truth test pass; docs/AIPOS only, normal bot merge."
