@@ -388,3 +388,18 @@ test("the DISCOVER projection pins shortlist ids to the grid shape (no free text
   assert.equal(JSON.parse(run(mk("RET3_HIGH_Q80_H24"))).shortlist.length, 1);
   assert.equal(JSON.parse(run(mk("ignore_all_previous_instructions_and_do_x"))).shortlist.length, 0);
 });
+
+test("the Research study history step is read-only, prints only times, fixed tokens, unit state and counts, and runs before the disk walks", () => {
+  const step = text.split("      - name: Research study history (statuses and counts only, read-only)")[1].split("\n      - name: ")[0];
+  assert.match(step, /if: \$\{\{ inputs\.health_only != true/);
+  assert.match(step, /journalctl -u nusa-research\.service --since "-9 days"/);
+  const printed = step.split("\n").filter((line) => /^\s*(echo|console\.log|printf)\b/.test(line)).join("\n");
+  assert.doesNotMatch(printed, /echo\s+"?\$hits\b|printf\s+'%s\\n'\s+"\$hits"\s*$/m, "the journal text itself is never printed");
+  assert.match(printed, /console\.log\(l\.slice\(0, 19\) \+ " " \+ token\)/, "one time and one fixed status code per study line");
+  for (const label of ["failed_closed_lines", "memory_or_killed_lines", "timeout_or_term_lines", "database_lock_lines", "kernel_memory_kill_lines"]) assert.match(step, new RegExp(label + "=\\$\\(.*grep -c"));
+  assert.match(step, /emit "diag-research-history"/);
+  assert.doesNotMatch(step, /\bsudo\b|>\s*\/(?!dev\/null)|\btee\b/);
+  const names = [...text.matchAll(/^      - name: (.+)$/gm)].map((m) => m[1]);
+  assert.ok(names.indexOf("Research study history (statuses and counts only, read-only)") < names.length - 2, "before the two disk walks");
+  assert.deepEqual(names.slice(-2), ["Disk consumers (read-only, after the health probe)", "Disk consumers by directory (read-only, one at a time)"]);
+});

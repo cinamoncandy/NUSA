@@ -271,6 +271,39 @@ jobs:
           for n in 1 2 3 4 5; do part="${errors:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-nusa-log-$n" "$part"; done
           emit "diag-autopilot-log" "$autopilot"
       # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
+      - name: Research study history (statuses and counts only, read-only)
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          # The other projections read only the last 26 hours, so a study that failed days ago leaves no trace there. This step reads the Research
+          # journal of the last 9 days and prints only: one time and one fixed status code per TRADEFLOW study line (a status code or FAILED_CLOSED:V<n>), the unit state
+          # and COUNTS of lines that name an out-of-memory kill, a timeout or a database lock. No log text, no value, no price is printed.
+          hits="$(ionice -c3 nice -n19 timeout 40 journalctl -u nusa-research.service --since "-9 days" --no-pager -o cat 2>/dev/null | grep -iE 'FAILED_CLOSED|out of memory|oom|killed|SIGKILL|heap|timed out|ETIMEDOUT|SIGTERM|database is locked|SQLITE_' | cut -c1-300)"
+          out="$({
+            echo "== TRADEFLOW study lines of the last 9 days (time and one fixed status code per line)"
+            ionice -c3 nice -n19 timeout 40 journalctl -u nusa-research.service --since "-9 days" --no-pager -o short-iso 2>/dev/null | grep 'TRADEFLOW_STUDY' | node -e '
+            const lines = require("node:fs").readFileSync(0, "utf8").split("\n").filter(Boolean).slice(-60);
+            for (const l of lines) {
+              let token = "OTHER";
+              const f = l.match(/TRADEFLOW_STUDY_FAILED_CLOSED(?::V([0-9]+))?/);
+              if (f) token = "FAILED_CLOSED:V" + (f[1] || "?");
+              else { const st = l.match(/"status":"([A-Z_]{3,30})"/); const v = l.match(/"studyVersion":([0-9]+)/); if (st) token = st[1] + ":V" + (v ? v[1] : "1"); }
+              console.log(l.slice(0, 19) + " " + token);
+            }'
+            echo "== Research service unit state"
+            systemctl show nusa-research.service -p ActiveState,SubState,Result,ExecMainStatus,NRestarts 2>&1 | head -6
+            echo "== counts of lines in the last 9 days that name each cause (no text)"
+            echo "failed_closed_lines=$(printf '%s\n' "$hits" | grep -c 'FAILED_CLOSED')"
+            echo "memory_or_killed_lines=$(printf '%s\n' "$hits" | grep -ciE 'out of memory|oom|killed|SIGKILL|heap')"
+            echo "timeout_or_term_lines=$(printf '%s\n' "$hits" | grep -ciE 'timed out|ETIMEDOUT|SIGTERM')"
+            echo "database_lock_lines=$(printf '%s\n' "$hits" | grep -ciE 'database is locked|SQLITE_')"
+            echo "kernel_memory_kill_lines=$(ionice -c3 nice -n19 timeout 20 journalctl -k --since "-9 days" --no-pager -o cat 2>/dev/null | grep -ciE 'out of memory|killed process')"
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-research-history" "$out"
       - name: Disk consumers (read-only, after the health probe)
         if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
         shell: bash
