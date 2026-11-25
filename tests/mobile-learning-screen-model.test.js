@@ -71,7 +71,7 @@ test("hero lines share one font size that fits the widest line and never exceed 
 });
 
 // UI/UX v6 phase 1 (docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md): a paused loop in COLLECT_ONLY is the designed state, and results carry their span.
-const paused = { ...base, status: "PAUSED", latestRisk: null };
+const paused = { ...base, status: "PAUSED", latestRisk: null, latestDecision: null, latestSignal: null };
 test("COLLECT_ONLY with a paused loop is worded neutrally and says why; without the flag nothing changes", () => {
   const on = buildLearningScreen(paused, { collectOnly: true });
   assert.equal(on.headline, "수집 전용이라 판단은 쉬어요");
@@ -105,8 +105,20 @@ test("the result rows carry the span of the server's account events in KST, or s
   const span = buildLearningScreen({ ...paused, timeline: [at("2026-10-14T20:00:00Z"), { occurredAt: Date.parse("2026-11-01T00:00:00Z") }, at("2026-11-02T14:59:00Z")] });
   assert.equal(span.periodLabel, "측정 기간 2026-10-15 ~ 2026-11-02", "20:00Z is 05:00 KST of the next day");
   assert.equal(buildLearningScreen({ ...paused, timeline: [at("2026-11-02T01:00:00Z")] }).periodLabel, "측정 기간 2026-11-02");
-  assert.equal(buildLearningScreen({ ...paused, timeline: [{ occurredAt: Date.parse("2026-11-01T00:00:00Z") }] }).periodLabel, "측정 기간을 알 수 없어요", "no account event: the span is not guessed");
-  assert.equal(buildLearningScreen(paused).periodLabel, "측정 기간을 알 수 없어요");
+  assert.equal(buildLearningScreen({ ...paused, timeline: [{ occurredAt: Date.parse("2026-11-01T00:00:00Z") }] }).periodLabel, "측정 기간을 알 수 없어요 · 0은 기록이 없다는 뜻일 수 있어요", "no account or fill event: the span is not guessed");
+  assert.equal(buildLearningScreen(paused).periodLabel, "측정 기간을 알 수 없어요 · 0은 기록이 없다는 뜻일 수 있어요");
+});
+
+test("the span covers fill events too, and the zero-decision sentence is never said over older decisions", () => {
+  const fill = (iso) => ({ occurredAt: Date.parse(iso), fill: { fee: 1 } });
+  const acct = (iso) => ({ occurredAt: Date.parse(iso), account: { equity: 1, realizedPnL: -1, unrealizedPnL: 0 } });
+  assert.equal(buildLearningScreen({ ...paused, timeline: [acct("2026-11-02T01:00:00Z"), fill("2026-11-05T01:00:00Z")] }).periodLabel, "측정 기간 2026-11-02 ~ 2026-11-05");
+  assert.match(buildLearningScreen(paused, { collectOnly: true }).sub, /판단은 0건/);
+  for (const state of [{ ...paused, latestDecision: { action: "BUY" } }, { ...paused, dataSource: "LOCAL_FALLBACK" }, { ...paused, timeline: [{ occurredAt: 1, decision: { action: "HOLD" } }] }]) {
+    const sub = buildLearningScreen(state, { collectOnly: true }).sub;
+    assert.doesNotMatch(sub, /0건/);
+    assert.match(sub, /지금은 판단하지 않아요/);
+  }
 });
 
 test("App and the learning view pass the COLLECT_ONLY fact from the server snapshot and show the span", () => {

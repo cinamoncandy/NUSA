@@ -30,14 +30,26 @@ const kstDate = (ms: number): string => new Date(ms + KST_OFFSET_MS).toISOString
 
 /** First and last account event of the timeline, as KST dates; null when the server reported no account event. */
 export function resultPeriodLabel(state: PaperLearningScreenState): string | null {
-  const times = state.timeline.filter((event) => event.account != null && Number.isFinite(event.occurredAt)).map((event) => event.occurredAt);
-  if (times.length === 0) return null;
-  const first = kstDate(Math.min(...times));
-  const last = kstDate(Math.max(...times));
-  return first === last ? `측정 기간 ${first}` : `측정 기간 ${first} ~ ${last}`;
+  // The result rows come from account events (equity, P&L) and fill events (fees, turnover, cycles): the span covers both.
+  let first = Infinity;
+  let last = -Infinity;
+  for (const event of state.timeline) {
+    if ((event.account == null && event.fill == null) || !Number.isFinite(event.occurredAt)) continue;
+    if (event.occurredAt < first) first = event.occurredAt;
+    if (event.occurredAt > last) last = event.occurredAt;
+  }
+  if (!Number.isFinite(first) || !Number.isFinite(last)) return null;
+  const a = kstDate(first);
+  const b = kstDate(last);
+  return a === b ? `측정 기간 ${a}` : `측정 기간 ${a} ~ ${b}`;
 }
 
 const money = (value: number): string => `${value < 0 ? "−" : value > 0 ? "+" : ""}₩${Math.round(Math.abs(value)).toLocaleString("ko-KR")}`;
+
+/** True only when nothing the server or the local fallback reported contains a decision, so "0건" is never said over older decisions. */
+function noDecisionSeen(state: PaperLearningScreenState): boolean {
+  return state.latestDecision == null && state.dataSource !== "LOCAL_FALLBACK" && state.timeline.every((event) => event.decision == null);
+}
 
 export function buildLearningScreen(state: PaperLearningScreenState, options: LearningScreenOptions = {}): LearningScreenModel {
   const connected = state.dataSource !== "NOT_CONFIGURED" && state.dataSource !== "UNAVAILABLE" && state.dataSource !== "PROJECTION_ABSENT";
@@ -61,7 +73,7 @@ export function buildLearningScreen(state: PaperLearningScreenState, options: Le
     : state.status === "PAUSED" ? "학습이 잠시 쉬고 있어요"
     : "모의투자로 배우는 중이에요";
   const sub = !connected ? "빈 값은 결과가 없다는 뜻이 아니에요"
-    : collectOnlyPause ? "주문이 꺼져 있어서 판단은 0건이에요 · 연구는 데이터를 모으는 중이에요"
+    : collectOnlyPause ? (noDecisionSeen(state) ? "주문이 꺼져 있어서 판단은 0건이에요 · 연구는 데이터를 모으는 중이에요" : "주문이 꺼져 있어서 지금은 판단하지 않아요 · 연구는 데이터를 모으는 중이에요")
     : state.halt != null ? "멈춘 이유는 아래 자세히 보기에 있어요"
     : state.latestEvidence?.outcome == null ? "아직 평가 결론은 없어요" : "최근 평가 결론이 있어요";
   const narrowest = riskBlocked ? `가장 좁아지는 곳: 안전 (${state.latestRisk!.reason})` : null;
@@ -73,7 +85,7 @@ export function buildLearningScreen(state: PaperLearningScreenState, options: Le
     { label: "승률", value: p.winRate == null ? "—" : `${Math.round(p.winRate * 100)}%`, tone: "NORMAL" },
     { label: "최대 낙폭", value: `${(p.maxDrawdown * 100).toFixed(1)}%`, tone: p.maxDrawdown > 0 ? "LOSS" : "MUTED" },
   ] : [];
-  const periodLabel = connected ? (resultPeriodLabel(state) ?? "측정 기간을 알 수 없어요") : null;
+  const periodLabel = connected ? (resultPeriodLabel(state) ?? "측정 기간을 알 수 없어요 · 0은 기록이 없다는 뜻일 수 있어요") : null;
   return Object.freeze({ tone, headline, sub, steps: Object.freeze(steps), narrowest, periodLabel, rows: Object.freeze(rows) });
 }
 

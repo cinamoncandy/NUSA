@@ -5,9 +5,9 @@ created: 2026-11-25
 implementation_branch: claude/uiux-p1-honest-models
 owner_decision: "2026-11-25: \"동의해, 1단계부터 시작해\"; the five tabs and the screen layout stay as they are (\"지금 화면 그대로\")."
 follows: "docs/UIUX_DIAGNOSIS_2026-11-25.md 2b-3 and 2b-4 (the owner's phone captures) and docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md section 4."
-objective: "Two honesty fixes on the 학습 screen, no layout or navigation change. (1) In COLLECT_ONLY, a PAUSED loop is the designed state: headline \"수집 전용이라 판단은 쉬어요\" in the normal tone (not the orange attention tone) with the reason \"주문이 꺼져 있어서 판단은 0건이에요 · 연구는 데이터를 모으는 중이에요\". A halt, an error, a risk block, a halt explanation or missing data keep their existing wording and colour. (2) The result rows show \"측정 기간 <first> ~ <last>\" (KST dates of the server's own account events) or \"측정 기간을 알 수 없어요\"; the span is never guessed."
+objective: "Two honesty fixes on the 학습 screen, no layout or navigation change. (1) In COLLECT_ONLY, a PAUSED loop is the designed state: headline \"수집 전용이라 판단은 쉬어요\" in the normal tone (not the orange attention tone) with the reason \"주문이 꺼져 있어서 판단은 0건이에요 · 연구는 데이터를 모으는 중이에요\". A halt, an error, a risk block, a halt explanation or missing data keep their existing wording and colour. (2) The result rows show \"측정 기간 <first> ~ <last>\" (KST dates of the server's own account events) or \"측정 기간을 알 수 없어요 · 0은 기록이 없다는 뜻일 수 있어요\" (account and fill events both count); the span is never guessed. The sentence \"판단은 0건\" is said only when no decision is present in the latest state, the timeline or a local fallback; otherwise \"지금은 판단하지 않아요\"."
 change:
-  - "apps/mobile/src/learningScreenModel.ts: options { collectOnly }, periodLabel and resultPeriodLabel; apps/mobile/src/learningView.tsx: a collectOnly prop (not forwarded to the monitor) and one muted line under the results label; apps/mobile/App.tsx: both render sites pass collectOnly = !paperProjectionPending && isCollectOnlyObservation(snapshot) (the same expression the safety line already uses); tests/mobile-learning-screen-model.test.js: 4 tests."
+  - "apps/mobile/src/learningScreenModel.ts: options { collectOnly }, periodLabel and resultPeriodLabel; apps/mobile/src/learningView.tsx: a collectOnly prop (not forwarded to the monitor) and one muted line under the results label; apps/mobile/App.tsx: both render sites pass collectOnly = !paperProjectionPending && isCollectOnlyObservation(snapshot) (the same expression the safety line already uses); tests/mobile-learning-screen-model.test.js: 5 tests."
 not_changed:
   - "Tabs, navigation, other screens, the safety line, the server, the cloud, any gate, threshold, limit, capital, host or authority. No authority is read or granted: the flag only replaces an alarming wording by an accurate one."
 safety:
@@ -18,7 +18,7 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 authority_impact: none
 validation:
-  - "tests/mobile-learning-screen-model.test.js and tests/mobile-learning-panels.test.js pass (26); node --test tests/mobile-*.test.js: 848 pass, 1 fail (tests/mobile-ai-island-kit.test.js, which fails the same way on main without this change); the compiled TypeScript has no error in the three changed files."
+  - "tests/mobile-learning-screen-model.test.js and tests/mobile-learning-panels.test.js pass (27); node --test tests/mobile-*.test.js: 849 pass, 1 fail (tests/mobile-ai-island-kit.test.js, which fails the same way on main without this change); the compiled TypeScript has no error in the three changed files."
 unverified: "How the screen renders on a device (no device rendering here): the owner's phone capture after the next build is the check; whether isCollectOnlyObservation is true on the live host snapshot at the time of the build; the old loss shown in the captured screen is still shown, now with its span."
 acceptance:
   - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 학습 screen."
