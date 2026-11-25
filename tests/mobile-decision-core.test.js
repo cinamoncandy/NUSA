@@ -5,7 +5,7 @@ const read = (f) => fs.readFileSync(`apps/mobile/src/${f}`, "utf8").replace(/\r\
 
 test("the Now screen draws the decision core from counts it already has, and invents nothing", () => {
   const now = read("instrumentNow.tsx"), view = read("nowView.tsx");
-  assert.match(now, /<IslandCore decisionCount=\{live \? decisionCount : null\} orderCount=\{live \? orderCount : null\} fillCount=\{live \? fillCount : null\} live=\{live\}/);
+  assert.match(now, /<LatticeSphere decisionCount=\{live \? decisionCount : null\} orderCount=\{live \? orderCount : null\} fillCount=\{live \? fillCount : null\} live=\{live\}/); // sphere replaced the island on 지금 (2026-11-25)
   assert.match(view, /orderCount=\{blocked \? null : dailyCounts\.paperOrderCount\}/);
   assert.doesNotMatch(read("decisionCore.tsx"), /decisionTrace|fetch\(|Math\.random\(\) *[<>]/, "no data source of its own; randomness only places waves and sparks");
 });
