@@ -142,3 +142,30 @@ export const LATTICE_STATIC_MS = 1500;
 export function staticPulseMs(age: number): number {
   return age >= 0 && age < LATTICE_STATIC_MS ? 40 : Number.POSITIVE_INFINITY;
 }
+
+/**
+ * Numbered study markers on the sphere (the learning screen): `count` front-facing nodes, spread out (farthest-point choice, no
+ * randomness), numbered clockwise from the top so marker n is study n. Fewer than `count` come back only if the sphere has no room.
+ */
+export function studyMarkers(count: number, yaw: number, tilt: number): readonly { readonly node: number; readonly x: number; readonly y: number }[] {
+  const n = Number.isSafeInteger(count) ? Math.max(0, Math.min(16, count)) : 0;
+  if (n === 0) return Object.freeze([]);
+  const { vertices } = buildLattice();
+  const P = vertices.map((v) => rotate(v, yaw, tilt));
+  const front = P.map((p, i) => ({ i, p })).filter(({ p }) => p[2] > 0.3);
+  if (front.length === 0) return Object.freeze([]);
+  const dist = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+  const chosen = [front.reduce((best, c) => (c.p[2] > best.p[2] ? c : best))];
+  while (chosen.length < Math.min(n, front.length)) {
+    let best = front[0]!, bestD = -1;
+    for (const c of front) {
+      const d = Math.min(...chosen.map((k) => dist(c.p, k.p)));
+      if (d > bestD + 1e-12) { bestD = d; best = c; }
+    }
+    chosen.push(best);
+  }
+  // Clockwise from the top (screen angle: up = 0, right = 90 degrees).
+  const angle = (p: Vec3): number => { const a = Math.atan2(p[0], p[1]); return a < 0 ? a + Math.PI * 2 : a; };
+  const ordered = [...chosen].sort((a, b) => angle(a.p) - angle(b.p) || a.i - b.i);
+  return Object.freeze(ordered.map((c) => Object.freeze({ node: c.i, x: c.p[0], y: c.p[1] })));
+}
