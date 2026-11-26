@@ -30,25 +30,37 @@ function schedule(rnd) {
   for (let i = 0; i < T; i++) { pos[i] = s; s = s ? (rnd() < pOut ? 0 : 1) : (rnd() < pIn ? 1 : 0); }
   return pos;
 }
-// Benchmark-adjusted net daily excess: x = pos*r - switchCost - meanPos*meanR  (null: no timing skill).
-function excess(pos, r, edgeDaily) {
-  const x = new Float64Array(T); let mp = 0, mr = 0, prev = 0;
-  for (let i = 0; i < T; i++) { mp += pos[i]; mr += r[i]; } mp /= T; mr /= T;
-  const inDays = mp * T || 1;
-  for (let i = 0; i < T; i++) { x[i] = pos[i] * r[i] - (pos[i] !== prev ? COST : 0) - mp * mr + (edgeDaily ? pos[i] * edgeDaily * T / inDays : 0); prev = pos[i]; }
+// A rule = {pos, cost, add}. Benchmark-adjusted net daily excess (null: no timing skill):
+//   x_t = pos_t*r_t - cost_t + add_t - meanPos*meanR   (cost_t is the switch cost on a position change)
+function makeRule(pos, r, sharpeEdge) {
+  const cost = new Float64Array(T), add = new Float64Array(T); let prev = 0;
+  for (let i = 0; i < T; i++) { cost[i] = pos[i] !== prev ? COST : 0; prev = pos[i]; }
+  const rule = { pos, cost, add };
+  if (sharpeEdge) { // edge sized to the rule's own daily volatility: annualized Sharpe of the added drift = sharpeEdge
+    const x = adjusted(rule, r, null), sd = sdOf(x); let inDays = 0; for (let i = 0; i < T; i++) inDays += pos[i];
+    const shift = sharpeEdge * sd / Math.sqrt(ANN) * T / Math.max(1, inDays);
+    for (let i = 0; i < T; i++) if (pos[i]) add[i] = shift;
+  }
+  return rule;
+}
+function sdOf(x) { let s = 0, q = 0; for (let i = 0; i < T; i++) { s += x[i]; q += x[i] * x[i]; } const m = s / T; return Math.sqrt(Math.max(1e-18, (q - T * m * m) / (T - 1))); }
+function adjusted(rule, r, idx) { // idx null = observed order; otherwise a resampled index vector (benchmark re-applied per draw)
+  const x = new Float64Array(T); let mp = 0, mr = 0;
+  for (let i = 0; i < T; i++) { const j = idx ? idx[i] : i; mp += rule.pos[j]; mr += r[j]; } mp /= T; mr /= T;
+  for (let i = 0; i < T; i++) { const j = idx ? idx[i] : i; x[i] = rule.pos[j] * r[j] - rule.cost[j] + rule.add[j] - mp * mr; }
   return x;
 }
-function tstats(cols) { // cols: array of Float64Array(T) -> t per column
-  return cols.map((x) => { let s = 0, q = 0; for (let i = 0; i < T; i++) { s += x[i]; q += x[i] * x[i]; } const m = s / T, sd = Math.sqrt(Math.max(1e-18, (q - T * m * m) / (T - 1))); return m / (sd / Math.sqrt(T)); });
-}
-function maxT(cols) { return Math.max(...tstats(cols)); }
-function bootCrit(cols, rnd) { // stationary bootstrap of centered columns, joint across rules
-  const cen = cols.map((x) => { let m = 0; for (let i = 0; i < T; i++) m += x[i]; m /= T; const c = new Float64Array(T); for (let i = 0; i < T; i++) c[i] = x[i] - m; return c; });
+function tOf(x, centerMean) { let s = 0, q = 0; for (let i = 0; i < T; i++) { s += x[i]; q += x[i] * x[i]; } const m = s / T, sd = Math.sqrt(Math.max(0, (q - T * m * m) / (T - 1))); if (sd < 1e-9) return 0; /* degenerate resample: rule flat all draw */ return (m - centerMean) / (sd / Math.sqrt(T)); }
+function meanOf(x) { let s = 0; for (let i = 0; i < T; i++) s += x[i]; return s / T; }
+function maxT(rules, r) { let best = -Infinity; for (const rule of rules) { const t = tOf(adjusted(rule, r, null), 0); if (t > best) best = t; } return best; }
+// Fixed-scale (observed sd) stationary bootstrap, avoids sparse-resample studentization blow-up;: joint day resampling across rules, benchmark re-applied per draw, centered on the observed mean.
+function bootCrit(rules, r, rnd) {
+  const obsX = rules.map((rule) => adjusted(rule, r, null)), obsMean = obsX.map(meanOf), obsSd = obsX.map(sdOf);
   const maxes = new Float64Array(BOOT), idx = new Int32Array(T), p = 1 / BLOCK;
   for (let b = 0; b < BOOT; b++) {
     let j = Math.floor(rnd() * T); for (let i = 0; i < T; i++) { if (rnd() < p) j = Math.floor(rnd() * T); else j = (j + 1) % T; idx[i] = j; }
     let best = -Infinity;
-    for (let k = 0; k < cen.length; k++) { const c = cen[k]; let s = 0, q = 0; for (let i = 0; i < T; i++) { const v = c[idx[i]]; s += v; q += v * v; } const m = s / T, sd = Math.sqrt(Math.max(1e-18, (q - T * m * m) / (T - 1))); const t = m / (sd / Math.sqrt(T)); if (t > best) best = t; }
+    for (let k = 0; k < rules.length; k++) { const t = obsSd[k] < 1e-9 ? 0 : (meanOf(adjusted(rules[k], r, idx)) - obsMean[k]) / (obsSd[k] / Math.sqrt(T)); if (t > best) best = t; }
     maxes[b] = best;
   }
   maxes.sort(); return maxes[Math.min(BOOT - 1, Math.ceil((1 - ALPHA) * BOOT) - 1)];
@@ -57,18 +69,17 @@ function wilsonUpper(k, n) { const z = 1.959964, p = k / n, d = 1 + z * z / n; r
 
 function scenario(name, mu, sharpeEdge, seed) {
   if (ONLY && ONLY !== name) return null;
-  const rnd = mulberry32(seed); let pass = 0, ctrlHit = 0, passAccepted = 0;
-  const edgeDaily = sharpeEdge ? sharpeEdge * VOL_D / Math.sqrt(ANN) : 0;
+  const rnd = mulberry32(seed); let pass = 0, ctrlHit = 0, passAccepted = 0, critSum = 0;
   for (let rep = 0; rep < REPS; rep++) {
     const r = path(rnd, mu), rules = [], ctrl = [];
-    for (let k = 0; k < N; k++) { rules.push(excess(schedule(rnd), r, k === 0 ? edgeDaily : 0)); ctrl.push(excess(schedule(rnd), r, 0)); }
-    const crit = bootCrit(rules, rnd), mt = maxT(rules), cm = maxT(ctrl);
+    for (let k = 0; k < N; k++) { rules.push(makeRule(schedule(rnd), r, k === 0 ? sharpeEdge : 0)); ctrl.push(makeRule(schedule(rnd), r, 0)); }
+    const crit = bootCrit(rules, r, rnd), mt = maxT(rules, r), cm = maxT(ctrl, r); critSum += crit;
     const pas = mt > crit, hit = cm > crit; if (pas) pass++; if (hit) ctrlHit++; if (pas && !hit) passAccepted++;
   }
-  const row = { scenario: name, reps: REPS, passRate: pass / REPS, passUpper95: wilsonUpper(pass, REPS), controlExceedRate: ctrlHit / REPS, passAfterGate: passAccepted / REPS };
+  const row = { scenario: name, reps: REPS, passRate: pass / REPS, passUpper95: wilsonUpper(pass, REPS), controlExceedRate: ctrlHit / REPS, passAfterGate: passAccepted / REPS, meanBootCrit: critSum / REPS };
   console.log(JSON.stringify(row)); return row;
 }
-console.log(JSON.stringify({ params: { T, N, ALPHA, COST, BLOCK, BOOT, REPS, SEED, VOL_D, MAX_RT_PER_YEAR, model: "synthetic GARCH(1,1)-t4", F1_ONLY: ONLY, note: "synthetic paths only; historical-path check not run; Bonferroni-free bootstrap max-t" } }));
+console.log(JSON.stringify({ params: { T, N, ALPHA, COST, BLOCK, BOOT, REPS, SEED, VOL_D, MAX_RT_PER_YEAR, model: "synthetic GARCH(1,1)-t4", F1_ONLY: ONLY, note: "synthetic paths only; historical-path check not run; fixed-scale stationary-bootstrap max-t, benchmark re-applied per draw (v2 after review)" } }));
 const t0 = Date.now();
 scenario("null_drift0", 0, 0, SEED);
 scenario("null_drift+0.15pct_day", 0.0015, 0, SEED + 1);

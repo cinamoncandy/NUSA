@@ -2,6 +2,8 @@
 
 Korean summary (한 줄): 합성 가격 경로에서 농장 절차의 **가짜 통과율은 매우 낮았고(상한 약 0.1 퍼센트)**, **검출력도 낮았다**(샤프 2에서 약 8 퍼센트, 4에서 약 44 퍼센트, 6에서 약 61 퍼센트). 절차가 **너무 보수적**일 가능성이 있어 원인 검토 전에는 "교정 통과"라고 부르지 않는다.
 
+**WITHDRAWN v1 (bug found by independent review):** the first run's bootstrap critical value (median 4.57) was far above the true null 98.75 percent quantile (about 2.9) because the bootstrap did not re-apply the benchmark adjustment per draw; the false-pass, power and "Track F stays at F1" statements below are **not usable**. A v2 re-run (fixed script) is in progress and will replace this note.
+
 Status: **RESULT of an offline script, independent review pending.** PAPER_ONLY, `liveAuthority=NONE`, `productionMutationAllowed=false`, `aiAuthority=ZERO_AUTHORITY`. Script: `scripts/offline-farm-f1-calibration.js` (no network, no market data, no host change). Design: `docs/ALPHA_LAB_2_SMALL_FARM_AND_TRACK_R_DESIGN_2026-11-26.md` section 5.
 
 ## Setup (as run)
