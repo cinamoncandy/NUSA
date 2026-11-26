@@ -19,6 +19,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass."
-unverified: "Independent review pending; thresholds for the early FAIL rules (10 percent benchmark drawdown, 10/95 percent activity) are my choice and were not power-tested; the L90 scaled data bar (75 of 91) is proportional to the original."
+unverified: "Independent review done; its three blockers (L90 last held day 2027-03-05, 75 of 90 signal days, the L90-versus-L183 rule) and the suggestions are applied, not reviewed again; thresholds for the early FAIL rules (10 percent benchmark drawdown, 10 percent activity at L60) are my choice and were not power-tested; the L90 scaled data bar (75 of 90) is proportional to the original."
 acceptance:
   - "Independent read-only review, then merge through the release path before 2026-12-06T00:00Z, after the current Android release is published."
