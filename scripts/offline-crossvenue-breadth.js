@@ -22,20 +22,33 @@ const SPAN_START = Date.UTC(2018, 0, 1); // first signal day
 const BEAR_WINDOWS = [["2018", Date.UTC(2018, 0, 1), Date.UTC(2018, 11, 31)], ["2021-11..2022", Date.UTC(2021, 10, 1), Date.UTC(2022, 11, 31)]];
 const COST = 0.0015, STRESS = 0.003, SEED = 20261126, PLACEBOS = 10000;
 
-function get(p) {
+function getOnce(p) {
   return new Promise((resolve, reject) => {
     https.get({ host: HOST, path: p, headers: { "user-agent": "research-offline" } }, (res) => {
       let b = ""; res.on("data", (c) => (b += c));
-      res.on("end", () => (res.statusCode === 200 ? resolve(JSON.parse(b)) : reject(new Error(`HTTP ${res.statusCode} ${p}`))));
+      res.on("end", () => { if (res.statusCode === 200) resolve(JSON.parse(b)); else { const e = new Error(`HTTP ${res.statusCode} ${p}`); e.status = res.statusCode; reject(e); } });
     }).on("error", reject);
   });
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Bounded retry (5 attempts, growing wait) for 429/418/5xx and network errors; 451 or any other 4xx fails at once.
+async function get(p) {
+  for (let a = 1; ; a++) {
+    try { return await getOnce(p); } catch (e) {
+      const retry = e.status === undefined || e.status === 429 || e.status === 418 || e.status >= 500;
+      if (!retry || a >= 5) throw e;
+      await sleep(1000 * a * a);
+    }
+  }
+}
 
 async function fetchAll(dir) {
   fs.mkdirSync(dir, { recursive: true });
+  if (fs.existsSync(path.join(dir, "manifest.json"))) throw new Error("manifest.json exists: the first complete fetch is frozen, no refetch");
   const info = await get("/api/v3/exchangeInfo");
-  const syms = info.symbols.filter((s) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.isSpotTradingAllowed && !STABLE_BASES.has(s.baseAsset) && !LEVERAGED.test(s.baseAsset)).map((s) => s.symbol).sort();
+  const usdt = info.symbols.filter((s) => s.status === "TRADING" && s.quoteAsset === "USDT" && s.isSpotTradingAllowed);
+  const excluded = usdt.filter((s) => STABLE_BASES.has(s.baseAsset) || LEVERAGED.test(s.baseAsset)).map((s) => s.symbol).sort();
+  const syms = usdt.filter((s) => !STABLE_BASES.has(s.baseAsset) && !LEVERAGED.test(s.baseAsset)).map((s) => s.symbol).sort();
   const kept = [];
   for (const sym of syms) {
     const first = await get(`/api/v3/klines?symbol=${sym}&interval=1d&startTime=${START_MS}&limit=1`);
@@ -52,23 +65,26 @@ async function fetchAll(dir) {
       if (page.length < 1000) break;
     }
     if (rows.length < MIN_CANDLES) continue;
+    if (rows[rows.length - 1][0] !== END_MS - DAY) continue; // must reach the UTC day 2026-11-25 (symbols delisted earlier are not in exchangeInfo TRADING anyway)
     fs.writeFileSync(path.join(dir, `${sym}.json`), JSON.stringify(rows));
     kept.push(sym);
   }
-  const manifest = { fetchedAt: new Date().toISOString(), listed: syms.length, kept: kept.length, files: {} };
+  const manifest = { fetchedAt: new Date().toISOString(), listed: syms.length, kept, excluded, files: {} };
   for (const sym of kept) manifest.files[sym] = crypto.createHash("sha256").update(fs.readFileSync(path.join(dir, `${sym}.json`))).digest("hex");
   fs.writeFileSync(path.join(dir, "manifest.json"), JSON.stringify(manifest, null, 1));
-  console.log(`CROSSVENUE_FETCH listed=${syms.length} kept=${kept.length}`);
+  console.log(`CROSSVENUE_FETCH listed=${syms.length} kept=${kept.length} excludedByName=${excluded.length}`);
 }
 
 function mulberry32(a) { return function () { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 function loadMarkets(dir) {
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
   const m = {};
-  for (const f of fs.readdirSync(dir)) if (f.endsWith(".json") && f !== "manifest.json") {
-    const rows = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
-    const map = new Map(); for (const [t, c] of rows) map.set(t, c);
-    m[f.slice(0, -5)] = map;
+  for (const sym of manifest.kept) {
+    const buf = fs.readFileSync(path.join(dir, `${sym}.json`));
+    if (crypto.createHash("sha256").update(buf).digest("hex") !== manifest.files[sym]) throw new Error(`hash mismatch ${sym}`);
+    const map = new Map(); for (const [t, c] of JSON.parse(buf)) map.set(t, c);
+    m[sym] = map;
   }
   return m;
 }
@@ -76,6 +92,8 @@ function loadMarkets(dir) {
 // Per signal day D (UTC ms): eligible markets, breadth, the equal-weight return over D+1, and the held flag.
 function buildSeries(markets, endMs) {
   const names = Object.keys(markets).sort();
+  const sortedKeys = {}, ptr = {};
+  for (const n of names) { sortedKeys[n] = [...markets[n].keys()].sort((a, b) => a - b); ptr[n] = 0; }
   const days = [];
   for (let d = SPAN_START; d + DAY < endMs; d += DAY) {
     const elig = [];
@@ -85,15 +103,16 @@ function buildSeries(markets, endMs) {
       let count = 0, sum = 0, ok = true;
       for (let i = 0; i < 50; i++) { const c = mk.get(d - i * DAY); if (c === undefined) { ok = false; break; } sum += c; count++; }
       if (!ok) continue;
-      let total = 0; for (const t of mk.keys()) if (t <= d) total++;
-      if (total < 90) continue;
+      const ks = sortedKeys[n]; while (ptr[n] < ks.length && ks[ptr[n]] <= d) ptr[n]++;
+      if (ptr[n] < 90) continue;
+      if (!(mk.get(d) > 0)) continue;
       elig.push({ n, above: mk.get(d) > sum / 50, c0: mk.get(d), c1: mk.get(d + DAY) });
     }
-    if (elig.length < 10) { days.push({ d, ok: false }); continue; }
+    if (elig.length < 10) { days.push({ d, ok: false, nElig: elig.length }); continue; }
     const breadth = elig.filter((e) => e.above).length / elig.length;
     let r = 0; for (const e of elig) r += (e.c1 === undefined ? 0 : e.c1 / e.c0 - 1);
     r /= elig.length;
-    days.push({ d, ok: true, hold: breadth >= 0.5, r });
+    days.push({ d, ok: true, hold: breadth >= 0.5, r, nElig: elig.length });
   }
   return days;
 }
@@ -134,15 +153,17 @@ function sampleSchedule(rand, N, H, S, startOn) {
   return mask;
 }
 
-function evaluate(days) {
-  const idx = days.map((x, i) => i);
+function evaluate(allDays) {
+  // Days with fewer than 10 eligible markets are removed from EVERY curve (filter, benchmark, stress, placebo, windows):
+  // the evaluation runs on the eligible days only, so no cost is charged at those gaps for either side.
+  const days = allDays.filter((x) => x.ok);
   const filt = days.map((x) => x.ok && x.hold);
   const bench = days.map((x) => x.ok);
   const ev = (mask, cost) => curve(days, mask, cost);
   const F = ev(filt, COST), B = ev(bench, COST), Fs = ev(filt, STRESS), Bs = ev(bench, STRESS);
-  const okDays = days.filter((x) => x.ok).length;
-  const out = { signalDays: days.length, eligibleDays: okDays };
-  out.informative = okDays / days.length >= 0.8;
+  const okDays = days.length;
+  const out = { signalDays: allDays.length, eligibleDays: okDays };
+  out.informative = okDays / allDays.length >= 0.8;
   const fm = mdd(F), bm = mdd(B), fn = net(F), bn = net(B);
   const c = {};
   c[1] = fm <= 0.7 * bm;
@@ -151,7 +172,7 @@ function evaluate(days) {
   c[3] = bn > 0 && fn > 0 ? rpd(fn, fm) > rpd(bn, bm) : fn >= bn;
   c[4] = net(Fs) >= net(Bs);
   // placebo over the eligible days only (days with fewer than 10 eligible markets are cash for both and are removed)
-  const e = days.filter((x) => x.ok);
+  const e = days;
   const eMask = e.map((x) => x.hold);
   const H = eMask.filter(Boolean).length; let S = 0; for (let i = 1; i < eMask.length; i++) if (eMask[i] !== eMask[i - 1]) S++;
   const eF = curve(e, eMask, COST); const fmE = mdd(eF);
@@ -165,9 +186,11 @@ function evaluate(days) {
   for (const [label, a, b] of BEAR_WINDOWS) {
     const i0 = days.findIndex((x) => x.d >= a), i1 = days.reduce((k, x, i) => (x.d <= b ? i + 1 : k), 0);
     const fw = mdd(F, i0, i1), bw = mdd(B, i0, i1);
-    out.bear[label] = { filteredMDD: fw, benchMDD: bw, ok: bw >= 0.2 && fw <= 0.7 * bw, benchInformative: bw >= 0.2 };
+    const win = days.slice(i0, i1);
+    out.bear[label] = { eligibleDays: win.length, minEligibleMarkets: Math.min(...win.map((x) => x.nElig)), maxEligibleMarkets: Math.max(...win.map((x) => x.nElig)), filteredMDD: fw, benchMDD: bw, ok: bw >= 0.2 && fw <= 0.7 * bw, benchInformative: bw >= 0.2 };
   }
   const bearOk = Object.values(out.bear).every((x) => x.ok);
+  out.defensiveOnly = bn < 0;
   out.verdict = !out.informative ? "NOT_INFORMATIVE" : Object.values(c).every(Boolean) && bearOk ? "PASS" : "FAIL";
   return out;
 }

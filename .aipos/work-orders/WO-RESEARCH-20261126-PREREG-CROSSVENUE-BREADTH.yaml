@@ -19,6 +19,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass; placebo schedule shape (exact H, exact S, first state) checked on 500 draws; synthetic random-walk run returns FAIL."
-unverified: "Independent review pending; the bear windows and the 80 percent data bar are my choice; real-data behaviour of the fetch code is untested (endpoint reachable, nothing fetched)."
+unverified: "Independent review done; its seven fixes (frozen first fetch, manifest hash check, bounded retry and last-candle check, placebo algorithm named, gap-day rule, bear-window date convention, NOT_INFORMATIVE versus FAIL wording) and the performance and guard suggestions are applied, not reviewed again; the bear windows and the 80 percent data bar are my choice; real-data behaviour of the fetch code is untested (endpoint reachable, nothing fetched)."
 acceptance:
   - "Independent read-only review, then merge after the current Android release is published; the single run follows the merge."
