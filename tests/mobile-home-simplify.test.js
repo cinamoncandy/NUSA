@@ -7,7 +7,7 @@ const source = fs.readFileSync(path.resolve(__dirname, "../apps/mobile/src/homeV
 
 test("HOME folds secondary sections behind one toggle", () => {
   assert.match(source, /testID="home-details-toggle"/);
-  assert.match(source, /시세 · 흐름 · 학습 자세히 보기/);
+  assert.match(source, /시세 · 흐름 · Lab 자세히 보기/);
   assert.match(source, /moreOpen \? styles\.moreBlock : styles\.hiddenAcceptanceHooks/);
 });
 

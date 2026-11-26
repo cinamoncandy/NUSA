@@ -1,0 +1,23 @@
+id: WO-UI-20261126-UIUX-P7-LAB-WORDING
+title: "Mobile UI v7 phase 7: Home card, labels and the stage chip follow the Lab name; the 성과 headline explains its two windows"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p7-lab-wording
+owner_decision: "2026-11-26: the owner answered \"니가 해봐\" to the open items: the Home card and labels that still said 학습 after the tab became Lab, and the one-line explanation under the 성과 headline."
+objective: "Presentation only. (1) The Home card to the tab, the Home details toggle, the Home vitals label, the Home detail label and the stage chip say Lab / LAB · PAPER 연계 instead of 학습 / LEARN · 학습. (2) The 성과 headline, when there is no fill but a non-zero result, says that P&L is the account's cumulative figure while fees, turnover and fill counts come from the recent record: the data windows differ (read from `buildPerformance` in paperLearningScreen.ts, code evidence, not yet confirmed on the live server)."
+change:
+  - "apps/mobile/src/homeView.tsx, homeVitalsModel.ts, homeDetailCopy.ts, stageTraceModel.ts, performanceModel.ts and tests."
+not_changed:
+  - "Values, tones, the numbers on 성과, COLLECT_ONLY wording, safety wording, limits; the monitors behind 자세히 보기 and their names (운영, 학습, 재현, 실계좌); the 실거래 screen; server, cloud, gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
+unverified: "Not seen on a phone; the explanation of the two data windows rests on reading the code, not on the live server's event stream; Independent review done, no blockers; its notes (the Home decision line still said the 학습 screen, the condition should test realized and unrealized separately so offsetting values still explain) are applied; the headline is plain text and wraps to several lines at large font scale."
+acceptance:
+  - "Independent read-only review, then merge while main is quiet, one Android release, owner capture of 성과 and Home."
