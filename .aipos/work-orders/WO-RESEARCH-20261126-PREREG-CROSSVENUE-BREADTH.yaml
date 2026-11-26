@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261126-PREREG-CROSSVENUE-BREADTH
+title: "Research: pre-registration of one cross-venue run of the breadth filter (Binance daily history 2018-2026); docs and an offline script only"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/prereg-crossvenue-breadth
+owner_decision: "2026-11-26: the owner found the forward wait too long, asked for an alternative, and answered \"해\" to the one-run cross-venue test."
+follows: "docs/RESEARCH_PREREG_BREADTH_FILTER_2026-11-25.md; docs/RESEARCH_PREREG_AMENDMENT_2026-11-26_BREADTH_STAGED_LOOKS.md."
+objective: "Register the frozen breadth rule, the mechanical Binance USDT universe, the eight pass conditions (including two bear windows), the placebo seed and the disclosures before any data is fetched or analysed; the run happens once after merge."
+change:
+  - "docs/RESEARCH_PREREG_2026-11-26_CROSSVENUE_BREADTH.md, scripts/offline-crossvenue-breadth.js (offline research script, not host code, not a workflow) and this work order."
+not_changed:
+  - "Any host, release, workflow, rule of the PAPER system, threshold, gate, risk limit, capital or authority; no market data was fetched or analysed (the script was tested on synthetic random walks only); the order-book blind and the S2-S4 holdout are untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass; placebo schedule shape (exact H, exact S, first state) checked on 500 draws; synthetic random-walk run returns FAIL."
+unverified: "Independent review done; its seven fixes (frozen first fetch, manifest hash check, bounded retry and last-candle check, placebo algorithm named, gap-day rule, bear-window date convention, NOT_INFORMATIVE versus FAIL wording) and the performance and guard suggestions are applied, not reviewed again; the bear windows and the 80 percent data bar are my choice; real-data behaviour of the fetch code is untested (endpoint reachable, nothing fetched)."
+acceptance:
+  - "Independent read-only review, then merge after the current Android release is published; the single run follows the merge."
