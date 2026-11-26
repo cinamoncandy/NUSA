@@ -45,3 +45,10 @@ The programme alpha, the K budget per round, who proposes hypotheses first, and 
 
 ## 6. Not done here
 No code, workflow, run, release, gate or policy value.
+
+## 7. Update after the Alpha Lab 2 design (proposal; owner direction 2026-11-26, "Track R first, small farm second")
+See `docs/ALPHA_LAB_2_SMALL_FARM_AND_TRACK_R_DESIGN_2026-11-26.md`. Changes to the table above, all proposals:
+- **A3** now means: breadth fetch and evaluate workflows (Track R, no new bar) plus a farm **signal recorder** that computes no performance statistic before a registered look. No farm cohort is registered before F1 (calibration and power check) passes and the owner accepts the go/no-go on the detectable effect.
+- **A4 and A5** are unchanged; a farm PASS only becomes a PAPER-only shadow candidate and still needs a single-rule confirmation on unseen data.
+- **A6** carries the programme alpha (assumed 0.05 per year, at most 4 cohorts) once the owner adopts it; the design assumes it so work can proceed, and an owner change is applied by amendment.
+- Owner delegation 2026-11-26: for decisions the owner would otherwise make, the AI proceeds on its own recommendation and the owner may amend afterwards. This never covers Stage B, risk limits, capital, live authority, host releases or release-control merges.
