@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261126-DESK-BATCH1
+title: "Research desk batch 1: twelve new rules (six cross-sectional daily families, six UTC time-of-day rules) screened on history by two parallel analysts; offline"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/desk-batch1
+owner_decision: "2026-11-26: after analysing the owner's four reference videos the owner answered \"둘 다 해\" to two ideas; one is the desk method (a strong model plans, cheaper workers run the backtests in parallel; the filter on unseen data and the risk limits stay code)."
+follows: "docs/RESEARCH_CROSSSECTION_SCREEN_RESULT_2026-11-25.md; docs/RESEARCH_SCALP_SCREEN_RESULT_2026-11-25.md (PRs #3312, #3315)."
+objective: "Offline scripts scripts/offline-desk-a-screen.js and scripts/offline-desk-b-screen.js, the two analysts' prereg files (hashed before they ran) and the result note. Result: 1 of 12 passed discovery, 0 passed the second filter; none eligible for a forward pre-registration."
+change:
+  - "scripts/offline-desk-a-screen.js, scripts/offline-desk-b-screen.js, docs/RESEARCH_DESK_BATCH1_RESULT_2026-11-26.md, docs/research-data/desk-batch1-prereg-a-2026-11-26.md, docs/research-data/desk-batch1-prereg-b-2026-11-26.md and this work order."
+not_changed:
+  - "Any workflow, host, release, rule, threshold, gate, risk limit, capital or authority; no order-book value and no S2-S4 holdout value is read; no order path; Codex's L1-L8 work."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "Both scripts re-run offline by the committee; the printed tables equal the analysts' reports. AIPOS yaml and drift validators pass."
+unverified: "Independent non-author review done (no blockers; hashes recomputed equal; its wording notes added to the note). Survivorship, optimistic fills at the signal close, flat costs, an already-read last year, normal-approximation p values; the scripts depend on data directories fetched by the two earlier screen scripts (PRs #3312 and #3315, still drafts)."
+acceptance:
+  - "Independent non-author review before marking ready; one PR; the result is recorded as it is."
