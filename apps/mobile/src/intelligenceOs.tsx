@@ -2,6 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { fieldRadii, labelFont, readableFont } from "./designSystem";
+import { CornerSphere, CORNER_SPHERE_RESERVE } from "./cornerSphere";
 
 export type IntelligenceTone = "neutral" | "primary" | "success" | "warning" | "danger" | "info";
 
@@ -27,16 +28,18 @@ export function AuthorityRail({ detail, status, tone = "success", testID }: Read
   </View>;
 }
 
-export function ScreenLead({ eyebrow, title, detail, badge, badgeTone = "neutral", testID }: Readonly<{ eyebrow: string; title: string; detail: string; badge?: string; badgeTone?: IntelligenceTone; testID?: string }>) {
+export function ScreenLead({ eyebrow, title, detail, badge, badgeTone = "neutral", testID, sphere = false }: Readonly<{ /** Opt-in: a small still lattice sphere in the corner; the text keeps clear of it. */ sphere?: boolean; eyebrow: string; title: string; detail: string; badge?: string; badgeTone?: IntelligenceTone; testID?: string }>) {
   const { theme } = useTheme();
   const badgeColor = toneColor(theme, badgeTone);
-  return <View style={styles.lead} testID={testID}>
-    <View style={styles.leadTopRow}>
+  const clear = sphere ? { paddingRight: CORNER_SPHERE_RESERVE } : null;
+  return <View style={[styles.lead, sphere ? { minHeight: 84 } : null]} testID={testID}>
+    {sphere ? <CornerSphere testID="screen-lead-sphere" /> : null}
+    <View style={[styles.leadTopRow, clear]}>
       <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>{eyebrow}</Text>
       {badge ? <View style={[styles.badge, { borderColor: badgeColor }]}><Text style={[styles.badgeText, { color: badgeColor }]}>{badge}</Text></View> : null}
     </View>
-    <Text style={[styles.leadTitle, { color: theme.colors.text }]}>{title}</Text>
-    <Text style={[styles.leadDetail, { color: theme.colors.textMuted }]}>{detail}</Text>
+    <Text style={[styles.leadTitle, clear, { color: theme.colors.text }]}>{title}</Text>
+    <Text style={[styles.leadDetail, clear, { color: theme.colors.textMuted }]}>{detail}</Text>
   </View>;
 }
 
