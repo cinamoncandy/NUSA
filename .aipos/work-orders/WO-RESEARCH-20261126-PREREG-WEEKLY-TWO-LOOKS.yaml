@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261126-PREREG-WEEKLY-TWO-LOOKS
+title: "Research: weekly-trend pre-registration amendment, a strict look at 13 weeks and the confirmation at 26; docs only"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/prereg-weekly-two-looks
+owner_decision: "2026-11-26: the owner found the 26-week wait too long and chose \"13주에 엄격한 한 번 + 26주 확인\"."
+follows: "docs/RESEARCH_THREE_DIRECTIONS_2026-11-25.md section 2 (PR #3308)."
+objective: "Docs only. Two fixed looks: L13 (2027-03-08T03:00Z, alpha 0.01, exact sign-flip, 12 of 13 cohorts, 4 down weeks) and L26 (2027-06-07T03:00Z, alpha 0.04); PASS if either passes; a non-pass at L13 is never a FAIL. Registers before 2026-12-07T00:00Z."
+change:
+  - "docs/RESEARCH_PREREG_AMENDMENT_2026-11-26_WEEKLY_TREND_TWO_LOOKS.md and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, universe, threshold, gate, risk limit, capital or authority; no data value was read."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "Independent review pending; the alpha split (0.01 and 0.04), the scaled clauses (12 of 13, 4 down weeks) and the power figures are my choice and were not simulated."
+acceptance:
+  - "Independent read-only review, then merge through the release path before 2026-12-07T00:00Z."
