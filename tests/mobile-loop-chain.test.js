@@ -39,5 +39,5 @@ test("source pin: 학습 draws the chain from the model's steps, static, with th
   assert.match(view, /accessibilityLabel=\{steps\.map\(\(s\) => `\$\{s\.label\} \$\{s\.state === "DONE" \? "확인" : s\.state === "BLOCKED" \? "막힘" : "없음"\}`\)\.join\(", "\)\}/);
   const strip = view.slice(view.indexOf("function LoopChainStrip"), view.indexOf("const styles = StyleSheet.create"));
   assert.doesNotMatch(strip, /requestAnimationFrame|setInterval|Animated|useEffect|Math\.random|Date\.now|fetch\(/, "no motion and no data of its own");
-  assert.match(view, /<SectionLabel left="루프 · 모의투자" right=\{`\$\{model\.steps\.filter\(\(x\) => x\.state === "DONE"\)\.length\} \/ \$\{model\.steps\.length\}`\} \/>/, "the 1 / 6 count stays");
+  assert.match(view, /<SectionLabel left="PAPER 연계 · 모의투자" right=\{`\$\{model\.steps\.filter\(\(x\) => x\.state === "DONE"\)\.length\} \/ \$\{model\.steps\.length\}`\} \/>/, "the 1 / 6 count stays");
 });

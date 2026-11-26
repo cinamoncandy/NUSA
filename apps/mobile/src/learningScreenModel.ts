@@ -66,12 +66,12 @@ export function buildLearningScreen(state: PaperLearningScreenState, options: Le
   // or a risk block still wins, and missing data is still shown as missing.
   const collectOnlyPause = connected && options.collectOnly === true && state.status === "PAUSED" && !riskBlocked && state.halt == null;
   const tone: CalmTone = !connected ? "ATTENTION" : state.status === "HALTED" || state.status === "ERROR" ? "LOSS" : collectOnlyPause ? "NORMAL" : state.status === "PAUSED" || riskBlocked ? "ATTENTION" : "NORMAL";
-  const headline = !connected ? "학습 정보를 받지 못했어요"
-    : state.status === "HALTED" ? "학습이 멈춰 있어요"
-    : state.status === "ERROR" ? "학습에 오류가 있어요"
+  const headline = !connected ? "알파랩 정보를 받지 못했어요"
+    : state.status === "HALTED" ? "PAPER 연계가 멈춰 있어요"
+    : state.status === "ERROR" ? "PAPER 연계에 오류가 있어요"
     : collectOnlyPause ? "수집 전용이라 판단은 쉬어요"
-    : state.status === "PAUSED" ? "학습이 잠시 쉬고 있어요"
-    : "모의투자로 배우는 중이에요";
+    : state.status === "PAUSED" ? "PAPER 연계가 잠시 쉬고 있어요"
+    : "모의투자 연계가 돌고 있어요";
   const sub = !connected ? "빈 값은 결과가 없다는 뜻이 아니에요"
     : collectOnlyPause ? (noDecisionSeen(state) ? "주문이 꺼져 있어서 판단은 0건이에요 · 연구는 데이터를 모으는 중이에요" : "주문이 꺼져 있어서 지금은 판단하지 않아요 · 연구는 데이터를 모으는 중이에요")
     : state.halt != null ? "멈춘 이유는 아래 자세히 보기에 있어요"

@@ -1,0 +1,23 @@
+id: WO-UI-20261126-UIUX-P6-ALPHA-LAB-TAB
+title: "Mobile UI v7 phase 6a: the 학습 tab is renamed 알파랩 and its wording says what is true"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p6-alpha-lab-tab
+owner_decision: "2026-11-26: the owner withdrew the learning-loop L1 to L8 target (\"학습폐루프 철회\") and answered \"알파랩으로 바꿔\" for the phone tab; recorded in ADR-RESEARCH-20261126-ALPHA-LAB-PIVOT (PR #3331)."
+objective: "Presentation only, first step. The PAPER tab label becomes 알파랩; its screen index, back label and headlines stop saying the system is \"learning\" and say \"PAPER 연계\" (the PAPER pipeline: 관찰, 신호, 판단, 안전, 체결, 평가). No Alpha Lab result exists on the server yet (Codex's work is unpublished), so no result is shown or implied; the study schedule and the PAPER link stay as they are."
+change:
+  - "apps/mobile/src/navigationContract.ts, learningView.tsx, learningScreenModel.ts (labels and headline strings only), tests/mobile-alpha-lab-tab.test.js and the pinned strings in tests/mobile-learning-screen-model.test.js and tests/mobile-loop-chain.test.js."
+not_changed:
+  - "Values, tones, the COLLECT_ONLY wording, the 'missing data is not a result' sub line, safety wording, limits; the monitors behind 자세히 보기 (운영, 학습, 재현, 실계좌 names); the 실거래 screen; the server, cloud, gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
+unverified: "Independent review done: its blocker (the funnel hero still said 02 / 학습) and the tab hint are fixed and pinned, a hero-fit test added. Left for later steps, each needing an owner call: the Home card to this tab (homeView 학습 기록), HOME_DETAIL_LABELS learning and homeVitalsModel 학습 데이터 (pinned by tests/mobile-home-vitals.test.js), the LEARN chip in stageTraceModel, the monitors named 학습 and the fold text. Not seen on a phone; the 자세히 보기 monitors still say 학습 in their own names; a real Alpha Lab results view needs a server projection that does not exist yet (Codex's branch is unpublished); independent review pending."
+acceptance:
+  - "Independent read-only review, then merge while main is quiet, one Android release, owner capture of the tab."
