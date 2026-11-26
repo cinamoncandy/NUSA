@@ -18,6 +18,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass."
-unverified: "A design from the repository's own documents; the time scenario is arithmetic on registered dates, not a forecast; the state machine and the maker-fill model are proposals; independent review pending."
+unverified: "A design from the repository's own documents; the time scenario is arithmetic on registered dates, not a forecast; the state machine and the maker-fill model are proposals; independent review done: its blocker (an L90 breadth pass is provisional and cannot start shadow as a state move; the weekly L13 strict pass can) and its suggestions are applied, not reviewed again."
 acceptance:
   - "Independent read-only review, then merge through the release path; the owner answers the open questions; nothing is built from it before the owner decides the order."
