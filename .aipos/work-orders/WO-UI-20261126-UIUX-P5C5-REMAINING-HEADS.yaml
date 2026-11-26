@@ -18,6 +18,6 @@ safety:
 authority_impact: none
 validation:
   - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
-unverified: "Not seen on a phone; the markets head has a long market name and a badge next to the sphere; independent review pending."
+unverified: "Not seen on a phone; the markets head has a long market name and a badge next to the sphere (fixed non-scrolling header: large font scale grows it). Independent review done, no blockers. Accepted gap: the AI screen draws no head in its loading and error states (AiState only), unlike the order-history error and empty states fixed in #3329; the AI error state may get the head in a later step."
 acceptance:
   - "Independent read-only review, then merge while main is quiet, one Android release, owner captures of AI, 시장 and 알림."
