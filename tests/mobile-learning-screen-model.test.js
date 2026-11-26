@@ -30,7 +30,7 @@ test("missing server data never shows results or healthy", () => {
     const m = buildLearningScreen({ ...base, dataSource });
     assert.equal(m.tone, "ATTENTION");
     assert.equal(m.rows.length, 0);
-    assert.equal(m.headline, "알파랩 정보를 받지 못했어요");
+    assert.equal(m.headline, "Lab 정보를 받지 못했어요");
   }
 });
 
@@ -92,7 +92,7 @@ test("the COLLECT_ONLY wording never hides a halt, an error, a risk block or mis
   assert.match(blocked.narrowest, /CONSECUTIVE_LOSS_LIMIT/);
   for (const dataSource of ["NOT_CONFIGURED", "UNAVAILABLE", "PROJECTION_ABSENT"]) {
     const m = buildLearningScreen({ ...paused, dataSource }, { collectOnly: true });
-    assert.equal(m.headline, "알파랩 정보를 받지 못했어요");
+    assert.equal(m.headline, "Lab 정보를 받지 못했어요");
     assert.equal(m.periodLabel, null);
     assert.equal(m.rows.length, 0);
   }
