@@ -19,6 +19,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass."
-unverified: "Independent review pending; the alpha split (0.01 and 0.04), the scaled clauses (12 of 13, 4 down weeks) and the power figures are my choice and were not simulated."
+unverified: "Independent review done; its three blockers (degrees of freedom and pattern count follow the counted cohorts, an explicit supersession table, the wording of the run-time confirmation) and its suggestions are applied, not reviewed again; the alpha split (0.01 and 0.04), the scaled clauses (12 of 13, 4 down weeks) and the power figures are my choice and were not simulated."
 acceptance:
   - "Independent read-only review, then merge through the release path before 2026-12-07T00:00Z."
