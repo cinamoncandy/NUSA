@@ -1,0 +1,23 @@
+id: WO-RESEARCH-20261126-ALPHA-LAB-PAPER-FOLD-IN-PLAN
+title: "Research: plan to fold the PAPER forward verification into Alpha Lab (owner choice B); docs only"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/alpha-lab-paper-fold-in
+owner_decision: "2026-11-26: asked how Alpha Lab relates to PAPER trading (A thin path, B fold into Alpha Lab, C drop PAPER), the owner answered \"B\"."
+objective: "Docs only. Record the choice and propose a staged plan S0 to S6 (seam, side duties, status contract, shadow ledger, candidate admission, loop retirement) with a regression gate per stage, what stays as the PAPER substrate, and the open owner questions. No code."
+change:
+  - "docs/ALPHA_LAB_PAPER_FOLD_IN_PLAN_2026-11-26.md, an owner-decision section in the Alpha Lab ADR and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the node stays COLLECT_ONLY; Lease, accounts, risk gate, kill switch, shutdown and recovery are not removed."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "A plan from the dependency map (read from code, not run); Codex's Alpha Lab scope is unknown (branch unpublished); the stage gates and ordering are my proposal; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge through the release path; the owner answers the open questions before any S1 PR."
