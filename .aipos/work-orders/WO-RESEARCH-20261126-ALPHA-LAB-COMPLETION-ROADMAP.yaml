@@ -1,0 +1,23 @@
+id: WO-RESEARCH-20261126-ALPHA-LAB-COMPLETION-ROADMAP
+title: "Research: definition of Alpha Lab complete, strategy generation methods G1 to G5, a programme false-pass budget and a roadmap; docs only"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/alpha-lab-roadmap
+owner_decision: "2026-11-26: the owner said \"일단 알파랩 완성과 전략 생성을 목표로 한다\" (live trading later)."
+objective: "Docs only. Propose when Alpha Lab counts as complete (A1 to A8), how candidates are generated without fooling ourselves (G1 to G5), a programme-level false-pass budget (owner decision), and an ordered roadmap tied to the registered dates."
+change:
+  - "docs/ALPHA_LAB_COMPLETION_ROADMAP_2026-11-26.md and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the registered studies and their bars."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "A roadmap from the repository's documents; effort and order are estimates; the programme alpha is a proposal; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge through the release path; the owner decides the programme alpha and the order of work."
