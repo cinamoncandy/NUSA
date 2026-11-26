@@ -11,6 +11,19 @@ test("the PAPER tab is called 알파랩 (the owner's decision after withdrawing 
   assert.match(src("learningView.tsx"), /‹ 알파랩 요약/);
 });
 
+test("the funnel hero and the tab hint use the new name too", () => {
+  assert.match(src("learningFunnel.tsx"), /<Text style=\{styles\.index\}>02 \/ 알파랩<\/Text>/);
+  assert.match(src("primaryNavigation.tsx"), /Paper: "PAPER 실행과 증거",/);
+  assert.doesNotMatch(src("primaryNavigation.tsx"), /증거와 학습/);
+});
+
+test("the new headlines still fit the hero at 320 px", () => {
+  const m = require("../dist/apps/mobile/src/learningScreenModel.js");
+  for (const t of ["PAPER 연계가 멈춰 있어요", "PAPER 연계에 오류가 있어요", "PAPER 연계가 잠시 쉬고 있어요", "모의투자 연계가 돌고 있어요", "알파랩 정보를 받지 못했어요"]) {
+    assert.ok(m.heroFontSize(m.splitHeroLines(t), 320) >= 36, t);
+  }
+});
+
 test("the loop steps are labelled as the PAPER link, not as learning", () => {
   assert.match(src("learningView.tsx"), /<SectionLabel left="PAPER 연계 · 모의투자"/);
   const m = src("learningScreenModel.ts");

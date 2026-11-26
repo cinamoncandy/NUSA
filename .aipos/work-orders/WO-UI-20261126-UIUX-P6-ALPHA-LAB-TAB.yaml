@@ -18,6 +18,6 @@ safety:
 authority_impact: none
 validation:
   - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
-unverified: "Not seen on a phone; the 자세히 보기 monitors still say 학습 in their own names; a real Alpha Lab results view needs a server projection that does not exist yet (Codex's branch is unpublished); independent review pending."
+unverified: "Independent review done: its blocker (the funnel hero still said 02 / 학습) and the tab hint are fixed and pinned, a hero-fit test added. Left for later steps, each needing an owner call: the Home card to this tab (homeView 학습 기록), HOME_DETAIL_LABELS learning and homeVitalsModel 학습 데이터 (pinned by tests/mobile-home-vitals.test.js), the LEARN chip in stageTraceModel, the monitors named 학습 and the fold text. Not seen on a phone; the 자세히 보기 monitors still say 학습 in their own names; a real Alpha Lab results view needs a server projection that does not exist yet (Codex's branch is unpublished); independent review pending."
 acceptance:
   - "Independent read-only review, then merge while main is quiet, one Android release, owner capture of the tab."
