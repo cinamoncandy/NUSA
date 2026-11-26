@@ -26,12 +26,12 @@ export function LearningView(props: Props) {
   const model = buildLearningScreen(props.paper, { collectOnly: collectOnly === true });
   const funnel = buildLearningFunnel(learningFunnel);
   if (details) return <AiShell chip={plainScreenChip("LEARN")}><View style={styles.screen}>
-    <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.back} testID="learning-summary-back"><Text style={styles.backText}>‹ 알파랩 요약</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.back} testID="learning-summary-back"><Text style={styles.backText}>‹ Lab 요약</Text></Pressable>
     <PaperShadowMonitorView {...monitorProps} embedded />
   </View></AiShell>;
   return <AiShell chip={plainScreenChip("LEARN")}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
     {funnel ? <LearningFunnel model={funnel} /> : <>
-      <InstrumentHero index="02 / 알파랩" lines={splitHeroLines(model.headline).map((text) => ({ text, color: calmToneColor(model.tone) }))} label={model.headline} />
+      <InstrumentHero index="02 / Lab" lines={splitHeroLines(model.headline).map((text) => ({ text, color: calmToneColor(model.tone) }))} label={model.headline} />
       {model.sub ? <Reveal index={1} reducedMotion={reduced}><Text style={styles.sub}>{model.sub}</Text></Reveal> : null}
     </>}
     <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">

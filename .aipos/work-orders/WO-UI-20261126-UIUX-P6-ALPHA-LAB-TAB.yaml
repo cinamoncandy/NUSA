@@ -1,10 +1,10 @@
 id: WO-UI-20261126-UIUX-P6-ALPHA-LAB-TAB
-title: "Mobile UI v7 phase 6a: the 학습 tab is renamed 알파랩 and its wording says what is true"
+title: "Mobile UI v7 phase 6a: the 학습 tab is renamed Lab (Alpha Lab) and its wording says what is true"
 status: READY_FOR_REVIEW
 created: 2026-11-26
 implementation_branch: claude/uiux-p6-alpha-lab-tab
-owner_decision: "2026-11-26: the owner withdrew the learning-loop L1 to L8 target (\"학습폐루프 철회\") and answered \"알파랩으로 바꿔\" for the phone tab; recorded in ADR-RESEARCH-20261126-ALPHA-LAB-PIVOT (PR #3331)."
-objective: "Presentation only, first step. The PAPER tab label becomes 알파랩; its screen index, back label and headlines stop saying the system is \"learning\" and say \"PAPER 연계\" (the PAPER pipeline: 관찰, 신호, 판단, 안전, 체결, 평가). No Alpha Lab result exists on the server yet (Codex's work is unpublished), so no result is shown or implied; the study schedule and the PAPER link stay as they are."
+owner_decision: "2026-11-26: the owner withdrew the learning-loop L1 to L8 target (\"학습폐루프 철회\") and answered \"Lab으로 바꿔\" for the phone tab and then asked that the label read \"Lab\", not \"Lab\"; recorded in ADR-RESEARCH-20261126-ALPHA-LAB-PIVOT (PR #3331)."
+objective: "Presentation only, first step. The PAPER tab label becomes Lab; its screen index, back label and headlines stop saying the system is \"learning\" and say \"PAPER 연계\" (the PAPER pipeline: 관찰, 신호, 판단, 안전, 체결, 평가). No Alpha Lab result exists on the server yet (Codex's work is unpublished), so no result is shown or implied; the study schedule and the PAPER link stay as they are."
 change:
   - "apps/mobile/src/navigationContract.ts, learningView.tsx, learningScreenModel.ts (labels and headline strings only), tests/mobile-alpha-lab-tab.test.js and the pinned strings in tests/mobile-learning-screen-model.test.js and tests/mobile-loop-chain.test.js."
 not_changed:

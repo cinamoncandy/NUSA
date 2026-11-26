@@ -66,7 +66,7 @@ export function buildLearningScreen(state: PaperLearningScreenState, options: Le
   // or a risk block still wins, and missing data is still shown as missing.
   const collectOnlyPause = connected && options.collectOnly === true && state.status === "PAUSED" && !riskBlocked && state.halt == null;
   const tone: CalmTone = !connected ? "ATTENTION" : state.status === "HALTED" || state.status === "ERROR" ? "LOSS" : collectOnlyPause ? "NORMAL" : state.status === "PAUSED" || riskBlocked ? "ATTENTION" : "NORMAL";
-  const headline = !connected ? "알파랩 정보를 받지 못했어요"
+  const headline = !connected ? "Lab 정보를 받지 못했어요"
     : state.status === "HALTED" ? "PAPER 연계가 멈춰 있어요"
     : state.status === "ERROR" ? "PAPER 연계에 오류가 있어요"
     : collectOnlyPause ? "수집 전용이라 판단은 쉬어요"
