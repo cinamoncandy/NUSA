@@ -98,9 +98,10 @@ test("header pose follows the HOME grammar and never collapses a healthy tab", (
   assert.match(header, /const sealed = model\.eyebrow === "LIVE" && model\.statusWord === "SEALED"/);
 });
 
-test("PAPER and LIVE headers draw the HOME holo sphere, still and tinted by state", () => {
+test("PAPER and LIVE headers draw the lattice sphere (design E), still and lit or grey by state", () => {
   const header = fs.readFileSync(path.join(root, "apps/mobile/src/fieldHeader.tsx"), "utf8");
-  assert.match(header, /<HoloSphere decisionCount=\{null\} fillCount=\{null\} tone=\{model\.tone === "red" \? "halt"/);
+  assert.match(header, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{model\.tone === "green"/);
+  assert.doesNotMatch(header, /HoloSphere/);
   assert.doesNotMatch(header, /buildFieldGeometry|buildStrandPaths|ContourCore/);
 });
 
@@ -112,9 +113,9 @@ test("PAPER body does not repeat the header status band and keeps the read-only 
   assert.doesNotMatch(os, /metricStrip: \{[^}]*borderRadius/);
 });
 
-test("More title carries the still holo mark", () => {
+test("More title carries the still lattice mark", () => {
   const view = fs.readFileSync(path.join(root, "apps/mobile/src/moreMenuView.tsx"), "utf8");
-  assert.match(view, /<HoloSphere decisionCount=\{null\} fillCount=\{null\} tone="normal" reducedMotion size=\{34\}/);
+  assert.match(view, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{false\} still width=\{34\}/);
 });
 
 test("PAPER risk and source words are plain Korean and fail closed", () => {

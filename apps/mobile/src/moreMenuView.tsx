@@ -3,7 +3,7 @@ import { fieldFonts } from "./fieldFonts";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MORE_DESTINATIONS, type MoreDestination } from "./navigationContract";
 import { fieldPalette, readableFont } from "./designSystem";
-import { HoloSphere } from "./holoSphere";
+import { LatticeSphere } from "./latticeSphere";
 import { AiShell } from "./aiKit";
 import { plainScreenChip } from "./stageTraceModel";
 
@@ -36,7 +36,7 @@ if (grouped.length !== MORE_DESTINATIONS.length || MORE_DESTINATIONS.some((desti
 export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDestination) => void }>) {
   return <AiShell chip={plainScreenChip("MORE")}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="more-view">
     <View style={styles.titleRow}>
-      <HoloSphere decisionCount={null} fillCount={null} tone="normal" reducedMotion size={34} points={300} testID="more-holo" />
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><LatticeSphere decisionCount={null} orderCount={null} live={false} still width={34} reducedMotion testID="more-lattice" /></View>
       <Text style={styles.title}>더보기</Text>
     </View>
     {GROUPS.map((group) => <View key={group.title} style={styles.group}>
