@@ -26,10 +26,14 @@ test("ScreenHeader and ScreenLead take the sphere only when asked and keep their
   assert.match(os, /\{sphere \? <CornerSphere testID="screen-lead-sphere" \/> : null\}/);
 });
 
-test("only settings, order history and the portfolio (assets) opt in; text, chips and actions are unchanged", () => {
+test("settings, order history, assets, AI, markets and notifications opt in; the 주문 form (tradingViewLegacy) never does; text, chips and actions are unchanged", () => {
   assert.match(src("settingsView.tsx"), /<ScreenHeader sphere eyebrow="앱 설정" title="설정"/);
   assert.match(src("orderHistoryView.tsx"), /<ScreenHeader sphere \{\.\.\.HEAD_TEXT\}/);
   assert.match(src("orderHistoryView.tsx"), /HEAD_TEXT = \{ eyebrow: "PAPER 주문 기록", title: "주문 이력"/);
   assert.match(src("portfolioView.tsx"), /<ScreenLead sphere eyebrow="포트폴리오" title="모의투자 자산과 결과"/);
-  for (const f of ["aiView.tsx", "marketsView.tsx", "notificationView.tsx", "tradingViewLegacy.tsx"]) assert.doesNotMatch(src(f), /<Screen(Header|Lead) sphere/);
+  assert.match(src("aiView.tsx"), /<ScreenHeader sphere eyebrow="NUSA INTELLIGENCE" title="AI" description="현재 관찰과 근거를 읽기 전용으로 제공합니다\. AI는 주문 권한이 없습니다\." statusLabel="READ ONLY"/);
+  assert.match(src("marketsView.tsx"), /<ScreenLead sphere eyebrow="MARKETS" title=\{selectedMarket\} detail="NUSA가 관측하는 공개 가격 흐름과 데이터 신선도입니다\." badge="MARKETS"/);
+  assert.match(src("notificationView.tsx"), /<ScreenHeader sphere eyebrow="기기 알림" title="알림" description="실제로 연결된 이벤트만 표시합니다\." statusLabel="미연결"/);
+  assert.doesNotMatch(src("tradingViewLegacy.tsx"), /<Screen(Header|Lead) sphere/);
+  assert.doesNotMatch(src("tradingView.tsx"), /sphere/);
 });

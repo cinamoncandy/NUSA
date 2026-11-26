@@ -1,0 +1,23 @@
+id: WO-UI-20261126-UIUX-P5C5-REMAINING-HEADS
+title: "Mobile UI v7 phase 5c-5: AI, markets and notifications heads get the still corner sphere"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p5c5-remaining-heads
+owner_decision: "2026-11-26: the owner asked for the UI design to follow the concrete design on all screens (\"ui 디자인도 구체에 맞게 바꿔달라고 했잖아\"), saw settings and assets with the corner sphere on 1.0.842, and said \"계속해\"."
+objective: "Presentation only. The AI, markets and notification screens opt in to the existing `sphere` prop of ScreenHeader and ScreenLead (a small still lattice sphere in the corner). No text, chip, badge or action changes."
+change:
+  - "apps/mobile/src/aiView.tsx, marketsView.tsx, notificationView.tsx (one word each) and tests/mobile-corner-sphere-heads.test.js."
+not_changed:
+  - "Titles, descriptions, safety wording (including 'AI는 주문 권한이 없습니다'), chips, badges, values, tones, limits; the 주문 form (tradingViewLegacy) and the 실거래 screen; server, cloud, gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
+unverified: "Not seen on a phone; the markets head has a long market name and a badge next to the sphere; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge while main is quiet, one Android release, owner captures of AI, 시장 and 알림."
