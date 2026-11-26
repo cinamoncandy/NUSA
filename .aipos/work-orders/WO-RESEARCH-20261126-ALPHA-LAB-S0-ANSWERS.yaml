@@ -9,7 +9,7 @@ objective: "Docs only. Record from code (not run): who keeps the PAPER writer Le
 change:
   - "docs/ALPHA_LAB_PAPER_FOLD_IN_S0_ANSWERS_2026-11-26.md, updates to docs/ALPHA_LAB_PAPER_FOLD_IN_PLAN_2026-11-26.md and the Alpha Lab ADR, and this work order."
 not_changed:
-  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the node stays COLLECT_ONLY; nothing was run."
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the node stays COLLECT_ONLY; no code or service was run (only the AIPOS validators)."
 safety:
   paper_only: true
   liveAuthority: NONE
@@ -19,6 +19,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass; five S0 claims spot-checked against main (the heartbeat timer, lease verification at L466, the order-path switch, the evidence store types, the zero-authority guard scope)."
-unverified: "Read from code, not run: the learningPipeline and learningLoopVerdict values of a fresh COLLECT_ONLY node, whether a stale blocked record makes closedLearningLoop visible, Lease supervision in other entry points; the row schema is a proposal; independent review pending."
+unverified: "Read from code, not run: the learningPipeline and learningLoopVerdict values of a fresh COLLECT_ONLY node, whether a stale blocked record makes closedLearningLoop visible, Lease supervision in other entry points; the row schema is a proposal. Independent review done, no blockers; its corrections (a line reference, stale comments, the pending table, the ledger schema details, the 6a list, softened wording) are applied, not reviewed again."
 acceptance:
   - "Independent read-only review, then merge; Codex's branch is reviewed before S1 if it appears; S1 to S6 PRs only after 2026-11-28 15:00 KST."

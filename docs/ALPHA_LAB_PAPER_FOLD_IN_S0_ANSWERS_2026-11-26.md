@@ -15,7 +15,7 @@ Facts:
 - `heartbeatLease()` (PTEL:680-686) calls `assertLeaseHeld()` (PTEL:688-707): conditional UPDATE `WHERE owner_id=? AND lease_until_ms > now`, plus clock regression/anomaly checks. On failure it sets `leaseLost=true` and stores `leaseFailure`. It swallows the error: the heartbeat timer itself never exits or stops the process. Once lost it stays lost (PTEL:689; test `paperTradingExecutionLoop.behaviour.test.ts:351-352`).
 - Fail-closed consumers of that flag: every `save`, `loadLatest`, `loadHistory`, `loadFills`, `clear` call `assertLeaseHeld()` and throw `PAPER_WRITER_LEASE_LOST` (PTEL:271-278 for save, :319-321 for `verifyWriterLease`). Tests: `paperTradingExecutionLoop.behaviour.test.ts:293-352`.
 - Callers of `verifyWriterLease()` in apps/cloud (non-test): only CLPR. (a) inside the tick, first line, CLPR:466; (b) four times between the synchronous startup phases, CLPR:561, 564, 567, 569; and internally in `startWriterLease()` PTEL:256/258/260. Nothing in RT calls it.
-- Startup window: `createLeaseStartupWindow` (CLPR:184, `paperLeaseStartupWindow.ts`) only logs `OK/SLOW/LEASE_AT_RISK`; the file states it "never reads or changes the lease" (`paperLeaseStartupWindow.ts:1-5`). Lease start is deferred (`deferWriterLease: true`, CLPR:189) and runs inside `baseHandle.startPaperRuntime()` (CLPR:556 -> RT:536-545).
+- Startup window: `createLeaseStartupWindow` (CLPR:184, `paperLeaseStartupWindow.ts`) only logs `OK/SLOW/LEASE_AT_RISK`; the file states it "never reads or changes the lease" (`paperLeaseStartupWindow.ts:1-5`). Lease start is deferred (`deferWriterLease: true`, CLPR:189) and runs inside `baseHandle.startPaperRuntime()` (CLPR:557 (`startPaperRuntime()` is called there; 556 is `prepareRecovery`) -> RT:536-545).
 - Tick scheduling: `setTimeout(scheduleTick, 0)` + `setInterval(scheduleTick, CLOSED_LEARNING_ROLLOVER_POLL_INTERVAL_MS)`, only `if (orderPathEnabled)` (CLPR:581-587). A tick failure goes to `failClosedScheduler` (CLPR:538-547): logs, `recordRuntimeFailure("CLOSED_LEARNING_SCHEDULER")`, `process.exitCode = 1`, then `requestFatalShutdown()` or `handle.stop()`. `main()` wires that to `registerGracefulShutdown` (CLPR:603-625 region).
 - The PAPER market-tick path also trips on lease loss, but softly: `repository.save` throws inside `PaperTradingExecutionLoop`, caught at PTEL:1068/1092/1160/1194 and returned as `FAILED "paper account persistence failed"`; RT:719-723 only calls `recordFailure(...)` (sets `lastError`, appended with the cause such as `PAPER_WRITER_LEASE_LOST`). No exit, no stop.
 
@@ -80,7 +80,7 @@ Existing store (all PAPER-realised-period evidence, not per-decision):
 /** PROPOSAL ONLY. One immutable row per decision/outcome pair. Append-only: no UPDATE/DELETE; corrections are new rows. */
 interface ShadowLedgerRowV1 {
   readonly schemaVersion: 1;
-  readonly rowId: string;                         // sha256 over canonical fields below (content-addressed, dedupe key)
+  readonly rowId: string;                         // sha256 over the canonical content fields below ONLY (everything except sequence, prevRowSha256, writtenAtMs and rowId itself): content-addressed, the dedupe key; the chain is separate: rowSha256 = sha256(rowId || sequence || prevRowSha256 || writtenAtMs)
   readonly sequence: number;                      // monotonic per ledger; hash chain below
   readonly prevRowSha256: string | null;          // hash chain to the previous row
 
@@ -93,7 +93,7 @@ interface ShadowLedgerRowV1 {
   // the decision (point in time; no information after decisionAtMs)
   readonly decisionAtMs: number;
   readonly market: string;                        // e.g. "KRW-BTC"
-  readonly side: "BUY" | "SELL" | "NONE";          // NONE = signal evaluated, no position implied
+  readonly hypotheticalSide: "BUY" | "SELL" | "NONE";          // NONE = signal evaluated, no position implied
   readonly intendedSizeBasis: { kind: "NOTIONAL_KRW" | "FRACTION_OF_EQUITY" | "UNIT_NOTIONAL"; value: number };
 
   // cost model (assumed, versioned; not observed fills)
@@ -125,6 +125,8 @@ interface ShadowLedgerRowV1 {
 
   // fixed authority stamps (copied from the existing invariant vocabulary)
   readonly authority: "PAPER_RESEARCH_ONLY";
+  readonly realOrderAuthority: false;             // as the AI contracts carry
+  readonly realTransferAuthority: false;
   readonly liveAuthority: "NONE";
   readonly productionMutationAllowed: false;
   readonly aiAuthority: "ZERO_AUTHORITY";
@@ -133,6 +135,8 @@ interface ShadowLedgerRowV1 {
 ```
 Design notes for the proposal:
 - Reuse, do not duplicate: cost fields mirror `PaperPeriodCostEvidence` (feeRate/spreadRate/slippageRate/evidenceKind/fingerprint) and candidate fields mirror `PersistedPaperCandidateProvenance`; add what the period store lacks (hypothesis hash, decision time, side, size basis, cost-model version, entry/exit, label id, gap flags, hash chain).
+- `labelStatus: "OPEN"` with a null `netReturn` implies a later update, which contradicts append-only. **Precondition for S4:** a second, append-only row type (a `ShadowOutcomeRowV1` that references the decision row by `rowId`) replaces any update; the decision row is then immutable and `labelStatus` leaves it.
+- "No information after `decisionAtMs`" is a rule, not something the schema enforces: S4 needs a test that every feature input carries an as-of time not after `decisionAtMs`.
 - Append-only must be enforced by the store (no UPDATE/DELETE statements, UNIQUE rowId, chain check on read), and unlike `SqlitePersistedPaperPeriodStore.prune` it must have no retention delete.
 - Not decided here: table location (canonical SQLite vs a separate file), whether OPEN rows are later closed by a second row type, and who writes it (a read-only tick consuming stored bars). Those are open design questions for the work order.
 
@@ -141,3 +145,12 @@ Design notes for the proposal:
 - Whether `ClosedLearningLoopStatusTracker.publish()` makes `closedLearningLoop` visible when only a stale `lastBlocked` record is seeded.
 - Lease supervision in other entry points (`scripts/start-cloud-runtime.js`, RT:1036 `main`).
 - Per-contract runtime validators for every contract that merely declares `productionMutationAllowed`.
+
+
+## 8. Review corrections (independent review of 2026-11-26, applied)
+- `startPaperRuntime()` is called at CLPR:557; CLPR:556 is `prepareRecovery`.
+- The comments at CLPR:183 and CLPR:559 still say "30 s lease"; the code constants are 120 s lease, 10 s heartbeat, 210 s startup budget (PTEL:185-188). The answers above use the code values, not the comments.
+- "Not strictly append-only" also applies to the `*_pending` table of the period evidence store, which has UPDATE and DELETE statements.
+- Lease loss with orders enabled and no tick: every save fails and `lastError` is visible on `/health`, but nothing exits the process; "keeps running" means "keeps running without saving".
+- The AST guard (`validate-ai-zero-authority.js`) has not been tried against `closedLearningProductionRuntime.ts`; a grep of that file for the forbidden patterns finds none, so it would pass today. Whether to make the guard cover it is a design question for S4, to be tried first, not assumed.
+- What was run: the AIPOS yaml and drift validators. The S0 claims were read from code and not exercised by tests.
