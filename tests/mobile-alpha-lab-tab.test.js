@@ -40,3 +40,15 @@ test("the wording that states the truth stays: collect-only pause, missing data,
   assert.match(m, /빈 값은 결과가 없다는 뜻이 아니에요/);
   assert.match(m, /아직 평가 결론은 없어요/);
 });
+
+test("the Home card, the Home labels and the stage chip follow the Lab name; the 성과 headline explains its two windows", () => {
+  assert.match(src("homeView.tsx"), />Lab<\/Text><Text style=\{\[styles\.commandArrow/);
+  assert.match(src("homeView.tsx"), />Lab 기록<\/Text>/);
+  assert.match(src("homeView.tsx"), /시세 · 흐름 · Lab 자세히 보기/);
+  assert.match(src("homeVitalsModel.ts"), /learning: "Lab 데이터"/);
+  assert.match(src("homeDetailCopy.ts"), /learning: "Lab",/);
+  assert.match(src("stageTraceModel.ts"), /"LAB · PAPER 연계"/);
+  const perf = src("performanceModel.ts");
+  assert.match(perf, /손익은 계좌 누적 기준이고, 수수료·거래 대금·체결 수는 최근 기록 기준이에요\./);
+  assert.match(perf, /total !== 0 \?/);
+});

@@ -32,6 +32,16 @@ test("rows read in plain Korean with signed won and honest empties", () => {
   assert.match(empty.headline, /이릅니다/);
 });
 
+test("the headline explains the two windows only when there is a result but no fill", () => {
+  const withPnl = buildPerformanceScreen(perf({ filledCycles: 0, realizedPnL: -6925, unrealizedPnL: -7 }), true);
+  assert.match(withPnl.headline, /아직 체결이 없어/);
+  assert.match(withPnl.headline, /계좌 누적 기준/);
+  const flat = buildPerformanceScreen(perf({ filledCycles: 0, realizedPnL: 0, unrealizedPnL: 0 }), true);
+  assert.doesNotMatch(flat.headline, /계좌 누적/);
+  const filled = buildPerformanceScreen(perf({ filledCycles: 8 }), true);
+  assert.doesNotMatch(filled.headline, /계좌 누적/);
+});
+
 test("More → 성과 routes to the real screen; Risk/System/Help stay honest placeholders", () => {
   const app = fs.readFileSync(path.join(root, "apps/mobile/App.tsx"), "utf8");
   assert.match(app, /detailSurface === "Performance" \? <PerformanceView screen=\{buildPerformanceScreen\(paperLearningState\.performance, paperLearningState\.dataSource === "SERVER_STREAM"\)\}/);
