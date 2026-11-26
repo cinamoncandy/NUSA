@@ -62,8 +62,8 @@ test("held and halted runtimes tint the sphere", () => {
 
 test("every tab uses the holo sphere; the attractor is gone; motion is throttled", () => {
   assert.match(read("decisionRings.tsx"), /<HoloSphere decisionCount=\{model\.decisionCount\} fillCount=\{model\.paperOrderCount\}/);
-  assert.match(read("fieldHeader.tsx"), /<HoloSphere decisionCount=\{null\}/);
-  assert.match(read("moreMenuView.tsx"), /<HoloSphere decisionCount=\{null\}/);
+  assert.match(read("fieldHeader.tsx"), /<LatticeSphere decisionCount=\{null\}/);
+  assert.match(read("moreMenuView.tsx"), /<LatticeSphere decisionCount=\{null\}/);
   for (const gone of ["attractorField.tsx", "attractorModel.ts"]) assert.ok(!fs.existsSync(path.join(root, "apps/mobile/src", gone)));
   const view = read("holoSphere.tsx");
   assert.match(view, /holoFrameBudgetMs\(isHoloQuiet\(state\.current\)\)/);
