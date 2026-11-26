@@ -10,6 +10,7 @@ import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } fr
 import { CalmRow } from "./uiKit";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
+import { CORNER_SPHERE_RESERVE, CORNER_SPHERE_SIZE, CornerSphere } from "./cornerSphere";
 
 /** "실거래" — spot-only LIVE tab; futures limits live on the 선물 tab. Read-only: it has no action that enables LIVE or mutates anything. */
 export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAILED", refreshing, onRefresh }: LiveReadinessMonitorViewProps) {
@@ -18,7 +19,10 @@ export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAI
   const gates = buildLiveGates(snapshot);
   const model = buildSafetyScreen(gates, snapshot?.blockers ?? []);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={calmColors.text} refreshing={refreshing} onRefresh={() => { void onRefresh(); }} />} testID="safety-view">
-    <InstrumentHero index="03 / 실거래" lines={[{ text: "실제 돈은" }, { text: "안 움직여요" }]} />
+    <View style={styles.head}>
+      <InstrumentHero index="03 / 실거래" lines={[{ text: "실제 돈은" }, { text: "안 움직여요" }]} reserve={CORNER_SPHERE_RESERVE} />
+      <View style={styles.headCorner} pointerEvents="none"><CornerSphere testID="safety-head-sphere" /></View>
+    </View>
     <SafetyCircuit />
     <View style={styles.list}>
       <SectionLabel left="현물 실거래 준비" right="읽기 전용" />
@@ -41,6 +45,8 @@ export function SafetyView({ snapshot, unavailableReason, unavailableKind = "FAI
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: calmColors.ground },
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
+  head: { position: "relative" },
+  headCorner: { position: "absolute", right: 14, top: 8, width: CORNER_SPHERE_SIZE, height: CORNER_SPHERE_SIZE },
   list: { marginTop: 18, paddingHorizontal: 20 },
   section: { marginTop: 16 },
   fold: { marginHorizontal: 20, minHeight: 48, flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
