@@ -7,6 +7,8 @@ import { useReducedMotion } from "./instrumentKit";
 export const CORNER_SPHERE_SIZE = 76;
 /** Free space a head must keep on the right of its text so the sphere never sits on a letter. */
 export const CORNER_SPHERE_RESERVE = CORNER_SPHERE_SIZE + 8;
+/** Minimum height of a head that carries the sphere (the same 84 px). */
+export const CORNER_SPHERE_HEAD_MIN_HEIGHT = CORNER_SPHERE_RESERVE;
 
 export function CornerSphere({ testID }: Readonly<{ testID: string }>) {
   const reduced = useReducedMotion();

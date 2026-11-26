@@ -4,7 +4,7 @@ import { StatusChip, type StatusTone } from "./components";
 import { useTheme } from "./ThemeProvider";
 import { metricTone } from "./uxLayout";
 import { fieldRadii, labelFont, readableFont } from "./designSystem";
-import { CornerSphere, CORNER_SPHERE_RESERVE } from "./cornerSphere";
+import { CornerSphere, CORNER_SPHERE_HEAD_MIN_HEIGHT, CORNER_SPHERE_RESERVE } from "./cornerSphere";
 
 export function ScreenHeader({ eyebrow, title, description, statusLabel, statusTone = "neutral", actionLabel, onAction, sphere = false }: Readonly<{ /** Opt-in: a small still lattice sphere in the corner (the concrete design); the text keeps clear of it. */ sphere?: boolean; eyebrow?: string; title: string; description?: string; statusLabel?: string; statusTone?: StatusTone; actionLabel?: string; onAction?: () => void }>) {
   const { theme } = useTheme();
@@ -108,8 +108,8 @@ export function OperationalNotice({ title, detail, tone = "info", actionLabel, o
 
 const styles = StyleSheet.create({
   screenHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 16, paddingBottom: 4 },
-  screenHeaderSphere: { flexDirection: "column", alignItems: "stretch", minHeight: 84 },
-  headerActionsSphere: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", flexWrap: "wrap" },
+  screenHeaderSphere: { flexDirection: "column", alignItems: "stretch", minHeight: CORNER_SPHERE_HEAD_MIN_HEIGHT },
+  headerActionsSphere: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", flexWrap: "wrap", paddingRight: CORNER_SPHERE_RESERVE },
   screenHeaderCopy: { flex: 1, gap: 5, minWidth: 0 },
   eyebrow: { fontSize: labelFont(11), fontWeight: "500", letterSpacing: 0.1 },
   title: { fontSize: 32, lineHeight: 38, fontWeight: "500", letterSpacing: -1.35 },

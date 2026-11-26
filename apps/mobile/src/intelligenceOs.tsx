@@ -2,7 +2,7 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from "react-native";
 import { useTheme } from "./ThemeProvider";
 import { fieldRadii, labelFont, readableFont } from "./designSystem";
-import { CornerSphere, CORNER_SPHERE_RESERVE } from "./cornerSphere";
+import { CornerSphere, CORNER_SPHERE_HEAD_MIN_HEIGHT, CORNER_SPHERE_RESERVE } from "./cornerSphere";
 
 export type IntelligenceTone = "neutral" | "primary" | "success" | "warning" | "danger" | "info";
 
@@ -32,7 +32,7 @@ export function ScreenLead({ eyebrow, title, detail, badge, badgeTone = "neutral
   const { theme } = useTheme();
   const badgeColor = toneColor(theme, badgeTone);
   const clear = sphere ? { paddingRight: CORNER_SPHERE_RESERVE } : null;
-  return <View style={[styles.lead, sphere ? { minHeight: 84 } : null]} testID={testID}>
+  return <View style={[styles.lead, sphere ? { minHeight: CORNER_SPHERE_HEAD_MIN_HEIGHT } : null]} testID={testID}>
     {sphere ? <CornerSphere testID="screen-lead-sphere" /> : null}
     <View style={[styles.leadTopRow, clear]}>
       <Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>{eyebrow}</Text>

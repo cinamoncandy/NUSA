@@ -9,7 +9,9 @@ test("the corner sphere is still, lights nothing, ignores touch and is hidden fr
   const s = src("cornerSphere.tsx");
   assert.match(s, /decisionCount=\{null\} orderCount=\{null\} live=\{false\} still/);
   assert.match(s, /pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"/);
+  assert.match(s, /CORNER_SPHERE_SIZE = 76/);
   assert.match(s, /CORNER_SPHERE_RESERVE = CORNER_SPHERE_SIZE \+ 8/);
+  assert.match(s, /CORNER_SPHERE_HEAD_MIN_HEIGHT = CORNER_SPHERE_RESERVE/);
   assert.doesNotMatch(s, /#[0-9a-fA-F]{6}/);
 });
 
@@ -18,6 +20,8 @@ test("ScreenHeader and ScreenLead take the sphere only when asked and keep their
   assert.match(ux, /sphere = false/);
   assert.match(ux, /\{sphere \? <CornerSphere testID="screen-header-sphere" \/> : null\}/);
   assert.match(ux, /paddingRight: CORNER_SPHERE_RESERVE/);
+  assert.match(ux, /minHeight: CORNER_SPHERE_HEAD_MIN_HEIGHT/);
+  assert.match(ux, /headerActionsSphere: \{[^}]*paddingRight: CORNER_SPHERE_RESERVE/);
   assert.match(os, /sphere = false/);
   assert.match(os, /\{sphere \? <CornerSphere testID="screen-lead-sphere" \/> : null\}/);
 });
