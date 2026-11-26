@@ -1,0 +1,23 @@
+id: WO-UI-20261126-UIUX-P5C2-DETAIL-HEAD
+title: "Mobile UI v7 phase 5c-2: detail-screen titles use the 기록 head (index line, big title, still corner sphere)"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p5c2-detail-sphere
+owner_decision: "2026-11-26: after seeing the 성과 capture the owner said the UI design must also follow the concrete design (\"ui 디자인도 구체에 맞게 바꿔달라고 했잖아\")."
+objective: "Presentation only. ScreenTitle (used by 성과, the 더보기 detail placeholders and Strategies) becomes the same head as 기록: a small index line, one big title and a small still lattice sphere in the corner that never turns and lights nothing."
+change:
+  - "apps/mobile/src/screenFrame.tsx (ScreenTitle) and tests/mobile-detail-title-sphere.test.js."
+not_changed:
+  - "Values, labels, tones, safety wording, limits; the 실거래 screen; settings, order history and assets screens (they use other shells; next 5c step); server, cloud, gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js (912 pass), AIPOS yaml validator."
+unverified: "Not seen on a phone (no device render here); head height at large font scale. Independent review done; its a11y finding (corner sphere hidden from screen readers) and the long-title overlap (hero reserve of 98 px so the title shrinks clear of the sphere) are applied, not reviewed again."
+acceptance:
+  - "Independent read-only review, then merge through the release path while main is quiet, then one Android release and an owner capture of 성과."
