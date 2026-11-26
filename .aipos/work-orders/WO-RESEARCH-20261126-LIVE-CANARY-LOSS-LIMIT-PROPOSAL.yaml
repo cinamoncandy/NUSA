@@ -18,6 +18,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass; the PAPER reference ratios were read from apps/cloud/src/paperRiskLimitScaling.ts."
-unverified: "The percentages are proposals not calibrated to any strategy (none exists); reading of answer 2 is an interpretation; independent review pending."
+unverified: "The percentages are proposals not calibrated to any strategy (none exists); reading of answer 2 is an interpretation; independent review done: its three blockers (risk-reducing sells exempt from the order cap and what the daily order count includes; an explicit line that the numbers are judgement, not data; re-derived numbers are a new proposal) and the suggestions are applied, not reviewed again."
 acceptance:
   - "Independent read-only review, then merge through the release path; the owner adopts, changes or rejects the numbers in writing."

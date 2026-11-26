@@ -21,22 +21,24 @@ Still open: which candidate types come first (the default order proposed in `doc
 ## 3. Proposed limits (fractions of the owner's canary capital C)
 | Limit | Proposed | PAPER reference | On breach |
 |---|---|---|---|
-| Max order notional | 0.10 C | 0.20 C | order rejected |
+| Market and positions | one allowlisted market, one concurrent position (runbook canary profile) | n/a | any other order rejected |
+| Max order notional (**buys**; a **risk-reducing sell or a stop that closes the position is exempt** from this cap and may be up to the position size, otherwise a 0.25 C stop could not execute) | 0.10 C | 0.20 C | order rejected |
 | Max position / symbol / portfolio exposure (one market, one position) | 0.25 C | 0.5 / 0.5 / 1.0 C | order rejected |
 | Per-trade loss cap (a stop that closes the position at this loss) | 0.01 C | none | position closed, trade counted |
 | Daily loss (realized + unrealized) | 0.02 C | 0.10 C | halt for the day |
 | Weekly loss | 0.04 C | none | halt until the owner reviews |
 | Drawdown from peak equity | 0.08 C | none | HALTED, fresh manual activation required |
 | Cumulative loss since canary start | 0.15 C | none | canary ends; the owner decides whether to start another |
-| Consecutive losing trades | 3 | 3 (existing gateway default) | halt for the day |
-| Orders per day | at most 6 | 3 C daily notional | order rejected |
-| Slippage | halt if the average slippage of the last 10 fills exceeds the model's forecast by 50 percent | none | halt, review the cost model |
-| Data staleness | no new order if the quote is older than 60 s | stricter live | order rejected |
+| Consecutive losing trades (`maxConsecutiveLosses`) | 3 | 3 is the gateway default; Cloud PAPER's own consecutive-loss enforcement is removed (WO-POLICY-20261015), so it is not a PAPER active gate | halt for the day |
+| Orders per day (buys and sells together; reaching 0.25 C takes at least three buys of 0.10 C) | at most 6 | none (PAPER limits daily notional at 3 C: a different unit) | order rejected |
+| Slippage | halt if the average slippage of the last 10 fills exceeds the model's forecast by 50 percent, or any single fill is worse than forecast by more than 0.30 percent | none | halt, review the cost model |
+| Data staleness | no new order if the quote is older than 60 s | none | order rejected |
 | Reconciliation, exchange error, abnormal balance drift, stale data, risk-budget breach | immediate halt | halt | HALTED |
-Reading: with a 0.25 C position and a 0.01 C stop, a 4 percent adverse move loses 1 percent of C; the daily 0.02 C limit allows two such losses; the worst allowed sequence before the cumulative stop is about 0.15 C. Percentages are proposals, not derived from data: no candidate exists, so none is calibrated to a strategy's own risk. The first real policy file must be re-derived from the candidate's shadow evidence (largest adverse move, trade frequency, capacity) and can only be as loose as these numbers or tighter.
+**All numbers in this table are the AI's judgement, not derived from data.** The 60 s staleness, the 50 percent and 0.30 percent slippage and the order counts have no empirical basis and no PAPER reference. The limit names map to the contract (`maxDailyLoss`, `maxConsecutiveLosses`, order, position, symbol and portfolio exposure in `packages/contracts/src/global-risk-gateway.ts` and `IndependentRiskLimits`).
+Reading: with a 0.25 C position and a 0.01 C stop, a 4 percent adverse move loses 1 percent of C; the daily 0.02 C limit allows two such losses; the 3-consecutive-loss limit is only a backstop, because three 0.01 C stops would already exceed the daily 0.02 C limit (it binds only when losses are smaller than the stop). The cumulative 0.15 C is not a derived worst case: the 0.08 C drawdown halt needs a fresh manual activation, so 0.15 C is reachable only across several restarts. A stop is not a guarantee: gaps, slippage and fees can make a loss exceed 0.01 C (the slippage halts are the control, not the stop). Percentages are proposals, not derived from data: no candidate exists, so none is calibrated to a strategy's own risk. A real policy file would be re-derived from a candidate's shadow evidence (largest adverse move, trade frequency, capacity). Any re-derived numbers are a **new proposal** that needs the owner's written adoption, even when they are tighter than these.
 
 ## 4. What this does not do
 It does not choose capital, enable any gate, start Stage B, change a PAPER limit or any code, or claim a candidate exists. It sets no minimum canary duration or number of trades (owner decision, after the shadow evidence).
 
 ## 5. To adopt, change or reject
-The owner writes the decision in chat or in the policy approval record; the session then turns the adopted numbers into the policy-file template (docs only first), reviewed independently, before any code change after the 2026-11-28 15:00 KST freeze.
+The owner records the decision in the policy approval record (a chat message alone is not enough for the policy file); adopting limits is **not** a Stage B approval and enables nothing; the session then turns the adopted numbers into the policy-file template (docs only first), reviewed independently, before any code change after the 2026-11-28 15:00 KST freeze.
