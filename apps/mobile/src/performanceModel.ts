@@ -28,7 +28,7 @@ export function buildPerformanceScreen(performance: PerformanceInput, serverSour
     { label: "거래 대금", value: plain(performance.turnover), tone: "neutral" },
     { label: "체결 사이클 / 전체", value: `${performance.filledCycles.toLocaleString("ko-KR")} / ${performance.completedCycles.toLocaleString("ko-KR")}`, tone: "neutral" },
   ];
-  const headline = performance.filledCycles === 0 ? (total !== 0 ? "아직 체결이 없어 성과를 판단하기 이릅니다. 손익은 계좌 누적 기준이고, 수수료·거래 대금·체결 수는 최근 기록 기준이에요." : "아직 체결이 없어 성과를 판단하기 이릅니다.") : `체결 사이클 ${performance.filledCycles}개 기준 PAPER 성과입니다.`;
+  const headline = performance.filledCycles === 0 ? (performance.realizedPnL !== 0 || performance.unrealizedPnL !== 0 ? "아직 체결이 없어 성과를 판단하기 이릅니다. 손익은 계좌 누적 기준이고, 수수료·거래 대금·체결 수는 최근 기록 기준이에요." : "아직 체결이 없어 성과를 판단하기 이릅니다.") : `체결 사이클 ${performance.filledCycles}개 기준 PAPER 성과입니다.`;
   return Object.freeze({ available: true, headline, rows: Object.freeze(rows.map((row) => Object.freeze(row))) });
 }
 

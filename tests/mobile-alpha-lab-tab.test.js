@@ -50,5 +50,6 @@ test("the Home card, the Home labels and the stage chip follow the Lab name; the
   assert.match(src("stageTraceModel.ts"), /"LAB · PAPER 연계"/);
   const perf = src("performanceModel.ts");
   assert.match(perf, /손익은 계좌 누적 기준이고, 수수료·거래 대금·체결 수는 최근 기록 기준이에요\./);
-  assert.match(perf, /total !== 0 \?/);
+  assert.match(perf, /performance\.realizedPnL !== 0 \|\| performance\.unrealizedPnL !== 0 \?/);
+  assert.match(src("homeDecisionSurface.ts"), /검증된 근거만 Lab 화면으로 연결/);
 });

@@ -18,6 +18,6 @@ safety:
 authority_impact: none
 validation:
   - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
-unverified: "Not seen on a phone; the explanation of the two data windows rests on reading the code, not on the live server's event stream; independent review pending."
+unverified: "Not seen on a phone; the explanation of the two data windows rests on reading the code, not on the live server's event stream; Independent review done, no blockers; its notes (the Home decision line still said the 학습 screen, the condition should test realized and unrealized separately so offsetting values still explain) are applied; the headline is plain text and wraps to several lines at large font scale."
 acceptance:
   - "Independent read-only review, then merge while main is quiet, one Android release, owner capture of 성과 and Home."

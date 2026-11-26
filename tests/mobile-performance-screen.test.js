@@ -36,6 +36,8 @@ test("the headline explains the two windows only when there is a result but no f
   const withPnl = buildPerformanceScreen(perf({ filledCycles: 0, realizedPnL: -6925, unrealizedPnL: -7 }), true);
   assert.match(withPnl.headline, /아직 체결이 없어/);
   assert.match(withPnl.headline, /계좌 누적 기준/);
+  const offsetting = buildPerformanceScreen(perf({ filledCycles: 0, realizedPnL: -5, unrealizedPnL: 5 }), true);
+  assert.match(offsetting.headline, /계좌 누적 기준/);
   const flat = buildPerformanceScreen(perf({ filledCycles: 0, realizedPnL: 0, unrealizedPnL: 0 }), true);
   assert.doesNotMatch(flat.headline, /계좌 누적/);
   const filled = buildPerformanceScreen(perf({ filledCycles: 8 }), true);
