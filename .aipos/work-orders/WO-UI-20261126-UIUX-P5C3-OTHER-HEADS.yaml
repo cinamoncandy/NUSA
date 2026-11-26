@@ -1,0 +1,23 @@
+id: WO-UI-20261126-UIUX-P5C3-OTHER-HEADS
+title: "Mobile UI v7 phase 5c-3: settings, order history and assets heads get the still corner sphere"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p5c3-other-heads
+owner_decision: "2026-11-26: the owner said the UI design must follow the concrete design on the tool screens too (\"ui 디자인도 구체에 맞게 바꿔달라고 했잖아\")."
+objective: "Presentation only. ScreenHeader and ScreenLead get an opt-in `sphere` prop (default off): a small still lattice sphere in the corner of the head, the text kept clear of it. Settings, order history and the portfolio (assets) opt in; every other screen is untouched."
+change:
+  - "apps/mobile/src/cornerSphere.tsx (new), uxPrimitives.tsx (ScreenHeader), intelligenceOs.tsx (ScreenLead), settingsView.tsx, orderHistoryView.tsx, portfolioView.tsx, tests/mobile-corner-sphere-heads.test.js."
+not_changed:
+  - "Titles, descriptions, safety wording, chips, actions, values, tones, limits; the 실거래 screen and tradingViewLegacy; ai, markets and notification screens; server, cloud, gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
+unverified: "Not seen on a phone; head height and the chip row below the sphere at large font scale; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge while main is quiet, one Android release, owner captures of 설정, 주문 이력 and 자산."

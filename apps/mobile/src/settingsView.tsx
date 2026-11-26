@@ -341,7 +341,7 @@ export function SettingsView({ repository, onSignOut, exchangeCash = 0, onCloudI
   const activeUsers = operatorUsers.filter((user) => user.status === "ACTIVE").length;
 
   return <ScrollView contentContainerStyle={styles.content} testID="settings-screen">
-    <ScreenHeader eyebrow="앱 설정" title="설정" description="LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다. Cloud 기능은 선택 사항입니다." statusLabel="이 기기 준비됨" statusTone="success" />
+    <ScreenHeader sphere eyebrow="앱 설정" title="설정" description="LOCAL PAPER는 연결 없이 즉시 사용할 수 있습니다. Cloud 기능은 선택 사항입니다." statusLabel="이 기기 준비됨" statusTone="success" />
     {error ? <InlineNotice title="설정 저장 오류" detail={error} tone="danger" /> : null}
 
     <View style={styles.sectionBlock} testID="settings-local-paper"><View style={styles.sectionHeader}><View><Text style={[styles.eyebrow, { color: theme.colors.textMuted }]}>모의투자 · 이 기기</Text><Text style={[styles.sectionTitle, { color: theme.colors.text }]}>기기 내 PAPER</Text></View><StatusChip label="준비됨" tone="success" /></View><InlineNotice title="연결 없이 관측 가능" detail="Upbit 공개 시세로 LOCAL PAPER 관측·회계·학습 근거를 사용할 수 있습니다. Cloud 연결 정보는 필요하지 않으며, 표시되는 PAPER 자본은 Cloud 계좌 기준입니다." tone="success" testID="settings-local-paper-ready" /></View>
