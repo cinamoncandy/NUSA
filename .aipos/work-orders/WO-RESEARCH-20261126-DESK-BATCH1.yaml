@@ -19,6 +19,6 @@ safety:
 authority_impact: none
 validation:
   - "Both scripts re-run offline by the committee; the printed tables equal the analysts' reports. AIPOS yaml and drift validators pass."
-unverified: "Survivorship, optimistic fills at the signal close, flat costs, an already-read last year, normal-approximation p values; the scripts depend on data directories fetched by the two earlier screen scripts (PRs #3312 and #3315, still drafts)."
+unverified: "Independent non-author review done (no blockers; hashes recomputed equal; its wording notes added to the note). Survivorship, optimistic fills at the signal close, flat costs, an already-read last year, normal-approximation p values; the scripts depend on data directories fetched by the two earlier screen scripts (PRs #3312 and #3315, still drafts)."
 acceptance:
   - "Independent non-author review before marking ready; one PR; the result is recorded as it is."
