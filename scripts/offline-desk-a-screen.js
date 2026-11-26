@@ -1,6 +1,6 @@
 "use strict";
 // Offline research, read-only (WO-RESEARCH-20261126-DESK-BATCH1). Analyst A: six cross-sectional daily families on the 56 KRW markets fetched by scripts/offline-crosssection-screen.js.
-// Usage: node scripts/offline-desk-a-screen.js <dir with the daily JSON files>. Rules and bars: docs/RESEARCH_DESK_BATCH1_RESULT_2026-11-26.md (PREREG sha256 7ccc192b...). No orders, no network.
+// Usage: node scripts/offline-desk-a-screen.js <dir with the daily JSON files>. Rules and bars: docs/research-data/desk-batch1-prereg-a-2026-11-26.md (sha256 7ccc192b...). No orders, no network.
 "use strict";
 const fs=require("fs"),path=require("path");
 const DIR=process.argv[2]; if(!DIR){console.error("usage: <dir>");process.exit(2);}

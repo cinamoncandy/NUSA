@@ -1,6 +1,6 @@
 "use strict";
 // Offline research, read-only (WO-RESEARCH-20261126-DESK-BATCH1). Analyst B: six UTC time-of-day rules on 5-minute candles of five KRW markets fetched by scripts/offline-scalp-screen.js.
-// Usage: node scripts/offline-desk-b-screen.js <dir with the 5-minute JSON files>. Rules and bars: docs/RESEARCH_DESK_BATCH1_RESULT_2026-11-26.md (PREREG sha256 5414d886...). No orders, no network.
+// Usage: node scripts/offline-desk-b-screen.js <dir with the 5-minute JSON files>. Rules and bars: docs/research-data/desk-batch1-prereg-b-2026-11-26.md (sha256 5414d886...). No orders, no network.
 const fs=require("fs");const P=(process.argv[2]||"")+"/"; if(!process.argv[2]){console.error("usage: <dir>");process.exit(2);}
 const M=["KRW-BTC","KRW-ETH","KRW-XRP","KRW-SOL","KRW-DOGE"],BAR=300000,K=6,W=6,P2=90*288,COST=0.001,ST=0.0015;
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;

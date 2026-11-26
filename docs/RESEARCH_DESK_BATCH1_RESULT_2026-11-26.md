@@ -6,7 +6,7 @@ Korean summary (한 줄): 새 규칙 12가지(일봉 종목 비교 6, 5분봉 �
 
 ## How the desk worked (the idea taken from the owner's reference video of a "one-person hedge fund")
 - **PM (this session):** wrote the hypotheses with their economic reasons and the pass bars (same bars as the earlier screens, not loosened).
-- **Two analysts (subagents, one per data set):** each wrote its full rule text and bars to a `PREREG.md` and recorded its SHA-256 **before** writing or running its script; neither changed a rule or a bar after seeing a result. The two prereg files are committed unchanged: `docs/research-data/desk-batch1-prereg-a-2026-11-26.md` (sha256 `7ccc192b5cade041f6d4016e5130975ea67b763fd0134b9f7bb48846ab5b0a95`) and `...-b-2026-11-26.md` (sha256 `5414d88600b81b9c0a507f1724b5ef681de68416c72ab28f84ba19950def5bf9`).
+- **Two analysts (subagents, one per data set):** each wrote its full rule text and bars to a `PREREG.md` and, by its own report, recorded its SHA-256 **before** writing or running its script; neither reports changing a rule or a bar after seeing a result (the file hashes match; the timing rests on the analysts' reports, not on anything in the repository). The two prereg files are committed unchanged: `docs/research-data/desk-batch1-prereg-a-2026-11-26.md` (sha256 `7ccc192b5cade041f6d4016e5130975ea67b763fd0134b9f7bb48846ab5b0a95`) and `...-b-2026-11-26.md` (sha256 `5414d88600b81b9c0a507f1724b5ef681de68416c72ab28f84ba19950def5bf9`).
 - **Committee (this session):** re-ran both scripts once and confirmed the printed tables are identical to the analysts' reports. Nothing in this batch can place an order: it reads price files only.
 - Scripts: `scripts/offline-desk-a-screen.js <dir>`, `scripts/offline-desk-b-screen.js <dir>`; the data directories are fetched by `scripts/offline-crosssection-screen.js fetch` and `scripts/offline-scalp-screen.js fetch` (public Upbit GETs, outside the repository).
 
@@ -35,11 +35,12 @@ Window market returns were -15.5%, -19.7%, -8.2%, +8.5%, -19.9%, -9.0%: only one
 
 ## Reading
 - Nothing in B has a gross edge above the 0.20 percent taker round trip; the best raw number (SUN_NIGHT, +0.027% gross) is a fraction of the cost and does not hold in part 2. Three rules also fail the trade-count minimums.
-- In A, the one discovery pass is what chance alone gives: 6 families, a 6-window rule, one pass; the last year does not confirm it.
+- In A, the one discovery pass is consistent with chance: 6 families, a 6-window rule, one pass; the last year does not confirm it.
 - With the earlier screens (97 + 12 + 6 + 6 + 8 = 129) the history screens now cover **141 rules (129 + 12), none eligible** for a forward pre-registration.
 
 ## Disclosures
-- Survivorship (current markets only, worst for LISTING_AGE and SIZE_REV); fills at the signal close (optimistic); flat costs; the last year was partly read by earlier screens; the p values use a normal approximation. LISTING_AGE had no cohort in the last 365 days, so its second filter could not be tested.
+- Survivorship (current markets only, worst for LISTING_AGE and SIZE_REV); fills at the signal close (optimistic); flat costs; the last year was partly read by earlier screens; the p values use a normal approximation. LISTING_AGE had no cohort in the last 365 days, so its second filter could not be tested. **LISTING_AGE is not a valid test of new listings:** a market's age is measured from its first candle in the file, and 48 of the 56 markets have their first candle on 2021-12-22 (a fetch cap, not a listing date), so early cohorts mix old markets into the 90 to 240 day band; the family would need to be restricted to markets whose first candle is later than the fetch start.
+- B pools five highly correlated markets and the z-test treats the trades as independent, so its p-values are too optimistic; every rule failed, so no conclusion changes. B's markets are aligned by array index (104,712 to 104,880 bars), up to 14 hours apart at the end: negligible.
 - Analysts made small choices not in the brief and fixed them in their prereg before running (benchmark definition, skipped cohorts in BTC_BETA_ROT, the percentile rule in VOL_COMPRESS_BREAK, the exit bar of the B windows); all are in the committed prereg files.
 - Multiple testing: six families per analyst; no family-wise correction across the batches is claimed.
 
