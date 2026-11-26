@@ -7,13 +7,17 @@ const root = path.resolve(__dirname, "..");
 const frame = fs.readFileSync(path.join(root, "apps/mobile/src/screenFrame.tsx"), "utf8");
 
 test("detail-screen titles use the 기록 head: index line, one big title, still corner sphere", () => {
-  assert.match(frame, /<InstrumentHero index=\{detail \?\? "NUSA"\} lines=\{\[\{ text: title \}\]\} label=\{title\} \/>/);
+  assert.match(frame, /<InstrumentHero index=\{detail \?\? "NUSA"\} lines=\{\[\{ text: title \}\]\} label=\{title\} reserve=\{CORNER_RESERVE\} \/>/);
   assert.match(frame, /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{false\} still width=\{CORNER_SIZE\}/);
   assert.match(frame, /testID="screen-title-sphere"/);
 });
 
 test("the corner sphere never turns, lights nothing and is hidden from touch", () => {
-  assert.match(frame, /pointerEvents="none"/);
+  assert.match(frame, /pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants"/);
+  const kit = fs.readFileSync(path.join(root, "apps/mobile/src/instrumentKit.tsx"), "utf8");
+  assert.match(kit, /heroFontSize\(lines\.map\(\(l\) => l\.text\), width - 40 - reserve\)/);
+  assert.match(kit, /reserve > 0 \? \{ paddingRight: 20 \+ reserve \} : null/);
+  assert.match(frame, /const CORNER_RESERVE = 98;/);
   assert.doesNotMatch(frame, /decisionCount=\{[1-9]/);
   assert.doesNotMatch(frame, /live=\{true\}/);
   assert.doesNotMatch(frame, /#[0-9a-fA-F]{6}/);
