@@ -1,0 +1,23 @@
+id: WO-RESEARCH-20261126-ALPHA-LAB-PIVOT-RECORD
+title: "Research: record the Alpha Lab pivot and map the closed-loop runtime dependencies (docs only)"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/alpha-lab-record
+owner_decision: "2026-11-26: the owner reported that Codex is replacing the closed learning loop with an Alpha Lab, pasted Codex's hand-off, and answered \"다 해\" to recording it, mapping the dependencies and asking Codex to publish."
+objective: "Docs only. Record the pivot as reported (status RECORDED, not ACCEPTED), list what is not decided, and map read-only which parts of apps/cloud/src/closedLearningProductionRuntime.ts are loop-only and which are shared with the PAPER runtime, research and governance, so a staged cleanup cannot weaken a gate, lease or kill switch. Codex owns the implementation; this changes no code."
+change:
+  - ".aipos/decisions/ADR-RESEARCH-20261126-ALPHA-LAB-PIVOT.md, docs/ALPHA_LAB_CLOSED_LOOP_DEPENDENCY_MAP_2026-11-26.md, a withdrawal note at the top of docs/LEARNING_LOOP_LEVELS_20261112.md and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the owner withdrew the learning-loop L1 to L8 targets in chat on 2026-11-26 (\"학습폐루프 철회\"): only the goal is withdrawn, no code, service, gate or runtime change; no Codex file was read (the branch is unpublished)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "Everything about the Codex work is from the owner's paste (the branch and files are not published); the dependency map is read from code on main, not run; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge through the release path; the owner answers the open questions in the ADR; Codex publishes its branch as a draft PR for independent review."
