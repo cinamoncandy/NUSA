@@ -1,0 +1,23 @@
+id: WO-RESEARCH-20261126-ALPHA-LAB-TO-LIVE-DESIGN
+title: "Research: design of the whole route from Alpha Lab to a bounded live canary; docs only"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/alpha-lab-live-design
+owner_decision: "2026-11-26: the owner asked for a new design using Alpha Lab that goes all the way to live trading (\"알파랩을 이용한 새 설계를 짜 실거래까지 가도록\")."
+objective: "Docs only. One design: five lanes (intake, history screen, forward registration, shadow, permit and execution ladder), a candidate state machine with who may move each state (code, independent review, owner only), what is owner only, the live ladder by reference, an honest time scenario, what must be built, stop rules and open questions. No number is set (capital, limits, policy) and nothing is approved."
+change:
+  - "docs/ALPHA_LAB_TO_LIVE_DESIGN_2026-11-26.md and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the existing permit, Stage B and live readiness documents."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "A design from the repository's own documents; the time scenario is arithmetic on registered dates, not a forecast; the state machine and the maker-fill model are proposals; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge through the release path; the owner answers the open questions; nothing is built from it before the owner decides the order."
