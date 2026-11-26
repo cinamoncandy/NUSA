@@ -7,7 +7,7 @@ import { LearningFunnel } from "./learningFunnel";
 import { AiShell } from "./aiKit";
 import { plainScreenChip } from "./stageTraceModel";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
-import { CalmRow } from "./uiKit";
+import { CalmTiles } from "./uiKit";
 import { calmColors, calmToneColor } from "./uiKitModel";
 import { latticePalette, readableFont } from "./designSystem";
 import { chainLinePercents, loopChain } from "./loopChainModel";
@@ -42,7 +42,7 @@ export function LearningView(props: Props) {
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
     {model.rows.length === 0 || model.periodLabel == null ? null : <Text style={styles.period} testID="learning-result-period">{model.periodLabel}</Text>}
-    <View style={styles.list}>{model.rows.map((row, i) => <Reveal key={row.label} index={2 + i} reducedMotion={reduced}><CalmRow label={row.label} value={row.value} tone={row.tone} /></Reveal>)}</View>
+    <View style={styles.list}><Reveal index={2} reducedMotion={reduced}><CalmTiles rows={model.rows} testID="learning-result-tiles" /></Reveal></View>
     <CostWaterfall raw={learningLoop} />
     <NullComparison raw={learningLoop} />
     <PaperResultBars raw={learningLoop} />
