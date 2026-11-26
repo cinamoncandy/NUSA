@@ -18,6 +18,7 @@ const periodLabels: Readonly<Record<OrderHistoryPeriod, string>> = { ALL: "전�
 const filterItems = filters.map((key) => ({ key, label: filterLabels[key] }));
 const periodItems = periods.map((key) => ({ key, label: periodLabels[key] }));
 const sortItems = sorts.map((key) => ({ key, label: sortLabels[key] }));
+const HEAD_TEXT = { eyebrow: "PAPER 주문 기록", title: "주문 이력", description: "서버가 제공한 PAPER 주문·체결 기록만 검색하고 필터링합니다." } as const;
 function money(value: number): string { return `₩${Math.round(value).toLocaleString("ko-KR")}`; }
 
 function OrderRow({ order, last }: Readonly<{ order: ReturnType<typeof buildOrderHistoryViewModel>["orders"][number]; last: boolean }>) {
@@ -44,15 +45,15 @@ function OrderHistoryBody({ rawOrders, error, refreshing, onRefresh }: OrderHist
   const setSortAndReset = (next: OrderHistorySort) => { setSort(next); setPage(1); };
   const setPeriodAndReset = (next: OrderHistoryPeriod) => { setPeriod(next); setPage(1); };
 
-  // The head (title, wording and the corner sphere) stays on the error and empty states, at the top; only the loading state is bare.
-  const emptyHead = <ScreenHeader sphere eyebrow="PAPER 주문 기록" title="주문 이력" description="서버가 제공한 PAPER 주문·체결 기록만 검색하고 필터링합니다." />;
+  // Error and empty states keep the head; loading stays bare.
+  const emptyHead = <ScreenHeader sphere {...HEAD_TEXT} />;
   if (error) return <View style={styles.stateTop} testID="order-history-error">{emptyHead}<View style={styles.stateInner}><InlineNotice title="주문 이력을 표시할 수 없습니다" detail={error} tone="danger" /><NusaButton label="다시 불러오기" onPress={onRefresh} /></View></View>;
   if (model.state === "LOADING") return <View style={styles.state} testID="order-history-loading"><ActivityIndicator color={theme.colors.primary} /><Text style={[styles.stateTitle, { color: theme.colors.text }]}>주문 이력을 불러오는 중</Text></View>;
-  if (model.state === "ERROR") return <View style={styles.stateTop} testID="order-history-error">{emptyHead}<InlineNotice title="주문 데이터 오류" detail={model.error ?? "Unknown order history error."} tone="danger" /></View>;
+  if (model.state === "ERROR") return <View style={styles.stateTop} testID="order-history-error">{emptyHead}<View style={styles.stateInner}><InlineNotice title="주문 데이터 오류" detail={model.error ?? "Unknown order history error."} tone="danger" /></View></View>;
   if (model.state === "EMPTY") return <View style={styles.stateTop} testID="order-history-empty">{emptyHead}<View style={styles.stateInner}><InlineNotice title="조건에 맞는 주문이 없습니다" detail="완료된 PAPER 주문이 생기면 이 화면에 표시됩니다." tone="info" /><NusaButton label="다시 불러오기" onPress={onRefresh} /></View></View>;
 
   return <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl tintColor={theme.colors.primary} refreshing={refreshing} onRefresh={onRefresh} />} testID="order-history-screen">
-    <ScreenHeader sphere eyebrow="PAPER 주문 기록" title="주문 이력" description="서버가 제공한 PAPER 주문·체결 기록만 검색하고 필터링합니다." statusLabel={`${model.total}건`} statusTone="neutral" />
+    <ScreenHeader sphere {...HEAD_TEXT} statusLabel={`${model.total}건`} statusTone="neutral" />
     <NusaTextField label="주문 검색" value={query} onChangeText={(value) => { setQuery(value); setPage(1); }} placeholder="시장 또는 주문 ID" testID="order-history-search" />
     <View style={styles.controlGrid}><View style={styles.controlGroup}><Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>상태</Text><SegmentedControl items={filterItems} selectedKey={filter} onChange={(key) => setFilterAndReset(key as OrderHistoryFilter)} testID="order-history-filters" /></View><View style={styles.controlGroup}><Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>기간</Text><SegmentedControl items={periodItems} selectedKey={period} onChange={(key) => setPeriodAndReset(key as OrderHistoryPeriod)} testID="order-history-periods" /></View></View>
     <View style={styles.controlGroup}><Text style={[styles.controlLabel, { color: theme.colors.textMuted }]}>정렬</Text><SegmentedControl items={sortItems} selectedKey={sort} onChange={(key) => setSortAndReset(key as OrderHistorySort)} testID="order-history-sorts" /></View>

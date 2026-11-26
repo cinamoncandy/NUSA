@@ -18,6 +18,6 @@ safety:
 authority_impact: none
 validation:
   - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
-unverified: "Not seen on a phone; independent review pending."
+unverified: "Not seen on a phone. Independent review done; its suggestions (same wrapper for the model ERROR notice, one shared head text constant, a looser test that also pins the bare loading state) are applied, not reviewed again."
 acceptance:
   - "Independent read-only review, then merge while main is quiet, one Android release, owner capture of 주문 이력."
