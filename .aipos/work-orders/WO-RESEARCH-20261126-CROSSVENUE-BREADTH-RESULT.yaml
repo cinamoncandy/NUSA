@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261126-CROSSVENUE-BREADTH-RESULT
+title: "Research: result of the one registered cross-venue run of the breadth filter (FAIL, near the bars); docs and a one-line script fix"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/crossvenue-result
+owner_decision: "2026-11-26: the owner answered \"해\" to the one-run cross-venue test; the run followed the pre-registration PR #3322."
+follows: "docs/RESEARCH_PREREG_2026-11-26_CROSSVENUE_BREADTH.md (PR #3322)."
+objective: "Record the single registered run verbatim: 14 Binance USDT symbols, verdict FAIL (full-span drawdown ratio 0.744 versus 0.7, placebo 9,178 of 10,000 versus 9,500, bear window 2021-11..2022 ratio 0.703 versus 0.7), with survivorship and thin-basket caveats, and the one deviation (URL encoding of symbol names)."
+change:
+  - "docs/RESEARCH_CROSSVENUE_BREADTH_RESULT_2026-11-26.md, scripts/offline-crossvenue-breadth.js (encodeURIComponent in the two kline URLs) and this work order."
+not_changed:
+  - "Any host, release, workflow, rule of the PAPER system, threshold, gate, risk limit, capital or authority; the registered rule, universe rule, windows and thresholds; the Upbit forward study; the order-book blind and the S2-S4 holdout."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass; the printed result table is the verbatim output of one run (output sha256 in the doc)."
+unverified: "The run was done by the author, not independently re-run; the author's script fix is a URL-encoding change only; independent review of the result note pending."
+acceptance:
+  - "Independent read-only review of the note, then merge through the release path while main is quiet."

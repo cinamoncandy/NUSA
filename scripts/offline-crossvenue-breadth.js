@@ -51,13 +51,13 @@ async function fetchAll(dir) {
   const syms = usdt.filter((s) => !STABLE_BASES.has(s.baseAsset) && !LEVERAGED.test(s.baseAsset)).map((s) => s.symbol).sort();
   const kept = [];
   for (const sym of syms) {
-    const first = await get(`/api/v3/klines?symbol=${sym}&interval=1d&startTime=${START_MS}&limit=1`);
+    const first = await get(`/api/v3/klines?symbol=${encodeURIComponent(sym)}&interval=1d&startTime=${START_MS}&limit=1`);
     await sleep(60);
     if (!first.length || first[0][0] > LISTED_BY) continue;
     const rows = [];
     let from = START_MS;
     while (from < END_MS) {
-      const page = await get(`/api/v3/klines?symbol=${sym}&interval=1d&startTime=${from}&endTime=${END_MS - 1}&limit=1000`);
+      const page = await get(`/api/v3/klines?symbol=${encodeURIComponent(sym)}&interval=1d&startTime=${from}&endTime=${END_MS - 1}&limit=1000`);
       await sleep(60);
       if (!page.length) break;
       for (const k of page) rows.push([k[0], Number(k[4])]);
