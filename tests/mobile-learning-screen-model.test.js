@@ -30,7 +30,7 @@ test("missing server data never shows results or healthy", () => {
     const m = buildLearningScreen({ ...base, dataSource });
     assert.equal(m.tone, "ATTENTION");
     assert.equal(m.rows.length, 0);
-    assert.equal(m.headline, "학습 정보를 받지 못했어요");
+    assert.equal(m.headline, "알파랩 정보를 받지 못했어요");
   }
 });
 
@@ -47,7 +47,7 @@ test("a long Korean hero sentence splits at a space near the middle and short te
   assert.deepEqual(splitHeroLines("가나다라마바사아자차카타"), ["가나다라마바사아자차카타"], "no space, nothing to split");
   assert.deepEqual(splitHeroLines(""), [""]);
   // the words are unchanged: joining the lines gives the same text back
-  for (const t of ["모의투자로 배우는 중이에요", "학습이 잠시 쉬고 있어요", "학습에 오류가 있어요"]) assert.equal(splitHeroLines(t).join(" "), t);
+  for (const t of ["모의투자 연계가 돌고 있어요", "PAPER 연계가 잠시 쉬고 있어요", "PAPER 연계에 오류가 있어요"]) assert.equal(splitHeroLines(t).join(" "), t);
 });
 
 test("hero lines share one font size that fits the widest line and never exceed the designed 54 px", () => {
@@ -78,26 +78,26 @@ test("COLLECT_ONLY with a paused loop is worded neutrally and says why; without 
   assert.equal(on.tone, "NORMAL");
   assert.match(on.sub, /주문이 꺼져 있어서 판단은 0건/);
   const off = buildLearningScreen(paused);
-  assert.equal(off.headline, "학습이 잠시 쉬고 있어요");
+  assert.equal(off.headline, "PAPER 연계가 잠시 쉬고 있어요");
   assert.equal(off.tone, "ATTENTION");
-  assert.equal(buildLearningScreen(paused, { collectOnly: false }).headline, "학습이 잠시 쉬고 있어요");
+  assert.equal(buildLearningScreen(paused, { collectOnly: false }).headline, "PAPER 연계가 잠시 쉬고 있어요");
 });
 
 test("the COLLECT_ONLY wording never hides a halt, an error, a risk block or missing data", () => {
   assert.equal(buildLearningScreen({ ...paused, status: "HALTED" }, { collectOnly: true }).tone, "LOSS");
-  assert.equal(buildLearningScreen({ ...paused, status: "ERROR" }, { collectOnly: true }).headline, "학습에 오류가 있어요");
+  assert.equal(buildLearningScreen({ ...paused, status: "ERROR" }, { collectOnly: true }).headline, "PAPER 연계에 오류가 있어요");
   const blocked = buildLearningScreen({ ...paused, latestRisk: { status: "FAIL", reason: "CONSECUTIVE_LOSS_LIMIT" } }, { collectOnly: true });
   assert.equal(blocked.tone, "ATTENTION");
-  assert.equal(blocked.headline, "학습이 잠시 쉬고 있어요");
+  assert.equal(blocked.headline, "PAPER 연계가 잠시 쉬고 있어요");
   assert.match(blocked.narrowest, /CONSECUTIVE_LOSS_LIMIT/);
   for (const dataSource of ["NOT_CONFIGURED", "UNAVAILABLE", "PROJECTION_ABSENT"]) {
     const m = buildLearningScreen({ ...paused, dataSource }, { collectOnly: true });
-    assert.equal(m.headline, "학습 정보를 받지 못했어요");
+    assert.equal(m.headline, "알파랩 정보를 받지 못했어요");
     assert.equal(m.periodLabel, null);
     assert.equal(m.rows.length, 0);
   }
   const halted = buildLearningScreen({ ...paused, halt: { code: "X" } }, { collectOnly: true });
-  assert.equal(halted.headline, "학습이 잠시 쉬고 있어요", "a server halt explanation is not the designed COLLECT_ONLY pause");
+  assert.equal(halted.headline, "PAPER 연계가 잠시 쉬고 있어요", "a server halt explanation is not the designed COLLECT_ONLY pause");
 });
 
 test("the result rows carry the span of the server's account events in KST, or say the span is unknown", () => {

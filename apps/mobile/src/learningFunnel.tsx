@@ -49,7 +49,7 @@ export function LearningFunnel({ model }: { readonly model: LearningFunnelModel 
   const zero = holdout === 0;
   if (model.stages.length !== 3) return null;
   return <View style={styles.wrap} testID="learning-funnel" onLayout={(e: LayoutChangeEvent) => setWidth(Math.round(e.nativeEvent.layout.width) - 40)}>
-    <Text style={styles.index}>02 / 학습</Text>
+    <Text style={styles.index}>02 / 알파랩</Text>
     <View style={styles.hero} accessible accessibilityRole="header" accessibilityLabel={model.headline.replace(/\n/g, " ")}>
       <Odometer value={holdout} size={84} color={zero ? calmColors.attention : calmColors.text} reducedMotion={reducedMotion} />
       <Text style={[fieldFonts.displayStrong, styles.of]}>{` / ${tested.toLocaleString("en-US")}`}</Text>
