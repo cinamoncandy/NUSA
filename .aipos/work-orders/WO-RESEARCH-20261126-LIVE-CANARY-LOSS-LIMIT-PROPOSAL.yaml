@@ -1,0 +1,23 @@
+id: WO-RESEARCH-20261126-LIVE-CANARY-LOSS-LIMIT-PROPOSAL
+title: "Research: proposed loss limits for a first live canary (ratios of the owner's capital) and the owner's answers of 2026-11-26; docs only, proposal"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/live-loss-limit-proposal
+owner_decision: "2026-11-26: the owner asked to publish Codex's Alpha Lab branch, said live trading is the goal, said \"손실한도는 니가 정해\" (the session drafts the loss limits; capital stays the owner's) and chose a weekly progress report."
+objective: "Docs only. Record the owner's answers and draft a conservative loss-limit proposal as ratios of the owner's canary capital, stricter than the PAPER ratios everywhere. It has no effect until the owner adopts it in writing; AI never sets or changes limits at runtime."
+change:
+  - "docs/LIVE_CANARY_LOSS_LIMIT_PROPOSAL_2026-11-26.md and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, PAPER risk limit, capital or authority; nothing is enabled or approved."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass; the PAPER reference ratios were read from apps/cloud/src/paperRiskLimitScaling.ts."
+unverified: "The percentages are proposals not calibrated to any strategy (none exists); reading of answer 2 is an interpretation; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge through the release path; the owner adopts, changes or rejects the numbers in writing."
