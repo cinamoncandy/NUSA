@@ -36,7 +36,7 @@ if (grouped.length !== MORE_DESTINATIONS.length || MORE_DESTINATIONS.some((desti
 export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDestination) => void }>) {
   return <AiShell chip={plainScreenChip("MORE")}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="more-view">
     <View style={styles.titleRow}>
-      <LatticeSphere decisionCount={null} orderCount={null} live={false} still width={34} reducedMotion testID="more-lattice" />
+      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><LatticeSphere decisionCount={null} orderCount={null} live={false} still width={34} reducedMotion testID="more-lattice" /></View>
       <Text style={styles.title}>더보기</Text>
     </View>
     {GROUPS.map((group) => <View key={group.title} style={styles.group}>

@@ -13,7 +13,7 @@ import { fieldHeaderPose, type FieldHeaderModel } from "./fieldScreensModel";
  */
 const HEIGHT = 150;
 const SEAL_RADIUS = 70;
-const SPHERE_SIZE = 128;
+const SPHERE_SIZE = 128; // the sphere's halo (radius x 1.12) must stay inside HEIGHT
 const HUE: Record<FieldSubsystem, string> = { market: fieldPalette.market, axiom: fieldPalette.axiom, paper: fieldPalette.paper, governance: fieldPalette.governance, risk: fieldPalette.risk };
 const TONE: Record<FieldTone, string> = { dim: fieldPalette.dim, amber: fieldPalette.focus, blue: fieldPalette.market, green: fieldPalette.paper, red: fieldPalette.halt };
 
@@ -62,7 +62,7 @@ export function FieldHeader({ model, testID }: Readonly<{ model: FieldHeaderMode
     </View>
     <View style={styles.field} onLayout={onLayout}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity: presence, transform: [{ scale: spread }] }]}>
-        <Animated.View style={[styles.figure, { opacity: glow }]}>
+        <Animated.View style={[styles.figure, { opacity: glow }]} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
           <LatticeSphere decisionCount={null} orderCount={null} live={model.tone === "green" || model.tone === "blue" || model.tone === "amber"} still width={SPHERE_SIZE} reducedMotion testID={`${testID}-lattice`} />
         </Animated.View>
       </Animated.View>
