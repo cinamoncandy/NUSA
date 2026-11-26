@@ -5,7 +5,7 @@ Korean summary (한 줄): 해외 거래소 14종목, 2018-01-01~2026-11-25 한 �
 Pre-registration: `docs/RESEARCH_PREREG_2026-11-26_CROSSVENUE_BREADTH.md` (PR #3322, merged 2026-11-26T02:00:06Z = 11:00 KST). One run, no re-run, no tuning.
 
 ## 1. What was run
-- Fetch 2026-11-26T02:17:05Z (11:17 KST) from `data-api.binance.vision`; 517 USDT spot symbols listed, 14 kept by the registered rule (first daily candle on or before 2019-01-01, at least 1,500 candles, last candle 2026-11-25): ADA, BNB, BTC, ETC, ETH, IOTA, LTC, NEO, ONT, QTUM, TRX, VET, XLM, XRP (all vs USDT). manifest.json sha256 `b88d42beca2936e8fbb307e51543825c93f9049b1b129d8f08cc13d862b0443e`.
+- Fetch 2026-11-26T02:17:05Z (11:17 KST) from `data-api.binance.vision`; 517 USDT spot symbols listed, 14 kept by the registered rule (the only universe the rule produced) (first daily candle on or before 2019-01-01, at least 1,500 candles, last candle 2026-11-25): ADA, BNB, BTC, ETC, ETH, IOTA, LTC, NEO, ONT, QTUM, TRX, VET, XLM, XRP (all vs USDT). manifest.json sha256 `b88d42beca2936e8fbb307e51543825c93f9049b1b129d8f08cc13d862b0443e`.
 - Script at the merged commit, with **one deviation**: the first fetch attempt crashed on a symbol with non-ASCII characters ("Request path contains unescaped characters") after 14 files. The only change is `encodeURIComponent(sym)` in the two kline URLs (merged script sha256 `5f8d3c4dd5a20a8485e29dfe7692cabce0fd17dab7e8a4bb919e841fb3262f9c`, run script `4d563d48ad1419e05b13ab4e633a202fc72f3de9a421495c3ff1af08f2ea3ef6`). It affects URL encoding only, no number or rule; the fix is committed with this note. The partial first fetch was discarded before any analysis, and no analysis ran before the final data were complete.
 - One evaluation of the 14 files; output sha256 `aace07abba7558c973e589502934e9972876f5115a194fa965c5a06b1a95ce1e`.
 
@@ -63,16 +63,16 @@ CROSSVENUE_BREADTH {
 
 Reading of the numbers (full span, 3,011 eligible of 3,250 signal days):
 - Maximum drawdown: filter 62.0 percent versus benchmark 83.3 percent (ratio 0.744; condition 1 needs at most 0.7: not met).
-- Net return: filter +1,162 percent versus benchmark +145 percent; stress (30 bp) +829 percent versus +144 percent. The filter did not give up return, it exceeded it.
+- Net return: filter +1,162 percent versus benchmark +145 percent; stress (30 bp) +829 percent versus +144 percent (see the caveat in section 3: return is not an evidence axis here).
 - Placebo: the filter's drawdown was strictly smaller than the placebo's in 9,178 of 10,000 schedules (needs 9,500: not met; 91.8 percent).
 - Activity 44 percent, 204 switches (inside the 20 to 90 percent band).
-- Bear window W1 2018: filter 27.0 versus benchmark 65.1 percent (ratio 0.42, met). Bear window W2 2021-11..2022: filter 55.8 versus 79.4 percent (ratio 0.703, **missed the 0.7 bar by 0.003**).
-- Conditions 2, 3, 4, 6 and 7 were met; 1 and 5 and the W2 bear-window condition were not. Verdict: **FAIL**.
+- Condition 8, window W1 2018: filter 27.0 versus benchmark 65.1 percent (ratio 0.42, met). Condition 8, window W2 2021-11..2022: filter 55.8 versus 79.4 percent (ratio 0.703, **missed the 0.7 bar by 0.003**).
+- Conditions 2, 3, 4, 6 and 7 were met; conditions 1 and 5 and condition 8 (window W2) were not. Verdict: **FAIL**.
 
 ## 3. Honest reading
 - By the registered rule this is a FAIL and is reported as one; the near-miss on W2 does not change that, and no threshold may be moved afterwards.
-- The direction is encouraging and consistent with the history screen on Upbit: in both bear phases the filter's drawdown was clearly smaller than the benchmark's (about 58 and 30 percent smaller in the two windows by drawdown ratio 0.42 and 0.70). The pass bars (0.7 ratio over the full span, 95 percent placebo) were demanding, and a loss of 0.003 is within noise.
-- The result carries large caveats, all stated in advance: only 14 symbols qualified, all of them survivors that are still trading in 2026, so both the benchmark and the filter are flattered by survivorship and the basket is thin (10 to 14 markets in 2018); the return gap (+1,162 versus +145 percent) is partly a survivorship and rebalancing effect and must not be read as an edge; two bear windows are not many independent cycles; Binance is not Upbit and fees and spread are not tested.
+- Both bear windows show a smaller drawdown than the benchmark (ratios 0.42 and 0.703, that is about 58 and 30 percent smaller), but the pre-registered bars were not met, so this counts as negative cross-venue evidence for the registered claim. The pre-registration has no tolerance band: 0.703 does not meet 0.7.
+- The result carries large caveats, all stated in advance: only 14 symbols qualified, all of them survivors that are still trading in 2026, so both the benchmark and the filter are flattered by survivorship and the basket is thin (10 to 14 markets in 2018); return is not an evidence axis here: the gap (+1,162 versus +145 percent) is largely a survivorship and rebalancing effect and must not be read as an edge; two bear windows are not many independent cycles; Binance is not Upbit and fees and spread are not tested.
 - It does not change the forward Upbit study (L30/L60/L90/L183): that continues unchanged. It does not support any PAPER shadow decision on its own.
 
 ## 4. Not done
