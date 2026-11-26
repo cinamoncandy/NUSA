@@ -18,6 +18,6 @@ safety:
 authority_impact: none
 validation:
   - "AIPOS yaml and drift validators pass."
-unverified: "A roadmap from the repository's documents; effort and order are estimates; the programme alpha is a proposal; independent review pending."
+unverified: "A roadmap from the repository's documents; effort and order are estimates; the programme alpha is a proposal; independent review done: its two blockers (the unallocated programme alpha example, the S2-S4 naming) and its suggestions (non-retroactive, who merges, a never-read data transfer sieve, K fixed before the run, combined K, S5 and RET48 listed) are applied, not reviewed again."
 acceptance:
   - "Independent read-only review, then merge through the release path; the owner decides the programme alpha and the order of work."
