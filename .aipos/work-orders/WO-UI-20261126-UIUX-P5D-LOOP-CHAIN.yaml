@@ -1,0 +1,24 @@
+id: WO-UI-20261126-UIUX-P5D-LOOP-CHAIN
+title: "Mobile UI v7 phase 5d: the 학습 loop strip becomes one chain of nodes (lit nodes, lit line, ice ring on the next step)"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p5d-loop-chain
+owner_decision: "2026-11-26: the owner sent four reference videos (agent dashboards with step counters and flowing node lines) and answered \"둘 다 해\" to two ideas, one of them a progress display on 학습 drawn in the sphere's language (nodes lit in loop order with a counter)."
+follows: "WO-UI-20261126-UIUX-P5A-FUTURES-SPHERE (PR #3318); docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md (design E)."
+objective: "The six loop steps (관찰, 신호, 판단, 안전, 체결, 평가) were six unconnected circles. They are now one chain: a hairline joins the node centres, the part of the line up to the last confirmed step is lit, confirmed nodes are filled, a BLOCKED step keeps its attention colour, and the next unconfirmed step wears an ice ring. The 1 / 6 count, the labels and the accessibility label are unchanged. Static: no motion, no data of its own."
+change:
+  - "apps/mobile/src/loopChainModel.ts (pure: loopChain, chainLinePercents), apps/mobile/src/learningView.tsx (LoopChainStrip and its styles), tests/mobile-loop-chain.test.js."
+not_changed:
+  - "The step states themselves (they come from the server through learningScreenModel), the 실거래 screen and its safety circuit, any server, cloud, gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js passes; tests/mobile-*.test.js and tests/uiux-*.test.js pass (904); AIPOS yaml and drift validators pass."
+unverified: "How the line sits behind the nodes on the owner's phone at large font scale (no device here); the owner's capture after the build is the check."
+acceptance:
+  - "Independent non-author read-only review; merge by the release bot; keep main quiet until the Android release is published."
