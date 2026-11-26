@@ -6,9 +6,9 @@ implementation_branch: claude/alpha-lab-record
 owner_decision: "2026-11-26: the owner reported that Codex is replacing the closed learning loop with an Alpha Lab, pasted Codex's hand-off, and answered \"다 해\" to recording it, mapping the dependencies and asking Codex to publish."
 objective: "Docs only. Record the pivot as reported (status RECORDED, not ACCEPTED), list what is not decided, and map read-only which parts of apps/cloud/src/closedLearningProductionRuntime.ts are loop-only and which are shared with the PAPER runtime, research and governance, so a staged cleanup cannot weaken a gate, lease or kill switch. Codex owns the implementation; this changes no code."
 change:
-  - ".aipos/decisions/ADR-RESEARCH-20261126-ALPHA-LAB-PIVOT.md, docs/ALPHA_LAB_CLOSED_LOOP_DEPENDENCY_MAP_2026-11-26.md and this work order."
+  - ".aipos/decisions/ADR-RESEARCH-20261126-ALPHA-LAB-PIVOT.md, docs/ALPHA_LAB_CLOSED_LOOP_DEPENDENCY_MAP_2026-11-26.md, a withdrawal note at the top of docs/LEARNING_LOOP_LEVELS_20261112.md and this work order."
 not_changed:
-  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the learning loop targets L1 to L8 stand until the owner says otherwise; no Codex file was read (the branch is unpublished)."
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the owner withdrew the learning-loop L1 to L8 targets in chat on 2026-11-26 (\"학습폐루프 철회\"): only the goal is withdrawn, no code, service, gate or runtime change; no Codex file was read (the branch is unpublished)."
 safety:
   paper_only: true
   liveAuthority: NONE

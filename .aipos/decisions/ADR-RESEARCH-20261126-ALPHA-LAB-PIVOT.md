@@ -1,6 +1,6 @@
 # NUSA Alpha Lab: the research direction moves from the closed learning loop to a validated alpha search (RECORDED 2026-11-26)
 
-Status: **RECORDED from the owner's report, not yet confirmed as a written owner decision.** On 2026-11-26 the owner told the Claude session that Codex is working on replacing the closed learning loop with an "Alpha Lab", pasted Codex's hand-off for it, and answered "다 해" to recording it. Codex's branch is not published (see Evidence), so the scope below is the hand-off's own description. Nothing here changes code, a gate, a limit, capital or an authority flag.
+Status: **RECORDED from the owner's report; one decision confirmed by the owner in chat on 2026-11-26 ("학습폐루프 철회", below); the rest still open.** On 2026-11-26 the owner told the Claude session that Codex is working on replacing the closed learning loop with an "Alpha Lab", pasted Codex's hand-off for it, and answered "다 해" to recording it. Codex's branch is not published (see Evidence), so the scope below is the hand-off's own description. Nothing here changes code, a gate, a limit, capital or an authority flag.
 
 Reported direction (not yet decided by the owner): strategy research is re-centred on **NUSA Alpha Lab**: a research system that looks for verifiable profit signals through the existing **Research Factory** (Issue #1094, `WO-ISSUE-1094-RESEARCH-FACTORY`), reused as the canonical path, not duplicated:
 
@@ -8,8 +8,11 @@ market observation -> hypothesis and candidate frozen -> point-in-time data -> c
 
 Profitability or operational completion is accepted only with real evidence and independent review.
 
+## Owner decision confirmed in chat (2026-11-26, "학습폐루프 철회")
+The **closed learning loop as the strategy-research goal (the L1 to L8 targets of `docs/LEARNING_LOOP_LEVELS_20261112.md`) is withdrawn.** Meaning, and its limits: the L1 to L8 goal and its pass criteria are no longer a target or a gate for anything; the document is marked withdrawn. It does **not** by itself remove any code, stop any service, change the PAPER runtime, lease, risk limits or the host, or relabel past evidence; the running loop code stays until the staged cleanup below is decided and done. The 2026-11-18 decision (FORGE code-automation levels retired) is unchanged.
+
 ## What is NOT decided (open, needs the owner)
-1. **Whether the closed learning loop targets L1 to L8 (`docs/LEARNING_LOOP_LEVELS_20261112.md`) are withdrawn or kept** as a separate track. Until the owner says so they stand as written (the 2026-11-18 decision retired only the FORGE code-automation levels).
+1. ~~Whether the L1 to L8 targets are withdrawn~~ answered above. Still open: what the phone app's 학습 tab should say (it shows the loop steps, the COLLECT_ONLY pause and the learning results) and what to call the learning-related items in the handoff and mission records.
 2. **Removal of any closed-loop code.** `apps/cloud/src/closedLearningProductionRuntime.ts` (629 lines) is also the production runtime root: PAPER runtime, account and accounting, writer Lease, risk limits, shutdown, recovery and research wiring, consumed by `scripts/start-cloud-runtime.js` and `scripts/start-cloud-paper-supervisor.js`. Deleting it or stopping the production process is **not proposed here** and needs the owner's decision; any cleanup would have to be staged with explicit dependency separation, a replacement path and regression tests first (`docs/ALPHA_LAB_CLOSED_LOOP_DEPENDENCY_MAP_2026-11-26.md`). Per the handoff section of 2026-11-26 02:50 KST (the owner lifted the code freeze for mobile-only PRs only), host and server PRs stay frozen until 2026-11-28 15:00 KST; the host release and restart freeze of the 2026-11-17 handoff covers 2026-11-24T06:00Z..2026-11-28T06:00Z, and the Claude session's plan is no host release before 2026-12-10 unless the owner says so (a session plan, not an owner rule).
 3. Who implements the cleanup (Codex or CORE), the timeline, the owner's acceptance criteria for "Alpha Lab done", and the fate of the learning screen wording on the phone app.
 
