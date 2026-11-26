@@ -1,0 +1,23 @@
+id: WO-UI-20261126-UIUX-P5C4-ORDER-HISTORY-EMPTY-HEAD
+title: "Mobile UI v7 phase 5c-4: the order-history error and empty states keep the head with the corner sphere"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p5c4-order-history-empty
+owner_decision: "2026-11-26: the owner sent captures of 설정, 주문 이력 and 자산 on 1.0.842; 주문 이력 showed no head or sphere when there are no orders."
+objective: "Presentation only. 주문 이력 draws its head (title, description, corner sphere) only when there are orders; the empty and error states showed just a notice. They now show the same head above the notice."
+change:
+  - "apps/mobile/src/orderHistoryView.tsx (head on the error and empty states, a top-aligned state style) and tests/mobile-order-history-empty-head.test.js."
+not_changed:
+  - "Wording of the notices, the refresh button, values, tones, safety wording, limits; the loading state; the 실거래 screen; server, cloud, gate, threshold, limit, capital, host or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js, AIPOS yaml validator."
+unverified: "Not seen on a phone. Independent review done; its suggestions (same wrapper for the model ERROR notice, one shared head text constant, a looser test that also pins the bare loading state) are applied, not reviewed again."
+acceptance:
+  - "Independent read-only review, then merge while main is quiet, one Android release, owner capture of 주문 이력."
