@@ -37,7 +37,7 @@ What it shows: (a) **no false pass** in any null row (upper bound 0.4 percent ag
 What it does not show: real data, real cross-market correlation beyond one factor, fill rates, maker fees, or whether any real IC near 0.04 to 0.08 exists after costs. Synthetic bounds only.
 
 ## 4. Consequences (AI recommendation, owner may amend)
-- **Keep** the cross-section engine and the e-process; choose the rebalance interval only after F2b compares holds at equal per-day IC; always report turnover.
+- **Keep** the cross-section engine and the e-process; default rebalance about every 20 days per F2b (section 7); always report turnover.
 - **Do not promise speed**: realistic edges need about a year of forward data; early passes happen only for large effects.
 - **Improve power before registering**: test a less conservative e-process (adaptive bet size, wider clip) in F2b; measure maker-fee execution in shadow; first register at most 3 hypotheses so alpha is not spread thin.
 - Track R stays the first live-candidate path.
@@ -52,3 +52,22 @@ What it does not show: real data, real cross-market correlation beyond one facto
 
 ## 6. Not done here
 No code on the host, no workflow, no market data read, no release, no gate or policy value. No strategy is claimed.
+
+## 7. F2b result (synthetic; adaptive bets and equal per-day IC)
+Command `node scripts/offline-lab-f2b-adaptive-evalue.js 1000` (seed 20261127, sha256 prefix `740a3cbe78dab4d7`). Same model as F2, but the signal's IC is fixed **per day** (block IC = per-day IC times the square root of the hold), gross Sharpe uses the gross sd, and "adaptive" averages the fixed grid with a predictable aGRAPA-style bet (lambda from past clipped values only, capped at 0.5). 15 bp per side unless stated.
+
+| Bets | Hold | IC per day | Net Sharpe | Gross Sharpe | Pass by 180 | Pass by 365 | Median days among passing |
+|---|---|---|---|---|---|---|---|
+| fixed | 1, no cost | 0 | 0.0 | 0.0 | 0 | 0 (upper 0.004) | - |
+| adaptive | 1, no cost | 0 | 0.0 | 0.0 | 0 | 0.002 (upper 0.007) | 289 |
+| fixed | 1 | 0.04 | -1.5 | 4.3 | 0 | 0 | - |
+| fixed | 5 | 0.04 | 3.2 | 4.4 | 0.011 | 0.319 | 307 |
+| adaptive | 5 | 0.04 | 3.2 | 4.4 | 0.040 | 0.449 | 277 |
+| fixed | 20 | 0.02 | 1.9 | 2.2 | 0 | 0.045 | 320 |
+| adaptive | 20 | 0.02 | 1.9 | 2.2 | 0.009 | 0.093 | 295 |
+| fixed | 20 | 0.04 | 4.1 | 4.4 | 0.038 | 0.663 | 278 |
+| adaptive | 20 | 0.04 | 4.0 | 4.3 | 0.097 | 0.720 | 254 |
+
+What it shows: (a) with the same per-day predictive power, **a 20-day hold keeps almost all of the gross edge** (net 1.9 of gross 2.2), while daily rebalancing loses it all: low turnover is the single biggest lever; (b) the **adaptive bet roughly doubles power for moderate effects** and passes sooner, with the null pass rate still at or below 0.7 percent (target 1.25 percent); (c) a net Sharpe near 2 still passes within a year only about 9 percent of the time. Synthetic only, same caveats as section 3.
+
+Decision (AI recommendation, owner may amend): **default hold 20 trading days (about monthly), adaptive e-process, at most 3 hypotheses in the first registration.** Weekly holds only for signals with stronger expected per-day IC.
