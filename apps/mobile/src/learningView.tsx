@@ -26,18 +26,18 @@ export function LearningView(props: Props) {
   const model = buildLearningScreen(props.paper, { collectOnly: collectOnly === true });
   const funnel = buildLearningFunnel(learningFunnel);
   if (details) return <AiShell chip={plainScreenChip("LEARN")}><View style={styles.screen}>
-    <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.back} testID="learning-summary-back"><Text style={styles.backText}>‹ 학습 요약</Text></Pressable>
+    <Pressable accessibilityRole="button" onPress={() => setDetails(false)} style={styles.back} testID="learning-summary-back"><Text style={styles.backText}>‹ Lab 요약</Text></Pressable>
     <PaperShadowMonitorView {...monitorProps} embedded />
   </View></AiShell>;
   return <AiShell chip={plainScreenChip("LEARN")}><ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="learning-view">
     {funnel ? <LearningFunnel model={funnel} /> : <>
-      <InstrumentHero index="02 / 학습" lines={splitHeroLines(model.headline).map((text) => ({ text, color: calmToneColor(model.tone) }))} label={model.headline} />
+      <InstrumentHero index="02 / Lab" lines={splitHeroLines(model.headline).map((text) => ({ text, color: calmToneColor(model.tone) }))} label={model.headline} />
       {model.sub ? <Reveal index={1} reducedMotion={reduced}><Text style={styles.sub}>{model.sub}</Text></Reveal> : null}
     </>}
     <PressScale accessibilityRole="button" onPress={() => setDetails(true)} style={styles.fold} testID="learning-details">
       <Text style={styles.foldText}>자세히 보기 (운영 · 학습 · 재현 · 실계좌)</Text><Text style={styles.foldText}>›</Text>
     </PressScale>
-    <View style={styles.labelWrap}><SectionLabel left="루프 · 모의투자" right={`${model.steps.filter((x) => x.state === "DONE").length} / ${model.steps.length}`} /></View>
+    <View style={styles.labelWrap}><SectionLabel left="PAPER 연계 · 모의투자" right={`${model.steps.filter((x) => x.state === "DONE").length} / ${model.steps.length}`} /></View>
     <LoopChainStrip steps={model.steps} />
     {model.narrowest ? <Text style={styles.narrow}>{model.narrowest}</Text> : null}
     {model.rows.length === 0 ? null : <View style={styles.labelWrap}><SectionLabel left="성과 · 모의투자" right={`${model.rows.length}`} /></View>}
