@@ -60,7 +60,7 @@ function bootCrit(rules, r, rnd) {
   for (let b = 0; b < BOOT; b++) {
     let j = Math.floor(rnd() * T); for (let i = 0; i < T; i++) { if (rnd() < p) j = Math.floor(rnd() * T); else j = (j + 1) % T; idx[i] = j; }
     let best = -Infinity;
-    for (let k = 0; k < rules.length; k++) { const t = obsSd[k] < 1e-9 ? 0 : (meanOf(adjusted(rules[k], r, idx)) - obsMean[k]) / (obsSd[k] / Math.sqrt(T)); if (t > best) best = t; }
+    for (let k = 0; k < rules.length; k++) { const t = obsSd[k] <= 1.5e-9 ? 0 : (meanOf(adjusted(rules[k], r, idx)) - obsMean[k]) / (obsSd[k] / Math.sqrt(T)); if (t > best) best = t; }
     maxes[b] = best;
   }
   maxes.sort(); return maxes[Math.min(BOOT - 1, Math.ceil((1 - ALPHA) * BOOT) - 1)];
