@@ -25,7 +25,7 @@ export const VITAL_LABELS: Readonly<Record<VitalId, string>> = Object.freeze({
   coin: "거래 코인",
   buy: "BUY 신호",
   feed: "시세 연결",
-  learning: "학습 데이터",
+  learning: "Lab 데이터",
 });
 
 /** Test ids the earlier detail rows carried; kept on the tiles so acceptance hooks and tests keep finding them. */
