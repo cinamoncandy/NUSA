@@ -7,7 +7,8 @@
 // Usage: node scripts/offline-farm-f1-calibration.js [reps=1000] [boot=400] [seed=20261126]
 // The historical-path secondary check (history up to 2026-11-04 only) is NOT run here.
 const REPS = Number(process.argv[2] || 1000), BOOT = Number(process.argv[3] || 400), SEED = Number(process.argv[4] || 20261126);
-const T = 180, N = 48, ALPHA = 0.0125, COST = 0.0015, BLOCK = 5, ANN = 365;
+const COST = Number(process.env.F1_COST ?? 0.0015), ONLY = process.env.F1_ONLY || "";
+const T = 180, N = 48, ALPHA = 0.0125, BLOCK = 5, ANN = 365;
 const VOL_D = 0.035, MAX_RT_PER_YEAR = 24;
 
 function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -55,6 +56,7 @@ function bootCrit(cols, rnd) { // stationary bootstrap of centered columns, join
 function wilsonUpper(k, n) { const z = 1.959964, p = k / n, d = 1 + z * z / n; return (p + z * z / (2 * n) + z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n))) / d; }
 
 function scenario(name, mu, sharpeEdge, seed) {
+  if (ONLY && ONLY !== name) return null;
   const rnd = mulberry32(seed); let pass = 0, ctrlHit = 0, passAccepted = 0;
   const edgeDaily = sharpeEdge ? sharpeEdge * VOL_D / Math.sqrt(ANN) : 0;
   for (let rep = 0; rep < REPS; rep++) {
@@ -66,7 +68,7 @@ function scenario(name, mu, sharpeEdge, seed) {
   const row = { scenario: name, reps: REPS, passRate: pass / REPS, passUpper95: wilsonUpper(pass, REPS), controlExceedRate: ctrlHit / REPS, passAfterGate: passAccepted / REPS };
   console.log(JSON.stringify(row)); return row;
 }
-console.log(JSON.stringify({ params: { T, N, ALPHA, COST, BLOCK, BOOT, REPS, SEED, VOL_D, MAX_RT_PER_YEAR, model: "synthetic GARCH(1,1)-t4", note: "synthetic paths only; historical-path check not run; Bonferroni-free bootstrap max-t" } }));
+console.log(JSON.stringify({ params: { T, N, ALPHA, COST, BLOCK, BOOT, REPS, SEED, VOL_D, MAX_RT_PER_YEAR, model: "synthetic GARCH(1,1)-t4", F1_ONLY: ONLY, note: "synthetic paths only; historical-path check not run; Bonferroni-free bootstrap max-t" } }));
 const t0 = Date.now();
 scenario("null_drift0", 0, 0, SEED);
 scenario("null_drift+0.15pct_day", 0.0015, 0, SEED + 1);
