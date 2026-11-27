@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { buildTodayTimeline, type TimelineEvent } from "./recordsTimelineModel";
 import { buildDecisionTerrain } from "./decisionTerrainModel";
-import { DecisionRidge } from "./decisionRidge";
+import { HourDial } from "./hourDial";
 import type { MoreDestination } from "./navigationContract";
 import { RECORDS_GROUPS } from "./recordsScreenModel";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
@@ -34,11 +34,11 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
     {/* A small lattice sphere in the corner: it never turns (this screen has no health signal, so it must not look like a healthy running system); a fresh heartbeat only keeps it white instead of grey. It lights nothing here. */}
     <View style={styles.corner} pointerEvents="none" testID="records-sphere"><LatticeSphere decisionCount={null} orderCount={null} live={hb != null} still width={CORNER_SIZE} reducedMotion={reduced} testID="records-sphere-graphic" /></View>
     {hb == null || !terrain.hasTrace || row == null ? null : <View style={styles.ridge} testID="records-ridge" onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      <SectionLabel left="하루 · 한 줄 = 한 시간" right="눌러서 고르기" />
-      {width > 0 ? <DecisionRidge model={terrain} tone={terrain.stop != null ? "limit" : "live"} decisionCount={null} width={width} reducedMotion={reduced} selectedRow={rowIndex} onSelectRow={pick} testID="records-ridge-graphic" /> : null}
-      <View style={styles.hour} testID="records-ridge-hour" accessible accessibilityLabel={`${String(row.hour).padStart(2, "0")}시, 판단 ${row.decisionCount ?? 0}번, 주문 ${row.orderCount ?? 0}번`}>
+      <SectionLabel left="하루 · 점 하나 = 한 시간" right="눌러서 고르기" />
+      {width > 0 ? <HourDial model={terrain} size={Math.min(width, 300)} live={hb != null} reducedMotion={reduced} selectedRow={rowIndex} onSelectRow={pick} testID="records-ridge-graphic" /> : null}
+      <View style={styles.hour} testID="records-ridge-hour" accessible accessibilityLabel={row.decisionCount == null ? `${String(row.hour).padStart(2, "0")}시, 기록 없음` : `${String(row.hour).padStart(2, "0")}시, 판단 ${row.decisionCount}번, 주문 ${row.orderCount ?? 0}번`}>
         <Text style={[fieldFonts.mono, styles.hourTitle]}>{String(row.hour).padStart(2, "0")}:00</Text>
-        <Text style={[fieldFonts.mono, styles.hourStat]}>판단 {(row.decisionCount ?? 0).toLocaleString("en-US")} · 주문 {(row.orderCount ?? 0).toLocaleString("en-US")}</Text>
+        <Text style={[fieldFonts.mono, styles.hourStat]}>{row.decisionCount == null ? "기록 없음" : `판단 ${row.decisionCount.toLocaleString("en-US")} · 주문 ${(row.orderCount ?? 0).toLocaleString("en-US")}`}</Text>
       </View>
       {hourEvents.length === 0 ? <Text style={styles.hourNone}>이 시간에 따로 남은 기록은 없어요</Text> : hourEvents.map((event) => <Text key={`${event.at}-${event.text}`} style={styles.hourEvent}>{event.time}  {event.text}</Text>)}
     </View>}

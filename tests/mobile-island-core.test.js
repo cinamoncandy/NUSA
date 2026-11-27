@@ -73,8 +73,9 @@ test("선물 island is low and grey before start, coloured once running, and use
   assert.equal(before.badge, "선물 모의는 시작 전이에요");
 });
 
-test("실거래 draws a still island and 선물 a still lattice sphere from real values", () => {
-  assert.match(read("liveReadinessMonitorView.tsx"), /still=\{liveIsland\(gates\?\.passed \?\? null, gates\?\.total \?\? null\)\} testID="live-island"/);
+test("실거래 draws a still lattice sphere (UI v8) and 선물 a still lattice sphere from real values", () => {
+  assert.match(read("liveReadinessMonitorView.tsx"), /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{false\} still width=\{Math\.min\(w, 220\)\} reducedMotion=\{reducedMotion\} testID="live-island" \/>/);
+  assert.doesNotMatch(read("liveReadinessMonitorView.tsx"), /IslandCore/);
   assert.match(read("futuresView.tsx"), /<LatticeSphere decisionCount=\{null\} orderCount=\{null\} live=\{false\} still width=\{Math\.min\(w, 260\)\} reducedMotion=\{reduced\} testID="futures-sphere" \/>/, "선물 draws the still grey lattice sphere (UI v7 phase 5a), not the island");
   assert.doesNotMatch(read("futuresView.tsx"), /IslandCore/);
   const core = read("islandCore.tsx");

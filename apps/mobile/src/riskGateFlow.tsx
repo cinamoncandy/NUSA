@@ -5,7 +5,7 @@ import { readableFont } from "./designSystem";
 import { fieldFonts } from "./fieldFonts";
 import type { RiskGateModel } from "./riskGateModel";
 import type { DecisionTerrainModel } from "./decisionTerrainModel";
-import { DecisionRidge } from "./decisionRidge";
+import { HourDial } from "./hourDial";
 import { Heartbeat, Odometer, Panel, SectionLabel, instrumentType, useReducedMotion } from "./instrumentKit";
 
 // Now-screen block while the consecutive-loss limit holds new buys (redesign 2026-10-20, owner-chosen 계기판 design): a big
@@ -17,11 +17,12 @@ const NODES = [0.04, 0.37, 0.71, 0.96] as const;
 const PULSES = 6;
 const CYCLE_MS = 1100;
 
-export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain = null, decisionCount = null }: {
+export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain = null }: {
   readonly gate: RiskGateModel;
   /** The main motion graphic: today's decision ridgeline with the lines from the stop time on in amber. Without it the heartbeat trace stands in. */
   readonly terrain?: DecisionTerrainModel | null;
   /** Today's decision count, so new decisions drop needles on the terrain. */
+  /** Ignored since UI v8 (the hour ring shows counts per hour); kept so callers need not change. */
   readonly decisionCount?: number | null;
   /** The server's loss-limit sentence (buildLossLimitLine). */
   readonly lossText?: string | null;
@@ -48,7 +49,7 @@ export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain
 
     <View style={styles.section}>
       <SectionLabel left="판단 · 도는 중" right="오늘" />
-      {terrain == null ? <Heartbeat width={width} reducedMotion={reducedMotion} /> : width > 0 ? <DecisionRidge model={terrain} tone="limit" decisionCount={decisionCount} width={width} reducedMotion={reducedMotion} /> : null}
+      {terrain == null ? <Heartbeat width={width} reducedMotion={reducedMotion} /> : width > 0 ? <HourDial model={terrain} size={Math.min(width, 260)} live reducedMotion={reducedMotion} testID="risk-gate-hour-dial" /> : null}
       <Odometer value={gate.decisions} size={84} reducedMotion={reducedMotion} />
     </View>
 

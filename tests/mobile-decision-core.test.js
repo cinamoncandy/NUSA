@@ -10,11 +10,13 @@ test("the Now screen draws the decision core from counts it already has, and inv
   assert.doesNotMatch(read("decisionCore.tsx"), /decisionTrace|fetch\(|Math\.random\(\) *[<>]/, "no data source of its own; randomness only places waves and sparks");
 });
 
-test("the core stays still until the OS answers and under reduce-motion, and the risk-gate state keeps the amber ridge", () => {
+test("the core stays still until the OS answers and under reduce-motion, and the risk-gate state shows the day as an hour ring around the sphere (UI v8)", () => {
   const core = read("decisionCore.tsx");
   assert.match(core, /if \(reducedMotion == null\) return undefined;/);
   assert.match(core, /const still = reducedMotion !== false;/);
   assert.match(core, /if \(reducedMotion === false\) \{\s*waves\.current/);
-  assert.match(read("riskGateFlow.tsx"), /<DecisionRidge model=\{terrain\} tone="limit"/, "the limit state still shows where the day stopped");
-  assert.match(read("recordsView.tsx"), /<DecisionRidge /);
+  assert.match(read("riskGateFlow.tsx"), /<HourDial model=\{terrain\}/, "the limit state still shows where the day stopped (amber hours)");
+  assert.match(read("hourDialModel.ts"), /limit: model\.stop != null && i >= model\.stop\.row/);
+  assert.match(read("recordsView.tsx"), /<HourDial /);
+  assert.doesNotMatch(read("recordsView.tsx") + read("riskGateFlow.tsx"), /DecisionRidge/);
 });
