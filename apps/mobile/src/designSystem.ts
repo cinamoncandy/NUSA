@@ -103,7 +103,7 @@ export const calmPalette = Object.freeze({
   loss: "#FF5C5C",
 } as const);
 
-/** Wave palette (Now tab wave and the app accent, owner-chosen 2026-10-26): blue, cyan and violet light, pink only for my PAPER orders. */
+/** Wave palette (Now tab wave and the app accent, owner-chosen 2026-10-26): since UI v8 the lattice ice family (keys keep their old names), pink only for my PAPER orders. */
 /** Colours of the lattice sphere on 지금 (design E): the lit-white, ice and edge tints. */
 export const latticePalette = Object.freeze({
   white: "#F4F8FB",
@@ -127,11 +127,11 @@ export const wavePalette = Object.freeze({
   idle: "#6E7A86",
 } as const);
 
-/** Island palette (owner-approved island design 2026-10-28; NUSA means "island"): violet to blue to cyan light on near-black, soft white/pink/blue summit glow. */
+/** Island palette (owner-approved island design 2026-10-28; NUSA means "island"): since UI v8 white to ice blue on near-black (key names kept), soft white/pink/blue summit glow. */
 export const islandPalette = Object.freeze({
   // UI v8: retuned to the lattice ice tones (the stopped islands on 선물 read as the same family as the sphere).
   ground: "#05080D",
-  violet: "#C9D4DE",
+  violet: "#FFFFFF",
   blue: "#8FD3F2",
   cyan: "#BFE9FF",
   star: "#D7E6F0",
@@ -144,7 +144,7 @@ export const islandPalette = Object.freeze({
 
 /**
  * AI island look (owner-chosen 2026-10-29, "AI스럽고 미래지향적이고 세련되게"): a deep navy ground with a faint coordinate grid, frosted
- * glass panels, one violet-blue-cyan light and a monospaced instrument face for numbers. One motion rule for every transition.
+ * glass panels, one ice light (UI v8; was violet-blue-cyan) and a monospaced instrument face for numbers. One motion rule for every transition.
  */
 export const aiIslandPalette = Object.freeze({
   // UI v8 lattice language: the same deep ground and faint grid, but the light is the sphere's ice white and pale blue (no violet).
@@ -156,8 +156,8 @@ export const aiIslandPalette = Object.freeze({
   glassStrong: "rgba(244,248,251,0.06)",
   navGlass: "rgba(5,8,13,0.92)",
   navActive: "rgba(191,233,255,0.16)",
-  accentStart: "#F4F8FB",
-  accentMid: "#BFE9FF",
+  accentStart: "#BFE9FF",
+  accentMid: "#8FD3F2",
   accentEnd: "#8FD3F2",
   chipFill: "rgba(191,233,255,0.06)",
   chipEdge: "rgba(191,233,255,0.26)",
@@ -177,7 +177,7 @@ export const aiIslandMotion = Object.freeze({
   breathMs: 2600,
 } as const);
 
-/** Aura palette (Learning tab): near-black ground with the wave blue/violet light and grain (was green until 2026-10-26). Presentation only. */
+/** Aura palette (Learning tab): near-black ground with the lattice ice light and grain (UI v8) (was green until 2026-10-26). Presentation only. */
 export const auraPalette = Object.freeze({
   // UI v8 lattice language: Lab ground and light follow the sphere (ice, not violet).
   ground: "#05080D",

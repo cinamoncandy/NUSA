@@ -12,7 +12,7 @@ test("the in-app island mark stays on its 24 grid with nested domes that never c
   for (const s of strokes) for (const n of s.d.match(/-?\d+(\.\d+)?/g).map(Number)) assert.ok(n >= 0 && n <= 24);
   const peaks = strokes.slice(0, 3).map((s) => Number(s.d.match(/C[\d.]+,[\d.]+ [\d.]+,([\d.]+)/)[1]));
   assert.ok(peaks[0] < peaks[1] && peaks[1] < peaks[2], "each inner dome peaks lower than the one outside it");
-  assert.deepEqual([...ISLAND_MARK_GRADIENT], ["#C9D4DE", "#8FD3F2", "#BFE9FF"]);
+  assert.deepEqual([...ISLAND_MARK_GRADIENT], ["#FFFFFF", "#8FD3F2", "#BFE9FF"]);
 });
 
 test("the launcher drawables are exactly what the island icon generator writes", () => {
