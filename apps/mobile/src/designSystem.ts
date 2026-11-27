@@ -115,28 +115,31 @@ export const latticePalette = Object.freeze({
 });
 
 export const wavePalette = Object.freeze({
-  blue: "#4F7BFF",
-  cyan: "#3FD3FF",
-  violet: "#A855FF",
+  // UI v8 lattice language (owner 2026-11-27: "구체에 따라 모든 디자인을 리뉴얼"): the former blue/cyan/violet light is retuned to the
+  // sphere's ice tones; pink stays only for my PAPER orders.
+  blue: "#8FD3F2",
+  cyan: "#BFE9FF",
+  violet: "#D7E6F0",
   pink: calmPalette.order,
-  deepBlue: "#5A6EFF",
-  lilac: "#BE78FF",
-  glow: "#7866FF",
-  idle: "#787890",
+  deepBlue: "#6FA9C8",
+  lilac: "#C9D4DE",
+  glow: "#BFE9FF",
+  idle: "#6E7A86",
 } as const);
 
 /** Island palette (owner-approved island design 2026-10-28; NUSA means "island"): violet to blue to cyan light on near-black, soft white/pink/blue summit glow. */
 export const islandPalette = Object.freeze({
-  ground: "#090A13",
-  violet: "#7C54FF",
-  blue: "#4F7BFF",
-  cyan: "#46D7FF",
-  star: "#C8CDFF",
-  horizon: "#78DCFF",
-  reflection: "#C8D7FF",
+  // UI v8: retuned to the lattice ice tones (the stopped islands on 선물 read as the same family as the sphere).
+  ground: "#05080D",
+  violet: "#C9D4DE",
+  blue: "#8FD3F2",
+  cyan: "#BFE9FF",
+  star: "#D7E6F0",
+  horizon: "#BFE9FF",
+  reflection: "#D7E6F0",
   summitCore: "#FFFFFFE6",
-  summitPink: "#FF5FA266",
-  summitBlue: "#96BEFF66",
+  summitPink: "#F4F8FB55",
+  summitBlue: "#BFE9FF66",
 } as const);
 
 /**
@@ -144,23 +147,24 @@ export const islandPalette = Object.freeze({
  * glass panels, one violet-blue-cyan light and a monospaced instrument face for numbers. One motion rule for every transition.
  */
 export const aiIslandPalette = Object.freeze({
-  ground: "#05060D",
-  groundGlow: "#14123A",
-  grid: "rgba(120,140,255,0.06)",
-  glass: "rgba(255,255,255,0.045)",
-  glassEdge: "rgba(255,255,255,0.08)",
-  glassStrong: "rgba(255,255,255,0.07)",
-  navGlass: "rgba(14,16,36,0.86)",
-  navActive: "rgba(138,107,255,0.30)",
-  accentStart: "#B7A4FF",
-  accentMid: "#5B86FF",
-  accentEnd: "#4FE0FF",
-  chipFill: "rgba(79,224,255,0.08)",
-  chipEdge: "rgba(79,224,255,0.28)",
-  idleFill: "rgba(140,146,184,0.08)",
-  idleEdge: "rgba(140,146,184,0.28)",
-  label: "#7E86AE",
-  traceIdle: "rgba(140,146,184,0.22)",
+  // UI v8 lattice language: the same deep ground and faint grid, but the light is the sphere's ice white and pale blue (no violet).
+  ground: "#05080D",
+  groundGlow: "#0B1520",
+  grid: "rgba(191,233,255,0.05)",
+  glass: "rgba(244,248,251,0.035)",
+  glassEdge: "rgba(191,233,255,0.10)",
+  glassStrong: "rgba(244,248,251,0.06)",
+  navGlass: "rgba(5,8,13,0.92)",
+  navActive: "rgba(191,233,255,0.16)",
+  accentStart: "#F4F8FB",
+  accentMid: "#BFE9FF",
+  accentEnd: "#8FD3F2",
+  chipFill: "rgba(191,233,255,0.06)",
+  chipEdge: "rgba(191,233,255,0.26)",
+  idleFill: "rgba(162,173,184,0.08)",
+  idleEdge: "rgba(162,173,184,0.26)",
+  label: "#8A97A4",
+  traceIdle: "rgba(162,173,184,0.22)",
 } as const);
 
 /** The one motion rule: every transition takes the same time on the same curve; panels rise in a short stagger; the status dot breathes. */
@@ -175,18 +179,19 @@ export const aiIslandMotion = Object.freeze({
 
 /** Aura palette (Learning tab): near-black ground with the wave blue/violet light and grain (was green until 2026-10-26). Presentation only. */
 export const auraPalette = Object.freeze({
-  ground: "#09090E",
-  card: "#111118",
-  text: "#F1F1F6",
-  muted: "#9C9CB2",
-  deep: "#140B33",
-  mid: "#3B2BA8",
-  bright: "#6F7CFF",
-  neon: "#A88BFF",
-  unlit: "#2B2A40",
+  // UI v8 lattice language: Lab ground and light follow the sphere (ice, not violet).
+  ground: "#05080D",
+  card: "#0A1017",
+  text: "#E8F0F2",
+  muted: "#A2ADB8",
+  deep: "#0B1520",
+  mid: "#27455A",
+  bright: "#8FD3F2",
+  neon: "#BFE9FF",
+  unlit: "#1E2A35",
   loss: "#FF6A5C",
   attention: "#FFC266",
-  scrim: "rgba(9,9,14,0.62)",
+  scrim: "rgba(5,8,13,0.62)",
 } as const);
 
 /** calm-v1: the whole app shares the calm palette. Cards blend into the ground (no boxes), white is the normal and primary tone, amber is attention only and red is loss/halt only. Identical in light and dark. */
