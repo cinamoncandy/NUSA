@@ -5,7 +5,7 @@ import { readableFont } from "./designSystem";
 import { fieldFonts } from "./fieldFonts";
 import type { RiskGateModel } from "./riskGateModel";
 import type { DecisionTerrainModel } from "./decisionTerrainModel";
-import { DecisionRidge } from "./decisionRidge";
+import { HourDial } from "./hourDial";
 import { Heartbeat, Odometer, Panel, SectionLabel, instrumentType, useReducedMotion } from "./instrumentKit";
 
 // Now-screen block while the consecutive-loss limit holds new buys (redesign 2026-10-20, owner-chosen 계기판 design): a big
@@ -48,7 +48,7 @@ export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain
 
     <View style={styles.section}>
       <SectionLabel left="판단 · 도는 중" right="오늘" />
-      {terrain == null ? <Heartbeat width={width} reducedMotion={reducedMotion} /> : width > 0 ? <DecisionRidge model={terrain} tone="limit" decisionCount={decisionCount} width={width} reducedMotion={reducedMotion} /> : null}
+      {terrain == null ? <Heartbeat width={width} reducedMotion={reducedMotion} /> : width > 0 ? <HourDial model={terrain} size={Math.min(width, 260)} live reducedMotion={reducedMotion} testID="risk-gate-hour-dial" /> : null}
       <Odometer value={gate.decisions} size={84} reducedMotion={reducedMotion} />
     </View>
 
