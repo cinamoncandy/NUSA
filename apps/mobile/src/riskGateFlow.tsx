@@ -17,11 +17,12 @@ const NODES = [0.04, 0.37, 0.71, 0.96] as const;
 const PULSES = 6;
 const CYCLE_MS = 1100;
 
-export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain = null, decisionCount = null }: {
+export function RiskGateFlow({ gate, lossText = null, windowNote = null, terrain = null }: {
   readonly gate: RiskGateModel;
   /** The main motion graphic: today's decision ridgeline with the lines from the stop time on in amber. Without it the heartbeat trace stands in. */
   readonly terrain?: DecisionTerrainModel | null;
   /** Today's decision count, so new decisions drop needles on the terrain. */
+  /** Ignored since UI v8 (the hour ring shows counts per hour); kept so callers need not change. */
   readonly decisionCount?: number | null;
   /** The server's loss-limit sentence (buildLossLimitLine). */
   readonly lossText?: string | null;
