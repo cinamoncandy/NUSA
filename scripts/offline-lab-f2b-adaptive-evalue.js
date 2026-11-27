@@ -15,8 +15,8 @@ function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; 
 function normal(rnd) { return Math.sqrt(-2 * Math.log(1 - rnd())) * Math.cos(2 * Math.PI * rnd()); }
 function t4(rnd) { let c = 0; for (let i = 0; i < 4; i++) { const z = normal(rnd); c += z * z; } return normal(rnd) / Math.sqrt(c / 4) * Math.SQRT1_2; }
 
-// One run: each day the signal ranks markets; hold the top third (equal weight) for one day; excess = holding minus basket,
-// minus turnover cost. The e-process bets a fixed mixture of fractions on the clipped, predictably scaled excess.
+// One run: each day the signal ranks markets; hold the top third (equal weight) for HOLD days; excess = holding minus basket,
+// minus turnover cost. The e-process bets a fixed mixture of fractions (optionally averaged with an adaptive predictable bet) on the clipped, predictably scaled excess.
 function run(rnd, icDay, costOn, HOLD, adaptive) {
   const ic = Math.min(0.99, icDay * Math.sqrt(HOLD)); // same per-day predictive power whatever the hold
   let eA = 1, ys = 0, yq = 0, ny = 0;

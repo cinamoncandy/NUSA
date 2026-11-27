@@ -60,6 +60,7 @@ Command `node scripts/offline-lab-f2b-adaptive-evalue.js 1000` (seed 20261127, s
 |---|---|---|---|---|---|---|---|
 | fixed | 1, no cost | 0 | 0.0 | 0.0 | 0 | 0 (upper 0.004) | - |
 | adaptive | 1, no cost | 0 | 0.0 | 0.0 | 0 | 0.002 (upper 0.007) | 289 |
+| fixed / adaptive | 5 and 20 | 0 | -1.1 to -0.3 | about 0 | 0 | 0 (upper 0.004 each) | - |
 | fixed | 1 | 0.04 | -1.5 | 4.3 | 0 | 0 | - |
 | fixed | 5 | 0.04 | 3.2 | 4.4 | 0.011 | 0.319 | 307 |
 | adaptive | 5 | 0.04 | 3.2 | 4.4 | 0.040 | 0.449 | 277 |
@@ -68,6 +69,6 @@ Command `node scripts/offline-lab-f2b-adaptive-evalue.js 1000` (seed 20261127, s
 | fixed | 20 | 0.04 | 4.1 | 4.4 | 0.038 | 0.663 | 278 |
 | adaptive | 20 | 0.04 | 4.0 | 4.3 | 0.097 | 0.720 | 254 |
 
-What it shows: (a) with the same per-day predictive power, **a 20-day hold keeps almost all of the gross edge** (net 1.9 of gross 2.2), while daily rebalancing loses it all: low turnover is the single biggest lever; (b) the **adaptive bet roughly doubles power for moderate effects** and passes sooner, with the null pass rate still at or below 0.7 percent (target 1.25 percent); (c) a net Sharpe near 2 still passes within a year only about 9 percent of the time. Synthetic only, same caveats as section 3.
+What it shows: (a) **if a signal keeps its per-day predictive power over 20 days** (an assumption of this model, not a finding; real signals usually decay with horizon), a 20-day hold keeps almost all of the gross edge (net 1.9 of gross 2.2) while daily rebalancing loses it all; (b) the **adaptive bet improves power, most for small effects** (about 2x by day 365 at hold 20 and IC 0.02, about 1.1 to 1.4x elsewhere) and passes about 25 to 30 days sooner; no null row passed above 0.7 percent (cost-on null rows at holds 5 and 20 had zero passes); (c) a net Sharpe near 2 still passes within a year only about 9 percent of the time. Synthetic only, same caveats as section 3.
 
-Decision (AI recommendation, owner may amend): **default hold 20 trading days (about monthly), adaptive e-process, at most 3 hypotheses in the first registration.** Weekly holds only for signals with stronger expected per-day IC.
+Decision (AI recommendation, owner may amend): **adaptive e-process; the hold of each signal is chosen before registration from its measured IC decay on already-read history (up to 2026-11-04), defaulting to about 20 days when decay is slow; at most 3 hypotheses in the first registration** (an AI proposal: with alpha 0.0125 each, 3 to 4 hypotheses fit the assumed programme alpha of 0.05 a year by Bonferroni).
