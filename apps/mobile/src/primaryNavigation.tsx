@@ -8,7 +8,7 @@ import {
 } from "./navigationContract";
 import { useTheme } from "./ThemeProvider";
 import { visualSystem } from "./visualSystem";
-import { aiIslandPalette, readableFont } from "./designSystem";
+import { aiIslandPalette, latticePalette, readableFont } from "./designSystem";
 import { TabIcon } from "./tabIcons";
 
 const DESCRIPTIONS: Readonly<Record<PrimaryDestination, string>> = Object.freeze({
@@ -48,7 +48,7 @@ export function PrimaryNavigation({
             ]}
             testID={`tab-${destination}`}
           >
-            <View style={[styles.indicator, { backgroundColor: active ? theme.colors.aiSignalEnd : ui.color.border, opacity: active ? 1 : 0 }]} />
+            <View style={[styles.indicator, { backgroundColor: active ? latticePalette.ice : ui.color.border, opacity: active ? 1 : 0 }]} />
             <TabIcon destination={destination} active={active} muted={ui.color.textMuted} />
             <Text numberOfLines={1} style={[styles.label, { color: active ? ui.color.text : ui.color.textMuted }, active && styles.activeLabel]}>
               {primaryDestinationDisplayLabels[destination]}
@@ -61,12 +61,13 @@ export function PrimaryNavigation({
 }
 
 const styles = StyleSheet.create({
-  // A floating glass pill (AI island look, 2026-10-29); the selected tab is a rounded lit cell inside it.
+  // A floating glass bar in the lattice language (UI v8); the selected tab is a faint lit cell with one ice node above its icon.
   frame: { paddingHorizontal: 14, paddingTop: 6, paddingBottom: 10, alignItems: "center", backgroundColor: aiIslandPalette.ground },
-  navigation: { width: "100%", maxWidth: 720, borderWidth: StyleSheet.hairlineWidth, borderRadius: 32, alignItems: "center", paddingHorizontal: 6, paddingVertical: 6 },
+  navigation: { width: "100%", maxWidth: 720, borderWidth: StyleSheet.hairlineWidth, borderRadius: 22, alignItems: "center", paddingHorizontal: 6, paddingVertical: 6 },
   inner: { width: "100%", flexDirection: "row" },
-  item: { flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 2, borderRadius: 24 },
-  indicator: { height: 2, width: 14, borderRadius: 999 },
+  item: { flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 2, borderRadius: 16 },
+  // The selected tab is marked by one lit node (a small ice dot), like a node of the sphere.
+  indicator: { height: 5, width: 5, borderRadius: 999 },
   label: { fontSize: readableFont(10), fontWeight: "700" },
   activeLabel: { fontWeight: "600" },
 });

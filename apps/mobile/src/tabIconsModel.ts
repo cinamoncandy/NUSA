@@ -1,21 +1,22 @@
 import type { PrimaryDestination } from "./navigationContract";
 import { islandPalette } from "./designSystem";
 
+const SPHERE = "M4 12A8 8 0 1 0 20 12A8 8 0 1 0 4 12";
 /**
- * Tab icons in the island style (owner-approved mockup 2026-10-28): 1.6 px round line icons on a 24 grid. The selected tab draws in
- * the island gradient (violet to cyan); the others in the muted colour. Presentation only.
+ * Tab icons in the lattice language (UI v8, owner 2026-11-27 "아이콘과 메뉴 디자인도 바꿔"): 1.6 px round line icons on a 24 grid,
+ * each drawn on the outline of the sphere. The selected tab draws in the ice gradient; the others in the muted colour. Presentation only.
  */
 export const TAB_ICON_PATHS: Readonly<Record<PrimaryDestination, readonly (readonly [string, number])[]>> = Object.freeze({
-  // 지금: the island over the sea.
-  Home: [["M4 15c3 0 4-8 8-8s5 8 8 8", 1], ["M3 18h18", 0.7], ["M7 21h10", 0.4]],
-  // 학습: a rising line.
-  Paper: [["M4 19h16", 1], ["M5 16c2-1 3-5 5-5s2 3 4 2 3-6 5-7", 1], ["M16 6h3v3", 1]],
-  // 실거래: a padlock (LIVE stays locked).
-  Live: [["M7.5 11h9a2.5 2.5 0 0 1 2.5 2.5v4a2.5 2.5 0 0 1-2.5 2.5h-9A2.5 2.5 0 0 1 5 17.5v-4A2.5 2.5 0 0 1 7.5 11z", 1], ["M8 11V8a4 4 0 0 1 8 0v3", 1], ["M8.5 16h7", 0.5]],
-  // 선물: two-way arrows.
-  Futures: [["M4 9h13l-3-3", 1], ["M20 15H7l3 3", 1]],
-  // 기록: a list.
-  More: [["M5 6h14", 1], ["M5 12h14", 0.7], ["M5 18h9", 0.45]],
+  // 지금: the lattice sphere itself (outline, equator, meridian).
+  Home: [[SPHERE, 1], ["M4 12c0 2.2 3.6 4 8 4s8-1.8 8-4", 0.6], ["M12 4c-2.2 0-4 3.6-4 8s1.8 8 4 8", 0.6]],
+  // Lab: a chain of lit nodes rising across the sphere.
+  Paper: [[SPHERE, 0.4], ["M7 16l3.5-3 3 1.5L17 9", 1], ["M17 7.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8", 1]],
+  // 실거래: a padlock inside the sphere (LIVE stays locked).
+  Live: [[SPHERE, 0.4], ["M9 12h6v4.5H9z", 1], ["M10 12v-1.5a2 2 0 0 1 4 0V12", 1]],
+  // 선물: two-way arrows across the sphere.
+  Futures: [[SPHERE, 0.35], ["M6 10h10l-2.5-2.5", 1], ["M18 14H8l2.5 2.5", 1]],
+  // 기록: lines of a log, each led by a node.
+  More: [["M9 7h10", 1], ["M9 12h10", 0.7], ["M9 17h7", 0.45], ["M5 6.2a0.8 0.8 0 1 0 0 1.6a0.8 0.8 0 1 0 0-1.6", 1], ["M5 11.2a0.8 0.8 0 1 0 0 1.6a0.8 0.8 0 1 0 0-1.6", 0.7], ["M5 16.2a0.8 0.8 0 1 0 0 1.6a0.8 0.8 0 1 0 0-1.6", 0.45]],
 });
 
 export const TAB_ICON_ACTIVE = [islandPalette.violet, islandPalette.cyan] as const;

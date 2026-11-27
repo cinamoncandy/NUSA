@@ -31,7 +31,7 @@ test("bottom navigation is restrained and does not restore the legacy neon pill 
   assert.doesNotMatch(app, /shadowColor: active \? appTheme\.colors\.neonBlue/);
   assert.doesNotMatch(app, /color: active \? appTheme\.colors\.neonTeal/);
   assert.match(navigation, /backgroundColor: active \? theme\.colors\.primarySoft : "transparent"/);
-  assert.match(navigation, /backgroundColor: active \? theme\.colors\.aiSignalEnd : ui\.color\.border/);
+  assert.match(navigation, /backgroundColor: active \? latticePalette\.ice : ui\.color\.border/);
   assert.match(navigation, /color: active \? ui\.color\.text : ui\.color\.textMuted/);
   assert.match(navigation, /navigation/);
 });
