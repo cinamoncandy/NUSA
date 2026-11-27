@@ -68,6 +68,6 @@ const styles = StyleSheet.create({
   item: { flex: 1, minHeight: 52, alignItems: "center", justifyContent: "center", gap: 3, paddingHorizontal: 2, borderRadius: 16 },
   // The selected tab is marked by one lit node (a small ice dot), like a node of the sphere.
   indicator: { height: 5, width: 5, borderRadius: 999 },
-  label: { fontSize: readableFont(10), fontWeight: "700" },
-  activeLabel: { fontWeight: "600" },
+  label: { fontSize: readableFont(10), fontWeight: "600" },
+  activeLabel: { fontWeight: "700" },
 });

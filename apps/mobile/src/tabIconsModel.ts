@@ -10,9 +10,9 @@ export const TAB_ICON_PATHS: Readonly<Record<PrimaryDestination, readonly (reado
   // 지금: the lattice sphere itself (outline, equator, meridian).
   Home: [[SPHERE, 1], ["M4 12c0 2.2 3.6 4 8 4s8-1.8 8-4", 0.6], ["M12 4c-2.2 0-4 3.6-4 8s1.8 8 4 8", 0.6]],
   // Lab: a chain of lit nodes rising across the sphere.
-  Paper: [[SPHERE, 0.4], ["M7 16l3.5-3 3 1.5L17 9", 1], ["M17 7.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8", 1]],
+  Paper: [[SPHERE, 0.4], ["M7 16l3.5-3 3 1.5L16 10", 1], ["M17 7.6a1.4 1.4 0 1 0 0 2.8a1.4 1.4 0 1 0 0-2.8", 1]],
   // 실거래: a padlock inside the sphere (LIVE stays locked).
-  Live: [[SPHERE, 0.4], ["M9 12h6v4.5H9z", 1], ["M10 12v-1.5a2 2 0 0 1 4 0V12", 1]],
+  Live: [[SPHERE, 0.4], ["M8.5 11.5h7v5h-7z", 1], ["M10 11.5v-1.5a2 2 0 0 1 4 0v1.5", 1]],
   // 선물: two-way arrows across the sphere.
   Futures: [[SPHERE, 0.35], ["M6 10h10l-2.5-2.5", 1], ["M18 14H8l2.5 2.5", 1]],
   // 기록: lines of a log, each led by a node.
