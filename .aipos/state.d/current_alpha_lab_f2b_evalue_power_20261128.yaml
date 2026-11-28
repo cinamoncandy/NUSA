@@ -1,0 +1,33 @@
+current_alpha_lab_f2b_evalue_power_20261128:
+  work_order: WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
+  status: IN_PROGRESS_RESULT_RECORDED_PENDING_REVIEW
+  branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
+  base_sha: 5846d6b58b4fa7f5aff7ea7b746a8fc8f3222e92
+  scope: offline_synthetic_eprocess_and_hold_comparison_only
+  primary_run: COMPLETED_ONCE
+  analysis_commit: 403e4641db0bde7ed9d9fc1410ef97b5545f08e2
+  result_record_commit: a3835fc587f4a9205f037bc3ecd138c87f9c5f2b
+  analysis_script_sha256: 5439dcee3c9c25e3fce81512770eb66fd31cc778fc4069a3361384e8273dd1be
+  config_sha256: baa0ce0a3ac95a8003f30f410aca98d89773d806637237f545951674b12a7343
+  artifact_sha256: 1901d4dac5b03323b9aa3f800c7fbf4d7d4b8f0561ad128f3fe273894ee6e562
+  result_note: docs/ALPHA_LAB_F2B_EVALUE_POWER_RESULT_2026-11-28.md
+  prior_exact_head_ci: "CI #15002 and companion workflows PASS on reviewed head 20124ea9d1bf5a41a9afc0432f1a1c64b9277a0d."
+  validated_code_head_sha: 318c5105254a23ec66f47228ade4e320c95a7f2f
+  exact_head_ci: PASS
+  exact_head_ci_run: 15004
+  exact_head_actual_paper_run: 10649
+  independent_review: PENDING_NON_AUTHOR_REVIEW_OF_LATEST_HEAD
+  owner_supplied_review:
+    reviewed_head_sha: 20124ea9d1bf5a41a9afc0432f1a1c64b9277a0d
+    verdict: ACCEPT_WITH_P2
+    findings: "P0/P1=0; P2=2 (realized per-hold IC not measured; no uncertainty interval for between-hold differences)."
+    disposition: "Result note scopes dailyIC to a model parameter and discloses independent scenario seeds and marginal Wilson intervals; realized rank IC and between-hold uncertainty remain uncomputed; script, artifact, and primary run are unchanged."
+    amended_head_review: PENDING
+  non_author_review_round_2:
+    reviewed_head_sha: 99d7fcd702fc0169ef22189a20e439c4a6517aab
+    verdict: ACCEPT_WITH_P2
+    findings: "P2=2: cost wording does not specify that sum(abs(weight changes)) includes buys and sells; skewed-null clipped mean table does not identify the 4-sd clip width."
+    disposition: "Clarify the turnover formula and that the reported clipped mean is the 4-sd value shared by three 4-sd variants. No analysis script/artifact change or simulation rerun."
+    next_head_review: PENDING
+  next: "Commit and push only the result-note clarification; do not rerun the primary simulation. Then verify exact-head CI and obtain a fresh non-author review of the new head; keep PR draft and do not merge or register a strategy."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
