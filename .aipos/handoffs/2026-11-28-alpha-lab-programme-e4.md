@@ -6,7 +6,7 @@
 - Branch: `codex/alpha-lab-programme-ledger-20261128`.
 - Base branch: E1 `codex/alpha-lab-registry-20261128` at `7f8aaf0d749b6bab8d82a49b23633dbc0ee31767`.
 - Draft pull request: [#3358](https://github.com/cinamoncandy/NUSA/pull/3358), created at initial implementation commit `88c42916ed215b8ba353ec15090b5d8b5d16560b`.
-- The PR targets the E1 branch because E4 imports the E1 reader. The repository CI workflow is main-base-only, so a full `workflow_dispatch` CI run was queued explicitly on PR head `0d4b934e3e036fcbf57fe47d40b0557181520b6b` (run `46123925239`); this evidence follow-up changes the head and requires another exact-head run.
+- The PR targets the E1 branch because E4 imports the E1 reader. The repository pull-request CI trigger is main-base-only, so full CI is dispatched manually for this stack. Run `46124245841` passed on head `838ced21ff29aa9dbb887604006935ab2b5898be`; later metadata commits change the PR head and require a fresh dispatch. The live PR checks are the source of truth and must match the current head SHA.
 
 ## Implementation
 
@@ -22,4 +22,4 @@ The work order requires the E4 ledger to be read-only. Therefore `check` is a bu
 
 ## Next action
 
-Push this AIPOS evidence follow-up, run CI against the resulting exact head, and await independent review. No merge or release action.
+Read the live checks for the current PR head, preserve Draft, and await independent review. No merge or release action.
