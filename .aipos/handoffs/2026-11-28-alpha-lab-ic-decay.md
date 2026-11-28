@@ -36,6 +36,14 @@
 - The result-note renderer initially read fetch timestamps from the wrong nested fields. The checked-in note was corrected from the hash-verified JSON manifest without another fetch or analysis. The frozen analysis script was not edited after the successful measurement.
 - PR review and exact-head GitHub CI have not yet been completed. Keep the PR draft until a non-author CORE review is complete. Do not merge or release.
 
+## Owner-supplied review follow-up (2026-11-28)
+
+- The independent report supplied by the owner reviewed the prior head `b487e1bcd1476889f7184589248540115344705b` as `ACCEPT WITH P2` (0 P0/P1, 2 P2); it did not independently rerun the analysis.
+- The reviewer reported that the full result JSON and source hashes could not be independently inspected in that session; the prior local hash verification recorded above remains the available evidence.
+- The result note now states that its interval is conditional on the fixed 20-observation block length and that the hashed manifest does not preserve raw candles for exact reconstruction.
+- This is a documentation-only clarification. The frozen script, result JSON, and hashes are unchanged; the one-time historical analysis was not rerun.
+- Fetch the new PR head and verify its exact-head CI, then obtain a fresh non-author review of the amended head. Keep PR #3349 in draft; no winner selection, signal registration, or trading.
+
 ## Safety and next action
 
 PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / realOrderAuthority=false / realTransferAuthority=false / aiAuthority=ZERO_AUTHORITY / FAIL_CLOSED.

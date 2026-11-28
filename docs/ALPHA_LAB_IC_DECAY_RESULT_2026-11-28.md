@@ -19,3 +19,6 @@ The work order points to section 7 of the V3 design, but the current cited file 
 | low_volatility_20d | 0.0775 [0.0691, 0.0853] | 0.0825 [0.0657, 0.0993] | 0.0857 [0.0641, 0.1082] | 0.0952 [0.0687, 0.1230] |
 
 Limitations: this is historical descriptive research on an already-read history, not a blind test. The current filtered universe can introduce survivorship and membership bias; no fees, costs, portfolio returns, or execution are evaluated. The intervals do not correct for looking across multiple signals and horizons. No hold period or strategy is recommended from these numbers.
+
+- The bootstrap intervals are conditional on the fixed 20-observation circular block length. No block-length sensitivity analysis was run; overlapping forward returns or dependence extending beyond 20 observations may make these intervals understate uncertainty. A 40/60-observation comparison is outside this one-run work order.
+- The JSON manifest records per-market hashes of normalized OHLCV, not the raw candle rows. Those hashes can reveal that a later refetch differs, but they cannot reconstruct the exact input response used for this measurement. No immutable raw-data archive is included.
