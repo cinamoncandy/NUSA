@@ -6,7 +6,7 @@
 - Subtask: E2 offline declared-rule screen runner.
 - Branch: `codex/alpha-lab-screen-runner-20261128`.
 - Base: `6e908e4f9d2339775f392f9f00279192b3298f3c`.
-- Pull request: not opened.
+- Draft pull request: [#3357](https://github.com/cinamoncandy/NUSA/pull/3357), created at implementation commit `12d178b1868b64224d0f07d7e85ebff194c9a029`.
 
 ## Implementation
 
@@ -27,4 +27,4 @@ The checked-in repository has the preregistration and recorded summary, but no r
 
 ## Next action
 
-Run focused checks, AIPOS validation and preflight, then open a Draft PR with the missing-input limitation stated clearly. Do not alter the previous scripts or recorded results.
+Push this AIPOS follow-up, verify CI against the resulting exact PR head, and keep #3357 Draft for independent non-author review. Do not alter the previous scripts or recorded results.
