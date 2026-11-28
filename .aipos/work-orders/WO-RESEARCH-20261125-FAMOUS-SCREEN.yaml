@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261125-FAMOUS-SCREEN
+title: "Research: discovery screen of famous-trader rules that need high, low and volume (7 rules, K=12); offline, read-only"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/famous-screen
+owner_decision: "2026-11-25: the owner said to test on past charts and, for those that pass, verify on data that accumulates from now (\"과거 차트로 테스트해서 통과하면 앞으로 쌓일 데이터로 검증을 하면 되지\")."
+follows: "docs/RESEARCH_STRATEGY_COLLECTION_2026-11-25.md (PR #3310); docs/RESEARCH_NOTE_2026-10-13_STRATEGY_CATALOG.md."
+objective: "Offline script scripts/offline-famous-screen.js, committed with its rules and pass bars BEFORE its first run. Screens Darvas box, Livermore pivot, O'Neil base breakout, Raschke pullback, volume spike, Minervini template, Weinstein stage 2 on the frozen 5-market OHLCV files (K=12). The last part of each series was already read by the 2026-10-13 catalog screen, so it is only a second filter: passing is eligibility for a forward pre-registration, never evidence of an edge."
+change:
+  - "scripts/offline-famous-screen.js, docs/RESEARCH_FAMOUS_SCREEN_RESULT_2026-11-25.md (result: 12 configurations, 1 passed discovery, 0 passed the second filter) and this work order."
+not_changed:
+  - "Any workflow, host, release, rule, threshold, gate, risk limit, capital or authority; no order-book value and no S2-S4 holdout value is read; Codex's L1-L8 work."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass; the script runs offline from committed files."
+unverified: "Rule definitions are simplified readings of public descriptions, not the traders' own rules; the screen reuses a last part that was already read."
+acceptance:
+  - "Result recorded honestly; survivors, if any, go to a separate forward pre-registration."
