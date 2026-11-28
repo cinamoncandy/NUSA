@@ -1,9 +1,15 @@
 current_research_breadth_look_workflows_20261128:
   work_order: WO-RESEARCH-20261128-CODEX-BREADTH-LOOK-WORKFLOWS
   status: LOCAL_VALIDATED_PENDING_REVIEW_CI
+  pull_request: 3359
+  pull_request_url: https://github.com/cinamoncandy/NUSA/pull/3359
+  pull_request_state: OPEN_DRAFT
+  validated_code_head_sha: 39acf818a503dd4c58f5095fafe58b1df55e0b53
+  main_sha_when_pr_opened: 859d218a8477f5f24c149d58dc64d392dc974e24
+  exact_head_ci: PENDING_FRESH_AFTER_AIPOS_UPDATE
   branch: codex/breadth-look-workflows-20261128
   base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
   validation: "Node syntax check and focused synthetic-candle tests PASS; workflow action-pin/input/authority-map validators PASS; preflight and validate:full PASS; AIPOS provenance PASS. No network in tests."
   data_boundary: "Only the registered market symbols were extracted. No numeric market values or market history were read or used; no real fetch/look has run."
-  next: "Commit and push the locally validated changes, open one Draft PR, then obtain independent review and exact-head CI. No merge, release, host, or app work."
+  next: "Await fresh exact-head CI and independent review on Draft PR #3359. No fetch/look, merge, release, host, or app work."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED

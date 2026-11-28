@@ -3,10 +3,11 @@
 ## Current work
 
 - Work order: `WO-RESEARCH-20261128-CODEX-BREADTH-LOOK-WORKFLOWS`
-- Status: locally validated, pending commit and Draft PR.
+- Status: Draft PR open; awaiting fresh exact-head CI and independent review.
 - Branch: `codex/breadth-look-workflows-20261128`
-- Base: `6e908e4f9d2339775f392f9f00279192b3298f3c` (`origin/main` when the branch was prepared).
-- Pull request: not opened yet.
+- Implementation base: `6e908e4f9d2339775f392f9f00279192b3298f3c`.
+- Draft PR: [#3359](https://github.com/cinamoncandy/NUSA/pull/3359), opened from code commit `39acf818a503dd4c58f5095fafe58b1df55e0b53`. Main was `859d218a8477f5f24c149d58dc64d392dc974e24` when the PR was opened.
+- The AIPOS follow-up commit advances the PR head and requires fresh exact-head CI.
 
 ## Scope and safety
 
@@ -16,7 +17,7 @@ Only the registered market symbols were extracted from the registered pool field
 
 Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=false`, `realOrderAuthority=false`, and `aiAuthority=ZERO_AUTHORITY`.
 
-## Validation
+## Validation on the code commit
 
 - `node --check scripts/alpha-lab/breadth-look.js`: PASS.
 - `node --test tests/alpha-lab-breadth-look.test.js`: PASS; synthetic candles only.
@@ -24,8 +25,8 @@ Safety remains `PAPER_ONLY`, `liveAuthority=NONE`, `productionMutationAllowed=fa
 - `pnpm run preflight`: PASS.
 - `pnpm run validate:full`: PASS.
 - `pnpm run aipos:provenance`: PASS.
-- `git diff --cached --check`: PASS.
+- `git diff --check`: PASS.
 
 ## Next permitted action
 
-Stage the scoped implementation and AIPOS records, run the staged diff check, commit and push, then open one Draft PR. Keep it in Draft for independent review and exact-head CI. Do not merge, release, access a host, run a real fetch/look early, or change safety authority.
+Wait for fresh exact-head CI on PR #3359 and obtain independent review. Keep the PR in Draft. Do not run a real fetch/look, merge, release, access a host, or change safety authority.

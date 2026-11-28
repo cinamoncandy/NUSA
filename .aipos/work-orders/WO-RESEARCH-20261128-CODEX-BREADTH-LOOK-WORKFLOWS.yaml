@@ -6,6 +6,10 @@ assignee: codex
 reviewer: claude
 implementation_branch: codex/breadth-look-workflows-20261128
 implementation_base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
+pull_request: 3359
+pull_request_url: https://github.com/cinamoncandy/NUSA/pull/3359
+validated_code_head_sha: 39acf818a503dd4c58f5095fafe58b1df55e0b53
+main_sha_when_pr_opened: 859d218a8477f5f24c149d58dc64d392dc974e24
 owner_decision: "2026-11-28: large implementation work goes to ChatGPT/Codex; Claude designs, owns core functions and reviews (ADR-OPS-20261128-WORK-SPLIT)."
 spec:
   - "Binding rules: docs/RESEARCH_PREREG_BREADTH_FILTER_2026-11-25.md and docs/RESEARCH_PREREG_AMENDMENT_2026-11-26_BREADTH_STAGED_LOOKS.md. Implement exactly what they say; never change a rule, market, cost, condition, seed or date. Where the documents are ambiguous, stop and ask in the PR."
@@ -40,4 +44,4 @@ validation_evidence:
     - "pnpm run aipos:provenance: PASS."
     - "git diff --check: PASS."
   data_boundary: "No public fetch or look computation has been run; the run-time guards remain in place."
-  next: "Commit and push the validated branch, open one Draft PR, then obtain independent review and exact-head CI."
+  next: "Draft PR #3359 is open. Await fresh exact-head CI and independent review; do not run a fetch/look, merge, release, or host/app work."
