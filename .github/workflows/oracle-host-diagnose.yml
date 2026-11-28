@@ -294,11 +294,11 @@ jobs:
             let skipped = 0; const shown = [];
             for (const l of lines) {
               if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(l)) { skipped += 1; continue; }
-              let token = "OTHER";
+              let code = "OTHER";
               const f = l.match(/TRADEFLOW_STUDY_FAILED_CLOSED(?::V([0-9]+))?/);
-              if (f) token = "FAILED_CLOSED:V" + (f[1] || "?");
-              else { const st = l.match(/"status":"([A-Z_]{3,30})"/); const v = l.match(/"studyVersion":([0-9]+)/); if (st) token = st[1] + ":V" + (v ? v[1] : "1"); }
-              shown.push(l.slice(0, 19) + " " + token);
+              if (f) code = "FAILED_CLOSED:V" + (f[1] || "?");
+              else { const st = l.match(/"status":"([A-Z_]{3,30})"/); const v = l.match(/"studyVersion":([0-9]+)/); if (st) code = st[1] + ":V" + (v ? v[1] : "1"); }
+              shown.push(l.slice(0, 19) + " " + code);
             }
             for (const line of shown.slice(-60)) console.log(line);
             console.log("lines_without_timestamp_skipped=" + skipped);'
