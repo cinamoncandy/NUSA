@@ -36,11 +36,13 @@ const H = 60 * M;
 // Span per pre-registered run. Only the span differs between runs; every rule in this file is shared.
 // ML_ORDERBOOK_60M_20261029: the closed first run (INSUFFICIENT_DATA, docs: WO-RESEARCH-20261014-ORDERBOOK-STUDY).
 // ML_ORDERBOOK_60M_20261111: the second run, docs/RESEARCH_PREREG_2026-11-11_ORDERBOOK_60M.md (forward holdout).
+// ML_ORDERBOOK_60M_20261126: the third run, docs/RESEARCH_PREREG_2026-11-25_ORDERBOOK_60M_THIRD.md (train 11-26..12-04, validation 12-04..12-07, holdout 12-07..12-10).
 const SPANS = Object.freeze({
   ML_ORDERBOOK_60M_20261029: Object.freeze({ START: Date.parse("2026-10-15T00:00:00Z"), VAL: Date.parse("2026-10-23T00:00:00Z"), HOLD: Date.parse("2026-10-25T00:00:00Z"), END: Date.parse("2026-10-29T00:00:00Z") }),
   ML_ORDERBOOK_60M_20261111: Object.freeze({ START: Date.parse("2026-11-04T00:00:00Z"), VAL: Date.parse("2026-11-12T00:00:00Z"), HOLD: Date.parse("2026-11-14T00:00:00Z"), END: Date.parse("2026-11-18T00:00:00Z") }),
+  ML_ORDERBOOK_60M_20261126: Object.freeze({ START: Date.parse("2026-11-26T00:00:00Z"), VAL: Date.parse("2026-12-04T00:00:00Z"), HOLD: Date.parse("2026-12-07T00:00:00Z"), END: Date.parse("2026-12-10T00:00:00Z") }),
 });
-const DEFAULT_STUDY_ID = "ML_ORDERBOOK_60M_20261111";
+const DEFAULT_STUDY_ID = "ML_ORDERBOOK_60M_20261126";
 // An unknown id is refused instead of falling back to another span (fail closed).
 const STUDY_ID = process.env.NUSA_ORDERBOOK_STUDY_ID === undefined || process.env.NUSA_ORDERBOOK_STUDY_ID === "" ? DEFAULT_STUDY_ID : process.env.NUSA_ORDERBOOK_STUDY_ID;
 if (!Object.prototype.hasOwnProperty.call(SPANS, STUDY_ID)) throw new Error("ORDERBOOK_STUDY_ID_UNKNOWN");

@@ -26,6 +26,7 @@ describe("autonomous study result handoff", () => {
     writeFileSync(join(dir, ORDERBOOK_STUDY_RESULT_FILE), JSON.stringify(second));
     assert.equal(readOrderBookStudyResult(join(dir, "cloud-state.db"))?.id, "ML_ORDERBOOK_60M_20261111");
     assert.equal(readOrderBookStudyDisplay(join(dir, "cloud-state.db"))?.studyId, "ML_ORDERBOOK_60M_20261111");
+    assert.equal(parseOrderBookStudyResult({ ...second, studyId: "ML_ORDERBOOK_60M_20261126" })?.id, "ML_ORDERBOOK_60M_20261126", "the third run is registered");
     assert.equal(parseOrderBookStudyResult({ ...second, studyId: "ML_ORDERBOOK_60M_20261201" }), undefined, "an unregistered id is ignored");
   });
 

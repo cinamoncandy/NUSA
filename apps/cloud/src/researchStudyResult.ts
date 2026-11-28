@@ -11,7 +11,7 @@ import type { ResearchLedgerEntry } from "../../../packages/contracts/src/resear
  */
 export const ORDERBOOK_STUDY_RESULT_FILE = "orderbook-study-result.json";
 /** The registered order-book studies whose result file this reader accepts. A result is always attributed to the id written in the file. */
-export const ORDERBOOK_STUDY_IDS = Object.freeze(["ML_ORDERBOOK_60M_20261029", "ML_ORDERBOOK_60M_20261111"] as const);
+export const ORDERBOOK_STUDY_IDS = Object.freeze(["ML_ORDERBOOK_60M_20261029", "ML_ORDERBOOK_60M_20261111", "ML_ORDERBOOK_60M_20261126"] as const);
 export type OrderBookStudyId = (typeof ORDERBOOK_STUDY_IDS)[number];
 const isOrderBookStudyId = (value: unknown): value is OrderBookStudyId => (ORDERBOOK_STUDY_IDS as readonly unknown[]).includes(value);
 const nonNegativeInteger = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 0;
