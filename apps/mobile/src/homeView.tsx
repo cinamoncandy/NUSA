@@ -274,7 +274,7 @@ export function HomeView({
       {disconnected || readOnlyError ? <Pressable accessibilityRole="button" onPress={onGoSettings} testID="home-operational-notice"><StateNotice title={recovering ? "PAPER 재연결 중" : disconnected ? "PAPER 연결 필요" : "PAPER 연결 오류"} detail={`${recovering ? "기기 신뢰는 유지되고 있으며 세션을 자동 복구하는 중입니다." : disconnected ? "Cloud endpoint와 세션을 검증해야 합니다." : readOnlyError ?? "읽기 상태를 확인할 수 없습니다."} · 설정 열기`} tone="warning" /></Pressable> : null}
 
       <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen((open) => !open)} style={({ pressed }) => [styles.detailsToggle, { borderColor: theme.colors.border, opacity: pressed ? 0.7 : 1 }]} testID="home-details-toggle">
-        <Text style={[styles.detailsToggleText, { color: theme.colors.text }]}>{moreOpen ? "자세히 닫기" : "시세 · 흐름 · 학습 자세히 보기"}</Text>
+        <Text style={[styles.detailsToggleText, { color: theme.colors.text }]}>{moreOpen ? "자세히 닫기" : "시세 · 흐름 · Lab 자세히 보기"}</Text>
       </Pressable>
       {/* The approved prototype keeps HOME to the sphere, the capital and 최근 기록; the rest opens on demand.
           It stays mounted while closed, so release-contract markers remain present. */}
@@ -323,8 +323,8 @@ export function HomeView({
         </Pressable>
 
         <Pressable accessibilityRole="button" accessibilityState={{ disabled: Boolean(disconnected) }} disabled={disconnected} onPress={onOpenPaperLearning} style={({ pressed }) => [styles.command, { backgroundColor: "transparent", borderColor: theme.colors.border, opacity: disconnected ? 0.65 : pressed ? 0.72 : 1 }]} testID="home-paper-learning">
-          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>학습</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
-          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>학습 기록</Text>
+          <View style={styles.commandTop}><Text style={[styles.commandCode, { color: theme.colors.aiSignalStart }]}>Lab</Text><Text style={[styles.commandArrow, { color: theme.colors.aiSignalEnd }]}>↗</Text></View>
+          <Text style={[styles.commandTitle, { color: theme.colors.text }]}>Lab 기록</Text>
           <Text style={[styles.commandSummary, { color: theme.colors.textMuted }]} numberOfLines={2}>{decisionSurface.learning}</Text>
           <Text style={[styles.learningResult, { color: theme.colors.aiSignalEnd }]} numberOfLines={1} testID="home-supervisor-learning">{decisionSurface.result}</Text>
         </Pressable>

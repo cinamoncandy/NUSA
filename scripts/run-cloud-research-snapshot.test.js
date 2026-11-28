@@ -23,7 +23,7 @@ test("forward timeout/nonzero failures remain explicit while independent canonic
     let calls = 0;
     const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
       spawnSync: () => ++calls === 1 ? failure : { status: 0 } });
-    assert.equal(calls, 12); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
+    assert.equal(calls, 13); assert.equal(result.forwardExecution, "FAILED"); assert.ok(result.forwardFailure);
   }
 });
 
@@ -31,7 +31,7 @@ test("an order-book study failure is logged and never blocks canonical Research"
   let calls = 0;
   const result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
     spawnSync: () => ++calls === 2 ? { status: 1 } : { status: 0 } });
-  assert.equal(calls, 12); assert.equal(result.status, "COMPLETED");
+  assert.equal(calls, 13); assert.equal(result.status, "COMPLETED");
 });
 
 test("a trade-flow study failure is logged and never blocks canonical Research", () => {
@@ -129,7 +129,7 @@ test("runs bounded forward study then canonical preload + real public-market Res
     },
   });
   assert.equal(result.status, "COMPLETED");
-  assert.equal(calls.length, 12);
+  assert.equal(calls.length, 13);
   assert.deepEqual(calls[0].args, ["--max-old-space-size=256", "scripts/run-regime-forward-study.js"]);
   assert.equal(calls[0].options.timeout, 120000);
   assert.deepEqual(calls[1].args, ["--max-old-space-size=256", "scripts/run-orderbook-study.js"]);
@@ -154,11 +154,26 @@ test("runs bounded forward study then canonical preload + real public-market Res
   assert.equal(calls[9].options.timeout, 120000);
   assert.deepEqual(calls[10].args, ["--max-old-space-size=256", "scripts/run-history-mining-discover.js"]);
   assert.equal(calls[10].options.timeout, 300000);
+  assert.deepEqual(calls[11].args, ["--max-old-space-size=256", "scripts/run-forward-ret48-phase.js"]);
+  assert.equal(calls[11].options.timeout, 900000);
   assert.equal(result.learningLedgerPath, path.resolve("/var/lib/nusa/research-investment-learning.jsonl"));
   assert.equal(observed.executable, path.resolve("/usr/bin/node"));
   assert.deepEqual(observed.args, ["--max-old-space-size=256", "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"]);
   assert.ok(calls.every(call => call.args[0] === "--max-old-space-size=256"), "each spawned Research Node process must carry the bounded heap directly");
   assert.equal(observed.options.shell, false);
+});
+
+test("a forward RET48 phase failure is logged and never blocks canonical Research", () => {
+  const messages = [];
+  const original = console.error;
+  console.error = (...args) => { messages.push(args.join(" ")); };
+  let result;
+  try {
+    result = run({ env: { NUSA_SOURCE_COMMIT: SHA, NUSA_CLOUD_STATE_DB_PATH: path.resolve("/var/lib/nusa/state.sqlite") },
+      spawnSync: (executable, args) => (args.includes("scripts/run-forward-ret48-phase.js") ? { status: 1 } : { status: 0 }) });
+  } finally { console.error = original; }
+  assert.equal(result.status, "COMPLETED");
+  assert.deepEqual(messages.filter((m) => m.includes("FORWARD_RET48_FAILED_CLOSED")), ["[cloud-research-snapshot] FORWARD_RET48_FAILED_CLOSED"]);
 });
 
 test("a history mining failure is logged and never blocks canonical Research; the runner never invokes the look phase", () => {

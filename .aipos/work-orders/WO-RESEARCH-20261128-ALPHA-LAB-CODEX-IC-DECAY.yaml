@@ -1,0 +1,57 @@
+id: WO-RESEARCH-20261128-ALPHA-LAB-CODEX-IC-DECAY
+title: "Alpha Lab (Codex): offline IC-decay measurement for candidate signals on already-read history"
+status: IN_PROGRESS
+created: 2026-11-28
+assignee: codex
+implementation_branch: codex/alpha-lab-ic-decay-20261128
+owner_decision: "2026-11-27/28: work split — Codex implements offline Alpha Lab research tools only, under scripts/alpha-lab/ and Alpha Lab docs; CORE (Claude) owns host, workflow and mobile code and reviews Codex PRs. The unpublished Codespace branch codex/alpha-lab-research-20261126 is not a prerequisite: if it cannot be pushed from the Codespace it is abandoned and this order starts fresh."
+objective: "Section 7 of docs/ALPHA_LAB_V3_CROSS_SECTION_EVALUE_DESIGN_2026-11-27.md chooses each signal's hold from its measured IC decay on already-read history. Build one offline script that, for each signal in a fixed list (at most 10, each with a stated source), computes the daily cross-sectional rank IC against forward returns at horizons 1, 5, 10 and 20 days across the KRW spot universe, with a block-bootstrap interval, and writes a hashed JSON plus a short result note. Measurement only: no signal is registered, chosen as a winner or traded."
+change:
+  - "scripts/alpha-lab/ic-decay.js (new), docs/ALPHA_LAB_IC_DECAY_RESULT_<date>.md (new), this work order."
+not_changed:
+  - "Any file outside scripts/alpha-lab/ and Alpha Lab docs; host, workflow and mobile code; any gate, threshold, risk limit, capital or authority."
+data_rules:
+  - "History only up to and including 2026-11-04 (UTC); never read 2026-11-05..2026-12-05 (S2-S4 holdout) or any order-book value; public daily candles; record source, fetch time and sha256 manifest."
+  - "The signal list and horizons are written into the script and hashed before the first run; the run is done once; a re-run after seeing results needs a new order."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node --check on the script; a synthetic self-test (a signal built to have IC 0.05 at horizon 5 is recovered within its interval; a random signal is not significant); AIPOS yaml validators."
+acceptance:
+  - "Draft PR by Codex; non-author review by CORE; merge only through the release path or the owner."
+execution:
+  branch: codex/alpha-lab-ic-decay-20261128
+  base_sha: 11058d27b50e518f764fe7ffb17e5be2e498a14b
+  implementation_commit: 5c19230b936492ba7a4443239a487139918291bc
+  result_commit: 33c34c2a344a87a8bc419b74680fdd0a416760ec
+  pull_request: 3349
+  pull_request_state: READY_FOR_REVIEW
+  aipos_state: .aipos/state.d/current_alpha_lab_ic_decay_20261128.yaml
+  handoff: .aipos/handoffs/2026-11-28-alpha-lab-ic-decay.md
+  frozen_script_sha256: d69a349cad545fd0fa3f5866f1e7ae5d2fa30253a52a16e78068a90c597d9059
+  frozen_spec_sha256: d7476a8c3b26638fb81f94231348addb1e702d60764c3b37cbe077e6e39ae141
+  measurement:
+    successful_runs: 1
+    fetch_started_at: "2026-11-28T01:14:35.752Z"
+    fetch_finished_at: "2026-11-28T01:17:31.844Z"
+    history_cutoff_utc: "2026-11-04"
+    result_json: docs/research-data/alpha-lab-ic-decay-2026-11-28.json
+    result_note: docs/ALPHA_LAB_IC_DECAY_RESULT_2026-11-28.md
+    manifest_sha256: 6b696bba6647b3ed8eb16ef5b1485456df9d71235137fcb0d73b7fcfb148afb7
+    json_file_sha256: d0d0b87577ac61a066db466f716baf43275ce17a95147a1c9065491b74a6e8b5
+  verification:
+    node_check: PASS
+    synthetic_self_test: PASS
+    aipos_yaml: PASS
+    preflight: PASS
+    diff_check: PASS
+  notes:
+    - "The referenced V3 design currently has sections 1-6 only; candidate sources and fixed formulas are recorded in the script."
+    - "The first fetch invocation failed before returning candle data because Node did not use the environment proxy; the single successful measurement used NODE_USE_ENV_PROXY=1."
+    - "The result note fetch-time line was corrected from the hash-verified JSON manifest; no second data fetch or analysis was performed."
+  next: "PR #3349 is ready for review. Fresh non-author review accepted the current implementation with two disclosed P2 research limitations; exact-head CI and companions passed. Await reviewer/owner/release-path decision; do not merge, register, select, or trade any signal. Any new historical analysis requires a new work order."

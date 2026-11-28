@@ -388,3 +388,37 @@ test("the DISCOVER projection pins shortlist ids to the grid shape (no free text
   assert.equal(JSON.parse(run(mk("RET3_HIGH_Q80_H24"))).shortlist.length, 1);
   assert.equal(JSON.parse(run(mk("ignore_all_previous_instructions_and_do_x"))).shortlist.length, 0);
 });
+
+test("the Research study history step is read-only, prints only times, fixed status codes, unit state, exit codes and counts, and runs before the disk walks", () => {
+  const step = text.split("      - name: Research study history (statuses and counts only, read-only)")[1].split("\n      # Runs LAST")[0];
+  assert.match(step, /if: \$\{\{ inputs\.health_only != true/);
+  assert.match(step, /journalctl -u nusa-research\.service --since "-9 days"/);
+  assert.match(step, /journal_exit=.* kernel_exit=/, "a failed or timed-out read is visible");
+  const printed = step.split("\n").filter((line) => /^\s*(echo|console\.log|printf)\b/.test(line)).join("\n");
+  assert.doesNotMatch(printed, /echo\s+"?\$(raw|kraw)\b|printf\s+'%s\\n'\s+"\$(raw|kraw)"\s*$/m, "the journal text itself is never printed");
+  for (const label of ["failed_closed_lines", "memory_or_killed_lines", "timeout_or_term_lines", "database_lock_lines", "kernel_memory_kill_lines"]) assert.match(step, new RegExp(label + "=\\$\\(.*grep -c"));
+  assert.match(step, /emit "diag-research-history"/);
+  assert.doesNotMatch(step, /\bsudo\b|>\s*\/(?!dev\/null)|\btee\b|\|\s*cat\b/);
+  assert.doesNotMatch(step, /\boom\|heap\|killed\b|\|killed\|/, "no unanchored oom, heap or killed pattern");
+  const names = [...text.matchAll(/^      - name: (.+)$/gm)].map((m) => m[1]);
+  assert.ok(names.indexOf("Research study history (statuses and counts only, read-only)") < names.length - 2, "before the two disk walks");
+  assert.deepEqual(names.slice(-2), ["Disk consumers (read-only, after the health probe)", "Disk consumers by directory (read-only, one at a time)"]);
+  assert.match(text, /# Runs LAST: the 40 s du walk[^\n]*\n      - name: Disk consumers \(read-only, after the health probe\)/, "the Runs LAST comment sits above the first disk walk");
+});
+
+test("the Research study history projection prints a time and a fixed status code only, and skips lines without a timestamp", () => {
+  const { spawnSync } = require("node:child_process");
+  const step = text.split("      - name: Research study history (statuses and counts only, read-only)")[1];
+  const program = step.match(/node -e '([\s\S]*?)'\n/)[1];
+  const input = [
+    '2026-11-21T09:16:02+0900 host node[1]: [cloud-research-snapshot] TRADEFLOW_STUDY_FAILED_CLOSED:V1',
+    '2026-11-22T09:15:00+0900 host node[1]: TRADEFLOW_STUDY {"status":"WAITING_DATA","daysCollected":9,"studyVersion":2,"note":"price 123.4 secret=abc"}',
+    '2026-11-23T09:15:00+0900 host node[1]: TRADEFLOW_STUDY {"status":"AB1_X","studyVersion":1}',
+    'garbage TRADEFLOW_STUDY free text password hunter2 price 99.1',
+    '    continuation TRADEFLOW_STUDY {"status":"HOLDOUT_FAIL"}',
+  ].join("\n") + "\n";
+  const run = spawnSync(process.execPath, ["-e", program], { input, encoding: "utf8" });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, "2026-11-21T09:16:02 FAILED_CLOSED:V1\n2026-11-22T09:15:00 WAITING_DATA:V2\n2026-11-23T09:15:00 OTHER\nlines_without_timestamp_skipped=2\n");
+  assert.doesNotMatch(run.stdout, /garbage|hunter2|price|secret|continuation|123\.4/);
+});

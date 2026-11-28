@@ -3,12 +3,8 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- NUSA island mark (owner-approved 2026-10-28; NUSA means island): nested island contours over a horizon and sea ripples. Notification (monochrome). -->
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.25" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M4.08,14.31 C8.67,14.31 9.31,6.83 12.00,6.83 C14.69,6.83 15.33,14.31 19.92,14.31" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.15" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M6.54,14.31 C9.70,14.31 10.14,9.15 12.00,9.15 C13.86,9.15 14.30,14.31 17.46,14.31" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.05" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M8.99,14.31 C10.74,14.31 10.98,11.47 12.00,11.47 C13.02,11.47 13.26,14.31 15.01,14.31" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="0.84" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M3.64,15.08 L20.36,15.08" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="0.67" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M6.28,17.28 L17.72,17.28" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="0.67" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M8.48,19.04 L15.52,19.04" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M11.30,5.18 a0.70,0.70 0 1,0 1.41,0 a0.70,0.70 0 1,0 -1.41,0z" />
+    <!-- NUSA lattice sphere mark (UI v8, 2026-11-27; the sphere replaced the island): outline and a geodesic lattice with nodes. Notification (monochrome). -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.45" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M3.20,12.00 A8.80,8.80 0 1,0 20.80,12.00 A8.80,8.80 0 1,0 3.20,12.00" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="0.82" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M7.94,4.23 L3.21,12.17 M8.41,10.14 L3.21,12.17 M7.94,4.23 L8.41,10.14 M16.06,5.87 L8.41,10.14 M7.94,4.23 L16.06,5.87 M16.06,5.87 L15.59,5.27 M8.41,10.14 L16.35,14.84 M16.06,5.87 L16.35,14.84 M8.41,18.73 L3.21,12.17 M8.41,18.73 L8.41,10.14 M16.06,5.87 L20.79,11.83 M16.06,19.77 L16.35,14.84 M8.41,18.73 L16.35,14.84 M16.06,19.77 L8.41,18.73 M20.79,11.83 L16.35,14.84" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M7.09,10.14 a1.32,1.32 0 1,0 2.64,0 a1.32,1.32 0 1,0 -2.64,0z" />
 </vector>

@@ -1,0 +1,20 @@
+id: WO-AIPOS-20261125-HANDOFF-UPDATE-2
+title: "Handoff: record the findings and the four draft PRs waiting for the freeze end (2026-11-25 10:40 KST)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: the owner asked for other work during the freeze; a handoff that lists #3283, #3285, #3286 and #3287 keeps the next session from losing them."
+objective: "Append one dated section to the newest handoff: the 2026-11-25 findings, the four draft PRs with their order and release status, the Codex state as AIPOS shows it, and the dated triggers."
+change:
+  - ".aipos/handoffs/2026-11-17-main-handoff.md: one appended section; no other file."
+not_changed:
+  - "No code, workflow, host, rule, threshold, gate, limit or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "The PR states and trigger times are as read on 2026-11-25 and must be re-verified on GitHub before acting."
+acceptance:
+  - "AIPOS validators pass; docs only, so it may merge during the freeze through the normal bot path."

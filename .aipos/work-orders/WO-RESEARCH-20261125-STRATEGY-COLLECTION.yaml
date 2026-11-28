@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261125-STRATEGY-COLLECTION
+title: "Research: collect known strategy families; list what was tested (97, none pass) and what is not yet tested; docs only"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/strategy-collection
+owner_decision: "2026-11-25: after the weekly-trend date question the owner said to keep it and to collect the existing strategies (\"이것도 하고 이미 존재하는 전략들을 수집해\")."
+follows: "docs/RESEARCH_NOTE_2026-10-13_STRATEGY_CATALOG.md; docs/RESEARCH_THREE_DIRECTIONS_2026-11-25.md; docs/LEARNING_NEXT_CANDIDATES_2026-11-25.md."
+objective: "Docs only. List the known strategy families already tested (97 configurations, 0 pass) and twelve known families not yet tested, with horizon, cost fit, data state and overlap. Nothing is registered or run; every candidate must be pre-registered and judged on data after 2026-12-05 only."
+change:
+  - "docs/RESEARCH_STRATEGY_COLLECTION_2026-11-25.md and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; no data value was read; the order-book blind and the S2-S4 holdout are untouched; Codex's L1-L8 work."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml, drift and evidence validators pass."
+unverified: "The family list comes from public knowledge of well-known strategies; no source link was verified, and cost-fit labels are judgments from the cost wall, not measurements."
+acceptance:
+  - "Merge through the release path; no run follows from this document."

@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261126-PREREG-BREADTH-STAGED-LOOKS
+title: "Research: staged looks for the breadth-filter pre-registration (L30/L60 reject-only, L90 pass decision, L183 confirmation); docs only"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/prereg-staged-looks
+owner_decision: "2026-11-26: the owner found the 183-day wait too long; chose the default staged plan (\"기본값대로 해\")."
+follows: "docs/RESEARCH_PREREG_BREADTH_FILTER_2026-11-25.md (PR #3314)."
+objective: "Docs only. Amend the registered breadth-filter study with four fixed looks: L30 and L60 may only end it as FAIL_EARLY, L90 (2027-03-07T03:00Z) may pass, fail or be NOT_INFORMATIVE, L183 (2027-06-07T03:00Z) confirms or decides. Registers before 2026-12-06T00:00Z."
+change:
+  - "docs/RESEARCH_PREREG_AMENDMENT_2026-11-26_BREADTH_STAGED_LOOKS.md and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; no data value was read or analysed; the order-book blind and the S2-S4 holdout are untouched."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "Independent review done; its three blockers (L90 last held day 2027-03-05, 75 of 90 signal days, the L90-versus-L183 rule) and the suggestions are applied, not reviewed again; thresholds for the early FAIL rules (10 percent benchmark drawdown, 10 percent activity at L60) are my choice and were not power-tested; the L90 scaled data bar (75 of 90) is proportional to the original."
+acceptance:
+  - "Independent read-only review, then merge through the release path before 2026-12-06T00:00Z, after the current Android release is published."

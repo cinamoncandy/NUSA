@@ -3,7 +3,7 @@ import { Canvas, Group, LinearGradient, Path, Skia, vec } from "@shopify/react-n
 import type { PrimaryDestination } from "./navigationContract";
 import { TAB_ICON_ACTIVE, TAB_ICON_PATHS } from "./tabIconsModel";
 
-/** Draws one island-style tab icon (paths in tabIconsModel.ts). Presentation only. */
+/** Draws one lattice-style tab icon (paths in tabIconsModel.ts). Presentation only. */
 export function TabIcon({ destination, active, muted, size = 24 }: { readonly destination: PrimaryDestination; readonly active: boolean; readonly muted: string; readonly size?: number }) {
   const paths = useMemo(() => TAB_ICON_PATHS[destination].map(([d, opacity]) => ({ path: Skia.Path.MakeFromSVGString(d), opacity })), [destination]);
   const k = size / 24;

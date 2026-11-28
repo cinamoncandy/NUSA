@@ -18,7 +18,7 @@ const ok = { coin: { value: "XRP", tone: "ok" }, buy: { value: "없음 (09:00 �
 test("the four key tiles come in a fixed order with their labels", () => {
   const vitals = buildHomeVitals(ok);
   assert.deepEqual(vitals.map((v) => v.id), ["coin", "buy", "feed", "learning"]);
-  assert.deepEqual(vitals.map((v) => v.label), ["거래 코인", "BUY 신호", "시세 연결", "학습 데이터"]);
+  assert.deepEqual(vitals.map((v) => v.label), ["거래 코인", "BUY 신호", "시세 연결", "Lab 데이터"]);
   assert.equal(vitals[3].detail, "마지막 수집 5분 전");
   assert.equal(vitals[0].detail, null);
   assert.ok(vitals.every((v) => v.tone === "ok"));
@@ -63,7 +63,7 @@ test("a warning clause is first in the learning detail so it cannot be the one c
 
 test("the tiles keep the earlier row test ids and the labels speak Korean", () => {
   assert.deepEqual({ ...VITAL_TEST_IDS }, { coin: "home-traded-coin-line", buy: "home-buy-signal-line", feed: "home-feed-line", learning: "home-research-progress-line" });
-  assert.deepEqual({ ...HOME_DETAIL_LABELS }, { risk: "위험", result: "결과", source: "출처", learning: "학습", aiTrust: "AI 신뢰", authority: "권한" });
+  assert.deepEqual({ ...HOME_DETAIL_LABELS }, { risk: "위험", result: "결과", source: "출처", learning: "Lab", aiTrust: "AI 신뢰", authority: "권한" });
   for (const text of Object.values(VITAL_LABELS)) assert.match(text, /[가-힣]/);
 });
 
