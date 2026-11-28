@@ -26,10 +26,10 @@ current_alpha_lab_programme_e4_20261128:
     focused_tests: "5/5 PASS (temporary synthetic registry fixtures)"
     preflight: PASS
     aipos_yaml: "PASS (841 files)"
-    exact_head_ci: "PENDING on implementation head 88c42916ed215b8ba353ec15090b5d8b5d16560b; the AIPOS follow-up will create a new PR head"
+    exact_head_ci: "CI workflow_dispatch run 46123925239 is queued on head 0d4b934e3e036fcbf57fe47d40b0557181520b6b; this evidence follow-up changes the head and requires a rerun"
     independent_review: PENDING
   known_limits:
     - "The budget check is read-only and does not mutate the registry. It reports whether a candidate fits the annual budget; the actual registry admission caller must require this check. Direct invocation of the E1 register command is not blocked by this E4 tool alone."
     - "No real hypothesis or registry row was created; annual totals are based only on rows verified by the E1 reader."
-  next: "Push the PR evidence follow-up, verify exact-head CI on the resulting head, and keep the PR Draft."
+  next: "Verify a fresh workflow_dispatch CI run on the final PR head after this evidence follow-up; keep the PR Draft."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
