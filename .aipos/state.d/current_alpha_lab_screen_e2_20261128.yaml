@@ -1,0 +1,38 @@
+current_alpha_lab_screen_e2_20261128:
+  work_order: WO-RESEARCH-20261128-CODEX-ALPHA-LAB-ENGINE
+  subtask: E2
+  status: IN_PROGRESS
+  branch: codex/alpha-lab-screen-runner-20261128
+  base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
+  pull_request: null
+  scope: offline_declared_daily_history_screen_only
+  design_sources:
+    - docs/ALPHA_LAB_COMPLETION_ROADMAP_2026-11-26.md
+    - docs/ALPHA_LAB_V3_CROSS_SECTION_EVALUE_DESIGN_2026-11-27.md
+    - docs/ALPHA_LAB_2_SMALL_FARM_AND_TRACK_R_DESIGN_2026-11-26.md
+    - docs/research-data/desk-batch1-prereg-a-2026-11-26.md
+    - docs/RESEARCH_DESK_BATCH1_RESULT_2026-11-26.md
+  implementation:
+    files:
+      - scripts/alpha-lab/screen.js
+      - tests/alpha-lab-screen.test.js
+    rule_kinds: [SIZE_REV, LISTING_AGE, WEEKDAY_XS, BTC_BETA_ROT, VOL_COMPRESS_BREAK, DOWNVOL_LOW]
+    costs_per_side: { base_bp: 15, stress_bp: 30 }
+    network_access: false
+    source_history_latest_allowed_date: "2026-11-04"
+    blind_window_price_values_read: false
+    production_or_trading_effect: false
+  verification:
+    branch_created_from_current_main: PASS
+    tests: "5/5 PASS (synthetic fixtures only)"
+    node_check: PASS
+    aipos_yaml: PENDING
+    preflight: PENDING
+    exact_head_ci: PENDING
+    independent_review: PENDING
+  known_limits:
+    - "The checked-in repository contains no daily desk-batch raw OHLCV input directory; exact recorded batch reproduction may remain unverifiable without an authorized pre-cutoff fixture or input artifact."
+    - "Post-cutoff rows are rejected from their timestamp before their OHLCV tokens are parsed; no historical screen has been run in this branch."
+    - "Synthetic tests establish validation and deterministic hashing, not the recorded 141-rule result."
+  next: "Run preflight and AIPOS validation, create the Draft PR, and verify exact-head CI. Report historical batch reproduction as unverified unless raw permitted inputs become available."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
