@@ -1,6 +1,6 @@
 id: WO-RESEARCH-20261128-CODEX-ALPHA-LAB-ENGINE
 title: "Codex: Alpha Lab engine implementation (registry, screen runner, programme ledger, Lab status export) — offline and hosted-runner only"
-status: READY_FOR_REVIEW
+status: IN_PROGRESS
 created: 2026-11-28
 assignee: codex
 reviewer: claude
@@ -51,3 +51,8 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 acceptance:
   - "Each sub-task is a draft PR by Codex, reviewed by Claude (non-author), merged only through the release path or the owner. Suggested order: E1, E2, E4, E5 (E3 and the breadth workflows run in parallel)."
+notes:
+  - "Owner delegated implementation choices on 2026-11-28. E1 follows the exact contract and paths in this work order on codex/alpha-lab-registry-20261128. Existing PR #3351 is an unmerged earlier A1 registry with a different contract; this E1 draft is the successor. Do not merge the old draft as a substitute; leave it open for owner disposition."
+  - "E1 implementation contract: canonical UTF-8 JSON with sorted keys and one LF; fields schemaVersion, id, shortNameKo, kContribution, alphaSpent, hold, sorted unique KRW universe, signal object, and strictly ordered declared looks. Registration computes firstEvaluableDate as the next UTC calendar date. Verdict look arguments are declared look IDs; the result file must bind the same hypothesis, look, allowed result code, and an evaluation timestamp on/after the look date."
+  - "E1 integrity limitation: the code enforces dates against the local UTC system clock and verifies the event hash chain, but neither proves trusted time nor detects a complete rewrite whose chain is recomputed. No hypothesis, result, or production registry row is created by implementation or tests."
+  - "E1 Draft PR #3355 is open; implementation commit e094410a7cd149a6ea81ae524b8795c556d63978 is based on main 6e908e4f9d2339775f392f9f00279192b3298f3c. Exact-head CI passed on 96d5bf7c33cbf419664f4e52dbb86dc04dd6042f with all required checks green and optional causal jobs skipped; this status-only AIPOS update creates a new head requiring a fresh exact-head run. Independent review remains pending."
