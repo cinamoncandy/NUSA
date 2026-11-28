@@ -13,7 +13,7 @@
 - Seed `20261128`; 1,000 replications per scenario; 15 scenarios; 56 markets; 365 days; 20-day burn-in.
 - Synthetic one-factor t4 market return and standardized idiosyncratic innovations. No market data or trading/runtime path was read or used.
 
-For each hold length `H ∈ {1, 5, 20}`, the simulated score correlation with the normalized block return is `dailyIC × sqrt(H)`. Thus the configured daily IC is held equal across horizons. Alternatives use the frozen F2 turnover cost convention (0.0015 × daily one-way weight turnover); zero-IC null diagnostics are cost-free to measure the centered null rather than a cost-induced negative-mean null. The proposed alpha `0.0125` is included only for comparison and remains unadopted.
+For each hold length `H ∈ {1, 5, 20}`, the simulated score correlation with the normalized block return is `dailyIC × sqrt(H)`. This keeps the configured `dailyIC` model parameter equal across horizons; it does not measure or guarantee equal realized cross-sectional per-day Pearson or Spearman IC in the finite simulated samples. Alternatives use the frozen F2 turnover cost convention (0.0015 × daily one-way weight turnover); zero-IC null diagnostics are cost-free to measure the centered null rather than a cost-induced negative-mean null. The proposed alpha `0.0125` is included only for comparison and remains unadopted.
 
 The four measured variants are the F2 fixed lambda mixture `[0.02, 0.05, 0.1, 0.2, 0.35, 0.5]` at 4-sd clipping; a wider fixed mixture at 4-sd; a predictable past-only adaptive wager capped at `0.99` at 4-sd; and the F2 mixture at 8-sd. Rates below are the fraction of 1,000 paths crossing by day 365. The JSON contains day 90/180/365 results and Wilson 95% intervals for day 365.
 
@@ -29,7 +29,7 @@ These are finite-simulation estimates, not proof of false-pass control. The skew
 
 ## Alternative crossing rates by day 365
 
-| Daily IC | Hold | F2 mixture | Wider mixture | Adaptive | F2 mixture, 8-sd |
+| Configured model `dailyIC` | Hold | F2 mixture | Wider mixture | Adaptive | F2 mixture, 8-sd |
 |---:|---:|---:|---:|---:|---:|
 | 0.02 | 1 | 0.0% | 0.0% | 0.0% | 0.0% |
 | 0.02 | 5 | 0.8% | 2.9% | 2.4% | 0.0% |
@@ -48,6 +48,7 @@ In these simulated alternatives, the wider mixture and adaptive wager cross more
 - Scores are generated with a chosen correlation to future synthetic returns; this is a power experiment under its own data-generating model, not evidence that a real signal has that IC.
 - The model does not represent real cross-market dependence, market regimes, liquidity, fills, fees beyond the stated turnover convention, slippage, or execution.
 - Each estimate uses 1,000 paths. A displayed 0.0% means no crossings were observed in this run, not that the probability is zero; consult the artifact's Wilson intervals.
+- The script derives a separate pseudorandom seed for each hold length. Wilson intervals are marginal for each scenario cell and are not intervals for differences between holds; differences include Monte Carlo variability. The realized Pearson and Spearman rank ICs were not measured, and these results do not establish that one hold is better than another.
 - A zero-raw-mean distribution need not satisfy the clipped conditional-mean null. The skewed-null rows are diagnostics, not a validity certification.
 - No result changes a registered hypothesis, production e-process, strategy, program alpha, risk limit, PAPER/live authority, or promotion gate. No method or trading recommendation is made.
 

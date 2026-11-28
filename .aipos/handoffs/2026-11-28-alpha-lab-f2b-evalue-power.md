@@ -20,3 +20,11 @@ Implementation and the one frozen primary run are complete locally. The simulato
 Local checks passed: focused tests 7/7, self-test 46 checks, focused ESLint, AIPOS YAML/index, `pnpm run preflight`, and `pnpm run ai:architecture`. After the primary run, a test-only adjustment removed an invalid assumption that the result file would still be absent and now checks a side-effect-free module import in a child process; the analysis script SHA and artifact were not changed or rerun. Artifact/config/script hashes were revalidated from the files. Next commit the artifact, result note, and AIPOS evidence; push the branch, open one draft PR, and verify exact-head CI. Independent review remains pending; do not merge or register a strategy.
 
 Safety: `PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / realOrderAuthority=false / realTransferAuthority=false / aiAuthority=ZERO_AUTHORITY / FAIL_CLOSED`.
+
+## Owner-supplied review follow-up (2026-11-28)
+
+- The independent report supplied by the owner reviewed prior head `20124ea9d1bf5a41a9afc0432f1a1c64b9277a0d` as `ACCEPT WITH P2` (0 P0/P1, 2 P2); it did not independently rerun the simulation.
+- The reviewer read the result JSON but did not rerun the 1,000-replication primary simulation; this remains a non-independent simulation result.
+- The result note now clarifies that `dailyIC` is the configured model parameter, not measured realized cross-sectional Pearson/Spearman IC, and that per-cell Wilson intervals do not quantify differences across hold lengths with separate seeds.
+- This is a documentation-only clarification. The simulation script, JSON artifact, and hashes are unchanged; the one-time primary run was not repeated.
+- Fetch the new PR head and verify exact-head CI, then obtain a fresh non-author review of the amended head. Keep PR #3352 in draft; do not select or register a strategy.
