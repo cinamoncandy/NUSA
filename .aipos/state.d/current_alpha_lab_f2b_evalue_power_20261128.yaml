@@ -6,11 +6,12 @@ current_alpha_lab_f2b_evalue_power_20261128:
   scope: offline_synthetic_eprocess_and_hold_comparison_only
   primary_run: COMPLETED_ONCE
   analysis_commit: 403e4641db0bde7ed9d9fc1410ef97b5545f08e2
+  result_record_commit: a3835fc587f4a9205f037bc3ecd138c87f9c5f2b
   analysis_script_sha256: 5439dcee3c9c25e3fce81512770eb66fd31cc778fc4069a3361384e8273dd1be
   config_sha256: baa0ce0a3ac95a8003f30f410aca98d89773d806637237f545951674b12a7343
   artifact_sha256: 1901d4dac5b03323b9aa3f800c7fbf4d7d4b8f0561ad128f3fe273894ee6e562
   result_note: docs/ALPHA_LAB_F2B_EVALUE_POWER_RESULT_2026-11-28.md
   exact_head_ci: PENDING
   independent_review: PENDING_NON_AUTHOR
-  next: "Run final AIPOS/preflight checks, push the result artifact and limitation note, open a draft PR, and verify exact-head CI; keep review and merge pending."
+  next: "Push current branch, open one draft PR, then verify exact-head CI and wait for non-author review; do not merge or register a strategy."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
