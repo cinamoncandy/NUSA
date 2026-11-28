@@ -32,7 +32,7 @@ function specFor(id = "synthetic-fixture-only", hold = 20) {
   };
 }
 
-function writeRegisteredFixture(directory, spec = specFor(), firstEvaluableDate = "2026-12-10") {
+function writeRegisteredFixture(directory, spec = specFor(), firstEvaluableDate = "2026-12-10", recordedAtUtc = "2026-12-09T23:00:00.000Z") {
   fs.mkdirSync(directory, { recursive: true });
   const hypothesisText = recorder.canonicalJson(spec) + "\n";
   const hypothesisSha256 = sha256(Buffer.from(hypothesisText, "utf8"));
@@ -52,7 +52,7 @@ function writeRegisteredFixture(directory, spec = specFor(), firstEvaluableDate 
     sequence: 1,
     rowType: "REGISTERED",
     id: spec.id,
-    recordedAtUtc: "2026-12-09T23:00:00.000Z",
+    recordedAtUtc,
     previousRowSha256: ZERO_SHA256,
     payload,
   };
@@ -66,9 +66,9 @@ function writeRegisteredFixture(directory, spec = specFor(), firstEvaluableDate 
 
 function syntheticFetcher() {
   const marketIndex = new Map([["KRW-AAA", 0], ["KRW-BBB", 1], ["KRW-CCC", 2]]);
-  return async (market) => {
+  return async (market, count, to) => {
     const slope = marketIndex.get(market) + 1;
-    return ["2026-12-11", "2026-12-10", "2026-12-09", "2026-12-08", "2026-12-12"].map((date) => {
+    return ["2026-12-11", "2026-12-10", "2026-12-09", "2026-12-08", "2026-12-12"].filter((date) => date < to.slice(0, 10)).sort().reverse().slice(0, count).map((date) => {
       const day = Date.parse(date + "T00:00:00.000Z");
       const base = 100 + marketIndex.get(market) * 30;
       const elapsed = Math.round((day - Date.parse("2026-12-08T00:00:00.000Z")) / 86400000);
@@ -161,6 +161,86 @@ test("date and first-evaluable guards prevent fetching early or before registrat
   assert.equal(requests, 0);
 });
 
+test("blind-window lookbacks make zero requests until the entire exact range is permitted", async (t) => {
+  const root = fixtureDirectory(t);
+  const blindSpec = {
+    ...specFor("blind-lookback-fixture-only"),
+    signal: { kind: "momentum", lookbackDays: 5 },
+  };
+  const blind = writeRegisteredFixture(path.join(root, "blind"), blindSpec, "2026-12-10");
+  let blindRequests = 0;
+  assert.deepEqual(await recorder.recordFromFile(blind.hypothesisPath, path.join(root, "blind-data"), {
+    registryPath: blind.registryPath,
+    now: new Date("2026-12-12T00:20:00.000Z"),
+    fetcher: async () => { blindRequests += 1; return []; },
+  }), { recorded: false, reason: "BLIND_LOOKBACK_WINDOW_NOT_CLEARED" });
+  assert.equal(blindRequests, 0);
+
+  const forwardSpec = {
+    ...specFor("forward-lookback-fixture-only"),
+    signal: { kind: "momentum", lookbackDays: 10 },
+  };
+  const forward = writeRegisteredFixture(
+    path.join(root, "forward"),
+    forwardSpec,
+    "2026-12-16",
+    "2026-12-15T23:00:00.000Z",
+  );
+  const forwardCalls = [];
+  const fetcher = async (market, count, to) => {
+    forwardCalls.push({ market, count, to });
+    const marketIndex = forwardSpec.universe.indexOf(market);
+    const slope = marketIndex + 1;
+    const endDate = new Date(Date.parse(to.slice(0, 10) + "T00:00:00.000Z") - 86400000).toISOString().slice(0, 10);
+    return Array.from({ length: count }, (_, index) => {
+      const date = new Date(Date.parse(endDate + "T00:00:00.000Z") - index * 86400000).toISOString().slice(0, 10);
+      const elapsed = Math.round((Date.parse(date + "T00:00:00.000Z") - Date.parse("2026-12-06T00:00:00.000Z")) / 86400000);
+      return {
+        candle_date_time_utc: date + "T00:00:00",
+        trade_price: 100 + marketIndex * 30 + elapsed * slope,
+      };
+    });
+  };
+  const beforeFullRange = await recorder.recordFromFile(forward.hypothesisPath, path.join(root, "forward-data"), {
+    registryPath: forward.registryPath,
+    now: new Date("2026-12-17T00:20:00.000Z"),
+    fetcher,
+  });
+  assert.deepEqual(beforeFullRange, { recorded: false, reason: "FIRST_EVALUABLE_DATE_NOT_REACHED" });
+  assert.equal(forwardCalls.length, 0);
+
+  const afterFullRange = await recorder.recordFromFile(forward.hypothesisPath, path.join(root, "forward-data"), {
+    registryPath: forward.registryPath,
+    now: new Date("2026-12-18T00:20:00.000Z"),
+    fetcher,
+  });
+  assert.equal(afterFullRange.recorded, true);
+  assert.equal(afterFullRange.signalDate, "2026-12-16");
+  assert.equal(forwardCalls.length, forwardSpec.universe.length);
+  assert.ok(forwardCalls.every((call) => call.count === 12 && call.to === "2026-12-18T00:00:00Z"));
+});
+
+test("an incomplete exact candle range fails closed without paging further back", async (t) => {
+  const root = fixtureDirectory(t);
+  const spec = { ...specFor("incomplete-range-fixture-only"), signal: { kind: "momentum", lookbackDays: 2 } };
+  const fixture = writeRegisteredFixture(root, spec);
+  const calls = [];
+  await assert.rejects(recorder.recordFromFile(fixture.hypothesisPath, path.join(root, "data"), {
+    registryPath: fixture.registryPath,
+    now: new Date("2026-12-12T00:20:00.000Z"),
+    fetcher: async (market, count, to) => {
+      calls.push({ market, count, to });
+      const dates = ["2026-12-11", "2026-12-10", "2026-12-08", "2026-12-07"];
+      return dates.map((date) => ({
+        candle_date_time_utc: date + "T00:00:00",
+        trade_price: 100 + fixture.spec.universe.indexOf(market),
+      }));
+    },
+  }), /UPBIT_CANDLE_RANGE_INCOMPLETE_OR_OUT_OF_RANGE/);
+  assert.equal(calls.length, spec.universe.length);
+  assert.ok(calls.every((call) => call.count === 4 && call.to === "2026-12-12T00:00:00Z"));
+});
+
 test("record stores a reproducible ranked portfolio outcome and evaluate hashes its projection", async (t) => {
   const root = fixtureDirectory(t);
   const fixture = writeRegisteredFixture(root);
@@ -177,7 +257,7 @@ test("record stores a reproducible ranked portfolio outcome and evaluate hashes 
   assert.equal(first.recorded, true);
   assert.equal(first.signalDate, "2026-12-10");
   assert.equal(requestCursors.length, fixture.spec.universe.length);
-  assert.ok(requestCursors.every((cursor) => cursor === "2026-12-12T00:20:00Z"));
+  assert.ok(requestCursors.every((cursor) => cursor === "2026-12-12T00:00:00Z"));
   const firstRows = recorder.readObservationChain(dataDir, fixture.registration, fixture.registryPath);
   assert.equal(firstRows.length, 1);
   assert.equal(firstRows[0].payload.ranks[0].market, "KRW-CCC");

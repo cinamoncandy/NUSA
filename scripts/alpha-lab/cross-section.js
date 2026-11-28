@@ -20,6 +20,7 @@ const LOOK_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$/;
 const MARKET_RE = /^KRW-[A-Z0-9]{2,12}$/;
 const MAX_REGISTRY_BYTES = 16 * 1024 * 1024;
 const MIN_FETCH_AT = Date.parse("2026-12-10T00:00:00.000Z");
+const MIN_ALLOWED_LOOKBACK_DATE = "2026-12-06";
 const DAILY_CLOSE_SETTLE_MS = 15 * 60 * 1000;
 const BASE_LAMBDAS = Object.freeze([0.02, 0.05, 0.1, 0.2, 0.35, 0.5]);
 const ADAPTIVE_MAX_LAMBDA = 0.99;
@@ -445,7 +446,13 @@ function createRateLimitedFetcher(fetchImpl = globalThis.fetch, clock = () => Da
 
 async function fetchUniverseCandles(spec, now, fetcher = createRateLimitedFetcher()) {
   const todayUtc = utcDate(now);
-  const minimumCompletedRows = spec.signal.lookbackDays + 2;
+  const signalDate = candidateSignalDate(now);
+  const outcomeDate = addUtcDays(signalDate, 1);
+  const earliestRequiredDate = addUtcDays(signalDate, -spec.signal.lookbackDays);
+  if (earliestRequiredDate < MIN_ALLOWED_LOOKBACK_DATE) fail("BLIND_LOOKBACK_WINDOW_NOT_CLEARED");
+  const requiredDates = [];
+  for (let date = earliestRequiredDate; date <= outcomeDate; date = addUtcDays(date, 1)) requiredDates.push(date);
+  const minimumCompletedRows = requiredDates.length;
   const result = new Map();
   let cursor = 0;
   const workers = Array.from({ length: Math.min(4, spec.universe.length) }, async () => {
@@ -453,27 +460,31 @@ async function fetchUniverseCandles(spec, now, fetcher = createRateLimitedFetche
       const market = spec.universe[cursor];
       cursor += 1;
       const byDate = new Map();
-      let to = new Date(now).toISOString().slice(0, 19) + "Z";
-      let previousOldestDate = null;
-      const maximumPages = Math.ceil(minimumCompletedRows / 199) + 2;
-      for (let page = 0; page < maximumPages && byDate.size < minimumCompletedRows; page += 1) {
-        const rows = await fetcher(market, 200, to);
+      let remaining = requiredDates.length;
+      while (remaining > 0) {
+        const pageCount = Math.min(200, remaining);
+        const pageStart = remaining - pageCount;
+        const expectedDates = requiredDates.slice(pageStart, remaining);
+        const to = addUtcDays(expectedDates[expectedDates.length - 1], 1) + "T00:00:00Z";
+        const rows = await fetcher(market, pageCount, to);
+        if (!Array.isArray(rows) || rows.length !== pageCount) fail("UPBIT_CANDLE_PAGE_INCOMPLETE:" + market);
+        const responseDates = rows.map((row) => readDateFromUpbit(row && row.candle_date_time_utc));
+        const expectedDateSet = new Set(expectedDates);
+        if (responseDates.some((date) => !expectedDateSet.has(date)) || new Set(responseDates).size !== pageCount) {
+          fail("UPBIT_CANDLE_RANGE_INCOMPLETE_OR_OUT_OF_RANGE:" + market);
+        }
         normalizeCandleRows(rows, todayUtc, byDate);
-        const pageDates = rows.map((row) => readDateFromUpbit(row.candle_date_time_utc));
-        const oldestDate = pageDates.sort()[0];
-        if (!oldestDate || (previousOldestDate !== null && oldestDate >= previousOldestDate)) fail("UPBIT_CANDLE_PAGE_DID_NOT_ADVANCE");
-        previousOldestDate = oldestDate;
-        to = oldestDate + "T00:00:00Z";
-        if (rows.length < 200 && byDate.size < minimumCompletedRows) break;
+        if (expectedDates.some((date) => !byDate.has(date))) fail("UPBIT_CANDLE_RANGE_INCOMPLETE:" + market);
+        remaining = pageStart;
       }
-      if (byDate.size < minimumCompletedRows) fail("UPBIT_COMMON_HISTORY_INSUFFICIENT:" + market);
+      if (byDate.size !== minimumCompletedRows || requiredDates.some((date) => !byDate.has(date))) fail("UPBIT_COMMON_HISTORY_INSUFFICIENT:" + market);
       result.set(market, byDate);
     }
   });
   await Promise.all(workers);
   const dateSets = [...result.values()].map((byDate) => new Set(byDate.keys()));
   const commonDates = [...dateSets[0]].filter((date) => dateSets.every((set) => set.has(date))).sort();
-  if (commonDates.length < minimumCompletedRows) fail("UPBIT_COMMON_HISTORY_INSUFFICIENT");
+  if (commonDates.length !== minimumCompletedRows || requiredDates.some((date, index) => commonDates[index] !== date)) fail("UPBIT_COMMON_HISTORY_INSUFFICIENT");
   return { candlesByMarket: result, commonDates };
 }
 
@@ -762,6 +773,9 @@ async function recordRegistered(registration, directory, options = {}) {
   if (!registration.supported) return { recorded: false, reason: "HYPOTHESIS_SIGNAL_OR_UNIVERSE_UNSUPPORTED" };
   const possibleSignalDate = candidateSignalDate(now);
   if (possibleSignalDate < registration.firstEvaluableDate) return { recorded: false, reason: "FIRST_EVALUABLE_DATE_NOT_REACHED" };
+  if (addUtcDays(possibleSignalDate, -registration.spec.signal.lookbackDays) < MIN_ALLOWED_LOOKBACK_DATE) {
+    return { recorded: false, reason: "BLIND_LOOKBACK_WINDOW_NOT_CLEARED" };
+  }
   if (possibleSignalDate >= registration.spec.looks[registration.spec.looks.length - 1].date) return { recorded: false, reason: "DECLARED_LOOK_WINDOW_CLOSED" };
   const previousRows = readObservationChain(directory, registration);
   if (previousRows.length > 0 && possibleSignalDate <= previousRows[previousRows.length - 1].signalDate) {
@@ -958,6 +972,7 @@ function listReadyRegistrations(registryPath = DEFAULT_REGISTRY, now = new Date(
   const ready = readRegistry(registryPath).filter((registration) =>
     registration.active && registration.supported &&
     registration.firstEvaluableDate <= latestPotentialDate &&
+    addUtcDays(latestPotentialDate, -registration.spec.signal.lookbackDays) >= MIN_ALLOWED_LOOKBACK_DATE &&
     latestPotentialDate < registration.spec.looks[registration.spec.looks.length - 1].date);
   return { ready, reason: ready.length ? null : "NO_ELIGIBLE_REGISTERED_HYPOTHESIS" };
 }
