@@ -29,3 +29,10 @@ Safety: `PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / rea
 - This is a documentation-only clarification. The simulation script, JSON artifact, and hashes are unchanged; the one-time primary run was not repeated.
 - Updated documentation head `318c5105254a23ec66f47228ade4e320c95a7f2f` passed exact-head CI #15004 and Actual PAPER evidence #10649. The corresponding AIPOS state update is evidence-only; fetch the latest PR head and its CI before review.
 - Obtain a fresh non-author review of the latest head. Keep PR #3352 in draft; do not select or register a strategy.
+
+## Fresh non-author review round 2 (2026-11-28)
+
+- Review of latest head `99d7fcd702fc0169ef22189a20e439c4a6517aab`: `ACCEPT WITH P2`; the previous model-IC and between-hold uncertainty limitations are now disclosed accurately.
+- Two additional result-note clarity findings: (1) the turnover-cost wording should say the cost multiplies the daily sum of absolute weight changes, which counts purchases and sales; (2) the skewed-null clipped-mean column should name its 4-sd clipping width.
+- Apply those result-note clarifications only. The analysis script and artifact are frozen; do not rerun the primary simulation.
+- Next: validate the doc/AIPOS diff, commit and push the clarification, then require exact-head CI and a fresh non-author review. Keep PR #3352 draft; no strategy selection, registration, or merge.

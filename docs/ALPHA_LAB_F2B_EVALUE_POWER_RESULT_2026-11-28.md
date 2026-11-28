@@ -13,19 +13,19 @@
 - Seed `20261128`; 1,000 replications per scenario; 15 scenarios; 56 markets; 365 days; 20-day burn-in.
 - Synthetic one-factor t4 market return and standardized idiosyncratic innovations. No market data or trading/runtime path was read or used.
 
-For each hold length `H ∈ {1, 5, 20}`, the simulated score correlation with the normalized block return is `dailyIC × sqrt(H)`. This keeps the configured `dailyIC` model parameter equal across horizons; it does not measure or guarantee equal realized cross-sectional per-day Pearson or Spearman IC in the finite simulated samples. Alternatives use the frozen F2 turnover cost convention (0.0015 × daily one-way weight turnover); zero-IC null diagnostics are cost-free to measure the centered null rather than a cost-induced negative-mean null. The proposed alpha `0.0125` is included only for comparison and remains unadopted.
+For each hold length `H ∈ {1, 5, 20}`, the simulated score correlation with the normalized block return is `dailyIC × sqrt(H)`. This keeps the configured `dailyIC` model parameter equal across horizons; it does not measure or guarantee equal realized cross-sectional per-day Pearson or Spearman IC in the finite simulated samples. Alternatives use the frozen F2 turnover cost convention: each day subtract `0.0015 × Σᵢ |wᵢ,new − wᵢ,previous|`. The absolute weight-change sum includes both sales and purchases; this is a turnover-cost convention, not an exchange-fee or fill model. Zero-IC null diagnostics are cost-free to measure the centered null rather than a cost-induced negative-mean null. The proposed alpha `0.0125` is included only for comparison and remains unadopted.
 
 The four measured variants are the F2 fixed lambda mixture `[0.02, 0.05, 0.1, 0.2, 0.35, 0.5]` at 4-sd clipping; a wider fixed mixture at 4-sd; a predictable past-only adaptive wager capped at `0.99` at 4-sd; and the F2 mixture at 8-sd. Rates below are the fraction of 1,000 paths crossing by day 365. The JSON contains day 90/180/365 results and Wilson 95% intervals for day 365.
 
 ## Observed null crossings by day 365
 
-| Hold | Symmetric t4: F2 / wider / adaptive / 8-sd | Right-skewed zero-raw-mean: F2 / wider / adaptive / 8-sd | Right-skewed mean clipped normalized excess |
+| Hold | Symmetric t4: F2 / wider / adaptive / 8-sd | Right-skewed zero-raw-mean: F2 / wider / adaptive / 8-sd | Right-skewed mean clipped normalized excess (4-sd clipping; shared by the three 4-sd variants) |
 |---:|---:|---:|---:|
 | 1 | 0.0% / 0.6% / 0.2% / 0.0% | 0.0% / 0.0% / 0.1% / 0.0% | -0.0016 |
 | 5 | 0.0% / 0.4% / 0.3% / 0.0% | 0.0% / 0.5% / 0.3% / 0.0% | -0.0009 |
 | 20 | 0.0% / 0.2% / 0.5% / 0.0% | 0.0% / 0.0% / 0.2% / 0.0% | -0.0024 |
 
-These are finite-simulation estimates, not proof of false-pass control. The skewed rows have zero raw expected excess by construction; the e-process null concerns the conditional mean after predictable scaling and clipping, which is a different condition. Their clipped-mean values are reported to make that distinction visible.
+These are finite-simulation estimates, not proof of false-pass control. The skewed rows have zero raw expected excess by construction; the e-process null concerns the conditional mean after predictable scaling and clipping, which is a different condition. The final column reports the 4-sd-clipped value, which is identical for the F2, wider-mixture, and adaptive 4-sd variants; the 8-sd variant has a separate value in the JSON artifact. These values are reported to make the distinction visible.
 
 ## Alternative crossing rates by day 365
 

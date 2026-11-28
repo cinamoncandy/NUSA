@@ -23,5 +23,11 @@ current_alpha_lab_f2b_evalue_power_20261128:
     findings: "P0/P1=0; P2=2 (realized per-hold IC not measured; no uncertainty interval for between-hold differences)."
     disposition: "Result note scopes dailyIC to a model parameter and discloses independent scenario seeds and marginal Wilson intervals; realized rank IC and between-hold uncertainty remain uncomputed; script, artifact, and primary run are unchanged."
     amended_head_review: PENDING
-  next: "Fetch the latest PR head after this AIPOS evidence update and obtain non-author review; keep PR draft; do not merge or register a strategy."
+  non_author_review_round_2:
+    reviewed_head_sha: 99d7fcd702fc0169ef22189a20e439c4a6517aab
+    verdict: ACCEPT_WITH_P2
+    findings: "P2=2: cost wording does not specify that sum(abs(weight changes)) includes buys and sells; skewed-null clipped mean table does not identify the 4-sd clip width."
+    disposition: "Clarify the turnover formula and that the reported clipped mean is the 4-sd value shared by three 4-sd variants. No analysis script/artifact change or simulation rerun."
+    next_head_review: PENDING
+  next: "Commit and push only the result-note clarification; do not rerun the primary simulation. Then verify exact-head CI and obtain a fresh non-author review of the new head; keep PR draft and do not merge or register a strategy."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED

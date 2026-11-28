@@ -53,6 +53,7 @@ acceptance:
   - "Open a draft PR only after local validation; keep it draft pending non-author review and exact-head CI. No merge, release, host change, or hypothesis registration."
 notes:
   - "Only an offline research measurement is in scope. No result may be fed into a live/PAPER execution or production admission path."
+  - "Round-2 non-author review found two result-note clarity issues: describe cost as 0.0015 times the daily sum of absolute weight changes (including buys and sells), and identify the skewed-null clipped mean as the 4-sd value shared by the three 4-sd variants. Documentation-only correction; do not rerun the frozen primary simulation or change its script/artifact."
 measurement_record:
   primary_run: COMPLETED_ONCE
   analysis_commit: "403e4641db0bde7ed9d9fc1410ef97b5545f08e2"
