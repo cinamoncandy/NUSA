@@ -1,0 +1,48 @@
+id: WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
+title: "Alpha Lab A1: offline append-only hypothesis registry core"
+status: IN_PROGRESS
+created: 2026-11-28
+assignee: codex
+implementation_branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
+owner_decision: "2026-11-28: owner requested Alpha Lab implementation; this task takes the next Codex-owned offline component in roadmap A1."
+follows:
+  - "docs/ALPHA_LAB_COMPLETION_ROADMAP_2026-11-26.md (A1)"
+  - "docs/ALPHA_LAB_V3_CROSS_SECTION_EVALUE_DESIGN_2026-11-27.md (hypothesis registry)"
+objective: "Implement a repository-local, offline registry core for prospective Alpha Lab hypotheses. Freeze a canonical specification hash before data access, require an explicit fixed K slot per family, preserve every later data-access/result/verdict event in an append-only hash chain, and make negative verdicts visible. This is A1 infrastructure only; it does not backfill or relabel past work."
+change:
+  - "scripts/alpha-lab/hypothesis-registry.js and focused tests."
+  - "docs/ALPHA_LAB_HYPOTHESIS_REGISTRY.md (schema, usage, and integrity limits)."
+  - "This work order, a separate AIPOS state entry, and a handoff."
+not_changed:
+  - "The prior IC-decay measurement or any other historical result; no retrospective preregistration."
+  - "No signal, strategy, or candidate is selected, promoted, traded, or registered by this implementation."
+  - "No default program alpha, per-family K, risk limit, threshold, capital, authority, service, workflow, or UI change."
+  - "No market-data or order-book reads; commands read/write the local JSONL ledger and supplied frozen spec. Evidence references and hashes are recorded as strings; evidence artifacts are not opened or verified."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+authority_impact: none
+validation:
+  - "node --check scripts/alpha-lab/hypothesis-registry.js"
+  - "node --test scripts/alpha-lab/hypothesis-registry.test.js"
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/aipos-work-order-index.js --check"
+  - "pnpm run preflight"
+  - "git diff --check"
+acceptance:
+  - "Append-only event writer, deterministic hash-chain validator, fixed-K family accounting, and projection of all verdict history; data access cannot begin until every slot in family K is registered."
+  - "Tests prove duplicate hash/ID/slot, invalid transitions, tampering, truncation, and concurrent-writer lock all fail closed."
+  - "No production registry entry is created in this work order; tests use temporary files only."
+  - "Open a draft PR only after local validation; keep it draft pending non-author CORE review and exact-head CI. No merge or release."
+notes:
+  - "Local implementation on base 11058d27b50e518f764fe7ffb17e5be2e498a14b: focused registry suite 13/13 PASS; node syntax check PASS; pnpm run preflight PASS; strict AIPOS YAML (832 files) and work-order index PASS; git diff --check PASS."
+  - "Frozen dependency install used --ignore-scripts and did not change pnpm-lock.yaml. No exact-head CI or independent review is claimed before the draft PR is published."
+  - "The append API detects partial edits and enforces append-only writes, but a complete ledger rewrite can recompute hashes; repository review and protection remain the authority."
+  - "The registration attestation and timestamps are caller/system-clock evidence, not cryptographic proof that no one previously viewed the data."
+  - "Semantic variants require an explicit relation/revision link and consume a new K slot; exact duplicate specifications are rejected."
+  - "Historical hypotheses are not imported because their pre-data freeze evidence must not be fabricated. A future backfill needs separate scope and source-specific evidence."
