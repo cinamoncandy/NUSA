@@ -323,11 +323,13 @@ function appendRow(registryPath, rowType, id, payload, options = {}) {
     const row = buildRow(state, rowType, id, payload, options.now || (() => new Date()));
     applyRow(state, row);
     const canonicalLine = `${canonicalJson(row)}\n`;
+    const canonicalBuffer = Buffer.from(canonicalLine, "utf8");
     const registryFd = fs.openSync(resolved, fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | (fs.constants.O_NOFOLLOW || 0), 0o600);
     try {
-      const buffer = Buffer.from(canonicalLine, "utf8");
+      const currentSize = fs.fstatSync(registryFd).size;
+      if (currentSize > MAX_REGISTRY_BYTES - canonicalBuffer.length) fail("REGISTRY_FILE_TOO_LARGE");
       let offset = 0;
-      while (offset < buffer.length) offset += fs.writeSync(registryFd, buffer, offset, buffer.length - offset);
+      while (offset < canonicalBuffer.length) offset += fs.writeSync(registryFd, canonicalBuffer, offset, canonicalBuffer.length - offset);
       fs.fsyncSync(registryFd);
     } finally {
       fs.closeSync(registryFd);

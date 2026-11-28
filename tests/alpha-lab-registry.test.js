@@ -195,3 +195,22 @@ test("concurrent append lock fails closed and a lock is released after success",
   registerHypothesis(f.registry, f.hypothesisFile, { now: now() });
   assert.equal(fs.existsSync(`${f.registry}.lock`), false);
 });
+
+test("append refuses a row that would exceed the readable registry limit without corrupting earlier rows", () => {
+  const f = fixture();
+  registerHypothesis(f.registry, f.hypothesisFile, { now: now() });
+  const originalRegistry = fs.readFileSync(f.registry);
+  const limit = 16 * 1024 * 1024;
+  const oversized = { ...f.spec, id: "size-boundary", signal: { kind: "momentum", extra: "" } };
+  const baseHypothesisBytes = Buffer.byteLength(canonicalJson(oversized)) + 1;
+  const targetHypothesisBytes = limit - originalRegistry.length - 1;
+  oversized.signal.extra = "x".repeat(targetHypothesisBytes - baseHypothesisBytes);
+  const oversizedPath = path.join(f.directory, "size-boundary.json");
+  writeCanonical(oversizedPath, oversized);
+  assert.equal(fs.statSync(oversizedPath).size, targetHypothesisBytes);
+
+  assert.throws(() => registerHypothesis(f.registry, oversizedPath, { now: now() }), /REGISTRY_FILE_TOO_LARGE/);
+  assert.deepEqual(fs.readFileSync(f.registry), originalRegistry);
+  assert.deepEqual(verifyRegistry(f.registry), { valid: true, rows: 1, hypotheses: 1 });
+  assert.equal(fs.existsSync(`${f.registry}.lock`), false);
+});
