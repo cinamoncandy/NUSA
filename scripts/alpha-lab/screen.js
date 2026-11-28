@@ -236,10 +236,9 @@ function scoreFamily(family, t, eligible, data) {
         const turnover = mean(s.slice(1).map((r) => r[5] * r[4]));
         const prior = series.get(t - p.returnLookbackDays * DAY);
         const current = series.get(t);
-        if (!prior || !current) break;
+        if (!prior || !current || !Number.isFinite(turnover)) break;
         // Select the low-turnover slice first; score after this candidate pass.
-        add(market, -turnover - 0); // stable finite sentinel; replaced below.
-        candidates[candidates.length - 1] = { market, score: -turnover, returnScore: -(current[4] / prior[4] - 1) };
+        candidates.push({ market, score: -turnover, returnScore: -(current[4] / prior[4] - 1) });
         break;
       }
       case "LISTING_AGE": {
