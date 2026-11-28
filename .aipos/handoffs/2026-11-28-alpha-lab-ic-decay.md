@@ -49,4 +49,4 @@
 
 PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / realOrderAuthority=false / realTransferAuthority=false / aiAuthority=ZERO_AUTHORITY / FAIL_CLOSED.
 
-No server, service, workflow, release, risk gate, threshold, capital, or authority was changed. Next action: CORE performs a read-only non-author review of the latest PR head. Any new historical analysis or re-run requires a new work order.
+No server, service, workflow, release, risk gate, threshold, capital, or authority was changed. A fresh non-author review of head `4ff6438288901e5210a2e958d531084a1a919a79` returned `ACCEPT WITH P2` (0 P0/P1); CI #15005, Actual PAPER #10650, and the four companions passed. PR #3349 was moved to Ready for review after that review. Await owner/release-path decision; do not merge, register, select, or trade any signal. Any new historical analysis or re-run requires a new work order.

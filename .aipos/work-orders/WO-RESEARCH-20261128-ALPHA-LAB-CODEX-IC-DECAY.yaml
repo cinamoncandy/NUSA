@@ -30,7 +30,7 @@ execution:
   implementation_commit: 5c19230b936492ba7a4443239a487139918291bc
   result_commit: 33c34c2a344a87a8bc419b74680fdd0a416760ec
   pull_request: 3349
-  pull_request_state: DRAFT
+  pull_request_state: READY_FOR_REVIEW
   aipos_state: .aipos/state.d/current_alpha_lab_ic_decay_20261128.yaml
   handoff: .aipos/handoffs/2026-11-28-alpha-lab-ic-decay.md
   frozen_script_sha256: d69a349cad545fd0fa3f5866f1e7ae5d2fa30253a52a16e78068a90c597d9059
@@ -54,4 +54,4 @@ execution:
     - "The referenced V3 design currently has sections 1-6 only; candidate sources and fixed formulas are recorded in the script."
     - "The first fetch invocation failed before returning candle data because Node did not use the environment proxy; the single successful measurement used NODE_USE_ENV_PROXY=1."
     - "The result note fetch-time line was corrected from the hash-verified JSON manifest; no second data fetch or analysis was performed."
-  next: "Keep the implementation PR draft pending non-author CORE review; do not register or trade any signal."
+  next: "PR #3349 is ready for review. Fresh non-author review accepted the current implementation with two disclosed P2 research limitations; exact-head CI and companions passed. Await reviewer/owner/release-path decision; do not merge, register, select, or trade any signal. Any new historical analysis requires a new work order."
