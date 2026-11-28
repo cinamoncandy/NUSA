@@ -270,6 +270,49 @@ jobs:
           for n in 1 2 3; do part="${readout_line:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-learning-$n" "$part"; done
           for n in 1 2 3 4 5; do part="${errors:$(( (n-1)*3500 )):3500}"; [ -n "$part" ] && emit "diag-nusa-log-$n" "$part"; done
           emit "diag-autopilot-log" "$autopilot"
+      - name: Research study history (statuses and counts only, read-only)
+        if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
+        shell: bash
+        run: |
+          set +e
+          redact() { sed -E 's/[0-9a-fA-F]{32,}/[hex]/g; s/(token|secret|password|authorization|api[_-]?key|bearer)[^ ]*/\1=[redacted]/Ig' ; }
+          emit() { local body; body="$(printf '%s' "${2:0:3500}" | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"; echo "::warning title=$1::${body}"; }
+          # The other projections read only the last 26 hours, so a study that failed days ago leaves no trace there. This step reads the Research
+          # journal of the last 9 days in ONE pass and prints only: one time and one fixed status code per TRADEFLOW study line (a line that does not start
+          # with a timestamp is skipped, never printed), the unit state, the exit codes of the journal reads (124 = timed out, anything else but 0 = unreadable:
+          # then the counts below are partial or zero and prove nothing) and COUNTS of lines that name an out-of-memory kill, a timeout or a database lock.
+          # No log text, no value, no price is printed.
+          causes='TRADEFLOW_STUDY|FAILED_CLOSED|out of memory|\boom\b|oom[-_]kil[l]|killed process|code=killed|SIGKILL|\bheap\b|timed out|ETIMEDOUT|SIGTERM|database is locked|SQLITE_'
+          raw="$({ ionice -c3 nice -n19 timeout 40 journalctl -u nusa-research.service --since "-9 days" --no-pager -o short-iso 2>/dev/null; echo "EXIT=$?"; } | grep -iE "$causes|^EXIT=" | cut -c1-300 | head -4000)"
+          kraw="$({ ionice -c3 nice -n19 timeout 20 journalctl -k --since "-9 days" --no-pager -o cat 2>/dev/null; echo "EXIT=$?"; } | grep -iE 'out of memory|oom[-_]kil[l]|killed process|^EXIT=' | cut -c1-300 | head -2000)"
+          out="$({
+            echo "== journal read exit codes (0 = read completely; 124 = timed out; other = unreadable, so zeros below prove nothing)"
+            echo "journal_exit=$(printf '%s\n' "$raw" | grep '^EXIT=' | tail -1 | cut -d= -f2) kernel_exit=$(printf '%s\n' "$kraw" | grep '^EXIT=' | tail -1 | cut -d= -f2)"
+            echo "== TRADEFLOW study lines of the last 9 days (time and one fixed status code per line)"
+            printf '%s\n' "$raw" | grep 'TRADEFLOW_STUDY' | node -e '
+            const lines = require("node:fs").readFileSync(0, "utf8").split("\n").filter(Boolean);
+            let skipped = 0; const shown = [];
+            for (const l of lines) {
+              if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d/.test(l)) { skipped += 1; continue; }
+              let code = "OTHER";
+              const f = l.match(/TRADEFLOW_STUDY_FAILED_CLOSED(?::V([0-9]+))?/);
+              if (f) code = "FAILED_CLOSED:V" + (f[1] || "?");
+              else { const st = l.match(/"status":"([A-Z_]{3,30})"/); const v = l.match(/"studyVersion":([0-9]+)/); if (st) code = st[1] + ":V" + (v ? v[1] : "1"); }
+              shown.push(l.slice(0, 19) + " " + code);
+            }
+            for (const line of shown.slice(-60)) console.log(line);
+            console.log("lines_without_timestamp_skipped=" + skipped);'
+            echo "== Research service unit state"
+            systemctl show nusa-research.service -p ActiveState,SubState,Result,ExecMainStatus,NRestarts 2>&1 | head -6
+            echo "== counts of lines in the last 9 days that name each cause (no text)"
+            echo "failed_closed_lines=$(printf '%s\n' "$raw" | grep -c 'FAILED_CLOSED')"
+            echo "memory_or_killed_lines=$(printf '%s\n' "$raw" | grep -ciE 'out of memory|\boom\b|oom[-_]kil[l]|killed process|code=killed|SIGKILL|\bheap\b')"
+            echo "timeout_or_term_lines=$(printf '%s\n' "$raw" | grep -ciE 'timed out|ETIMEDOUT|SIGTERM')"
+            echo "database_lock_lines=$(printf '%s\n' "$raw" | grep -ciE 'database is locked|SQLITE_')"
+            echo "kernel_memory_kill_lines=$(printf '%s\n' "$kraw" | grep -ciE 'out of memory|oom[-_]kil[l]|killed process')"
+          } 2>&1 | redact)"
+          printf '%s\n' "$out"
+          emit "diag-research-history" "$out"
       # Runs LAST: the 40 s du walk competes for I/O on the 1-vCPU host, and diagnosis 38673436344 saw the /health probe time out right after it.
       - name: Disk consumers (read-only, after the health probe)
         if: ${{ inputs.health_only != true && inputs.health_only != 'true' }}
