@@ -4,7 +4,9 @@ current_alpha_lab_registry_e1_20261128:
   status: IN_PROGRESS
   branch: codex/alpha-lab-registry-20261128
   base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
-  pull_request: null
+  implementation_sha: e094410a7cd149a6ea81ae524b8795c556d63978
+  pull_request: 3355
+  pull_request_state: DRAFT
   scope: offline_prospective_hypothesis_registry_only
   owner_decisions:
     - "Use the new E1 row contract; keep the earlier incompatible PR #3351 as a non-merged draft pending owner disposition."
@@ -21,13 +23,13 @@ current_alpha_lab_registry_e1_20261128:
     node_check: PASS
     focused_tests: "13/13 PASS"
     aipos_truth: "PASS; generated from current branch through node scripts/generate-aipos-current-truth.js --stdout"
-    aipos_yaml: "PASS (840 files)"
+    aipos_yaml: "PASS (841 files)"
     work_order_index: PASS
     preflight: PASS
-    exact_head_ci: PENDING
+    exact_head_ci: "PENDING for the PR head including this AIPOS evidence follow-up"
     independent_review: PENDING
   limitations:
     - "Local UTC system time is not trusted-time attestation."
     - "A full history rewrite with recomputed hashes cannot be detected by a hash chain alone."
-  next: "Run AIPOS and preflight gates, then commit and open a draft PR; keep release and merge on hold."
+  next: "Verify exact-head CI for the PR head, then continue to E2 only after E1 gates pass; keep the PR Draft and release/merge on hold."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
