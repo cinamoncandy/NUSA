@@ -44,8 +44,8 @@ function mark(ox, oy, s, weight, simple = false) {
   const g = icosphere(simple ? 0 : 1), P = g.v.map((p) => project(c, R, p));
   const front = [], back = [];
   for (const [a, b] of g.edges) { const z = (P[a].z + P[b].z) / 2; (z >= 0 ? front : back).push(`M${f(P[a].x)},${f(P[a].y)} L${f(P[b].x)},${f(P[b].y)}`); }
-  if (!simple) strokes.push({ d: back.join(" "), w: s * 0.008 * weight, alpha: 0.22 });
-  strokes.push({ d: front.join(" "), w: s * (simple ? 0.012 : 0.013) * weight, alpha: 0.85 });
+  if (!simple) strokes.push({ d: back.join(" "), w: s * 0.008 * weight, alpha: 0.3 });
+  strokes.push({ d: front.join(" "), w: s * (simple ? 0.017 : 0.013) * weight, alpha: 0.85 });
   if (!simple) for (const p of P) if (p.z > 0.1) dots.push({ x: p.x, y: p.y, r: s * (0.011 + 0.013 * p.z), alpha: 0.55 + 0.45 * p.z });
   let lit = P[0]; for (const p of P) if (p.z > 0.55 && p.x < c.x && p.y < c.y && p.z > lit.z * 0) { lit = p; break; }
   return { strokes, dots, lit: { x: lit.x, y: lit.y, r: s * (simple ? 0.06 : 0.04) } };
