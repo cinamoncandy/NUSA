@@ -6,7 +6,7 @@ const read = (f) => fs.readFileSync(`apps/mobile/src/${f}`, "utf8").replace(/\r\
 const { TAB_ICON_PATHS, TAB_ICON_ACTIVE } = require("../dist/apps/mobile/src/tabIconsModel.js");
 const { PRIMARY_DESTINATIONS } = require("../dist/apps/mobile/src/navigationContract.js");
 
-test("every primary tab has an island-style icon inside the 24 grid", () => {
+test("every primary tab has a lattice-style icon inside the 24 grid (UI v8)", () => {
   for (const d of PRIMARY_DESTINATIONS) {
     const paths = TAB_ICON_PATHS[d];
     assert.ok(paths && paths.length > 0, `${d} has an icon`);
