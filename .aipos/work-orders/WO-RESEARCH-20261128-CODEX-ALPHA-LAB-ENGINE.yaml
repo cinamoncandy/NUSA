@@ -51,3 +51,6 @@ safety:
   aiAuthority: ZERO_AUTHORITY
 acceptance:
   - "Each sub-task is a draft PR by Codex, reviewed by Claude (non-author), merged only through the release path or the owner. Suggested order: E1, E2, E4, E5 (E3 and the breadth workflows run in parallel)."
+
+notes:
+  - "E2 Draft PR #3357 is open on codex/alpha-lab-screen-runner-20261128 at exact head 8ee8798cd8f5338e7e7459e20c7a24c3e2f22c79. The runner has a hard 2026-11-04 UTC cutoff, fixed 15/30 bp costs, six-window discovery, and Bonferroni 0.05/K confirmation. Five synthetic tests, preflight and AIPOS validation passed. Exact-head CI passed all required checks, including Actual PAPER runtime; optional causal jobs were skipped. Raw desk-batch OHLCV inputs are absent, so byte-for-byte reproduction of the recorded 141-rule summary is not verified; no historical screen was run. The PR remains Draft for non-author review."
