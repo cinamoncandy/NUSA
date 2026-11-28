@@ -2,7 +2,7 @@ import React from "react";
 import { fieldFonts } from "./fieldFonts";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { MORE_DESTINATIONS, type MoreDestination } from "./navigationContract";
-import { fieldPalette, readableFont } from "./designSystem";
+import { fieldPalette, latticePalette, readableFont } from "./designSystem";
 import { LatticeSphere } from "./latticeSphere";
 import { AiShell } from "./aiKit";
 import { plainScreenChip } from "./stageTraceModel";
@@ -50,6 +50,7 @@ export function MoreMenuView({ onOpen }: Readonly<{ onOpen: (destination: MoreDe
           style={({ pressed }) => [styles.row, { opacity: pressed ? 0.6 : 1 }]}
           testID={`more-${destination}`}
         >
+          <View style={styles.node} />
           <View style={styles.rowMain}>
             <Text style={styles.rowTitle} numberOfLines={1}>{LABELS[destination].title}</Text>
             <Text style={styles.hint} numberOfLines={1}>{LABELS[destination].hint}</Text>
@@ -71,6 +72,8 @@ const styles = StyleSheet.create({
   groupTitle: { color: fieldPalette.muted, fontSize: 12, letterSpacing: 0.6, ...fieldFonts.monoMedium },
   list: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: fieldPalette.dim },
   row: { minHeight: 60, flexDirection: "row", alignItems: "center", gap: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: fieldPalette.dim },
+  // Each row is led by one node of the lattice (UI v8).
+  node: { width: 7, height: 7, borderRadius: 999, borderWidth: 1, borderColor: latticePalette.ice, opacity: 0.8 },
   rowMain: { flex: 1, minWidth: 0, gap: 2 },
   rowTitle: { color: fieldPalette.text, fontSize: 16, fontWeight: "500" },
   hint: { color: fieldPalette.muted, fontSize: 12 },
