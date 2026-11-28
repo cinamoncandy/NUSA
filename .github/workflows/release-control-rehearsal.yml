@@ -1,0 +1,48 @@
+name: Release Control Rehearsal
+
+# Cloudflare removal S3b rehearsal (docs/CLOUDFLARE_REMOVAL_S3_DESIGN_2026-11-20.md section 3). Dispatch by hand only, on a GitHub-hosted runner.
+# It is NOT the audit: it publishes no status, mints no token, merges nothing, uses no secret and no Cloudflare call. It reads three files of main
+# through the API (the real read path), runs the gate on the real file and on mutated copies, and prints one line per case. Every refusal
+# case must BLOCK and the unmodified file must be CLEAR (so a gate that always blocks fails). Case 1 is a real read of a missing path.
+# The printed lines are the evidence recorded in the evidence PR before S3b; the result changes no decision of any workflow.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-control-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  rehearse:
+    name: Rehearse the release-control gate (read-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Read the gate files from main and rehearse
+        shell: bash
+        run: |
+          set -u
+          dir="$RUNNER_TEMP/rc-rehearsal"; rm -rf "$dir"; mkdir -p "$dir"
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          if ! printf '%s' "$main" | grep -Eq '^[0-9a-f]{40}$'; then echo "RELEASE_CONTROL_REHEARSAL_RESULT FAIL reason=no_main_sha"; exit 1; fi
+          echo "main=$main"
+          for f in config/release-control.json scripts/release-control-check.js scripts/release-control-gate.js scripts/release-control-rehearsal.js; do
+            out="$dir/$(basename "$f")"
+            if ! timeout 20 gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/$f?ref=$main" > "$out"; then
+              echo "RELEASE_CONTROL_REHEARSAL_RESULT FAIL reason=cannot_read_$f"; exit 1
+            fi
+          done
+          # Case 1 on the real read path: a path that does not exist must fail to read WITH an HTTP 404 (a rate limit or 5xx is not evidence).
+          err="$(timeout 20 gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/config/release-control-does-not-exist.json?ref=$main" 2>&1 >"$dir/missing.json")"; rc=$?
+          if [ "$rc" -eq 0 ] || ! printf '%s' "$err" | grep -Eq 'HTTP 404|Not Found'; then
+            echo "RELEASE_CONTROL_REHEARSAL case=1-real-404 expect=HTTP_404 got=rc$rc ok=false"; echo "RELEASE_CONTROL_REHEARSAL_RESULT FAIL"; exit 1
+          fi
+          echo "RELEASE_CONTROL_REHEARSAL case=1-real-404 expect=HTTP_404 got=HTTP_404 ok=true"
+          # The fetched scripts are reviewed main code; they still run with an empty environment so they cannot see the job token.
+          env -i PATH="$PATH" node "$dir/release-control-rehearsal.js" "$dir/release-control.json"

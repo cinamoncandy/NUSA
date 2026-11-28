@@ -99,6 +99,6 @@ test("never throws and never releases on garbage input", () => {
   for (const input of [undefined, null, {}, 5, "x", { identity: null }]) assert.equal(decideRelease(input).decision, "BLOCK");
 });
 
-test("the gate is not wired into any workflow or runtime yet", () => {
-  for (const file of fs.readdirSync(path.join(__dirname, "../.github/workflows"))) assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "../.github/workflows", file), "utf8"), /release-control-gate/, file);
+test("the gate is not wired into any workflow or runtime yet (only the dispatch-only rehearsal workflow reads it)", () => {
+  for (const file of fs.readdirSync(path.join(__dirname, "../.github/workflows")).filter((name) => name !== "release-control-rehearsal.yml")) assert.doesNotMatch(fs.readFileSync(path.join(__dirname, "../.github/workflows", file), "utf8"), /release-control-gate/, file);
 });
