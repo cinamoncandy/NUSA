@@ -27,15 +27,15 @@ test("Android launcher resources expose Concept 1, monochrome, notification, and
 
   assert.match(manifest, /android:icon="@mipmap\/ic_launcher"/);
   assert.match(manifest, /android:roundIcon="@mipmap\/ic_launcher_round"/);
-  // Owner-approved island mark (2026-10-28; NUSA means island): nested island contours over a horizon, violet-blue-cyan on near-black.
+  // UI v8 (2026-11-27): the lattice sphere mark replaced the island mark; white to ice blue on near-black.
   for (const drawable of [fallback, fallbackRound, logo, splash]) {
-    assert.match(drawable, /NUSA island mark/);
-    assert.match(drawable, /4F7BFF/i);
+    assert.match(drawable, /NUSA lattice sphere mark/);
+    assert.match(drawable, /BFE9FF/i);
     assert.doesNotMatch(drawable, /#B6F04B/, "the retired lime must not return");
   }
   for (const drawable of [fallback, fallbackRound]) assert.match(drawable, /#0B0C0E/);
   assert.match(adaptive, /<monochrome android:drawable="@drawable\/ic_nusa_logo_monochrome"\s*\/>/);
-  assert.match(notification, /NUSA island mark/);
+  assert.match(notification, /NUSA lattice sphere mark/);
   assert.doesNotMatch(notification, /#(?!FFFFFFFF|00000000)[0-9A-F]{6}/i, "notification icon must stay monochrome");
   assert.match(api31Theme, /windowSplashScreenAnimatedIcon/);
 });

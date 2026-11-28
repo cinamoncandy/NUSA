@@ -3,7 +3,7 @@ export const HOME_DETAIL_LABELS = Object.freeze({
   risk: "위험",
   result: "결과",
   source: "출처",
-  learning: "학습",
+  learning: "Lab",
   aiTrust: "AI 신뢰",
   authority: "권한",
 });

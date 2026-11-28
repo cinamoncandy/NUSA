@@ -2,11 +2,12 @@ import React, { useEffect, useRef, useState } from "react";
 import { Animated, ScrollView, StyleSheet, Text, View } from "react-native";
 import { buildTodayTimeline, type TimelineEvent } from "./recordsTimelineModel";
 import { buildDecisionTerrain } from "./decisionTerrainModel";
-import { DecisionRidge } from "./decisionRidge";
+import { HourDial } from "./hourDial";
 import type { MoreDestination } from "./navigationContract";
 import { RECORDS_GROUPS } from "./recordsScreenModel";
 import { InstrumentHero, PressScale, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
 import { fieldFonts } from "./fieldFonts";
+import { LatticeSphere } from "./latticeSphere";
 import { calmColors } from "./uiKitModel";
 import { readableFont } from "./designSystem";
 
@@ -30,12 +31,14 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
   const hourEvents = row == null ? [] : events.filter((e) => e.at >= row.startAt && e.at < row.startAt + 3_600_000);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content} testID="records-view">
     <InstrumentHero index="05 / 기록" lines={[{ text: "오늘의" }, { text: "로그" }]} />
+    {/* A small lattice sphere in the corner: it never turns (this screen has no health signal, so it must not look like a healthy running system); a fresh heartbeat only keeps it white instead of grey. It lights nothing here. */}
+    <View style={styles.corner} pointerEvents="none" testID="records-sphere"><LatticeSphere decisionCount={null} orderCount={null} live={hb != null} still width={CORNER_SIZE} reducedMotion={reduced} testID="records-sphere-graphic" /></View>
     {hb == null || !terrain.hasTrace || row == null ? null : <View style={styles.ridge} testID="records-ridge" onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      <SectionLabel left="하루 · 한 줄 = 한 시간" right="눌러서 고르기" />
-      {width > 0 ? <DecisionRidge model={terrain} tone={terrain.stop != null ? "limit" : "live"} decisionCount={null} width={width} reducedMotion={reduced} selectedRow={rowIndex} onSelectRow={pick} testID="records-ridge-graphic" /> : null}
-      <View style={styles.hour} testID="records-ridge-hour" accessible accessibilityLabel={`${String(row.hour).padStart(2, "0")}시, 판단 ${row.decisionCount ?? 0}번, 주문 ${row.orderCount ?? 0}번`}>
+      <SectionLabel left="하루 · 점 하나 = 한 시간" right="눌러서 고르기" />
+      {width > 0 ? <HourDial model={terrain} size={Math.min(width, 300)} live={hb != null} reducedMotion={reduced} selectedRow={rowIndex} onSelectRow={pick} testID="records-ridge-graphic" /> : null}
+      <View style={styles.hour} testID="records-ridge-hour" accessible accessibilityLabel={row.decisionCount == null ? `${String(row.hour).padStart(2, "0")}시, 기록 없음` : `${String(row.hour).padStart(2, "0")}시, 판단 ${row.decisionCount}번, 주문 ${row.orderCount ?? 0}번`}>
         <Text style={[fieldFonts.mono, styles.hourTitle]}>{String(row.hour).padStart(2, "0")}:00</Text>
-        <Text style={[fieldFonts.mono, styles.hourStat]}>판단 {(row.decisionCount ?? 0).toLocaleString("en-US")} · 주문 {(row.orderCount ?? 0).toLocaleString("en-US")}</Text>
+        <Text style={[fieldFonts.mono, styles.hourStat]}>{row.decisionCount == null ? "기록 없음" : `판단 ${row.decisionCount.toLocaleString("en-US")} · 주문 ${(row.orderCount ?? 0).toLocaleString("en-US")}`}</Text>
       </View>
       {hourEvents.length === 0 ? <Text style={styles.hourNone}>이 시간에 따로 남은 기록은 없어요</Text> : hourEvents.map((event) => <Text key={`${event.at}-${event.text}`} style={styles.hourEvent}>{event.time}  {event.text}</Text>)}
     </View>}
@@ -45,7 +48,21 @@ export function RecordsView({ onOpen, heartbeat = null }: Readonly<{ onOpen: (de
     </View>}
     {RECORDS_GROUPS.map((group, g) => <Reveal key={group.title} index={g} reducedMotion={reduced} style={styles.group}>
       <SectionLabel left={group.title} right={`${group.items.length}`} />
-      {group.items.map((item) => <PressScale
+      {g === 0 ? <View style={styles.tiles} testID="records-tiles">
+        {group.items.map((item, i) => <View key={item.destination} style={styles.tileCell}><PressScale
+          accessibilityRole="button"
+          accessibilityLabel={`${item.title}, ${item.hint}`}
+          onPress={() => onOpen(item.destination)}
+          style={({ pressed }) => [styles.tile, { opacity: pressed ? 0.6 : 1 }]}
+          testID={`more-${item.destination}`}
+        >
+          <Text style={[fieldFonts.mono, styles.tileNo]}>{String(i + 1).padStart(2, "0")}</Text>
+          <View>
+            <Text style={styles.tileTitle}>{item.title}</Text>
+            <Text style={[styles.hint, styles.tileHint]}>{item.hint}</Text>
+          </View>
+        </PressScale></View>)}
+      </View> : group.items.map((item) => <PressScale
         accessibilityRole="button"
         accessibilityLabel={`${item.title}, ${item.hint}`}
         key={item.destination}
@@ -95,7 +112,10 @@ function TimelineRow({ event, last }: { readonly event: TimelineEvent; readonly 
   </View>;
 }
 
+const CORNER_SIZE = 104;
+
 const styles = StyleSheet.create({
+  corner: { position: "absolute", right: 14, top: 8, width: CORNER_SIZE, height: CORNER_SIZE },
   ridge: { paddingHorizontal: 20, marginTop: 22 },
   hour: { flexDirection: "row", justifyContent: "space-between", alignItems: "baseline", marginTop: 12, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line },
   hourTitle: { color: calmColors.text, fontSize: readableFont(14) },
@@ -116,6 +136,15 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 40, width: "100%", maxWidth: 720, alignSelf: "center" },
   group: { paddingHorizontal: 20, marginTop: 14 },
   row: { flexDirection: "row", alignItems: "center", minHeight: 60, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: calmColors.line, gap: 12 },
+  // The four things that happened sit as a 2x2 grid of tiles (touch target well above 48 px); other groups stay as rows.
+  tiles: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 10 },
+  // PressScale wraps its Pressable in an Animated.View, so the equal-width rule sits on this cell, not on the tile.
+  tileCell: { width: "48%", flexGrow: 1 },
+  tile: { minHeight: 112, padding: 14, justifyContent: "space-between", borderWidth: StyleSheet.hairlineWidth, borderColor: calmColors.line, borderRadius: 16 },
+  // Two lines are always reserved for the hint so the titles of neighbouring tiles line up (an emulator capture showed one hint wrapping and the other not).
+  tileHint: { minHeight: 34 },
+  tileNo: { color: calmColors.muted, fontSize: readableFont(12) },
+  tileTitle: { color: calmColors.text, fontSize: readableFont(17), fontWeight: "600", marginBottom: 2 },
   rowMain: { flex: 1, gap: 2 },
   rowTitle: { color: calmColors.text, fontSize: readableFont(16) },
   hint: { color: calmColors.muted, fontSize: readableFont(12) },

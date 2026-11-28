@@ -1,0 +1,23 @@
+id: WO-UI-20261126-UIUX-P5C1-PERFORMANCE-TILES
+title: "Mobile UI v7 phase 5c-1: the 성과 screen shows its rows as calm tiles"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/uiux-p5c-detail-screens
+owner_decision: "2026-11-26: the owner asked to renew the UI to the concrete design (\"구체 디자인에 맞게 ui를 새롭게 바꿔줘\") and approved phase 5 (\"그래\"); mobile-only PRs are exempt from the host freeze."
+objective: "Presentation only. 성과 (More → 성과) lists nine PAPER rows in one panel; they become the same two-column tiles used on 선물 and 학습. Values, labels, tones, headline and the read-only wording are unchanged."
+change:
+  - "apps/mobile/src/performanceView.tsx (CalmTiles instead of the Surface row list) and tests/mobile-performance-tiles.test.js."
+not_changed:
+  - "performanceModel.ts values and tones; the 실거래 screen and its safety circuit; server, cloud, gate, threshold, limit, capital, host or authority; settings, order history and assets screens (later 5c steps)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "node scripts/lint-mobile.js, npx tsc -p tsconfig.json, node --test tests/mobile-*.test.js tests/uiux-*.test.js (compiled dist), AIPOS yaml validator."
+unverified: "How the tiles look on a real phone; independent review pending."
+acceptance:
+  - "Independent read-only review, then merge through the release path while main is quiet, then one Android release."

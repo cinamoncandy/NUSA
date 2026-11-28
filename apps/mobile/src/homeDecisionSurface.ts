@@ -149,7 +149,7 @@ export function buildHomeDecisionSurface(input: HomeDecisionSurfaceInput): HomeD
               : "WATCH · PAPER SAFETY GATES NOT READY";
 
   const learning = aiInsightAvailable
-    ? `근거 ${input.aiEvidenceCount}개 · ${calibratedConfidence ?? "UNCALIBRATED"} · 검증된 근거만 학습 화면으로 연결`
+    ? `근거 ${input.aiEvidenceCount}개 · ${calibratedConfidence ?? "UNCALIBRATED"} · 검증된 근거만 Lab 화면으로 연결`
     : "검증 근거가 없으므로 새로운 학습 결론을 표시하지 않습니다.";
 
   const primaryLabel = input.disconnected

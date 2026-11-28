@@ -6,7 +6,7 @@ const read = (f) => fs.readFileSync(`apps/mobile/src/${f}`, "utf8").replace(/\r\
 const { TAB_ICON_PATHS, TAB_ICON_ACTIVE } = require("../dist/apps/mobile/src/tabIconsModel.js");
 const { PRIMARY_DESTINATIONS } = require("../dist/apps/mobile/src/navigationContract.js");
 
-test("every primary tab has an island-style icon inside the 24 grid", () => {
+test("every primary tab has a lattice-style icon inside the 24 grid (UI v8)", () => {
   for (const d of PRIMARY_DESTINATIONS) {
     const paths = TAB_ICON_PATHS[d];
     assert.ok(paths && paths.length > 0, `${d} has an icon`);
@@ -15,7 +15,7 @@ test("every primary tab has an island-style icon inside the 24 grid", () => {
       for (const n of path.match(/-?\d+(\.\d+)?/g).map(Number)) assert.ok(n >= -12 && n <= 24, `${d}: ${n} stays on the grid`);
     }
   }
-  assert.deepEqual([...TAB_ICON_ACTIVE], ["#7C54FF", "#46D7FF"]);
+  assert.deepEqual([...TAB_ICON_ACTIVE], ["#FFFFFF", "#BFE9FF"]);
 });
 
 test("the tab bar draws the icon under the selected-only indicator and keeps the text label", () => {

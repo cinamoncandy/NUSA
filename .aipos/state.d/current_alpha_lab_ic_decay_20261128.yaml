@@ -1,0 +1,39 @@
+current_alpha_lab_ic_decay_20261128:
+  work_order: WO-RESEARCH-20261128-ALPHA-LAB-CODEX-IC-DECAY
+  status: IN_PROGRESS
+  branch: codex/alpha-lab-ic-decay-20261128
+  base_sha: 11058d27b50e518f764fe7ffb17e5be2e498a14b
+  validated_code_head_sha: 4ff6438288901e5210a2e958d531084a1a919a79
+  pull_request: 3349
+  pull_request_state: READY_FOR_REVIEW
+  measurement:
+    successful_runs: 1
+    cutoff_utc_date: "2026-11-04"
+    fetch_started_at: "2026-11-28T01:14:35.752Z"
+    fetch_finished_at: "2026-11-28T01:17:31.844Z"
+    script_sha256: d69a349cad545fd0fa3f5866f1e7ae5d2fa30253a52a16e78068a90c597d9059
+    spec_sha256: d7476a8c3b26638fb81f94231348addb1e702d60764c3b37cbe077e6e39ae141
+    manifest_sha256: 6b696bba6647b3ed8eb16ef5b1485456df9d71235137fcb0d73b7fcfb148afb7
+    result_json_sha256: d0d0b87577ac61a066db466f716baf43275ce17a95147a1c9065491b74a6e8b5
+  verification:
+    node_check: PASS
+    synthetic_self_test: PASS
+    pnpm_preflight: PASS
+    aipos_yaml: PASS
+    diff_check: PASS
+  prior_exact_head_ci: "CI #14995 and Actual PAPER evidence #10639 PASS on reviewed head b487e1bcd1476889f7184589248540115344705b."
+  exact_head_ci: PASS
+  exact_head_ci_run: 15005
+  exact_head_actual_paper_run: 10650
+  owner_supplied_review:
+    reviewed_head_sha: b487e1bcd1476889f7184589248540115344705b
+    verdict: ACCEPT_WITH_P2
+    findings: "P0/P1=0; P2=2 (20-observation bootstrap sensitivity; raw source candles are not archived)."
+    disposition: "Result note states block-length and raw-data reproducibility limits; script, JSON measurement, and hashes are unchanged; no historical analysis was rerun. Reviewer could not independently inspect the full result JSON/source hashes; prior local hash verification remains recorded above."
+    amended_head_review: PENDING_NON_AUTHOR_REVIEW
+  fresh_non_author_review:
+    reviewed_head_sha: 4ff6438288901e5210a2e958d531084a1a919a79
+    verdict: ACCEPT_WITH_P2
+    findings: "P0/P1=0; two disclosed P2 limitations remain: fixed 20-observation bootstrap sensitivity unmeasured; raw source candles are not archived. Reviewer verified manifest/payload hashes and did not rerun the historical analysis."
+  next: "PR #3349 is Ready for review. Await non-author GitHub review/owner or release-path decision. Do not merge, release, register, select, or trade any signal; no further historical analysis without a new work order."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY

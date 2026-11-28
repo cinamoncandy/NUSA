@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { HeartbeatPulse } from "./heartbeatPulse";
 import { splitHeroLines } from "./learningScreenModel";
 import { InstrumentHero, Odometer, Reveal, SectionLabel, useReducedMotion } from "./instrumentKit";
-import { IslandCore } from "./islandCore";
+import { LatticeSphere } from "./latticeSphere";
 import { GlassPanel } from "./aiKit";
 import { aiIslandPalette } from "./designSystem";
 import { calmColors, calmToneColor, type CalmTone } from "./uiKitModel";
@@ -20,27 +20,30 @@ interface Props {
   readonly orderCount: number | null;
   /** Today's PAPER fill count; each rise makes the wave lock into one line. */
   readonly fillCount?: number | null;
+  /** One calm line under the number (why zero is normal). Null draws nothing. */
+  readonly countNote?: string | null;
   readonly stats: readonly { readonly label: string; readonly value: string; readonly tone: CalmTone }[];
   /** Server-reported time of its last heartbeat (ms). The scan line sweeps when this advances. */
   readonly lastHeartbeatAt?: number | null;
 }
 
-/** "지금" instrument view for every state without the risk gate: hero line, the decision core, the decision odometer, ledger. Presentation only. */
-export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, fillCount = null, stats, lastHeartbeatAt = null }: Props) {
+/** "지금" instrument view for every state without the risk gate: hero line, the decision odometer (number first, above the fold), the lattice sphere, ledger. Presentation only. */
+export function InstrumentNow({ tone, headline, sub, dim, decisionCount, orderCount, fillCount = null, countNote = null, stats, lastHeartbeatAt = null }: Props) {
   const reduced = useReducedMotion();
   const [width, setWidth] = useState(0);
   const live = !dim && decisionCount != null;
   return <View style={dim ? styles.dim : undefined} testID="now-hero">
     <InstrumentHero index="01 / 지금" lines={splitHeroLines(headline).map((text) => ({ text, color: calmToneColor(tone) }))} label={headline} />
     {sub ? <Reveal index={1} reducedMotion={reduced}><Text style={[instrumentSub, styles.sub]}>{sub}</Text></Reveal> : null}
+    <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
+      <SectionLabel left="판단 · 오늘" right={live ? "서버 집계" : "—"} live={live} />
+      {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={64} reducedMotion={reduced} />}
+      {countNote ? <Text style={styles.countNote} testID="now-count-note">{countNote}</Text> : null}
+    </Reveal>
     <View style={styles.panelWrap} onLayout={(e) => setWidth(Math.max(0, Math.round(e.nativeEvent.layout.width) - 40))}>
-      {width > 0 ? <IslandCore decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} fillCount={live ? fillCount : null} live={live} compact={!live} width={width} reducedMotion={reduced} /> : null}
+      {width > 0 ? <LatticeSphere decisionCount={live ? decisionCount : null} orderCount={live ? orderCount : null} fillCount={live ? fillCount : null} live={live && tone === "NORMAL"} width={Math.min(width, SPHERE_MAX)} reducedMotion={reduced} /> : null}
       {width > 0 && live ? <HeartbeatPulse lastHeartbeatAt={lastHeartbeatAt} width={width} reducedMotion={reduced} /> : null}
     </View>
-    <Reveal index={2} reducedMotion={reduced} style={styles.countWrap}>
-      <SectionLabel left="판단 · 오늘" right={live ? "LIVE" : "—"} live={live} />
-      {decisionCount == null ? <Text style={[fieldFonts.mono, styles.empty]}>—</Text> : <Odometer value={decisionCount} size={44} reducedMotion={reduced} />}
-    </Reveal>
     <GlassPanel style={styles.ledger}>
       {stats.filter((s) => s.label !== "판단").map((s, i) => <Reveal key={s.label} index={3 + i} reducedMotion={reduced} style={[styles.row, i === 0 && styles.firstRow]}>
         <Text style={styles.rowLabel}>{s.label}</Text>
@@ -63,17 +66,22 @@ export function InstrumentEquity({ value, caption, tone, dim }: { readonly value
   </View>;
 }
 
+// The sphere is capped so it fits above the tab bar on a normal phone (an emulator capture showed the full 350 px sphere cut off by the bar).
+const SPHERE_MAX = 300;
+
 const instrumentSub = { color: calmColors.muted, fontSize: readableFont(14), lineHeight: 21 } as const;
 
 const styles = StyleSheet.create({
   dim: { opacity: 0.55 },
   sub: { paddingHorizontal: 20, marginTop: 10 },
-  panelWrap: { paddingHorizontal: 20, marginTop: 18 },
+  panelWrap: { paddingHorizontal: 20, marginTop: 6 },
   equity: { paddingHorizontal: 20, marginTop: 22 },
   equityValue: { color: calmColors.text, fontSize: 34, lineHeight: 40, letterSpacing: -1, fontVariant: ["tabular-nums"] },
   equityCaption: { fontSize: readableFont(12), marginTop: 4, letterSpacing: 0.4 },
   countWrap: { paddingHorizontal: 20, marginTop: 14 },
-  empty: { color: calmColors.muted, fontSize: 44 },
+  // No count yet: a small dash, not a 64 px one that leaves a large empty gap above the sphere (emulator capture).
+  empty: { color: calmColors.muted, fontSize: 40, lineHeight: 48 },
+  countNote: { color: calmColors.muted, fontSize: readableFont(13), marginTop: 6 },
   ledger: { marginHorizontal: 14, marginTop: 16, paddingVertical: 2 },
   row: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: aiIslandPalette.glassEdge },
   firstRow: { borderTopWidth: 0 },
