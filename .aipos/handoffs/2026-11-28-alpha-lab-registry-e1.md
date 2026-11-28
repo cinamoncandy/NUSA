@@ -26,7 +26,7 @@ The frozen hypothesis JSON is canonical UTF-8 with sorted keys and one final LF.
 - `node scripts/validate-aipos-yaml.js`: PASS (841 files; includes this handoff).
 - `node scripts/aipos-work-order-index.js --check`: PASS.
 - `git diff --check`: PASS.
-- Verify CI against the PR's current head after this AIPOS evidence follow-up; earlier checks on `e094410a` do not cover a different head.
+- PR head `96d5bf7c33cbf419664f4e52dbb86dc04dd6042f`: exact-head CI PASS (actual-paper-runtime, bridge, coverage and shards, test, validation, guard, readiness, rehearsal, verify; optional causal jobs skipped). This AIPOS status update creates a new head and requires a fresh exact-head CI check.
 
 ## Limits and safety
 
@@ -36,4 +36,4 @@ The frozen hypothesis JSON is canonical UTF-8 with sorted keys and one final LF.
 
 ## Next permitted action
 
-Confirm the pushed PR head and its exact-head CI; continue to E2 only after E1 gates pass. Keep PR #3355 Draft and wait for non-author review before any Ready-for-review or release action. E2/E4/E5 remain sequenced after E1; E3 and breadth are in separate authorized worktrees.
+Recheck exact-head CI after this status update; continue to E2 only after E1 gates pass. Keep PR #3355 Draft and wait for non-author review before any Ready-for-review or release action. E2/E4/E5 remain sequenced after E1; E3 and breadth are in separate authorized worktrees.

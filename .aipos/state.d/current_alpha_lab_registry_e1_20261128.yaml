@@ -26,10 +26,10 @@ current_alpha_lab_registry_e1_20261128:
     aipos_yaml: "PASS (841 files)"
     work_order_index: PASS
     preflight: PASS
-    exact_head_ci: "PENDING for the PR head including this AIPOS evidence follow-up"
+    exact_head_ci: "PASS at 96d5bf7c33cbf419664f4e52dbb86dc04dd6042f; this AIPOS evidence update creates a new head that needs re-verification"
     independent_review: PENDING
   limitations:
     - "Local UTC system time is not trusted-time attestation."
     - "A full history rewrite with recomputed hashes cannot be detected by a hash chain alone."
-  next: "Verify exact-head CI for the PR head, then continue to E2 only after E1 gates pass; keep the PR Draft and release/merge on hold."
+  next: "Recheck exact-head CI after this state update; then continue to E2 only after E1 gates pass. Keep the PR Draft and release/merge on hold."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
