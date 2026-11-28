@@ -4,7 +4,7 @@ current_alpha_lab_registry_e1_20261128:
   status: IN_PROGRESS
   branch: codex/alpha-lab-registry-20261128
   base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
-  implementation_sha: e094410a7cd149a6ea81ae524b8795c556d63978
+  implementation_sha: 0006dd68b6b3b0671a711efe2a7400f995fafe3c
   pull_request: 3355
   pull_request_state: DRAFT
   scope: offline_prospective_hypothesis_registry_only
@@ -21,15 +21,16 @@ current_alpha_lab_registry_e1_20261128:
     order_book_data_read: false
   verification:
     node_check: PASS
-    focused_tests: "13/13 PASS"
+    focused_tests: "14/14 PASS; oversized append rejected without changing prior rows"
     aipos_truth: "PASS; generated from current branch through node scripts/generate-aipos-current-truth.js --stdout"
     aipos_yaml: "PASS (841 files)"
     work_order_index: PASS
     preflight: PASS
-    exact_head_ci: "PASS at 96d5bf7c33cbf419664f4e52dbb86dc04dd6042f; this AIPOS evidence update creates a new head that needs re-verification"
+    prior_exact_head_ci: "PASS at 7f8aaf0d749b6bab8d82a49b23633dbc0ee31767; required checks green, optional causal jobs skipped"
+    exact_head_ci: PENDING_AFTER_APPEND_SIZE_FIX
     independent_review: PENDING
   limitations:
     - "Local UTC system time is not trusted-time attestation."
     - "A full history rewrite with recomputed hashes cannot be detected by a hash chain alone."
-  next: "Recheck exact-head CI after this state update; then continue to E2 only after E1 gates pass. Keep the PR Draft and release/merge on hold."
+  next: "Verify exact-head CI after the append-size fix; keep PR #3355 Draft and await non-author review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
