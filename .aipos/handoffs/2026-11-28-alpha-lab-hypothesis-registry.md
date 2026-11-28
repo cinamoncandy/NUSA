@@ -30,13 +30,14 @@
 - Exact-head CI run `46095924408`: PASS. Actual PAPER run `46095924366`: PASS.
 - Required companions: read-only broker `46095924415`, LIVE transport readiness `46095924423`, LIVE activation rehearsal `46095924449`, and LIVE capability guard `46095924428`: PASS.
 - Optional causal-regression checks were SKIPPED and are not counted as passes. No independent review is recorded.
-- This AIPOS-only follow-up changes the PR head; the new head's exact checks are pending. No code, data, authority, or research artifact changed.
+- The AIPOS-only follow-up head `da6b54ff0c972d8db82d6f57f4e42326ba392a4d` passed exact-head CI `46114812378`, Actual PAPER `46114812488`, read-only broker `46114812435`, LIVE transport readiness `46114812409`, activation rehearsal `46114812537`, capability guard `46114812408`, and event bridge `46114810376`. Optional causal-regression checks were skipped, not passed.
+- PR #3351 remains OPEN, Draft, mergeable, and behind main `8d66608caf36fdec5958a8780ceedb8dba546a10`; no independent owner review is recorded. Keep it Draft. This evidence-record update changes the PR head, so verify exact-head checks for the new commit before review/merge. No code, data, authority, or research artifact changed.
 
 ## Caveats and next actions
 
 - Registration attestation and recorded timestamps are not cryptographic proof of prior data non-access or trusted time.
 - The hash chain detects partial edits but a full ledger rewrite can recompute it; repository history and independent review are still required.
 - Evidence references/hashes are recorded but referenced artifacts are not opened or independently verified.
-- Verify exact-head CI for this AIPOS-only follow-up. Keep the PR draft and work order `IN_PROGRESS` pending the owner's independent review. Do not merge, release, or register a real hypothesis as part of this implementation.
+- Keep the PR draft and work order `IN_PROGRESS` pending the owner's independent review. Verify checks on the current PR head before any review/merge. Do not merge, release, or register a real hypothesis as part of this implementation.
 
 Safety: `PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / realOrderAuthority=false / realTransferAuthority=false / aiAuthority=ZERO_AUTHORITY / FAIL_CLOSED`.
