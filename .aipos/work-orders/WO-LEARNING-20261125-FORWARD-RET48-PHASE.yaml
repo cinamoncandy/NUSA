@@ -1,0 +1,21 @@
+id: WO-LEARNING-20261125-FORWARD-RET48-PHASE
+title: "RET48 forward confirmation: config-gated, date-guarded, read-only host phase (code only; merge after the freeze, host release after 2026-12-10)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: '다해' for the prepared work after the broad route closed; amendment 7a (owner '1번으로 해', 2026-11-24) puts the decision and the quarterly record inside the host research service."
+objective: "Wire scripts/run-history-mining-forward.js into the Research snapshot runner the same way as the history-mining discover phase: off by default, no database opened before its dates, one printed line of hashes, counts and statistics."
+change:
+  - "scripts/run-forward-ret48-phase.js (new) and tests/run-forward-ret48-phase.test.js (7 tests, synthetic store). After the independent review: a decision run that cannot evaluate (committed records absent, empty or malformed; freeze mismatch) prints no FORWARD_DECISION and fails closed so the one decision cannot be spent by a missing file; the quarterly record is printed as numbered chunks (journald splits lines above 48 KB) with a hash of the whole; windows are 7 days after a quarter end and 30 days after the decision date; spanStart may not be after the first quarter end; committed records must have exactly the shape quarterRecord prints (hex hashes, known markets, [integer, 12 hex] entries, entry count equal to rows) or the run fails closed; the integrity reason must be MISSING_HOURS, NO_MARKET_LEFT or a ROW_DELETED/ROW_CHANGED with market and hour."
+  - "scripts/run-cloud-research-snapshot.js: one more bounded child (timeout 900 s, failure logged as FORWARD_RET48_FAILED_CLOSED, never blocks Research); scripts/run-cloud-research-snapshot.test.js updated (13 children, one new failure test)."
+not_changed:
+  - "No config file is added: deploy/oracle/forward-ret48.json stays absent, so the phase prints WAITING_CONFIG and opens no database after a release. scripts/run-history-mining-forward.js, the freeze record, the prereg and every threshold are untouched. No gate, limit, capital or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "ACCEPTED: a wrong or restored-empty state database that still has the table reads as a deleted row or no market left and would print as the decision (prereg: a rebuilt store is DATA_INTEGRITY_FAIL); the owner confirms the state path when the config is added. OPEN TRANSPORT GAP (must be solved before 2027-03-31): the quarterly record is hundreds of kilobytes and the read-only diagnose workflow shows only about 17 KB of journal as annotations, so a way to get the record from the host journal into a commit (a read-only journal export workflow, or a reduced record whose full row-hash list stays on the host) needs its own design, review and owner decision. Behaviour on the host (a release after 2026-12-10 is a separate step at the owner's word; no release inside 2026-11-24T06:00Z..2026-11-28T06:00Z); the decision run time with real data (bootstrap, 900 s limit); committed quarterly records reach the host only with a release that contains deploy/oracle/forward-ret48-committed.json (due before 2028-03-31); the hash of this script is pinned in a later PR after review."
+acceptance:
+  - "Tests and AIPOS validators pass; independent non-author review; merge only after 2026-11-28T06:00Z (freeze); the host release and the config file are separate owner steps."

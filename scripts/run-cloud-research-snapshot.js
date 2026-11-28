@@ -80,6 +80,10 @@ function run(options = {}) {
   // deploy/oracle/history-mining-windows.json. It never runs `look` (the one look is a manual, owner-ordered step). Never blocks Research.
   const mining = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-history-mining-discover.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 300000 });
   if (mining.error || mining.signal || mining.status !== 0) console.error("[cloud-research-snapshot] HISTORY_MINING_FAILED_CLOSED");
+  // Config-gated, date-guarded, read-only phase of the RET48 forward confirmation (docs/RESEARCH_PREREG_2026-11-24_FORWARD_CONFIRMATION_RET48_H24.md amendment 7a).
+  // Prints WAITING_CONFIG and opens no database until the owner commits deploy/oracle/forward-ret48.json; before 2027-03-31 it prints WAITING_DATE. Never blocks Research.
+  const forwardRet48 = spawn(executable, [RESEARCH_MAX_OLD_SPACE_ARG, "scripts/run-forward-ret48-phase.js"], { cwd, env, stdio: "inherit", shell: false, timeout: 900000 });
+  if (forwardRet48.error || forwardRet48.signal || forwardRet48.status !== 0) console.error("[cloud-research-snapshot] FORWARD_RET48_FAILED_CLOSED");
   const args = [RESEARCH_MAX_OLD_SPACE_ARG, "-r", "./scripts/research-replay-snapshot-capture.js", "scripts/research-real-market-run.js"];
   const result = spawn(executable, args, { cwd, env, stdio: "inherit", shell: false });
   if (result.error) throw result.error;

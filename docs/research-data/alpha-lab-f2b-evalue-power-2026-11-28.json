@@ -1,0 +1,1194 @@
+{
+  "schemaVersion": 1,
+  "experimentId": "ALPHA_LAB_F2B_SYNTHETIC_EVALUE_POWER_2026-11-28",
+  "evidenceClass": "SYNTHETIC_ONLY_NOT_MARKET_EVIDENCE",
+  "analysisScriptSha256": "5439dcee3c9c25e3fce81512770eb66fd31cc778fc4069a3361384e8273dd1be",
+  "configSha256": "baa0ce0a3ac95a8003f30f410aca98d89773d806637237f545951674b12a7343",
+  "configuration": {
+    "alternativeCostConvention": "Existing F2 convention: subtract 0.0015 times daily one-way weight turnover; no execution or maker-fill claim.",
+    "burnInDays": 20,
+    "dailyIcValues": [
+      0,
+      0.02,
+      0.04,
+      0.08
+    ],
+    "days": 365,
+    "holdsDays": [
+      1,
+      5,
+      20
+    ],
+    "idiosyncraticDailyVolatility": 0.035,
+    "marketDailyVolatility": 0.03,
+    "markets": 56,
+    "model": "one-factor t4 common market return; independent standardized idiosyncratic innovations; score predicts normalized block idiosyncratic return",
+    "nullAlphaForComparisonOnly": 0.0125,
+    "nullInnovationShapes": [
+      "symmetric-t4",
+      "right-skewed-zero-mean"
+    ],
+    "nullInterpretation": "Null rows have no predictive score (raw expected excess zero) and no turnover cost; for right-skewed rows this differs from the clipped conditional-mean null tested by the e-process.",
+    "perUnitOneWayTurnoverCost": 0.0015,
+    "replicationsPerScenario": 1000,
+    "schemaVersion": 1,
+    "seed": 20261128,
+    "topMarkets": 19,
+    "variants": [
+      {
+        "clipMultiplier": 4,
+        "id": "baseline-fixed-mixture-clip4",
+        "kind": "mixture",
+        "lambdas": [
+          0.02,
+          0.05,
+          0.1,
+          0.2,
+          0.35,
+          0.5
+        ]
+      },
+      {
+        "clipMultiplier": 4,
+        "id": "wider-fixed-mixture-clip4",
+        "kind": "mixture",
+        "lambdas": [
+          0.01,
+          0.02,
+          0.05,
+          0.1,
+          0.2,
+          0.35,
+          0.5,
+          0.75,
+          0.9,
+          0.98
+        ]
+      },
+      {
+        "clipMultiplier": 4,
+        "id": "predictable-adaptive-bet-clip4",
+        "kind": "adaptive",
+        "lambdas": [],
+        "maximumLambda": 0.99
+      },
+      {
+        "clipMultiplier": 8,
+        "id": "baseline-fixed-mixture-clip8",
+        "kind": "mixture",
+        "lambdas": [
+          0.02,
+          0.05,
+          0.1,
+          0.2,
+          0.35,
+          0.5
+        ]
+      }
+    ]
+  },
+  "scenarios": [
+    {
+      "holdDays": 1,
+      "dailyIc": 0,
+      "innovationShape": "symmetric-t4",
+      "costOn": false,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.000009770871315300881,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.00042318553269154395,
+          "meanNetSharpe": 0.029771860401579444,
+          "meanGrossSharpeUsingNetSd": 0.029771860401579444,
+          "meanDailyTurnover": 1.3205926459985498,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.000009770871315300881,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.00042318553269154395,
+          "meanNetSharpe": 0.029771860401579444,
+          "meanGrossSharpeUsingNetSd": 0.029771860401579444,
+          "meanDailyTurnover": 1.3205926459985498,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0.006,
+          "passByDay365Wilson95": {
+            "lower": 0.0027526691418763745,
+            "upper": 0.01302816824185209
+          },
+          "medianPassDayAmongPasses": 338
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.000009770871315300881,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.00042318553269154395,
+          "meanNetSharpe": 0.029771860401579444,
+          "meanGrossSharpeUsingNetSd": 0.029771860401579444,
+          "meanDailyTurnover": 1.3205926459985498,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0.002,
+          "passByDay365Wilson95": {
+            "lower": 0.000548643588120728,
+            "upper": 0.007262807863492177
+          },
+          "medianPassDayAmongPasses": 338
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.000009770871315300881,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.00021550718232152412,
+          "meanNetSharpe": 0.029771860401579444,
+          "meanGrossSharpeUsingNetSd": 0.029771860401579444,
+          "meanDailyTurnover": 1.3205926459985498,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 1,
+      "dailyIc": 0,
+      "innovationShape": "right-skewed-zero-mean",
+      "costOn": false,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.000004326702713947466,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.001575094451430382,
+          "meanNetSharpe": -0.04255023108179017,
+          "meanGrossSharpeUsingNetSd": -0.04255023108179017,
+          "meanDailyTurnover": 1.3204178803172228,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.000004326702713947466,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.001575094451430382,
+          "meanNetSharpe": -0.04255023108179017,
+          "meanGrossSharpeUsingNetSd": -0.04255023108179017,
+          "meanDailyTurnover": 1.3204178803172228,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": -0.000004326702713947466,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.001575094451430382,
+          "meanNetSharpe": -0.04255023108179017,
+          "meanGrossSharpeUsingNetSd": -0.04255023108179017,
+          "meanDailyTurnover": 1.3204178803172228,
+          "passByDay90": 0.001,
+          "passByDay180": 0.001,
+          "passByDay365": 0.001,
+          "passByDay365Wilson95": {
+            "lower": 0.00017654637062607809,
+            "upper": 0.0056425585979579355
+          },
+          "medianPassDayAmongPasses": 76
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": -0.000004326702713947466,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.00025345030600197767,
+          "meanNetSharpe": -0.04255023108179017,
+          "meanGrossSharpeUsingNetSd": -0.04255023108179017,
+          "meanDailyTurnover": 1.3204178803172228,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 1,
+      "dailyIc": 0.02,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.0012187310309445727,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.04715554261657987,
+          "meanNetSharpe": -3.573571604554595,
+          "meanGrossSharpeUsingNetSd": 2.2306145183571435,
+          "meanDailyTurnover": 1.320397692862286,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.0012187310309445727,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.04715554261657987,
+          "meanNetSharpe": -3.573571604554595,
+          "meanGrossSharpeUsingNetSd": 2.2306145183571435,
+          "meanDailyTurnover": 1.320397692862286,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": -0.0012187310309445727,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.04715554261657987,
+          "meanNetSharpe": -3.573571604554595,
+          "meanGrossSharpeUsingNetSd": 2.2306145183571435,
+          "meanDailyTurnover": 1.320397692862286,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": -0.0012187310309445727,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.02356816102204045,
+          "meanNetSharpe": -3.573571604554595,
+          "meanGrossSharpeUsingNetSd": 2.2306145183571435,
+          "meanDailyTurnover": 1.320397692862286,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 1,
+      "dailyIc": 0.04,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.00046675306178613836,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.018022297267089923,
+          "meanNetSharpe": -1.3701339973830327,
+          "meanGrossSharpeUsingNetSd": 4.428648836014709,
+          "meanDailyTurnover": 1.3199907714491639,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.00046675306178613836,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.018022297267089923,
+          "meanNetSharpe": -1.3701339973830327,
+          "meanGrossSharpeUsingNetSd": 4.428648836014709,
+          "meanDailyTurnover": 1.3199907714491639,
+          "passByDay90": 0,
+          "passByDay180": 0.001,
+          "passByDay365": 0.001,
+          "passByDay365Wilson95": {
+            "lower": 0.00017654637062607809,
+            "upper": 0.0056425585979579355
+          },
+          "medianPassDayAmongPasses": 93
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": -0.00046675306178613836,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.018022297267089923,
+          "meanNetSharpe": -1.3701339973830327,
+          "meanGrossSharpeUsingNetSd": 4.428648836014709,
+          "meanDailyTurnover": 1.3199907714491639,
+          "passByDay90": 0.001,
+          "passByDay180": 0.001,
+          "passByDay365": 0.001,
+          "passByDay365Wilson95": {
+            "lower": 0.00017654637062607809,
+            "upper": 0.0056425585979579355
+          },
+          "medianPassDayAmongPasses": 77
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": -0.00046675306178613836,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.008981735675605321,
+          "meanNetSharpe": -1.3701339973830327,
+          "meanGrossSharpeUsingNetSd": 4.428648836014709,
+          "meanDailyTurnover": 1.3199907714491639,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 1,
+      "dailyIc": 0.08,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.000978133314314826,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.03751475345812762,
+          "meanNetSharpe": 2.8616290805843483,
+          "meanGrossSharpeUsingNetSd": 8.66289317777468,
+          "meanDailyTurnover": 1.320492573900496,
+          "passByDay90": 0,
+          "passByDay180": 0.005,
+          "passByDay365": 0.243,
+          "passByDay365Wilson95": {
+            "lower": 0.2174334622970866,
+            "upper": 0.27053349156448875
+          },
+          "medianPassDayAmongPasses": 300
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.000978133314314826,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.03751475345812762,
+          "meanNetSharpe": 2.8616290805843483,
+          "meanGrossSharpeUsingNetSd": 8.66289317777468,
+          "meanDailyTurnover": 1.320492573900496,
+          "passByDay90": 0.008,
+          "passByDay180": 0.105,
+          "passByDay365": 0.401,
+          "passByDay365Wilson95": {
+            "lower": 0.37105844196706284,
+            "upper": 0.43169925621307714
+          },
+          "medianPassDayAmongPasses": 238
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.000978133314314826,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.03751475345812762,
+          "meanNetSharpe": 2.8616290805843483,
+          "meanGrossSharpeUsingNetSd": 8.66289317777468,
+          "meanDailyTurnover": 1.320492573900496,
+          "passByDay90": 0.034,
+          "passByDay180": 0.133,
+          "passByDay365": 0.385,
+          "passByDay365Wilson95": {
+            "lower": 0.35533568538042837,
+            "upper": 0.4155444690712493
+          },
+          "medianPassDayAmongPasses": 226
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.000978133314314826,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.01881707286959432,
+          "meanNetSharpe": 2.8616290805843483,
+          "meanGrossSharpeUsingNetSd": 8.66289317777468,
+          "meanDailyTurnover": 1.320492573900496,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0.005,
+          "passByDay365Wilson95": {
+            "lower": 0.0021375355273244596,
+            "upper": 0.011650955373375113
+          },
+          "medianPassDayAmongPasses": 341
+        }
+      ]
+    },
+    {
+      "holdDays": 5,
+      "dailyIc": 0,
+      "innovationShape": "symmetric-t4",
+      "costOn": false,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.000005168172045870208,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.0003480680955726473,
+          "meanNetSharpe": -0.01291241253995964,
+          "meanGrossSharpeUsingNetSd": -0.01291241253995964,
+          "meanDailyTurnover": 0.26341456380677714,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.000005168172045870208,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.0003480680955726473,
+          "meanNetSharpe": -0.01291241253995964,
+          "meanGrossSharpeUsingNetSd": -0.01291241253995964,
+          "meanDailyTurnover": 0.26341456380677714,
+          "passByDay90": 0,
+          "passByDay180": 0.002,
+          "passByDay365": 0.004,
+          "passByDay365Wilson95": {
+            "lower": 0.0015565881404084308,
+            "upper": 0.010239556277262253
+          },
+          "medianPassDayAmongPasses": 306
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": -0.000005168172045870208,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.0003480680955726473,
+          "meanNetSharpe": -0.01291241253995964,
+          "meanGrossSharpeUsingNetSd": -0.01291241253995964,
+          "meanDailyTurnover": 0.26341456380677714,
+          "passByDay90": 0,
+          "passByDay180": 0.002,
+          "passByDay365": 0.003,
+          "passByDay365Wilson95": {
+            "lower": 0.0010207838811386186,
+            "upper": 0.008783014053503173
+          },
+          "medianPassDayAmongPasses": 168
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": -0.000005168172045870208,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.0001773422739712049,
+          "meanNetSharpe": -0.01291241253995964,
+          "meanGrossSharpeUsingNetSd": -0.01291241253995964,
+          "meanDailyTurnover": 0.26341456380677714,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 5,
+      "dailyIc": 0,
+      "innovationShape": "right-skewed-zero-mean",
+      "costOn": false,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.000009212850872569604,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.0009456071755298388,
+          "meanNetSharpe": 0.007721421870741326,
+          "meanGrossSharpeUsingNetSd": 0.007721421870741326,
+          "meanDailyTurnover": 0.2632501802451331,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.000009212850872569604,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.0009456071755298388,
+          "meanNetSharpe": 0.007721421870741326,
+          "meanGrossSharpeUsingNetSd": 0.007721421870741326,
+          "meanDailyTurnover": 0.2632501802451331,
+          "passByDay90": 0,
+          "passByDay180": 0.003,
+          "passByDay365": 0.005,
+          "passByDay365Wilson95": {
+            "lower": 0.0021375355273244596,
+            "upper": 0.011650955373375113
+          },
+          "medianPassDayAmongPasses": 157
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.000009212850872569604,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.0009456071755298388,
+          "meanNetSharpe": 0.007721421870741326,
+          "meanGrossSharpeUsingNetSd": 0.007721421870741326,
+          "meanDailyTurnover": 0.2632501802451331,
+          "passByDay90": 0,
+          "passByDay180": 0.002,
+          "passByDay365": 0.003,
+          "passByDay365Wilson95": {
+            "lower": 0.0010207838811386186,
+            "upper": 0.008783014053503173
+          },
+          "medianPassDayAmongPasses": 121
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.000009212850872569604,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.0001237320316246827,
+          "meanNetSharpe": 0.007721421870741326,
+          "meanGrossSharpeUsingNetSd": 0.007721421870741326,
+          "meanDailyTurnover": 0.2632501802451331,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 5,
+      "dailyIc": 0.02,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0003326087292994783,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.012511094899293676,
+          "meanNetSharpe": 0.9681196761726522,
+          "meanGrossSharpeUsingNetSd": 2.119109251919812,
+          "meanDailyTurnover": 0.2635313626532082,
+          "passByDay90": 0,
+          "passByDay180": 0.001,
+          "passByDay365": 0.008,
+          "passByDay365Wilson95": {
+            "lower": 0.004059195818806103,
+            "upper": 0.015706334530980144
+          },
+          "medianPassDayAmongPasses": 334
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0003326087292994783,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.012511094899293676,
+          "meanNetSharpe": 0.9681196761726522,
+          "meanGrossSharpeUsingNetSd": 2.119109251919812,
+          "meanDailyTurnover": 0.2635313626532082,
+          "passByDay90": 0.002,
+          "passByDay180": 0.01,
+          "passByDay365": 0.029,
+          "passByDay365Wilson95": {
+            "lower": 0.02026644815669875,
+            "upper": 0.04133835833669418
+          },
+          "medianPassDayAmongPasses": 199
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.0003326087292994783,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.012511094899293676,
+          "meanNetSharpe": 0.9681196761726522,
+          "meanGrossSharpeUsingNetSd": 2.119109251919812,
+          "meanDailyTurnover": 0.2635313626532082,
+          "passByDay90": 0.005,
+          "passByDay180": 0.013,
+          "passByDay365": 0.024,
+          "passByDay365Wilson95": {
+            "lower": 0.016180168466636995,
+            "upper": 0.03546290561161149
+          },
+          "medianPassDayAmongPasses": 173
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.0003326087292994783,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.006275179855398367,
+          "meanNetSharpe": 0.9681196761726522,
+          "meanGrossSharpeUsingNetSd": 2.119109251919812,
+          "meanDailyTurnover": 0.2635313626532082,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 5,
+      "dailyIc": 0.04,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0010870344871199346,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.04142035761939504,
+          "meanNetSharpe": 3.160883929416829,
+          "meanGrossSharpeUsingNetSd": 4.310039920103083,
+          "meanDailyTurnover": 0.2632997837058397,
+          "passByDay90": 0,
+          "passByDay180": 0.005,
+          "passByDay365": 0.316,
+          "passByDay365Wilson95": {
+            "lower": 0.28793562210416745,
+            "upper": 0.34547262501851683
+          },
+          "medianPassDayAmongPasses": 294
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0010870344871199346,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.04142035761939504,
+          "meanNetSharpe": 3.160883929416829,
+          "meanGrossSharpeUsingNetSd": 4.310039920103083,
+          "meanDailyTurnover": 0.2632997837058397,
+          "passByDay90": 0.012,
+          "passByDay180": 0.138,
+          "passByDay365": 0.487,
+          "passByDay365Wilson95": {
+            "lower": 0.45612976445064124,
+            "upper": 0.5179697312699831
+          },
+          "medianPassDayAmongPasses": 230
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.0010870344871199346,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.04142035761939504,
+          "meanNetSharpe": 3.160883929416829,
+          "meanGrossSharpeUsingNetSd": 4.310039920103083,
+          "meanDailyTurnover": 0.2632997837058397,
+          "passByDay90": 0.03,
+          "passByDay180": 0.153,
+          "passByDay365": 0.466,
+          "passByDay365Wilson95": {
+            "lower": 0.43527102980973204,
+            "upper": 0.49698918976728573
+          },
+          "medianPassDayAmongPasses": 223
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.0010870344871199346,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.02076465741982948,
+          "meanNetSharpe": 3.160883929416829,
+          "meanGrossSharpeUsingNetSd": 4.310039920103083,
+          "meanDailyTurnover": 0.2632997837058397,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0.005,
+          "passByDay365Wilson95": {
+            "lower": 0.0021375355273244596,
+            "upper": 0.011650955373375113
+          },
+          "medianPassDayAmongPasses": 356
+        }
+      ]
+    },
+    {
+      "holdDays": 5,
+      "dailyIc": 0.08,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.002564718821133686,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.09821887993514751,
+          "meanNetSharpe": 7.4829935012267,
+          "meanGrossSharpeUsingNetSd": 8.635988836954791,
+          "meanDailyTurnover": 0.2633707281903392,
+          "passByDay90": 0.001,
+          "passByDay180": 0.663,
+          "passByDay365": 1,
+          "passByDay365Wilson95": {
+            "lower": 0.996173241514445,
+            "upper": 1
+          },
+          "medianPassDayAmongPasses": 164
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.002564718821133686,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.09821887993514751,
+          "meanNetSharpe": 7.4829935012267,
+          "meanGrossSharpeUsingNetSd": 8.635988836954791,
+          "meanDailyTurnover": 0.2633707281903392,
+          "passByDay90": 0.263,
+          "passByDay180": 0.951,
+          "passByDay365": 1,
+          "passByDay365Wilson95": {
+            "lower": 0.996173241514445,
+            "upper": 1
+          },
+          "medianPassDayAmongPasses": 108
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.002564718821133686,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.09821887993514751,
+          "meanNetSharpe": 7.4829935012267,
+          "meanGrossSharpeUsingNetSd": 8.635988836954791,
+          "meanDailyTurnover": 0.2633707281903392,
+          "passByDay90": 0.525,
+          "passByDay180": 0.969,
+          "passByDay365": 1,
+          "passByDay365Wilson95": {
+            "lower": 0.996173241514445,
+            "upper": 1
+          },
+          "medianPassDayAmongPasses": 89
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.002564718821133686,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.049200844405533434,
+          "meanNetSharpe": 7.4829935012267,
+          "meanGrossSharpeUsingNetSd": 8.635988836954791,
+          "meanDailyTurnover": 0.2633707281903392,
+          "passByDay90": 0,
+          "passByDay180": 0.003,
+          "passByDay365": 0.94,
+          "passByDay365Wilson95": {
+            "lower": 0.9235289252086434,
+            "upper": 0.953103527324068
+          },
+          "medianPassDayAmongPasses": 282
+        }
+      ]
+    },
+    {
+      "holdDays": 20,
+      "dailyIc": 0,
+      "innovationShape": "symmetric-t4",
+      "costOn": false,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.0000027131326249977774,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.00026086436365378333,
+          "meanNetSharpe": -0.00896930504732194,
+          "meanGrossSharpeUsingNetSd": -0.00896930504732194,
+          "meanDailyTurnover": 0.06783677000720968,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.0000027131326249977774,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.00026086436365378333,
+          "meanNetSharpe": -0.00896930504732194,
+          "meanGrossSharpeUsingNetSd": -0.00896930504732194,
+          "meanDailyTurnover": 0.06783677000720968,
+          "passByDay90": 0.001,
+          "passByDay180": 0.002,
+          "passByDay365": 0.002,
+          "passByDay365Wilson95": {
+            "lower": 0.000548643588120728,
+            "upper": 0.007262807863492177
+          },
+          "medianPassDayAmongPasses": 168
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": -0.0000027131326249977774,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.00026086436365378333,
+          "meanNetSharpe": -0.00896930504732194,
+          "meanGrossSharpeUsingNetSd": -0.00896930504732194,
+          "meanDailyTurnover": 0.06783677000720968,
+          "passByDay90": 0.002,
+          "passByDay180": 0.004,
+          "passByDay365": 0.005,
+          "passByDay365Wilson95": {
+            "lower": 0.0021375355273244596,
+            "upper": 0.011650955373375113
+          },
+          "medianPassDayAmongPasses": 105
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": -0.0000027131326249977774,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.00012929618491747835,
+          "meanNetSharpe": -0.00896930504732194,
+          "meanGrossSharpeUsingNetSd": -0.00896930504732194,
+          "meanDailyTurnover": 0.06783677000720968,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 20,
+      "dailyIc": 0,
+      "innovationShape": "right-skewed-zero-mean",
+      "costOn": false,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.000023745542185644933,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.002368563389367708,
+          "meanNetSharpe": -0.09875249452644892,
+          "meanGrossSharpeUsingNetSd": -0.09875249452644892,
+          "meanDailyTurnover": 0.06797346791636616,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": -0.000023745542185644933,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.002368563389367708,
+          "meanNetSharpe": -0.09875249452644892,
+          "meanGrossSharpeUsingNetSd": -0.09875249452644892,
+          "meanDailyTurnover": 0.06797346791636616,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": -0.000023745542185644933,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.002368563389367708,
+          "meanNetSharpe": -0.09875249452644892,
+          "meanGrossSharpeUsingNetSd": -0.09875249452644892,
+          "meanDailyTurnover": 0.06797346791636616,
+          "passByDay90": 0,
+          "passByDay180": 0.001,
+          "passByDay365": 0.002,
+          "passByDay365Wilson95": {
+            "lower": 0.000548643588120728,
+            "upper": 0.007262807863492177
+          },
+          "medianPassDayAmongPasses": 217
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": -0.000023745542185644933,
+          "meanClippedNormalizedExcessAfterBurnIn": -0.000674162891012824,
+          "meanNetSharpe": -0.09875249452644892,
+          "meanGrossSharpeUsingNetSd": -0.09875249452644892,
+          "meanDailyTurnover": 0.06797346791636616,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 20,
+      "dailyIc": 0.02,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0006425206892341594,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.024643110053242216,
+          "meanNetSharpe": 1.8819642116293644,
+          "meanGrossSharpeUsingNetSd": 2.180788117679642,
+          "meanDailyTurnover": 0.06796077865897603,
+          "passByDay90": 0,
+          "passByDay180": 0.002,
+          "passByDay365": 0.048,
+          "passByDay365Wilson95": {
+            "lower": 0.036393301020807914,
+            "upper": 0.06306608865013393
+          },
+          "medianPassDayAmongPasses": 309
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0006425206892341594,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.024643110053242216,
+          "meanNetSharpe": 1.8819642116293644,
+          "meanGrossSharpeUsingNetSd": 2.180788117679642,
+          "meanDailyTurnover": 0.06796077865897603,
+          "passByDay90": 0.003,
+          "passByDay180": 0.037,
+          "passByDay365": 0.125,
+          "passByDay365Wilson95": {
+            "lower": 0.10592623063520473,
+            "upper": 0.14694383822896162
+          },
+          "medianPassDayAmongPasses": 252
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.0006425206892341594,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.024643110053242216,
+          "meanNetSharpe": 1.8819642116293644,
+          "meanGrossSharpeUsingNetSd": 2.180788117679642,
+          "meanDailyTurnover": 0.06796077865897603,
+          "passByDay90": 0.014,
+          "passByDay180": 0.05,
+          "passByDay365": 0.123,
+          "passByDay365Wilson95": {
+            "lower": 0.10407414325107295,
+            "upper": 0.1448112326470356
+          },
+          "medianPassDayAmongPasses": 209
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.0006425206892341594,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.012349156196651629,
+          "meanNetSharpe": 1.8819642116293644,
+          "meanGrossSharpeUsingNetSd": 2.180788117679642,
+          "meanDailyTurnover": 0.06796077865897603,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0,
+          "passByDay365Wilson95": {
+            "lower": 2.168404344971009e-19,
+            "upper": 0.0038267584855551234
+          },
+          "medianPassDayAmongPasses": null
+        }
+      ]
+    },
+    {
+      "holdDays": 20,
+      "dailyIc": 0.04,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0013831730567517308,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.05297949315408389,
+          "meanNetSharpe": 4.0407616570004405,
+          "meanGrossSharpeUsingNetSd": 4.339058751848904,
+          "meanDailyTurnover": 0.06801470800288383,
+          "passByDay90": 0,
+          "passByDay180": 0.046,
+          "passByDay365": 0.642,
+          "passByDay365Wilson95": {
+            "lower": 0.6117948042178514,
+            "upper": 0.6711183963722509
+          },
+          "medianPassDayAmongPasses": 276
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.0013831730567517308,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.05297949315408389,
+          "meanNetSharpe": 4.0407616570004405,
+          "meanGrossSharpeUsingNetSd": 4.339058751848904,
+          "meanDailyTurnover": 0.06801470800288383,
+          "passByDay90": 0.025,
+          "passByDay180": 0.306,
+          "passByDay365": 0.781,
+          "passByDay365Wilson95": {
+            "lower": 0.7543184071059555,
+            "upper": 0.8055309546251624
+          },
+          "medianPassDayAmongPasses": 207
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.0013831730567517308,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.05297949315408389,
+          "meanNetSharpe": 4.0407616570004405,
+          "meanGrossSharpeUsingNetSd": 4.339058751848904,
+          "meanDailyTurnover": 0.06801470800288383,
+          "passByDay90": 0.077,
+          "passByDay180": 0.351,
+          "passByDay365": 0.771,
+          "passByDay365Wilson95": {
+            "lower": 0.7439490266513543,
+            "upper": 0.7959768702494748
+          },
+          "medianPassDayAmongPasses": 194
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.0013831730567517308,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.0265527438533154,
+          "meanNetSharpe": 4.0407616570004405,
+          "meanGrossSharpeUsingNetSd": 4.339058751848904,
+          "meanDailyTurnover": 0.06801470800288383,
+          "passByDay90": 0,
+          "passByDay180": 0,
+          "passByDay365": 0.044,
+          "passByDay365Wilson95": {
+            "lower": 0.0329382145884185,
+            "upper": 0.058551789150407776
+          },
+          "medianPassDayAmongPasses": 344
+        }
+      ]
+    },
+    {
+      "holdDays": 20,
+      "dailyIc": 0.08,
+      "innovationShape": "symmetric-t4",
+      "costOn": true,
+      "replications": 1000,
+      "rows": [
+        {
+          "variantId": "baseline-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.002854028737457433,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.10959951661346447,
+          "meanNetSharpe": 8.338851473011637,
+          "meanGrossSharpeUsingNetSd": 8.636821329574907,
+          "meanDailyTurnover": 0.06795818312905527,
+          "passByDay90": 0.004,
+          "passByDay180": 0.856,
+          "passByDay365": 1,
+          "passByDay365Wilson95": {
+            "lower": 0.996173241514445,
+            "upper": 1
+          },
+          "medianPassDayAmongPasses": 147
+        },
+        {
+          "variantId": "wider-fixed-mixture-clip4",
+          "meanRawDailyNetExcess": 0.002854028737457433,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.10959951661346447,
+          "meanNetSharpe": 8.338851473011637,
+          "meanGrossSharpeUsingNetSd": 8.636821329574907,
+          "meanDailyTurnover": 0.06795818312905527,
+          "passByDay90": 0.438,
+          "passByDay180": 0.987,
+          "passByDay365": 1,
+          "passByDay365Wilson95": {
+            "lower": 0.996173241514445,
+            "upper": 1
+          },
+          "medianPassDayAmongPasses": 94
+        },
+        {
+          "variantId": "predictable-adaptive-bet-clip4",
+          "meanRawDailyNetExcess": 0.002854028737457433,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.10959951661346447,
+          "meanNetSharpe": 8.338851473011637,
+          "meanGrossSharpeUsingNetSd": 8.636821329574907,
+          "meanDailyTurnover": 0.06795818312905527,
+          "passByDay90": 0.681,
+          "passByDay180": 0.995,
+          "passByDay365": 1,
+          "passByDay365Wilson95": {
+            "lower": 0.996173241514445,
+            "upper": 1
+          },
+          "medianPassDayAmongPasses": 77
+        },
+        {
+          "variantId": "baseline-fixed-mixture-clip8",
+          "meanRawDailyNetExcess": 0.002854028737457433,
+          "meanClippedNormalizedExcessAfterBurnIn": 0.05490890165394706,
+          "meanNetSharpe": 8.338851473011637,
+          "meanGrossSharpeUsingNetSd": 8.636821329574907,
+          "meanDailyTurnover": 0.06795818312905527,
+          "passByDay90": 0,
+          "passByDay180": 0.011,
+          "passByDay365": 0.99,
+          "passByDay365Wilson95": {
+            "lower": 0.9816905311296853,
+            "upper": 0.9945592455544707
+          },
+          "medianPassDayAmongPasses": 255
+        }
+      ]
+    }
+  ],
+  "interpretationLimits": [
+    "This is a synthetic Monte Carlo measurement, not a real-market result, strategy edge, hold recommendation, or power guarantee.",
+    "The right-skewed null has zero raw mean; a positive clipped mean is outside the clipped conditional-mean null and is shown to diagnose that distinction, not as an e-process validity failure.",
+    "The adaptive bet is predictable from past clipped observations and is bounded below 1; its validity still depends on the stated clipped conditional-mean null.",
+    "The proposed alpha is copied only for F2 comparison and is not adopted as a program alpha or registration budget.",
+    "No real data, order book, execution, fill model, promotion gate, or PAPER/production path is tested."
+  ]
+}

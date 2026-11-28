@@ -57,5 +57,5 @@ export function futuresScreenChip(started: boolean, preview: boolean, resting = 
 
 /** 모의, 학습, 더보기: these screens carry no live signal of their own, so their chip names the screen and stays grey. */
 export function plainScreenChip(name: "PAPER" | "LEARN" | "MORE"): AiChip {
-  return { text: name === "PAPER" ? "PAPER · 모의 증거" : name === "LEARN" ? "LEARN · 학습" : "NUSA · 더보기", live: false };
+  return { text: name === "PAPER" ? "PAPER · 모의 증거" : name === "LEARN" ? "LAB · PAPER 연계" : "NUSA · 더보기", live: false };
 }

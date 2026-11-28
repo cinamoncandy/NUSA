@@ -27,3 +27,25 @@ test("no LIVE entry and no English codes in titles", () => {
     assert.doesNotMatch(item.title, /[A-Z]{3,}/);
   }
 });
+
+test("source pin: the four 'what happened' entries render as tiles and every entry keeps its more- testID and onOpen", () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const view = fs.readFileSync(path.join(__dirname, "..", "apps", "mobile", "src", "recordsView.tsx"), "utf8");
+  assert.match(view, /g === 0 \? <View style=\{styles\.tiles\} testID="records-tiles">/);
+  assert.equal((view.match(/testID=\{`more-\$\{item\.destination\}`\}/g) ?? []).length, 2, "tile and row both keep the testID");
+  assert.equal((view.match(/onPress=\{\(\) => onOpen\(item\.destination\)\}/g) ?? []).length, 2);
+  assert.match(view, /minHeight: 112/, "tile touch target");
+  // PressScale wraps the Pressable in an Animated.View: the equal-width rule must sit on a plain View cell around it, or the grid collapses.
+  assert.match(view, /<View key=\{item\.destination\} style=\{styles\.tileCell\}><PressScale/);
+  assert.match(view, /tileCell: \{ width: "48%", flexGrow: 1 \}/);
+  assert.doesNotMatch(view, /tile: \{[^}]*flexBasis/, "no width rule on the inner Pressable");
+  assert.match(view, /<Text style=\{\[styles\.hint, styles\.tileHint\]\}>/);
+  assert.match(view, /tileHint: \{ minHeight: 34 \}/, "two hint lines reserved so tile titles align");
+});
+
+test("the 주문 기록 hint is short enough to stay on one line in a tile (no break inside a word)", () => {
+  const records = load("recordsScreenModel");
+  const entry = records.RECORDS_GROUPS.flatMap((g) => g.items).find((i) => i.destination === "OrderHistory");
+  assert.equal(entry.hint, "주문과 체결, 수수료");
+  assert.ok([...entry.hint].length <= 12);
+});

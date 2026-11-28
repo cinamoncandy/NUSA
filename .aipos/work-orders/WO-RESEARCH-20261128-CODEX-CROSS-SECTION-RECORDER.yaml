@@ -1,0 +1,26 @@
+id: WO-RESEARCH-20261128-CODEX-CROSS-SECTION-RECORDER
+title: "Codex: hosted-runner cross-section signal recorder and e-process calculator (Alpha Lab v3 engine, offline)"
+status: READY_FOR_REVIEW
+created: 2026-11-28
+assignee: codex
+reviewer: claude
+implementation_branch: codex/cross-section-recorder-20261128
+owner_decision: "2026-11-28: large implementation work goes to ChatGPT/Codex (ADR-OPS-20261128-WORK-SPLIT). The statistical method is Claude's design; Codex implements it exactly."
+spec:
+  - "Design: docs/ALPHA_LAB_V3_CROSS_SECTION_EVALUE_DESIGN_2026-11-27.md sections 2 and 7; reference math: scripts/offline-lab-f2b-adaptive-evalue.js (mixture plus adaptive bet, clip at 4 sd of past days, 20-day burn-in, threshold 1/alpha, top third equal weight versus equal basket, 15 bp per side on turnover)."
+  - "scripts/alpha-lab/cross-section.js: `record <hypothesisFile> <dir>` appends one day's ranks and holdings for a registered hypothesis (hash-checked) to an append-only, hash-chained JSONL; `evaluate <dir>` recomputes the e-process from the full record and writes a hashed status (e value, days, PASS when e >= 1/alpha). Hypothesis files are inputs; none is created by this task."
+  - ".github/workflows/research-cross-section.yml: scheduled once a day after the daily candle close plus workflow_dispatch; GitHub-hosted, no secrets, no host access; does nothing when no registered hypothesis file exists; stores the record as a repository artifact or a dedicated branch as the PR proposes (Claude decides in review)."
+change:
+  - "scripts/alpha-lab/cross-section.js, .github/workflows/research-cross-section.yml, tests/alpha-lab-cross-section.test.js, this work order."
+not_changed:
+  - "Host and app code; registering any hypothesis; any gate, threshold, limit, capital or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "Tests reproduce the F2b reference numbers on its synthetic generator within Monte Carlo error (null never passes in 200 runs; IC 0.04 hold 20 passes at a similar rate); the hash chain rejects an edited or reordered row; the record refuses dates before the hypothesis's registration."
+acceptance:
+  - "Draft PR by Codex; non-author review by Claude; merge only through the release path or the owner."
