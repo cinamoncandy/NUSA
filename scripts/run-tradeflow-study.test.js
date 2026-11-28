@@ -179,3 +179,23 @@ test("a failed run names its study in the failure line", () => {
     assert.match(run.stderr, new RegExp(`TRADEFLOW_STUDY_FAILED_CLOSED:V${version}\\b`));
   }
 });
+
+test("the failure line names the kind of the error only, never its message", () => {
+  const { failureClass } = require("./run-tradeflow-study.js");
+  assert.equal(failureClass(new TypeError("secret /path KRW-BTC 123.45")), "class=TypeError");
+  const sqlite = Object.assign(new Error("database is locked at /var/lib/nusa/state.sqlite"), { code: "ERR_SQLITE_ERROR", errcode: 5 });
+  assert.equal(failureClass(sqlite), "class=Error/ERR_SQLITE_ERROR sqlite=5");
+  assert.equal(failureClass({ name: "bad name!", code: "x y", errcode: 1.5 }), "class=Error");
+  assert.equal(failureClass(null), "class=Error");
+  assert.equal(failureClass({ get name() { throw new Error("hostile"); } }), "class=Error");
+  assert.doesNotMatch(failureClass(sqlite), /locked|state\.sqlite|\/var/);
+});
+
+test("a real failure prints the class on the failure line", () => {
+  const cwd = require("node:path").resolve(__dirname, "..");
+  const env = { ...process.env, NUSA_TRADEFLOW_STUDY_ID: "ML_TRADEFLOW_60M_20261113", NUSA_CLOUD_STATE_DB_PATH: "/nonexistent/dir/state.sqlite" };
+  const run = spawnSync(process.execPath, ["scripts/run-tradeflow-study.js"], { cwd, env, encoding: "utf8" });
+  assert.notEqual(run.status, 0);
+  assert.match(run.stderr, /TRADEFLOW_STUDY_FAILED_CLOSED:V1 class=[A-Za-z0-9_]+(\/[A-Z0-9_]+)?( sqlite=\d+)?\b/);
+  assert.doesNotMatch(run.stderr, /nonexistent/);
+});

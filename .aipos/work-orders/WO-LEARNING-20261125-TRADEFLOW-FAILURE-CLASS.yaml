@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261125-TRADEFLOW-FAILURE-CLASS
+title: "Tradeflow study: the failure line names the kind of the error and how the child ended (diagnosis only)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: '할 수 있는거 다 해' after the owner asked how to prepare so the tradeflow v2 study does not fail; finding in docs/FINDINGS_2026-11-25.md section 3."
+objective: "A failed tradeflow run today prints only TRADEFLOW_STUDY_FAILED_CLOSED:V<n>, so the cause cannot be told. Print the error class (name, code, SQLite result code, each only if a short identifier or small integer) from the study and the exit status, signal and spawn error code of the child from the runner. Never a message, path, market or value."
+change:
+  - "scripts/run-tradeflow-study.js: failureClass() and the catch line; scripts/run-cloud-research-snapshot.js: spawnOutcome() on the tradeflow failure line; tests in scripts/run-tradeflow-study.test.js and scripts/run-cloud-research-snapshot.test.js (30 tests pass)."
+not_changed:
+  - "No rule, statistic, threshold, span, seed or result of the study changes; the success path and the status codes are untouched. No host change by this PR; the code reaches the host only with a release, which is a separate step at the owner's word (discouraged inside the holdout until 2026-12-10)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Behaviour on the host; whether the failure is an exception (the class shows) or a timeout or kill (the outcome shows)."
+acceptance:
+  - "Tests and AIPOS validators pass; independent review; merge after the freeze (2026-11-28 15:00 KST); release only at the owner's word."
