@@ -1,0 +1,20 @@
+id: WO-OPS-20261117-PERMIT-PRODUCER-DESIGN-V2
+title: "Permit producer: facts from main, open items filled, build order (design only)"
+status: READY_FOR_REVIEW
+created: 2026-11-17
+implementation_branch: claude/permit-producer-impl-wo
+owner_decision: "2026-11-17: the owner said '허가 생성기 설계해'. Decision 2 of 2026-11-16 still holds: nothing is built before a candidate qualifies. This is design only."
+objective: "Turn the 2026-11-16 design into a checkable plan: record what main actually supplies (no producer of any of the eight market-state signals exists), the store and adapter layout, the honest minimum per gate, a read-only inventory, a recommended default for the three open governance specifics and two new decisions (D5 spot-only regime, D6 second model)."
+not_changed:
+  - "No code, store, host change, release, order switch, threshold, risk limit, capital or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Facts were read from main on 2026-11-17; runtime facts (models, samples, futures data on the host) need the read-only inventory."
+owner_answer: "2026-11-17: 추천대로 (D3a-D3c, D5 accepted as recommended; D6 deferred until the inventory)."
+acceptance:
+  - "Owner answers D3a-D3c, D5, D6 or accepts the recommended defaults; independent review of the design."
