@@ -39,6 +39,6 @@ current_alpha_lab_cross_section_recorder_20261128:
     aipos_validation: PASS_YAML_AND_WORK_ORDER_INDEX
     preflight: PASS
     diff_check: PASS
-    exact_head_ci: PENDING_AFTER_WEIGHT_DRIFT_FIX
+    exact_head_ci: SEE_LIVE_PR_3361_CURRENT_HEAD
   evidence: .aipos/handoffs/2026-11-28-cross-section-recorder.md
-  next: Push the weight-drift/schema-v2 correction to Draft PR #3361 and verify new exact-head checks; leave it for independent review; do not merge, register a hypothesis, fetch market data, or operate host/app/release paths.
+  next: Verify the live exact-head checks for Draft PR #3361 and leave it for independent review; do not merge, register a hypothesis, fetch market data, or operate host/app/release paths.
