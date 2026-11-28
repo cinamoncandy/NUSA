@@ -13,7 +13,7 @@
 - `scripts/alpha-lab/screen.js` defines a canonical, hashed grammar for the six daily rule families in desk batch A. It fixes 15 bp base and 30 bp stress costs, 90-day minimum history, top-five long-only ranking, six-window discovery, one-sided normal second filter, and `0.05/K` Bonferroni bar.
 - The runner accepts only a sorted, exact-match KRW universe, canonical grammar, regular market files, ascending UTC-daily OHLCV rows, and history strictly before `2026-11-05T00:00:00Z`. It hashes the grammar, each input file, and deterministic output; it performs no network access.
 - `tests/alpha-lab-screen.test.js` uses synthetic fixtures only. Five tests pass, including cutoff refusal before a post-cutoff row's OHLCV tokens are parsed, hash reproducibility, six-family execution, universe pinning, and row validation.
-- A small direct-score cleanup after initial commit `12d178b1868b64224d0f07d7e85ebff194c9a029` retains the same tested behavior; final branch head and its exact CI status must be read from GitHub.
+- The direct-score cleanup is covered by the five focused tests. PR head `8ee8798cd8f5338e7e7459e20c7a24c3e2f22c79` passed exact-head GitHub CI: required checks passed, optional causal jobs skipped.
 
 ## Sources and boundaries
 
@@ -28,4 +28,4 @@ The checked-in repository has the preregistration and recorded summary, but no r
 
 ## Next action
 
-Push the final code/AIPOS follow-up, verify exact-head CI on #3357, and keep it Draft for independent review. Do not alter the previous scripts or recorded results.
+Keep #3357 Draft and await a non-author review. The exact-head CI recorded above passed on the implementation head; any later AIPOS-only commit needs its own exact-head CI. The repository contains no raw 56-market desk-batch daily OHLCV input; byte-for-byte reproduction of the recorded 141-rule summary remains unverified. Do not access prices after the 2026-11-04 cutoff. Do not alter the previous scripts or recorded results.

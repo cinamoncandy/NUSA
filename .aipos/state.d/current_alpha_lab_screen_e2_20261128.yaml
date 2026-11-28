@@ -4,7 +4,7 @@ current_alpha_lab_screen_e2_20261128:
   status: IN_PROGRESS
   branch: codex/alpha-lab-screen-runner-20261128
   base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
-  implementation_sha: 12d178b1868b64224d0f07d7e85ebff194c9a029
+  implementation_sha: 8ee8798cd8f5338e7e7459e20c7a24c3e2f22c79
   pull_request: 3357
   pull_request_state: DRAFT
   scope: offline_declared_daily_history_screen_only
@@ -26,15 +26,15 @@ current_alpha_lab_screen_e2_20261128:
     production_or_trading_effect: false
   verification:
     branch_created_from_current_main: PASS
-    tests: "5/5 PASS (synthetic fixtures only; rerun after direct-score cleanup)"
+    tests: "5/5 PASS (synthetic fixtures only)"
     node_check: PASS
     aipos_yaml: "PASS (841 files)"
     preflight: PASS
-    exact_head_ci: "PENDING for latest PR head after code and AIPOS follow-up"
+    exact_head_ci: "PASS at 8ee8798cd8f5338e7e7459e20c7a24c3e2f22c79; required checks PASS including Actual PAPER runtime; optional causal jobs skipped"
     independent_review: PENDING
   known_limits:
     - "The checked-in repository contains no daily desk-batch raw OHLCV input directory; exact recorded batch reproduction may remain unverifiable without an authorized pre-cutoff fixture or input artifact."
     - "Post-cutoff rows are rejected from their timestamp before their OHLCV tokens are parsed; no historical screen has been run in this branch."
     - "Synthetic tests establish validation and deterministic hashing, not the recorded 141-rule result."
-  next: "Push the final code/AIPOS follow-up, verify exact-head CI on the resulting head, and keep the PR Draft. Historical batch reproduction remains unverified without raw permitted inputs."
+  next: "Keep PR #3357 Draft and await non-author review. The required 141-rule historical reproduction remains unverified because permitted raw daily inputs are absent; do not read post-cutoff market data."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
