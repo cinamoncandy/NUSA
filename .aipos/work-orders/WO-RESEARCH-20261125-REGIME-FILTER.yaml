@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261125-REGIME-FILTER
+title: "Research: regime filter screen (hold the market in an up regime, cash otherwise); goal is a smaller drawdown, not excess return; offline"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/regime-filter-screen
+owner_decision: "2026-11-25: asked about switching strategies by market situation and said \"해봐\" to a history test of three switch rules against buy-and-hold."
+follows: "docs/RESEARCH_CROSSSECTION_SCREEN_RESULT_2026-11-25.md (PR #3312, data fetch)."
+objective: "scripts/offline-regime-filter-screen.js, committed with rules and pass bars BEFORE the first run. Reads the daily files fetched by the cross-section screen (kept outside the repository). K=6 (BTC 200-day, BTC 50-day, market breadth; BTC and equal-weight basket). Pass needs a clearly smaller drawdown with most of the return in both the first part and the last 365 days; the last year was already read, so passing is eligibility for a forward pre-registration only."
+change:
+  - "scripts/offline-regime-filter-screen.js, docs/RESEARCH_REGIME_FILTER_RESULT_2026-11-25.md (result: 6 filters, 1 passed both parts: basket + breadth) and this work order."
+not_changed:
+  - "Any workflow, host, release, rule, threshold, gate, risk limit, capital or authority; no order-book value and no S2-S4 holdout value is read; Codex's L1-L8 work."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "Survivorship (current markets only); the basket is rebalanced daily at no cost (optimistic, same for the benchmark); a drawdown rule is not an edge claim."
+acceptance:
+  - "Result recorded honestly; a survivor, if any, goes to a separate forward pre-registration."
