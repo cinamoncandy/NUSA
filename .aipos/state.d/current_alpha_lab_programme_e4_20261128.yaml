@@ -4,8 +4,8 @@ current_alpha_lab_programme_e4_20261128:
   status: IN_PROGRESS
   branch: codex/alpha-lab-programme-ledger-20261128
   branch_base: codex/alpha-lab-registry-20261128
-  base_sha: 7f8aaf0d749b6bab8d82a49b23633dbc0ee31767
-  implementation_sha: 88c42916ed215b8ba353ec15090b5d8b5d16560b
+  base_sha: 3311cba0fbb6e3a5c0bcb4c5111423a9466cf1cd
+  implementation_sha: 605b512924b4dadab83920dd55ce736e0c865d2c
   pull_request: 3358
   pull_request_state: DRAFT
   scope: offline_read_only_programme_alpha_ledger
@@ -23,13 +23,14 @@ current_alpha_lab_programme_e4_20261128:
     production_or_trading_effect: false
   verification:
     node_check: PASS
-    focused_tests: "5/5 PASS (temporary synthetic registry fixtures)"
-    preflight: PASS
-    aipos_yaml: "PASS (841 files)"
-    exact_head_ci: "Check PR #3358's live checks and confirm their head SHA matches the current PR head; this read-only snapshot avoids mirroring mutable run status."
+    focused_tests: "5/5 PASS (temporary synthetic fixtures, including exact-decimal over-budget boundary refusal)"
+    preflight: "PASS (`XDG_DATA_HOME=/workspace/.local/share pnpm run preflight`; reused lockfile-matched dependencies from E1 worktree)"
+    aipos_yaml: "PASS (842 files); work-order index and AIPOS drift validators PASS"
+    exact_head_ci: "The previous dispatch passed on 2e619796dc67def2bd92a57c078a56d24315528c; it is stale after the decimal-arithmetic fix and rebase onto the current E1 head. Dispatch and verify the final PR head."
     independent_review: PENDING
   known_limits:
     - "The budget check is read-only and does not mutate the registry. It reports whether a candidate fits the annual budget; the actual registry admission caller must require this check. Direct invocation of the E1 register command is not blocked by this E4 tool alone."
+    - "The registration workflow must call the precheck with the actual registration year; this read-only tool does not atomically reserve annual alpha or prevent a caller bypassing it."
     - "No real hypothesis or registry row was created; annual totals are based only on rows verified by the E1 reader."
   next: "Keep PR #3358 Draft, use its live exact-head checks, and await non-author review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
