@@ -45,7 +45,7 @@ const OBSERVATION_KEYS = [
   "hypothesisSha256", "firstEvaluableDate", "previousRowSha256", "payload", "rowSha256",
 ];
 const OBSERVATION_PAYLOAD_KEYS = [
-  "rebalance", "ranks", "weights", "lookbackCloseDate", "signalCloseDate",
+  "rebalance", "ranks", "weights", "closingWeights", "lookbackCloseDate", "signalCloseDate",
   "outcomeCloseDate", "lookbackCloses", "signalCloses", "outcomeCloses",
   "dailyReturns", "portfolioReturn", "equalWeightReturn", "turnover",
   "transactionCost", "grossExcess", "netExcess",
@@ -559,6 +559,23 @@ function mapFromWeightRows(universe, rows, code) {
   return result;
 }
 
+function driftWeightsAfterReturns(universe, weights, dailyReturns, portfolioReturn, code) {
+  const portfolioGrowth = 1 + portfolioReturn;
+  if (!Number.isFinite(portfolioGrowth) || portfolioGrowth <= 0) fail(code);
+  const closingWeights = new Map();
+  let total = 0;
+  for (const market of universe) {
+    const assetGrowth = 1 + dailyReturns.get(market);
+    if (!Number.isFinite(assetGrowth) || assetGrowth <= 0) fail(code);
+    const weight = weights.get(market) * assetGrowth / portfolioGrowth;
+    if (!Number.isFinite(weight) || weight < 0 || weight > 1) fail(code);
+    closingWeights.set(market, weight);
+    total += weight;
+  }
+  if (!nearlyEqual(total, 1)) fail(code);
+  return closingWeights;
+}
+
 function mapClosesToRows(universe, values) {
   return universe.map((market) => ({ market, value: values.get(market) }));
 }
@@ -586,11 +603,12 @@ function makeObservation(registration, signalDate, recordedAtUtc, sequence, prev
   const priorSequence = sequence - 1;
   const rebalance = priorSequence % spec.hold === 0;
   const previousWeights = previousObservation
-    ? mapFromWeightRows(spec.universe, previousObservation.payload.weights, "weight")
+    ? mapFromWeightRows(spec.universe, previousObservation.payload.closingWeights, "weight")
     : new Map(spec.universe.map((market) => [market, 0]));
   const newWeights = rebalance ? topWeightsFromRanks(ranks, spec.universe) : previousWeights;
   const dailyReturns = new Map(spec.universe.map((market) => [market, outcomeCloses.get(market) / signalCloses.get(market) - 1]));
   const portfolioReturn = spec.universe.reduce((sum, market) => sum + newWeights.get(market) * dailyReturns.get(market), 0);
+  const closingWeights = driftWeightsAfterReturns(spec.universe, newWeights, dailyReturns, portfolioReturn, "OBSERVATION_WEIGHTS_INVALID");
   const equalWeightReturn = spec.universe.reduce((sum, market) => sum + dailyReturns.get(market), 0) / spec.universe.length;
   const turnover = rebalance
     ? spec.universe.reduce((sum, market) => sum + Math.abs(newWeights.get(market) - previousWeights.get(market)), 0)
@@ -602,6 +620,7 @@ function makeObservation(registration, signalDate, recordedAtUtc, sequence, prev
     rebalance,
     ranks,
     weights: mapToWeightRows(spec.universe, newWeights),
+    closingWeights: mapToWeightRows(spec.universe, closingWeights),
     lookbackCloseDate: lookbackDate,
     signalCloseDate: signalDate,
     outcomeCloseDate: outcomeDate,
@@ -617,7 +636,7 @@ function makeObservation(registration, signalDate, recordedAtUtc, sequence, prev
     netExcess,
   };
   const body = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     sequence,
     rowType: "OBSERVATION",
     id: spec.id,
@@ -632,7 +651,7 @@ function makeObservation(registration, signalDate, recordedAtUtc, sequence, prev
 }
 
 function validateObservation(row, registration, expectedSequence, expectedPreviousHash, previousObservation) {
-  if (!sameKeys(row, OBSERVATION_KEYS) || row.schemaVersion !== 1 || row.sequence !== expectedSequence || row.rowType !== "OBSERVATION") fail("OBSERVATION_ROW_INVALID");
+  if (!sameKeys(row, OBSERVATION_KEYS) || row.schemaVersion !== 2 || row.sequence !== expectedSequence || row.rowType !== "OBSERVATION") fail("OBSERVATION_ROW_INVALID");
   if (row.id !== registration.spec.id || row.hypothesisSha256 !== registration.hypothesisSha256 || row.firstEvaluableDate !== registration.firstEvaluableDate) fail("OBSERVATION_REGISTRATION_BINDING_INVALID");
   requireDate(row.signalDate, "OBSERVATION_SIGNAL_DATE_INVALID");
   requireUtcTimestamp(row.recordedAtUtc, "OBSERVATION_TIMESTAMP_INVALID");
@@ -658,7 +677,7 @@ function validateObservation(row, registration, expectedSequence, expectedPrevio
   const expectedRebalance = (expectedSequence - 1) % spec.hold === 0;
   if (payload.rebalance !== expectedRebalance) fail("OBSERVATION_REBALANCE_INVALID");
   const previousWeights = previousObservation
-    ? mapFromWeightRows(spec.universe, previousObservation.payload.weights, "weight")
+    ? mapFromWeightRows(spec.universe, previousObservation.payload.closingWeights, "weight")
     : new Map(spec.universe.map((market) => [market, 0]));
   const expectedWeights = expectedRebalance ? topWeightsFromRanks(expectedRanks, spec.universe) : previousWeights;
   const actualWeights = mapFromWeightRows(spec.universe, payload.weights, "OBSERVATION_WEIGHTS_INVALID");
@@ -668,6 +687,9 @@ function validateObservation(row, registration, expectedSequence, expectedPrevio
     if (!nearlyEqual(dailyReturns.get(market), outcomeCloses.get(market) / signalCloses.get(market) - 1)) fail("OBSERVATION_RETURNS_INVALID");
   }
   const portfolioReturn = spec.universe.reduce((sum, market) => sum + actualWeights.get(market) * dailyReturns.get(market), 0);
+  const expectedClosingWeights = driftWeightsAfterReturns(spec.universe, actualWeights, dailyReturns, portfolioReturn, "OBSERVATION_WEIGHTS_INVALID");
+  const actualClosingWeights = mapFromWeightRows(spec.universe, payload.closingWeights, "OBSERVATION_WEIGHTS_INVALID");
+  for (const market of spec.universe) if (!nearlyEqual(actualClosingWeights.get(market), expectedClosingWeights.get(market))) fail("OBSERVATION_CLOSING_WEIGHTS_INVALID");
   const equalWeightReturn = spec.universe.reduce((sum, market) => sum + dailyReturns.get(market), 0) / spec.universe.length;
   const turnover = expectedRebalance ? spec.universe.reduce((sum, market) => sum + Math.abs(actualWeights.get(market) - previousWeights.get(market)), 0) : 0;
   const transactionCost = ONE_WAY_TURNOVER_COST * turnover;

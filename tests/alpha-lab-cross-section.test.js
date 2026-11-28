@@ -287,6 +287,54 @@ test("record stores a reproducible ranked portfolio outcome and evaluate hashes 
   assert.equal(JSON.parse(fs.readFileSync(path.join(dataDir, "status.json"), "utf8")).statusSha256, statusSha256);
 });
 
+test("hold-period weights drift with realized returns and rebalance turnover uses the drifted holdings", async (t) => {
+  const root = fixtureDirectory(t);
+  const markets = ["KRW-AAA", "KRW-BBB", "KRW-CCC", "KRW-DDD", "KRW-EEE", "KRW-FFF"];
+  const spec = { ...specFor("weight-drift-fixture-only", 2), universe: markets };
+  const fixture = writeRegisteredFixture(root, spec);
+  const dataDir = path.join(root, "data", fixture.spec.id);
+  const closes = {
+    "2026-12-09": { "KRW-AAA": 100, "KRW-BBB": 100, "KRW-CCC": 100, "KRW-DDD": 100, "KRW-EEE": 100, "KRW-FFF": 100 },
+    "2026-12-10": { "KRW-AAA": 200, "KRW-BBB": 150, "KRW-CCC": 120, "KRW-DDD": 110, "KRW-EEE": 105, "KRW-FFF": 101 },
+    "2026-12-11": { "KRW-AAA": 200, "KRW-BBB": 180, "KRW-CCC": 120, "KRW-DDD": 110, "KRW-EEE": 105, "KRW-FFF": 101 },
+    "2026-12-12": { "KRW-AAA": 220, "KRW-BBB": 180, "KRW-CCC": 180, "KRW-DDD": 121, "KRW-EEE": 105, "KRW-FFF": 101 },
+    "2026-12-13": { "KRW-AAA": 220, "KRW-BBB": 180, "KRW-CCC": 180, "KRW-DDD": 121, "KRW-EEE": 105, "KRW-FFF": 101 },
+  };
+  const fetcher = async (market, count, to) => Object.entries(closes)
+    .filter(([date]) => date < to.slice(0, 10))
+    .sort(([left], [right]) => right.localeCompare(left))
+    .slice(0, count)
+    .map(([date, values]) => ({ candle_date_time_utc: date + "T00:00:00", trade_price: values[market] }));
+
+  for (const now of ["2026-12-12T00:20:00.000Z", "2026-12-13T00:20:00.000Z", "2026-12-14T00:20:00.000Z"]) {
+    const result = await recorder.recordFromFile(fixture.hypothesisPath, dataDir, {
+      registryPath: fixture.registryPath,
+      now: new Date(now),
+      fetcher,
+    });
+    assert.equal(result.recorded, true);
+  }
+
+  const rows = recorder.readObservationChain(dataDir, fixture.registration, fixture.registryPath);
+  const [first, second, third] = rows.map((row) => row.payload);
+  assert.equal(first.rebalance, true);
+  assert.equal(second.rebalance, false);
+  assert.equal(third.rebalance, true);
+  assert.ok(Math.abs(first.weights.find((row) => row.market === "KRW-AAA").weight - 0.5) < 1e-12);
+  assert.ok(Math.abs(first.weights.find((row) => row.market === "KRW-BBB").weight - 0.5) < 1e-12);
+
+  const secondStartA = second.weights.find((row) => row.market === "KRW-AAA").weight;
+  const secondStartB = second.weights.find((row) => row.market === "KRW-BBB").weight;
+  assert.ok(Math.abs(secondStartA - 5 / 11) < 1e-12);
+  assert.ok(Math.abs(secondStartB - 6 / 11) < 1e-12);
+  assert.notEqual(secondStartA, first.weights.find((row) => row.market === "KRW-AAA").weight);
+  assert.equal(second.turnover, 0, "carrying the drifted portfolio between rebalance dates incurs no turnover");
+
+  assert.deepEqual(third.weights.filter((row) => row.weight > 0).map((row) => row.market), ["KRW-AAA", "KRW-CCC"]);
+  assert.ok(Math.abs(third.turnover - 24 / 23) < 1e-12, "turnover is measured from the prior close's drifted weights");
+  assert.ok(Math.abs(third.transactionCost - 0.0015 * 24 / 23) < 1e-12);
+});
+
 test("retries are idempotent and missed dates are never backfilled", async (t) => {
   const root = fixtureDirectory(t);
   const fixture = writeRegisteredFixture(root);
