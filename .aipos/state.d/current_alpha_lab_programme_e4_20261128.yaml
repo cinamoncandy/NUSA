@@ -1,0 +1,36 @@
+current_alpha_lab_programme_e4_20261128:
+  work_order: WO-RESEARCH-20261128-CODEX-ALPHA-LAB-ENGINE
+  subtask: E4
+  status: IN_PROGRESS
+  branch: codex/alpha-lab-programme-ledger-20261128
+  branch_base: codex/alpha-lab-registry-20261128
+  base_sha: 3311cba0fbb6e3a5c0bcb4c5111423a9466cf1cd
+  implementation_sha: 605b512924b4dadab83920dd55ce736e0c865d2c
+  pull_request: 3358
+  pull_request_state: DRAFT
+  scope: offline_read_only_programme_alpha_ledger
+  owner_decisions:
+    - "Use the design's assumed annual alpha 0.05 as the initial editable config; owner may amend research/alpha-lab/programme.json."
+    - "Stack on E1 so report/check uses its canonical chain-verifying reader; do not duplicate or change registry writes."
+  implementation:
+    files:
+      - scripts/alpha-lab/programme.js
+      - tests/alpha-lab-programme.test.js
+      - research/alpha-lab/programme.json
+    registry_mutated: false
+    market_data_read: false
+    order_book_data_read: false
+    production_or_trading_effect: false
+  verification:
+    node_check: PASS
+    focused_tests: "5/5 PASS (temporary synthetic fixtures, including exact-decimal over-budget boundary refusal)"
+    preflight: "PASS (`XDG_DATA_HOME=/workspace/.local/share pnpm run preflight`; reused lockfile-matched dependencies from E1 worktree)"
+    aipos_yaml: "PASS (842 files); work-order index and AIPOS drift validators PASS"
+    exact_head_ci: "Run 46138946104 PASS at exact head b4f6ecdc0825bd08eb1b4d4984f1147a3205cff3; validation, test, aggregate coverage, four core shards, and UI/E2E PASS; optional causal jobs skipped. Always use PR #3358's live checks and match their head SHA before treating the current PR head as validated; this snapshot does not assert mutable check state."
+    independent_review: PENDING
+  known_limits:
+    - "The budget check is read-only and does not mutate the registry. It reports whether a candidate fits the annual budget; the actual registry admission caller must require this check. Direct invocation of the E1 register command is not blocked by this E4 tool alone."
+    - "The registration workflow must call the precheck with the actual registration year; this read-only tool does not atomically reserve annual alpha or prevent a caller bypassing it."
+    - "No real hypothesis or registry row was created; annual totals are based only on rows verified by the E1 reader."
+  next: "Keep PR #3358 Draft, use its live exact-head checks, and await non-author review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
