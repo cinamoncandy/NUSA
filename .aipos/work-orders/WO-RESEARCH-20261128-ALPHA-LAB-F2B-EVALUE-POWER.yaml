@@ -53,3 +53,11 @@ acceptance:
   - "Open a draft PR only after local validation; keep it draft pending non-author review and exact-head CI. No merge, release, host change, or hypothesis registration."
 notes:
   - "Only an offline research measurement is in scope. No result may be fed into a live/PAPER execution or production admission path."
+measurement_record:
+  primary_run: COMPLETED_ONCE
+  analysis_commit: "403e4641db0bde7ed9d9fc1410ef97b5545f08e2"
+  analysis_script_sha256: "5439dcee3c9c25e3fce81512770eb66fd31cc778fc4069a3361384e8273dd1be"
+  config_sha256: "baa0ce0a3ac95a8003f30f410aca98d89773d806637237f545951674b12a7343"
+  artifact_sha256: "1901d4dac5b03323b9aa3f800c7fbf4d7d4b8f0561ad128f3fe273894ee6e562"
+  result_note: "docs/ALPHA_LAB_F2B_EVALUE_POWER_RESULT_2026-11-28.md"
+  validation: "Local focused tests 7/7 and self-test 46 checks passed before and after the frozen primary run; the post-run adjustment was test-only and did not change the hashed analysis script or rerun the primary. Focused ESLint, AIPOS YAML/index, preflight and AI zero-authority guard passed. Exact-head CI and independent review pending."

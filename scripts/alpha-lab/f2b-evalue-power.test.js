@@ -80,7 +80,9 @@ test("e-process records first crossing while clipped-mean diagnostic covers the 
 test("self-test is safe to call and the primary runner is not executed on import", () => {
   assert.deepEqual(f2b.selfTest(), { pass: true, assertions: 46, networkOrMarketData: false });
   assert.equal(f2b.PRIMARY_OUTPUT_PATH, path.resolve(__dirname, "../../docs/research-data/alpha-lab-f2b-evalue-power-2026-11-28.json"));
-  assert.equal(fs.existsSync(f2b.PRIMARY_OUTPUT_PATH), false);
+  const importCheck = spawnSync(process.execPath, ["-e", "require(process.argv[1])", sourcePath], { encoding: "utf8" });
+  assert.equal(importCheck.status, 0);
+  assert.equal(importCheck.stdout, "");
   const arbitraryTarget = path.join(os.tmpdir(), `alpha-lab-f2b-${randomUUID()}.json`);
   const rejectedPrimary = spawnSync(process.execPath, [sourcePath, "--primary", arbitraryTarget], { encoding: "utf8" });
   assert.equal(rejectedPrimary.status, 1);

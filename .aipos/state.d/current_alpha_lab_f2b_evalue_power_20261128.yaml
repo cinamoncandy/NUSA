@@ -1,10 +1,16 @@
 current_alpha_lab_f2b_evalue_power_20261128:
   work_order: WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
-  status: IN_PROGRESS_SPEC_FROZEN
+  status: IN_PROGRESS_RESULT_RECORDED_PENDING_REVIEW
   branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
   base_sha: 5846d6b58b4fa7f5aff7ea7b746a8fc8f3222e92
   scope: offline_synthetic_eprocess_and_hold_comparison_only
-  primary_run: NOT_STARTED
+  primary_run: COMPLETED_ONCE
+  analysis_commit: 403e4641db0bde7ed9d9fc1410ef97b5545f08e2
+  analysis_script_sha256: 5439dcee3c9c25e3fce81512770eb66fd31cc778fc4069a3361384e8273dd1be
+  config_sha256: baa0ce0a3ac95a8003f30f410aca98d89773d806637237f545951674b12a7343
+  artifact_sha256: 1901d4dac5b03323b9aa3f800c7fbf4d7d4b8f0561ad128f3fe273894ee6e562
+  result_note: docs/ALPHA_LAB_F2B_EVALUE_POWER_RESULT_2026-11-28.md
   exact_head_ci: PENDING
-  next: "Push the claimed WO branch after AIPOS/preflight checks, then implement tests and the frozen synthetic measurement."
+  independent_review: PENDING_NON_AUTHOR
+  next: "Run final AIPOS/preflight checks, push the result artifact and limitation note, open a draft PR, and verify exact-head CI; keep review and merge pending."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
