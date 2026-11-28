@@ -11,7 +11,6 @@ const DAY = 86_400_000;
 const CUTOFF_EXCLUSIVE = Date.parse("2026-11-05T00:00:00.000Z");
 const BASE_FEE = 0.0015;
 const STRESS_FEE = 0.003;
-const DEFAULT_MIN_HISTORY_DAYS = 90;
 const MAX_INPUT_BYTES = 128 * 1024 * 1024;
 const MARKET_RE = /^KRW-[A-Z0-9]{2,12}$/;
 const ID_RE = /^[A-Z][A-Z0-9_]{0,63}$/;
