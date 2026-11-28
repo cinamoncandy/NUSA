@@ -15,12 +15,12 @@ test("the in-app island mark stays on its 24 grid with nested domes that never c
   assert.deepEqual([...ISLAND_MARK_GRADIENT], ["#FFFFFF", "#8FD3F2", "#BFE9FF"]);
 });
 
-test("the launcher drawables are exactly what the island icon generator writes", () => {
+test("the launcher drawables are exactly what the lattice icon generator writes (UI v8)", () => {
   const res = "apps/mobile/android/app/src/main/res";
   const files = ["drawable/ic_nusa_logo_foreground.xml", "drawable/ic_nusa_logo.xml", "drawable/ic_nusa_splash.xml", "drawable/ic_nusa_logo_monochrome.xml", "drawable/ic_nusa_notification.xml", "mipmap-anydpi-v24/ic_launcher.xml", "mipmap-anydpi-v24/ic_launcher_round.xml"];
   const before = files.map((f) => read(`${res}/${f}`));
-  execFileSync(process.execPath, ["scripts/generate-island-icon.js"], { stdio: "ignore" });
-  assert.deepEqual(files.map((f) => read(`${res}/${f}`)), before, "regenerate with node scripts/generate-island-icon.js");
+  execFileSync(process.execPath, ["scripts/generate-lattice-icon.js"], { stdio: "ignore" });
+  assert.deepEqual(files.map((f) => read(`${res}/${f}`)), before, "regenerate with node scripts/generate-lattice-icon.js");
 });
 
 test("the brand row and learning cards carry the island mark; learning cards keep no aura parts", () => {
