@@ -26,7 +26,7 @@ current_alpha_lab_programme_e4_20261128:
     focused_tests: "5/5 PASS (temporary synthetic fixtures, including exact-decimal over-budget boundary refusal)"
     preflight: "PASS (`XDG_DATA_HOME=/workspace/.local/share pnpm run preflight`; reused lockfile-matched dependencies from E1 worktree)"
     aipos_yaml: "PASS (842 files); work-order index and AIPOS drift validators PASS"
-    exact_head_ci: "The previous dispatch passed on 2e619796dc67def2bd92a57c078a56d24315528c; it is stale after the decimal-arithmetic fix and rebase onto the current E1 head. Dispatch and verify the final PR head."
+    exact_head_ci: "Run 46138946104 PASS at exact head b4f6ecdc0825bd08eb1b4d4984f1147a3205cff3; validation, test, aggregate coverage, four core shards, and UI/E2E PASS; optional causal jobs skipped. Always use PR #3358's live checks and match their head SHA before treating the current PR head as validated; this snapshot does not assert mutable check state."
     independent_review: PENDING
   known_limits:
     - "The budget check is read-only and does not mutate the registry. It reports whether a candidate fits the annual budget; the actual registry admission caller must require this check. Direct invocation of the E1 register command is not blocked by this E4 tool alone."

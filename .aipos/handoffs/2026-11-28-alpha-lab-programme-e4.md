@@ -6,7 +6,7 @@
 - Branch: `codex/alpha-lab-programme-ledger-20261128`.
 - Base branch: E1 `codex/alpha-lab-registry-20261128` at `3311cba0fbb6e3a5c0bcb4c5111423a9466cf1cd`.
 - Draft pull request: [#3358](https://github.com/cinamoncandy/NUSA/pull/3358), current implementation commit `605b512924b4dadab83920dd55ce736e0c865d2c` before this AIPOS update.
-- The PR targets the E1 branch because E4 imports the E1 reader. The repository pull-request CI trigger is main-base-only, so full CI is dispatched manually for this stack. Dispatch `46125353289` passed on prior head `2e619796dc67def2bd92a57c078a56d24315528c`, but is stale after the exact-decimal fix and rebase. Dispatch and verify CI after the final AIPOS commit; match its head SHA to the PR head.
+- The PR targets the E1 branch because E4 imports the E1 reader. The repository pull-request CI trigger is main-base-only, so full CI is dispatched manually for this stack. Dispatch `46138946104` passed on exact head `b4f6ecdc0825bd08eb1b4d4984f1147a3205cff3`: validation, test, aggregate coverage, all four core shards, and UI/E2E passed; optional causal jobs skipped. The final live PR checks must be matched to the final PR head; this handoff does not duplicate mutable check state.
 
 ## Implementation
 
