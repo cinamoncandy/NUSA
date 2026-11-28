@@ -1,10 +1,11 @@
 id: WO-RESEARCH-20261128-CODEX-BREADTH-LOOK-WORKFLOWS
 title: "Codex: hosted-runner fetch and look workflows for the registered breadth filter (Track R)"
-status: READY_FOR_REVIEW
+status: IN_PROGRESS
 created: 2026-11-28
 assignee: codex
 reviewer: claude
 implementation_branch: codex/breadth-look-workflows-20261128
+implementation_base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
 owner_decision: "2026-11-28: large implementation work goes to ChatGPT/Codex; Claude designs, owns core functions and reviews (ADR-OPS-20261128-WORK-SPLIT)."
 spec:
   - "Binding rules: docs/RESEARCH_PREREG_BREADTH_FILTER_2026-11-25.md and docs/RESEARCH_PREREG_AMENDMENT_2026-11-26_BREADTH_STAGED_LOOKS.md. Implement exactly what they say; never change a rule, market, cost, condition, seed or date. Where the documents are ambiguous, stop and ask in the PR."
@@ -26,3 +27,17 @@ validation:
   - "actionlint or the repository's workflow checks; node --check; no network in tests."
 acceptance:
   - "Draft PR by Codex before 2026-12-05; non-author review by Claude; merge only through the release path or the owner."
+implementation_notes:
+  - "Only the registered market symbols were sourced from the recorded pool fields plus KRW-BTC; no numeric market values or market history were read or used. No fetch or real look has been run."
+validation_evidence:
+  base_sha: 6e908e4f9d2339775f392f9f00279192b3298f3c
+  local:
+    - "node --check scripts/alpha-lab/breadth-look.js: PASS."
+    - "node --test tests/alpha-lab-breadth-look.test.js: PASS; synthetic candles only, no network."
+    - "Repository workflow action-pin, action-input and authority-map validators: PASS."
+    - "pnpm run preflight: PASS."
+    - "pnpm run validate:full: PASS."
+    - "pnpm run aipos:provenance: PASS."
+    - "git diff --check: PASS."
+  data_boundary: "No public fetch or look computation has been run; the run-time guards remain in place."
+  next: "Commit and push the validated branch, open one Draft PR, then obtain independent review and exact-head CI."

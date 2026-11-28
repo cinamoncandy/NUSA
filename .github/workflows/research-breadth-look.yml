@@ -1,0 +1,90 @@
+name: Registered breadth staged look
+
+on:
+  workflow_dispatch:
+    inputs:
+      look:
+        description: Registered breadth look
+        type: choice
+        required: true
+        options:
+          - L30
+          - L60
+          - L90
+          - L183
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: research-breadth-look-${{ inputs.look }}
+  cancel-in-progress: false
+
+jobs:
+  look:
+    name: Fetch and evaluate one registered look
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the registered source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+
+      - name: Enforce default branch and registered run time
+        env:
+          LOOK: ${{ inputs.look }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "BREADTH_LOOK_REQUIRES_DEFAULT_BRANCH"
+            exit 1
+          fi
+          case "$LOOK" in
+            L30) run_at="2027-01-05T03:00:00Z" ;;
+            L60) run_at="2027-02-04T03:00:00Z" ;;
+            L90) run_at="2027-03-07T03:00:00Z" ;;
+            L183) run_at="2027-06-07T03:00:00Z" ;;
+            *) echo "UNKNOWN_BREADTH_LOOK"; exit 1 ;;
+          esac
+          now_epoch="$(date -u +%s)"
+          run_epoch="$(date -u -d "$run_at" +%s)"
+          if (( now_epoch < run_epoch )); then
+            echo "BREADTH_LOOK_NOT_YET_OPEN"
+            exit 1
+          fi
+
+      - name: Refuse a look with an existing result artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          LOOK: ${{ inputs.look }}
+        run: |
+          set -euo pipefail
+          artifact_name="breadth-look-${LOOK}"
+          artifact_ids="$(gh api --paginate --jq ".artifacts[] | select(.name == \"${artifact_name}\" and .expired == false) | .id" "/repos/${GITHUB_REPOSITORY}/actions/artifacts")"
+          if [[ -n "$artifact_ids" ]]; then
+            echo "BREADTH_LOOK_RESULT_ALREADY_EXISTS"
+            exit 1
+          fi
+
+      - name: Fetch registered daily candles
+        run: node scripts/alpha-lab/breadth-look.js fetch "$RUNNER_TEMP/nusa-breadth-look"
+
+      - name: Compute the registered look once
+        env:
+          LOOK: ${{ inputs.look }}
+        run: node scripts/alpha-lab/breadth-look.js look "$LOOK" "$RUNNER_TEMP/nusa-breadth-look"
+
+      - name: Upload only the fetch manifest and result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: breadth-look-${{ inputs.look }}
+          path: |
+            ${{ runner.temp }}/nusa-breadth-look/manifest.json
+            ${{ runner.temp }}/nusa-breadth-look/results/${{ inputs.look }}.json
+          if-no-files-found: error
+          retention-days: 90
