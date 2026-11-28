@@ -28,6 +28,11 @@ execution:
   branch: codex/alpha-lab-ic-decay-20261128
   base_sha: 11058d27b50e518f764fe7ffb17e5be2e498a14b
   implementation_commit: 5c19230b936492ba7a4443239a487139918291bc
+  result_commit: 33c34c2a344a87a8bc419b74680fdd0a416760ec
+  pull_request: 3349
+  pull_request_state: DRAFT
+  aipos_state: .aipos/state.d/current_alpha_lab_ic_decay_20261128.yaml
+  handoff: .aipos/handoffs/2026-11-28-alpha-lab-ic-decay.md
   frozen_script_sha256: d69a349cad545fd0fa3f5866f1e7ae5d2fa30253a52a16e78068a90c597d9059
   frozen_spec_sha256: d7476a8c3b26638fb81f94231348addb1e702d60764c3b37cbe077e6e39ae141
   measurement:

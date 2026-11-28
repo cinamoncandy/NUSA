@@ -1,0 +1,25 @@
+current_alpha_lab_ic_decay_20261128:
+  work_order: WO-RESEARCH-20261128-ALPHA-LAB-CODEX-IC-DECAY
+  status: IN_PROGRESS
+  branch: codex/alpha-lab-ic-decay-20261128
+  base_sha: 11058d27b50e518f764fe7ffb17e5be2e498a14b
+  validated_code_head_sha: 33c34c2a344a87a8bc419b74680fdd0a416760ec
+  pull_request: 3349
+  pull_request_state: DRAFT
+  measurement:
+    successful_runs: 1
+    cutoff_utc_date: "2026-11-04"
+    fetch_started_at: "2026-11-28T01:14:35.752Z"
+    fetch_finished_at: "2026-11-28T01:17:31.844Z"
+    script_sha256: d69a349cad545fd0fa3f5866f1e7ae5d2fa30253a52a16e78068a90c597d9059
+    spec_sha256: d7476a8c3b26638fb81f94231348addb1e702d60764c3b37cbe077e6e39ae141
+    manifest_sha256: 6b696bba6647b3ed8eb16ef5b1485456df9d71235137fcb0d73b7fcfb148afb7
+    result_json_sha256: d0d0b87577ac61a066db466f716baf43275ce17a95147a1c9065491b74a6e8b5
+  verification:
+    node_check: PASS
+    synthetic_self_test: PASS
+    pnpm_preflight: PASS
+    aipos_yaml: PASS
+    diff_check: PASS
+  next: "CORE non-author review of the latest PR head; keep PR draft; no signal registration, winner selection, or trading."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
