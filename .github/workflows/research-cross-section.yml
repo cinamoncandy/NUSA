@@ -1,0 +1,89 @@
+name: Alpha Lab cross-section recorder
+
+on:
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: alpha-lab-cross-section-recorder
+  cancel-in-progress: false
+
+jobs:
+  record:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 20
+    steps:
+      - name: Check out main source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          persist-credentials: true
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24"
+
+      - name: Check registration and date eligibility without fetching market data
+        id: eligibility
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync } = require('node:child_process');
+          const result = JSON.parse(execFileSync(process.execPath, ['scripts/alpha-lab/cross-section.js', 'ready'], { encoding: 'utf8' }));
+          const eligible = Array.isArray(result.ready) && result.ready.length > 0;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `eligible=${eligible}\n`);
+          process.stdout.write(JSON.stringify({ eligible, reason: result.reason }) + '\n');
+          NODE
+
+      - name: Load the dedicated cumulative data branch
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        env:
+          DATA_BRANCH: alpha-lab-cross-section-data
+          DATA_DIR: ${{ runner.temp }}/alpha-lab-cross-section-data
+        run: |
+          mkdir -p "$DATA_DIR"
+          if git ls-remote --exit-code origin "refs/heads/$DATA_BRANCH" >/dev/null 2>&1; then
+            git fetch --no-tags --depth=1 origin "+refs/heads/$DATA_BRANCH:refs/remotes/origin/$DATA_BRANCH"
+            git archive "refs/remotes/origin/$DATA_BRANCH" | tar -x -C "$DATA_DIR"
+          fi
+
+      - name: Record eligible registered hypotheses and recompute status
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        env:
+          DATA_DIR: ${{ runner.temp }}/alpha-lab-cross-section-data
+        run: node scripts/alpha-lab/cross-section.js run-registered "$DATA_DIR"
+
+      - name: Persist only the cumulative data branch
+        if: steps.eligibility.outputs.eligible == 'true'
+        shell: bash
+        env:
+          DATA_BRANCH: alpha-lab-cross-section-data
+          DATA_DIR: ${{ runner.temp }}/alpha-lab-cross-section-data
+          INDEX_FILE: ${{ runner.temp }}/alpha-lab-cross-section-index
+        run: |
+          export GIT_INDEX_FILE="$INDEX_FILE"
+          git read-tree --empty
+          git --git-dir="$GITHUB_WORKSPACE/.git" --work-tree="$DATA_DIR" add -A -- .
+          if git diff --cached --quiet; then
+            echo "No new observation or status; data branch unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          parent_args=()
+          if git rev-parse --verify "refs/remotes/origin/$DATA_BRANCH" >/dev/null 2>&1; then
+            parent_args=(-p "refs/remotes/origin/$DATA_BRANCH")
+          fi
+          tree=$(git write-tree)
+          commit=$(git commit-tree "$tree" "${parent_args[@]}" -m "research: append Alpha Lab cross-section evidence")
+          git push origin "$commit:refs/heads/$DATA_BRANCH"

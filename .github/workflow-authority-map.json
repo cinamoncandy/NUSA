@@ -352,6 +352,13 @@
       ],
       "secrets": false,
       "environment": null
+    },
+    "research-cross-section.yml:record": {
+      "write": [
+        "contents"
+      ],
+      "secrets": false,
+      "environment": null
     }
   },
   "acknowledgedDebt": {}

@@ -1,0 +1,38 @@
+current_alpha_lab_cross_section_recorder_20261128:
+  work_order: WO-RESEARCH-20261128-CODEX-CROSS-SECTION-RECORDER
+  status: IN_PROGRESS
+  branch: codex/cross-section-recorder-20261128
+  base_sha: 092eb7e92958b0a16fd2268752a823ffc7f63604
+  scope: registered_hypothesis_only_forward_cross_section_recording_and_eprocess
+  registered_hypotheses: 0
+  production_market_requests: 0
+  production_results: 0
+  method:
+    hypothesis_registry: research/alpha-lab/registry/events.jsonl
+    signal: momentum_from_closes_through_t
+    outcome: next_completed_close_to_close
+    rebalance_hold_days: hypothesis_hold
+    portfolio: top_round_n_over_3_equal_weight_vs_equal_basket
+    transaction_cost: "0.0015 * sum(abs(newWeight - oldWeight)) at rebalance"
+    eprocess: baseline_adaptive_50_50_clip4_burnin20
+    pass_threshold: "1 / alphaSpent"
+  safety:
+    paper_only: true
+    liveAuthority: NONE
+    productionMutationAllowed: false
+    aiAuthority: ZERO_AUTHORITY
+    realOrderAuthority: false
+    realTransferAuthority: false
+    fail_closed: true
+  verification:
+    focused_tests: PASS_11_OF_11_SYNTHETIC_NO_NETWORK
+    workflow_regression_tests: PASS_32_OF_32
+    node_check: PASS
+    lint: PASS
+    workflow_validation: PASS_YAML_PINS_INPUTS_AUTHORITY_MAP
+    aipos_validation: PASS_YAML_AND_WORK_ORDER_INDEX
+    preflight: PASS
+    diff_check: PASS
+    exact_head_ci: PENDING
+  evidence: .aipos/handoffs/2026-11-28-cross-section-recorder.md
+  next: Commit the locally validated branch and publish one Draft PR for independent review; do not merge, register a hypothesis, fetch market data, or operate host/app/release paths.
