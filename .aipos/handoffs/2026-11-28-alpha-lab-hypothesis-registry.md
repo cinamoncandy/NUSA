@@ -3,6 +3,7 @@
 - Work order: `WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY`
 - Branch: `codex/WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY`
 - Base: `11058d27b50e518f764fe7ffb17e5be2e498a14b`
+- Draft PR: [#3351](https://github.com/cinamoncandy/NUSA/pull/3351), initial implementation head `ed46793f604a9146441caa02d697596c7f230c64`.
 - Scope: offline prospective-hypothesis registry core only.
 
 ## Implemented
@@ -28,6 +29,6 @@
 - Registration attestation and recorded timestamps are not cryptographic proof of prior data non-access or trusted time.
 - The hash chain detects partial edits but a full ledger rewrite can recompute it; repository history and independent review are still required.
 - Evidence references/hashes are recorded but referenced artifacts are not opened or independently verified.
-- Run AIPOS YAML/index validation and full `pnpm run preflight`; then commit, push, create a draft PR, and inspect exact-head CI. Keep the PR draft and work order `IN_PROGRESS` pending the owner's independent review. Do not merge, release, or register a real hypothesis as part of this implementation.
+- Inspect the latest exact-head CI for PR #3351 and keep the PR draft and work order `IN_PROGRESS` pending the owner's independent review. Do not merge, release, or register a real hypothesis as part of this implementation.
 
 Safety: `PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / realOrderAuthority=false / realTransferAuthority=false / aiAuthority=ZERO_AUTHORITY / FAIL_CLOSED`.

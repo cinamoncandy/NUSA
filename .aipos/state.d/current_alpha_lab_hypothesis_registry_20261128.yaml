@@ -2,11 +2,13 @@ current_alpha_lab_hypothesis_registry_20261128:
   work_order: WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
   status: IN_PROGRESS_DRAFT_PR_PENDING
   branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
+  pull_request: 3351
   base_sha: 11058d27b50e518f764fe7ffb17e5be2e498a14b
+  implementation_head: ed46793f604a9146441caa02d697596c7f230c64
   implementation: offline_append_only_hypothesis_registry_core
   tests: 13_passed
   preflight: PASS
   exact_head_ci: PENDING
   production_registry_created: false
-  next: "Complete AIPOS and preflight validation, then publish a draft PR for independent owner review."
+  next: "Verify exact-head CI on PR #3351; keep draft for independent owner review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
