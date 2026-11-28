@@ -12,6 +12,8 @@ spec:
   - ".github/workflows/research-cross-section.yml: scheduled once a day after the daily candle close plus workflow_dispatch; GitHub-hosted, no secrets, no host access; does nothing when no registered hypothesis file exists; stores the record as a repository artifact or a dedicated branch as the PR proposes (Claude decides in review)."
 change:
   - "scripts/alpha-lab/cross-section.js, .github/workflows/research-cross-section.yml, tests/alpha-lab-cross-section.test.js, this work order."
+  - ".github/workflow-authority-map.json declares only the record job's contents write for the dedicated data branch."
+  - ".aipos/state.d/current_alpha_lab_cross_section_recorder_20261128.yaml and .aipos/handoffs/2026-11-28-cross-section-recorder.md."
 not_changed:
   - "Host and app code; registering any hypothesis; any gate, threshold, limit, capital or authority."
 safety:
@@ -24,3 +26,12 @@ validation:
   - "Tests reproduce the F2b reference numbers on its synthetic generator within Monte Carlo error (null never passes in 200 runs; IC 0.04 hold 20 passes at a similar rate); the hash chain rejects an edited or reordered row; the record refuses dates before the hypothesis's registration."
 acceptance:
   - "Draft PR by Codex; non-author review by Claude; merge only through the release path or the owner."
+notes:
+  - "Implementation maps the absent `scripts/offline-lab-f2b-adaptive-evalue.js` reference to the existing synthetic-only `scripts/alpha-lab/f2b-evalue-power.js`; no reference code or artifact was created or changed."
+  - "The E3 reader consumes only the shared E1 registry at `research/alpha-lab/registry/events.jsonl`; it calls `scripts/alpha-lab/registry.js:readRegistry()` when available and otherwise verifies the same canonical row chain and REGISTERED/VERDICT/RETIRED semantics. It checks the canonical frozen hypothesis file hash (sorted-key JSON plus one LF) and firstEvaluableDate; no registry writer or production hypothesis is included. Terminal verdicts, retirement, and the last declared look prevent further market-data fetches."
+  - "The recorder supports the registered momentum signal over a sorted 3–56 KRW universe and 1–3650-day lookback, ranks only from closes through signal date t, rebalances to a top-third equal-weight basket every `hold` days, and records only the next completed close-to-close outcome. Between rebalances, portfolio weights drift with realized relative returns; turnover compares the new target with the prior close's drifted holdings. It charges 15 bp times the absolute weight-change sum only at rebalance, never backfills, and chains every observation. Observation rows use schema version 2 to persist closing weights."
+  - "Before any request, the earliest required lookback close must be on or after 2026-12-06; daily requests use the exact required date/count range (capped at 200 rows per page) and fail closed on any missing or out-of-range candle without extending into older dates."
+  - "The test fixture registration is temporary synthetic test data only. No hypothesis was registered in the repository, no market-data request was made, and no result artifact was created. Workflow eligibility requires a registered row, firstEvaluableDate, 2026-12-10 UTC cutoff, and a 15-minute post-close settle window."
+  - "The design reference has sections 1–6 only; the cited Section 7 is absent on the implementation base. The implementation follows the available Section 2 plus F2b script and the owner-approved E3 decisions."
+  - "The e-process combines the F2b baseline fixed-lambda mixture and predictable adaptive bet 50/50, with prior-only 4-sd clipping, 20-day burn-in, and alphaSpent threshold. PASS is latched at the first crossing and remains auditable in the recomputed status."
+  - "Local validation is recorded in the AIPOS handoff: focused recorder tests 13/13 and workflow regression tests 32/32, synthetic/no-network; node check and ESLint pass; workflow YAML/pins/inputs/authority map pass; AIPOS YAML/index and `pnpm run preflight` pass; `git diff --check` pass. Draft PR #3361 is open; live PR checks are the source of truth for exact-head CI and independent review remains pending. No host, app, order, release, or safety-authority changes are in scope."
