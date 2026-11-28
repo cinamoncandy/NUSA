@@ -2,6 +2,8 @@ current_alpha_lab_cross_section_recorder_20261128:
   work_order: WO-RESEARCH-20261128-CODEX-CROSS-SECTION-RECORDER
   status: IN_PROGRESS
   branch: codex/cross-section-recorder-20261128
+  pull_request: 3361
+  implementation_commit: b8466ada98fa51f85a009576a9cfdbe28f9cf225
   base_sha: 092eb7e92958b0a16fd2268752a823ffc7f63604
   scope: registered_hypothesis_only_forward_cross_section_recording_and_eprocess
   registered_hypotheses: 0
@@ -33,6 +35,6 @@ current_alpha_lab_cross_section_recorder_20261128:
     aipos_validation: PASS_YAML_AND_WORK_ORDER_INDEX
     preflight: PASS
     diff_check: PASS
-    exact_head_ci: PENDING
+    exact_head_ci: SEE_LIVE_PR_3361_CHECKS_AFTER_METADATA_UPDATE
   evidence: .aipos/handoffs/2026-11-28-cross-section-recorder.md
-  next: Commit the locally validated branch and publish one Draft PR for independent review; do not merge, register a hypothesis, fetch market data, or operate host/app/release paths.
+  next: Verify final exact-head checks on Draft PR #3361 and leave it for independent review; do not merge, register a hypothesis, fetch market data, or operate host/app/release paths.

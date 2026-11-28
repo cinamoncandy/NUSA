@@ -5,6 +5,8 @@
 Work order: `WO-RESEARCH-20261128-CODEX-CROSS-SECTION-RECORDER`
 Branch: `codex/cross-section-recorder-20261128`
 Base: `092eb7e92958b0a16fd2268752a823ffc7f63604`
+Draft PR: [#3361](https://github.com/cinamoncandy/NUSA/pull/3361)
+Implementation commit at PR creation: `b8466ada98fa51f85a009576a9cfdbe28f9cf225`
 
 This branch implements only the forward cross-section recorder, its hosted workflow, focused tests, and this task’s AIPOS evidence. It does not change host, application, order, release, risk, authority, or safety-gate code.
 
@@ -27,4 +29,4 @@ This branch implements only the forward cross-section recorder, its hosted workf
 
 ## Validation / next action
 
-Local gates before commit and push: recorder tests 11/11 (synthetic/no network), workflow regression tests 32/32, `node --check` PASS, ESLint PASS, workflow authority map PASS (53 workflows), workflow action pins and input validation PASS, YAML parse PASS, AIPOS YAML PASS (842 files), work-order index PASS, `pnpm run preflight` PASS, and `git diff --check` PASS. Exact-head GitHub CI and independent review remain pending until the draft PR is published. No merge, release, host operation, hypothesis registration, or market-data fetch is authorized by this task.
+Local gates: recorder tests 11/11 (synthetic/no network), workflow regression tests 32/32, `node --check` PASS, ESLint PASS, workflow authority map PASS (53 workflows), workflow action pins and input validation PASS, YAML parse PASS, AIPOS YAML PASS (843 files), work-order index PASS, `pnpm run preflight` PASS, and `git diff --check` PASS. PR #3361 remains draft. Its live checks are the source of truth for exact-head CI; this handoff update changes the PR head, so verify the new head there. Independent review is pending. No merge, release, host operation, hypothesis registration, or market-data fetch is authorized by this task.
