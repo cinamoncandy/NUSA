@@ -27,7 +27,7 @@ The frozen hypothesis JSON is canonical UTF-8 with sorted keys and one final LF.
 - `node scripts/validate-aipos-yaml.js`: PASS (841 files; includes this handoff).
 - `node scripts/aipos-work-order-index.js --check`: PASS.
 - `git diff --check`: PASS.
-- Prior PR head `7f8aaf0d749b6bab8d82a49b23633dbc0ee31767`: exact-head CI PASS (required checks green; optional causal jobs skipped). The append-size fix requires fresh exact-head CI after this state update.
+- PR head `5538776898c6996152c24a4cd65f30285ea9f00a`: exact-head CI PASS (required checks, including Actual PAPER runtime, green; optional causal jobs skipped). The separate Actual PAPER runtime job completed on an isolated GitHub runner.
 
 ## Limits and safety
 
@@ -37,4 +37,4 @@ The frozen hypothesis JSON is canonical UTF-8 with sorted keys and one final LF.
 
 ## Next permitted action
 
-Verify exact-head CI after the append-size fix. Keep PR #3355 Draft and wait for non-author review before any Ready-for-review or release action. E2/E4/E5 are already proposed in their own Draft PRs; E3 and breadth are in separate authorized worktrees.
+Keep PR #3355 Draft and wait for non-author review before any Ready-for-review or release action. Do not merge or release. E2/E4/E5 are already proposed in their own Draft PRs; E3 and breadth are in separate authorized worktrees.

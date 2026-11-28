@@ -27,10 +27,10 @@ current_alpha_lab_registry_e1_20261128:
     work_order_index: PASS
     preflight: PASS
     prior_exact_head_ci: "PASS at 7f8aaf0d749b6bab8d82a49b23633dbc0ee31767; required checks green, optional causal jobs skipped"
-    exact_head_ci: PENDING_AFTER_APPEND_SIZE_FIX
+    exact_head_ci: "PASS at 5538776898c6996152c24a4cd65f30285ea9f00a; required checks and Actual PAPER runtime PASS; optional causal jobs skipped"
     independent_review: PENDING
   limitations:
     - "Local UTC system time is not trusted-time attestation."
     - "A full history rewrite with recomputed hashes cannot be detected by a hash chain alone."
-  next: "Verify exact-head CI after the append-size fix; keep PR #3355 Draft and await non-author review."
+  next: "Keep PR #3355 Draft and await non-author review; do not merge or release."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
