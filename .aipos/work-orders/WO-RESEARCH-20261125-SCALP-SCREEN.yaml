@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261125-SCALP-SCREEN
+title: "Research: discovery screen of eight short-term (5-minute) rules on five markets, 2025-11-05 to 2026-11-04; offline"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/scalp-screen
+owner_decision: "2026-11-25: asked about short-term trading and said \"과거 차트로 단타 연구해봐\"."
+follows: "docs/RESEARCH_CROSSSECTION_SCREEN_RESULT_2026-11-25.md; docs/LEARNING_NEXT_CANDIDATES_2026-11-25.md."
+objective: "scripts/offline-scalp-screen.js, committed with every rule and bar BEFORE the first fetch or run. Fetches public Upbit 5-minute candles (no key, no order) for five markets into a directory outside the repository; nothing from 2026-11-05 on is read, so the S2-S4 holdout stays unread. K=8. Taker costs only (10 bp a side base, 15 bp stress); maker fills cannot be modelled from candles. Passing is eligibility for a forward pre-registration only."
+change:
+  - "scripts/offline-scalp-screen.js, docs/RESEARCH_SCALP_SCREEN_RESULT_2026-11-25.md (result: 8 rules, 0 passed) and this work order."
+not_changed:
+  - "Any workflow, host, release, rule, threshold, gate, risk limit, capital or authority; no order-book value and no S2-S4 holdout value is read; Codex's L1-L8 work."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass."
+unverified: "Candle-only: no spread, queue or partial fill; the second part overlaps prices read at 60-minute resolution by earlier screens."
+acceptance:
+  - "Result recorded honestly; survivors, if any, go to a separate forward pre-registration."
