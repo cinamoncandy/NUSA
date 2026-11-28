@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261125-DIAGNOSE-RESEARCH-HISTORY
+title: "Host diagnosis: a 9-day read-only history of the Research studies (statuses and counts only) to find why the tradeflow study fails closed"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: the owner asked how to prepare so the tradeflow v2 study does not fail (it first evaluates on the research job of 2026-11-29 09:15 KST); finding in docs/FINDINGS_2026-11-25.md."
+objective: "One more read-only step in oracle-host-diagnose.yml: the TRADEFLOW study lines of the last 9 days as time plus one fixed status code, the Research unit state, and counts of lines that name an out-of-memory kill, a timeout or a database lock. It shows when the v1 study first failed and which family of cause the journal names, without any log text."
+change:
+  - ".github/workflows/oracle-host-diagnose.yml: new step 'Research study history' before the two disk walks; tests/oracle-host-diagnose-workflow.test.js: one contract test."
+not_changed:
+  - "No host change and no release: the diagnosis workflow is read-only and dispatch-only. No study script, rule, threshold, gate, limit or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "A count of zero proves nothing when journal_exit or kernel_exit is not 0 (124 = timed out, other = unreadable, for example no permission for journalctl -k); the step prints those exit codes first. Behaviour on the host (the step was run only against a fake journalctl and systemctl; the projection of study lines is tested on crafted input: lines without a timestamp are skipped, never printed); the journal may not name the cause at all (the study prints no error class), in which case the counts are all zero and the next step is the diagnostic print of FINDINGS_2026-11-25.md section 3."
+acceptance:
+  - "Tests and AIPOS validators pass; independent review; merged by the release bot after the freeze (2026-11-28 15:00 KST) and dispatched once before the research job of 2026-11-29 09:15 KST."
