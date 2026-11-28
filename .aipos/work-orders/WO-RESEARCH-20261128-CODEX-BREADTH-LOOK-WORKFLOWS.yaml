@@ -1,0 +1,28 @@
+id: WO-RESEARCH-20261128-CODEX-BREADTH-LOOK-WORKFLOWS
+title: "Codex: hosted-runner fetch and look workflows for the registered breadth filter (Track R)"
+status: READY_FOR_REVIEW
+created: 2026-11-28
+assignee: codex
+reviewer: claude
+implementation_branch: codex/breadth-look-workflows-20261128
+owner_decision: "2026-11-28: large implementation work goes to ChatGPT/Codex; Claude designs, owns core functions and reviews (ADR-OPS-20261128-WORK-SPLIT)."
+spec:
+  - "Binding rules: docs/RESEARCH_PREREG_BREADTH_FILTER_2026-11-25.md and docs/RESEARCH_PREREG_AMENDMENT_2026-11-26_BREADTH_STAGED_LOOKS.md. Implement exactly what they say; never change a rule, market, cost, condition, seed or date. Where the documents are ambiguous, stop and ask in the PR."
+  - "One script scripts/alpha-lab/breadth-look.js with two commands: `fetch <dir>` (public Upbit daily candles for the 56 registered markets, writes files plus a sha256 manifest with fetch time) and `look <L30|L60|L90|L183> <dir>` (computes that look once, using only held days up to the look's last day, prints and writes a hashed JSON result)."
+  - "One workflow .github/workflows/research-breadth-look.yml: workflow_dispatch only (input: look name), GitHub-hosted runner, no secrets, no host access, no release; it refuses to run a look before that look's registered run time (03:00Z of 2027-01-05, 2027-02-04, 2027-03-07, 2027-06-07) and refuses a second run of a look whose result already exists; it uploads the manifest and result as an artifact."
+  - "No result is computed or shown before a look's run time; no interim return, drawdown or exposure number anywhere (blind rule)."
+change:
+  - "scripts/alpha-lab/breadth-look.js, .github/workflows/research-breadth-look.yml, tests/alpha-lab-breadth-look.test.js, this work order."
+not_changed:
+  - "Any host or app code, any other workflow, any pre-registration text, gate, threshold, limit, capital or authority."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+validation:
+  - "Unit tests on synthetic candles: the date guard refuses early looks; a second run is refused; a known synthetic path gives the expected verdict for each of the seven conditions and the placebo count; the 10-eligible-market rule and the NO_INFORMATION_YET rule behave as written."
+  - "actionlint or the repository's workflow checks; node --check; no network in tests."
+acceptance:
+  - "Draft PR by Codex before 2026-12-05; non-author review by Claude; merge only through the release path or the owner."

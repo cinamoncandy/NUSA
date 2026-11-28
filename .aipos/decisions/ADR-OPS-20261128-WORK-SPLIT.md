@@ -8,7 +8,7 @@ Status: **ACCEPTED by the owner in chat, 2026-11-28** ("챗지피티는 구현�
 | Design: architecture, Alpha Lab design, pre-registrations, work orders, specs | Claude | `docs/**`, `.aipos/**` |
 | Visual and UX design of the phone app, the sphere and its motion | Claude | `apps/mobile/src/**` presentation files, `designSystem.ts`, launcher icons |
 | Core functions: PAPER runtime, lease, risk gate, kill switch, order path, Alpha Lab test engine (registry, e-process, admission), health projections that report safety state | Claude | `apps/cloud/src/**` runtime, risk, lease, learning/Alpha Lab core |
-| Implementation of specified, non-core work | ChatGPT/Codex | offline research tools `scripts/alpha-lab/**`, data fetch and recorder workflows from a written spec, test additions, tooling, non-design app logic named in a work order |
+| Implementation of specified, non-core work, including all large implementation tasks (owner 2026-11-28 "큰 구현 작업은 챗지피티에게") | ChatGPT/Codex | offline research tools `scripts/alpha-lab/**`, data fetch and recorder workflows from a written spec, test additions, tooling, non-design app logic named in a work order |
 
 ## Rules
 1. Every task starts from a work order in `.aipos/work-orders/` that names the owner, the allowed paths and the acceptance checks. Claude writes the work orders for ChatGPT tasks.
