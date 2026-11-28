@@ -1,0 +1,24 @@
+id: WO-OPS-20261125-PASS-TO-PERMIT
+title: "Docs: from a research PASS to a PERMIT, what a candidate must deliver and what the route to Stage B costs in time (design only)"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/pass-to-permit
+owner_decision: "2026-11-25: \"가장 중요한건 전략을 만들어서 실거래까지 가게 만드는거야\" and, after the answer that the permit fix is already on main and the real blocker is the missing producer and candidate, \"ek go\" (read as ok, go). Decision 2 of 2026-11-16 (no producer before a candidate qualifies) is not changed."
+follows: "docs/NUSA_PERMIT_PRODUCER_DESIGN_2026-11-16.md; docs/NUSA_STAGE_B_AND_NEXT_PLAN_2026-11-16.md; docs/LIVE_READINESS_RUNBOOK.md; docs/RESEARCH_THREE_DIRECTIONS_2026-11-25.md."
+objective: "Connect the research output (a one-time PASS) to the permit input (14 gates per decision): the route PASS, forward SHADOW test, labelled outcomes, reviewed policy file, producer, Stage B; a per-gate table of what the candidate and what the runtime must supply; the time cost by trade frequency (about 20 weeks to 100 labelled outcomes for a five-trades-a-week candidate); what can be prepared without waste and what must wait."
+change:
+  - "docs/NUSA_PASS_TO_PERMIT_2026-11-25.md and this work order."
+not_changed:
+  - "Any code, runtime wiring, release, policy value, store, gate, threshold, risk limit, capital or authority; decision 2; the permit enforcement already on main."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml, drift and evidence validators pass."
+unverified: "The gate table is condensed from the design document of 2026-11-16 and tradePermissionEngine.ts as read today; the trade-frequency table is arithmetic on assumed trades per week; the minimum calibration sample count is an unset policy value. No independent review yet."
+acceptance:
+  - "Independent non-author review; merge by the release bot; no decision is taken by this file."

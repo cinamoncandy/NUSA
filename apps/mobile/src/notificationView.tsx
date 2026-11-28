@@ -18,7 +18,7 @@ function NotificationBody({ repository }: Readonly<{ repository: SettingsReposit
   void repository;
 
   return <ScrollView style={{ backgroundColor: "transparent" }} contentContainerStyle={styles.content} testID="notifications-screen">
-    <ScreenHeader eyebrow="기기 알림" title="알림" description="실제로 연결된 이벤트만 표시합니다." statusLabel="미연결" statusTone="neutral" />
+    <ScreenHeader sphere eyebrow="기기 알림" title="알림" description="실제로 연결된 이벤트만 표시합니다." statusLabel="미연결" statusTone="neutral" />
     <View style={styles.emptyState} testID="notifications-empty-state">
       <Text style={[styles.emptyEyebrow, { color: theme.colors.textMuted }]}>알림 소스 없음</Text>
       <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>알림 이벤트 수집이 아직 연결되지 않았습니다</Text>

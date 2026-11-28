@@ -1,0 +1,24 @@
+id: WO-RESEARCH-20261126-ALPHA-LAB-S0-ANSWERS
+title: "Research: S0 answers for the Alpha Lab x PAPER fold-in, owner assigns the implementation to CORE; docs only"
+status: READY_FOR_REVIEW
+created: 2026-11-26
+implementation_branch: claude/alpha-lab-s0
+owner_decision: "2026-11-26: asked who implements the fold-in, the owner answered \"니가 해봐\" and then \"맞아\": the Claude CORE session implements it."
+follows: "docs/ALPHA_LAB_PAPER_FOLD_IN_PLAN_2026-11-26.md (PR #3333)."
+objective: "Docs only. Record from code (not run): who keeps the PAPER writer Lease alive and fails closed, the COLLECT_ONLY /health shape, where the authority invariants are enforced (and the static-guard gap), that the Cloud AI runtime has no order path, what the existing PAPER period evidence store is and a proposed append-only shadow ledger row schema. Update the plan and the ADR: CORE implements; the tick's fatal Lease check needs a replacement before S3; the zero-authority guard must cover the new module in S4."
+change:
+  - "docs/ALPHA_LAB_PAPER_FOLD_IN_S0_ANSWERS_2026-11-26.md, updates to docs/ALPHA_LAB_PAPER_FOLD_IN_PLAN_2026-11-26.md and the Alpha Lab ADR, and this work order."
+not_changed:
+  - "Any code, workflow, host, release, rule, threshold, gate, risk limit, capital or authority; the node stays COLLECT_ONLY; no code or service was run (only the AIPOS validators)."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "AIPOS yaml and drift validators pass; five S0 claims spot-checked against main (the heartbeat timer, lease verification at L466, the order-path switch, the evidence store types, the zero-authority guard scope)."
+unverified: "Read from code, not run: the learningPipeline and learningLoopVerdict values of a fresh COLLECT_ONLY node, whether a stale blocked record makes closedLearningLoop visible, Lease supervision in other entry points; the row schema is a proposal. Independent review done, no blockers; its corrections (a line reference, stale comments, the pending table, the ledger schema details, the 6a list, softened wording) are applied, not reviewed again."
+acceptance:
+  - "Independent read-only review, then merge; Codex's branch is reviewed before S1 if it appears; S1 to S6 PRs only after 2026-11-28 15:00 KST."

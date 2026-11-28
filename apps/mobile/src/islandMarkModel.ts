@@ -1,6 +1,6 @@
 /**
  * The NUSA island mark (owner-approved 2026-10-28; NUSA means "island") on a 24 grid: nested domes over a horizon and one sea
- * ripple, the same shape as the launcher icon (scripts/generate-island-icon.js). Used beside the brand name and, faintly, as a
+ * ripple, the former launcher shape (the launcher now uses scripts/generate-lattice-icon.js). Used beside the brand name and, faintly, as a
  * card decoration. Presentation only.
  */
 import { islandPalette } from "./designSystem";

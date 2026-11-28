@@ -11,7 +11,7 @@ const e = (destination: MoreDestination, title: string, hint: string): RecordsEn
 
 export const RECORDS_GROUPS: readonly RecordsGroup[] = Object.freeze([
   Object.freeze({ title: "일어난 일", items: Object.freeze([
-    e("OrderHistory", "주문 기록", "모의 주문과 체결, 수수료까지"),
+    e("OrderHistory", "주문 기록", "주문과 체결, 수수료"),
     e("PaperEvidence", "판단 기록", "왜 사고, 팔고, 기다렸는지"),
     e("Performance", "성과", "수익과 손실, 시작 대비"),
     e("Portfolio", "자산", "현금과 보유 코인"),

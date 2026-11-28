@@ -1,0 +1,24 @@
+id: WO-UI-20261125-UIUX-P4A-NOW-NUMBER-FIRST
+title: "Mobile UI/UX v6 phase 4a: the 지금 screen makes today's decision count the largest thing and says why zero is normal in COLLECT_ONLY; the island stays"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+implementation_branch: claude/uiux-p4a-now-number-first
+owner_decision: "2026-11-25: design C chosen and phase 4 started (\"C로 확정하고 4단계 시작해\"); the island graphic stays and is improved, not replaced (\"섬을 유지 하는데 개선해줘\"); the five tabs stay."
+follows: "docs/NUSA_MOBILE_UIUX_V6_CALM_FIELD.md sections 3.1, 4 and 5.1 (number first; zero carries its reason)."
+objective: "Number first on 지금, nothing else moved. The decision odometer under the island grows from 44 to 64 px. When the server is healthy and live, COLLECT_ONLY, and really counted zero decisions, one muted line under it says \"수집 전용이라 0건이 정상이에요\". The line is absent when there is no count, when a decision exists, when COLLECT_ONLY is off, when the value is cached, and in every phase other than CONNECTED (a degraded or halted state never gets the calm explanation)."
+change:
+  - "apps/mobile/src/nowScreenModel.ts: countNote; apps/mobile/src/instrumentNow.tsx: optional countNote prop and a 64 px odometer; apps/mobile/src/nowView.tsx: passes model.countNote (null while blocked); tests/mobile-now-screen-model.test.js: 2 tests."
+not_changed:
+  - "The island graphic (IslandCore) and its tests, tabs, navigation, other screens, the risk-gate view, the server, the cloud, any gate, threshold, limit, capital, host or authority. No new colour token."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+validation:
+  - "tests/mobile-now-screen-model.test.js, mobile-risk-gate, mobile-island-core and mobile-decision-core pass (32); node --test tests/mobile-*.test.js tests/uiux-*.test.js: 885 pass, 0 fail; the compiled TypeScript has no error."
+unverified: "How the larger number sits above the island on a device (no device rendering here): the owner's phone capture after the next build is the check. Not done in this slice: a dial or ring around the island, the study-schedule ring on 학습 (needs the server list in the study-schedule PR), the 기록 tiles, the motion rules of spec 5.1 (reduce-motion already stops the island)."
+acceptance:
+  - "Independent non-author review; merge by the release bot after the freeze (2026-11-28 15:00 KST, code PR); the phone build is the owner's step; owner capture of the 지금 screen."
