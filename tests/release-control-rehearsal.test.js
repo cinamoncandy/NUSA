@@ -41,3 +41,8 @@ test("the workflow is dispatch-only, read-only, secret-free and publishes nothin
   assert.match(commands, /env -i PATH="\$PATH" node "\$dir\/release-control-rehearsal\.js"/);
   assert.match(workflow, /runs-on: ubuntu-latest/);
 });
+
+test("case 1 survives the shell's -e: the expected failed read is captured with || instead of ending the step", () => {
+  assert.match(workflow, /rc=0; err="\$\(timeout 20 gh api [^\n]*\)" \|\| rc=\$\?/);
+  assert.doesNotMatch(workflow, /missing\.json"\)"; rc=\$\?/);
+});
