@@ -42,7 +42,8 @@
 - The reviewer reported that the full result JSON and source hashes could not be independently inspected in that session; the prior local hash verification recorded above remains the available evidence.
 - The result note now states that its interval is conditional on the fixed 20-observation block length and that the hashed manifest does not preserve raw candles for exact reconstruction.
 - This is a documentation-only clarification. The frozen script, result JSON, and hashes are unchanged; the one-time historical analysis was not rerun.
-- Fetch the new PR head and verify its exact-head CI, then obtain a fresh non-author review of the amended head. Keep PR #3349 in draft; no winner selection, signal registration, or trading.
+- Updated documentation head `284e5b734061454a51db5e8819ac79232052cb4c` passed exact-head CI #15003 and Actual PAPER evidence #10648. The corresponding AIPOS state update is evidence-only; fetch the latest PR head and its CI before review.
+- Obtain a fresh non-author review of the latest head. Keep PR #3349 in draft; no winner selection, signal registration, or trading.
 
 ## Safety and next action
 

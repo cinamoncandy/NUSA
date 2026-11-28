@@ -3,7 +3,7 @@ current_alpha_lab_ic_decay_20261128:
   status: IN_PROGRESS
   branch: codex/alpha-lab-ic-decay-20261128
   base_sha: 11058d27b50e518f764fe7ffb17e5be2e498a14b
-  validated_code_head_sha: 33c34c2a344a87a8bc419b74680fdd0a416760ec
+  validated_code_head_sha: 284e5b734061454a51db5e8819ac79232052cb4c
   pull_request: 3349
   pull_request_state: DRAFT
   measurement:
@@ -21,13 +21,15 @@ current_alpha_lab_ic_decay_20261128:
     pnpm_preflight: PASS
     aipos_yaml: PASS
     diff_check: PASS
-  prior_exact_head_ci: "CI #14995 and Actual PAPER evidence #10639 PASS on reviewed head b487e1bcd1476889f7184589248540115344705b; not validation of the documentation follow-up head."
-  exact_head_ci: PENDING_AMENDED_HEAD
+  prior_exact_head_ci: "CI #14995 and Actual PAPER evidence #10639 PASS on reviewed head b487e1bcd1476889f7184589248540115344705b."
+  exact_head_ci: PASS
+  exact_head_ci_run: 15003
+  exact_head_actual_paper_run: 10648
   owner_supplied_review:
     reviewed_head_sha: b487e1bcd1476889f7184589248540115344705b
     verdict: ACCEPT_WITH_P2
     findings: "P0/P1=0; P2=2 (20-observation bootstrap sensitivity; raw source candles are not archived)."
     disposition: "Result note states block-length and raw-data reproducibility limits; script, JSON measurement, and hashes are unchanged; no historical analysis was rerun. Reviewer could not independently inspect the full result JSON/source hashes; prior local hash verification remains recorded above."
-    amended_head_review: PENDING
-  next: "Fetch the amended PR head, verify exact-head CI and request non-author review of the documentation-only caveats; keep PR draft; no signal registration, winner selection, or trading."
+    amended_head_review: PENDING_NON_AUTHOR_REVIEW
+  next: "Fetch the latest PR head after this AIPOS evidence update and obtain non-author review; keep PR draft; no signal registration, winner selection, or trading."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_AI_ZERO_AUTHORITY
