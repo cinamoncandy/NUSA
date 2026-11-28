@@ -29,7 +29,7 @@ jobs:
         run: |
           set -u
           dir="$RUNNER_TEMP/rc-rehearsal"; rm -rf "$dir"; mkdir -p "$dir"
-          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')" || { echo "RELEASE_CONTROL_REHEARSAL_RESULT FAIL reason=cannot_read_main"; exit 1; }
           if ! printf '%s' "$main" | grep -Eq '^[0-9a-f]{40}$'; then echo "RELEASE_CONTROL_REHEARSAL_RESULT FAIL reason=no_main_sha"; exit 1; fi
           echo "main=$main"
           for f in config/release-control.json scripts/release-control-check.js scripts/release-control-gate.js scripts/release-control-rehearsal.js; do
@@ -39,7 +39,8 @@ jobs:
             fi
           done
           # Case 1 on the real read path: a path that does not exist must fail to read WITH an HTTP 404 (a rate limit or 5xx is not evidence).
-          err="$(timeout 20 gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/config/release-control-does-not-exist.json?ref=$main" 2>&1 >"$dir/missing.json")"; rc=$?
+          # The shell runs with -e: a failing command substitution would end the step before rc is read, so capture rc with || (case 1 expects a failure).
+          rc=0; err="$(timeout 20 gh api -H 'Accept: application/vnd.github.raw' "repos/$GITHUB_REPOSITORY/contents/config/release-control-does-not-exist.json?ref=$main" 2>&1 >"$dir/missing.json")" || rc=$?
           if [ "$rc" -eq 0 ] || ! printf '%s' "$err" | grep -Eq 'HTTP 404|Not Found'; then
             echo "RELEASE_CONTROL_REHEARSAL case=1-real-404 expect=HTTP_404 got=rc$rc ok=false"; echo "RELEASE_CONTROL_REHEARSAL_RESULT FAIL"; exit 1
           fi
