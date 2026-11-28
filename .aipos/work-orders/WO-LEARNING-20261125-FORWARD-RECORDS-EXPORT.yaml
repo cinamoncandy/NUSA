@@ -1,0 +1,20 @@
+id: WO-LEARNING-20261125-FORWARD-RECORDS-EXPORT
+title: "Host forward-records export: a dispatch-only read-only workflow that copies the RET48 record lines from the research journal into a 3-day artifact"
+status: READY_FOR_REVIEW
+created: 2026-11-25
+owner_decision: "2026-11-25: the owner asked for other work during the freeze and approved this one (\"해\")."
+objective: "Close the transport gap of prereg 7a: the #3283 host phase prints FORWARD_QUARTER_HASH_PART lines of up to 30,000 characters and one FORWARD_DECISION line, but the diagnosis annotations hold about 3,500 characters. A new workflow .github/workflows/oracle-host-forward-records.yml reads the research journal (-o cat, 1-31 days), keeps only lines of those two shapes (hashes, counts, statistics) in one run-scoped file under RUNNER_TEMP and uploads it with the sha-pinned first-party upload-artifact (3-day retention). The owner's agent then downloads the file, checks each sha256 against the reassembled JSON and commits the record without reading values."
+change:
+  - ".github/workflows/oracle-host-forward-records.yml (new, dispatch-only) and tests/oracle-host-forward-records-workflow.test.js (3 tests, one runs the real step against a fake journalctl)."
+not_changed:
+  - "No host change and no release. Nothing runs until the owner dispatches it; the lines only exist after the #3283 phase is released (not before 2026-12-10) and config-enabled. No study script, rule, threshold, gate, limit or authority change."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+authority_impact: none
+unverified: "Workflow syntax was not checked with actionlint (not installed); the runner context is kept at step level by a text test. Behaviour on the host (tested only against a fake journalctl, including empty output, a missing part, a failing journalctl and non-ASCII text; whether the host runner user may read the research unit journal is shown by the existing diagnosis step but not by this one; whether the self-hosted runner can run the upload action in this repository's policy). The journal rotates: if lines are older than the journal retention, the file is empty and the step exits non-zero only when journalctl itself fails. The step checks that parts 1..n of each sha256 set are present, but reassembly and hash checking of the downloaded parts is not implemented here (next step, before 2027-03-31)."
+acceptance:
+  - "Tests and AIPOS validators pass; independent review; merged by the release bot after the freeze (2026-11-28 15:00 KST); first real use 2027-03-31 or later, after the phase is released."
