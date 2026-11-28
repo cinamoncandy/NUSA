@@ -1,0 +1,53 @@
+id: WO-RESEARCH-20261128-CODEX-ALPHA-LAB-ENGINE
+title: "Codex: Alpha Lab engine implementation (registry, screen runner, programme ledger, Lab status export) — offline and hosted-runner only"
+status: READY_FOR_REVIEW
+created: 2026-11-28
+assignee: codex
+reviewer: claude
+owner_decision: "2026-11-28: '큰 구현 작업은 챗지피티에게'; '알파랩 코드작업 지시서 줘'. Claude owns the design and the core (PAPER runtime, lease, risk gate, kill switch, order path, admission into PAPER); Codex implements the Alpha Lab engine below exactly as designed, one sub-task per branch and draft PR."
+design_sources:
+  - "docs/ALPHA_LAB_COMPLETION_ROADMAP_2026-11-26.md (A1-A8, G1-G5, section 7)"
+  - "docs/ALPHA_LAB_V3_CROSS_SECTION_EVALUE_DESIGN_2026-11-27.md (method, defaults, F2/F2b)"
+  - "docs/ALPHA_LAB_2_SMALL_FARM_AND_TRACK_R_DESIGN_2026-11-26.md (blind rules, null controls)"
+  - ".aipos/decisions/ADR-OPS-20261128-WORK-SPLIT.md (who owns what)"
+order:
+  - id: E1
+    name: "Hypothesis registry (roadmap A1)"
+    branch: codex/alpha-lab-registry-20261128
+    paths: ["scripts/alpha-lab/registry.js", "research/alpha-lab/registry/**", "tests/alpha-lab-registry.test.js"]
+    spec: "Append-only JSONL, hash-chained. Row types: REGISTERED (id, sha256 of the frozen hypothesis file, K contribution, alpha spent, hold, universe, first evaluable date >= registration date + 1), VERDICT (id, look, result code PASS|FAIL|FAIL_EARLY|NOT_INFORMATIVE|NO_INFORMATION_YET, evidence hash), RETIRED (id, reason). Commands: register <file>, verdict <id> <look> <resultFile>, list, verify (recomputes the chain). Refuses: re-registering a changed file under the same id, a verdict before the look date, any edit of a past row. Failures are kept forever."
+    checks: ["chain verify passes on a fresh registry and fails after any byte edit", "early verdict refused", "duplicate id refused"]
+  - id: E2
+    name: "Screen runner (roadmap A2)"
+    branch: codex/alpha-lab-screen-runner-20261128
+    paths: ["scripts/alpha-lab/screen.js", "tests/alpha-lab-screen.test.js"]
+    spec: "One command runs a declared rule grammar on already-read daily history up to 2026-11-04: fixed costs (15 bp per side daily, stress 30 bp), Bonferroni with the declared K, the six-window rule and second filter as in scripts/offline-desk-a-screen.js, survivorship and fill disclosures; output hashed and reproducible. Generalise the existing offline-desk-*.js scripts; do not change their recorded results."
+    checks: ["reproduces the recorded desk batch 1 result (141 rules, none eligible) byte for byte in its summary", "refuses any date after 2026-11-04"]
+  - id: E3
+    name: "Cross-section recorder and e-process (already specified)"
+    work_order: WO-RESEARCH-20261128-CODEX-CROSS-SECTION-RECORDER
+  - id: E4
+    name: "Programme ledger (roadmap A6)"
+    branch: codex/alpha-lab-programme-ledger-20261128
+    paths: ["scripts/alpha-lab/programme.js", "tests/alpha-lab-programme.test.js"]
+    spec: "Reads the registry and reports per calendar year: tests registered, alpha spent against the assumed programme alpha 0.05 per year (owner may change it; read from research/alpha-lab/programme.json), remaining budget, open looks with dates. Refuses to approve a registration that would exceed the budget (exit code), never edits the registry."
+    checks: ["budget arithmetic on fixtures", "over-budget registration refused"]
+  - id: E5
+    name: "Lab status export for the app (display only)"
+    branch: codex/alpha-lab-status-export-20261128
+    paths: ["scripts/alpha-lab/status-export.js", "tests/alpha-lab-status-export.test.js"]
+    spec: "Writes a small JSON (schemaVersion 1) of registry states and next look dates for the phone's Lab tab: ids, short Korean names, state, next look date, last verdict code. No prices, no returns before a look, no order data. Claude wires it into the host and the app (core/UI) in a separate PR."
+    checks: ["schema test", "a hypothesis with no verdict yet shows no number"]
+rules:
+  - "Implement exactly the design; if a design point is unclear or seems wrong, stop and ask in the draft PR instead of choosing."
+  - "Blind windows: never read 2026-11-05..2026-12-05 prices or order-book values from 2026-11-25T19:00Z before 2026-12-10; history for screens ends 2026-11-04."
+  - "No host code (apps/cloud/**, apps/desktop/**), no app code (apps/mobile/**), no gate, threshold, limit, capital or authority change; no network in tests."
+  - "Each sub-task: work order reference in the PR, tests and node --check pass, PR body lists verified and not verified."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+acceptance:
+  - "Each sub-task is a draft PR by Codex, reviewed by Claude (non-author), merged only through the release path or the owner. Suggested order: E1, E2, E4, E5 (E3 and the breadth workflows run in parallel)."
