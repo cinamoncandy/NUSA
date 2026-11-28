@@ -1,0 +1,16 @@
+current_alpha_lab_hypothesis_registry_20261128:
+  work_order: WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
+  status: IN_PROGRESS_DRAFT_PR_PENDING
+  branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
+  pull_request: 3351
+  base_sha: 11058d27b50e518f764fe7ffb17e5be2e498a14b
+  implementation_head: ed46793f604a9146441caa02d697596c7f230c64
+  implementation: offline_append_only_hypothesis_registry_core
+  tests: 13_passed
+  preflight: PASS
+  last_verified_head: da6b54ff0c972d8db82d6f57f4e42326ba392a4d
+  last_verified_exact_head_ci: "PASS: CI 46114812378; Actual PAPER 46114812488; read-only broker 46114812435; LIVE transport readiness 46114812409; activation rehearsal 46114812537; capability guard 46114812408; event bridge 46114810376. Optional causal-regression checks were SKIPPED."
+  current_followup_head_ci: "PASS for da6b54ff0c972d8db82d6f57f4e42326ba392a4d; this AIPOS evidence update changes the PR head, so re-check exact-head CI before review or merge."
+  production_registry_created: false
+  next: "Keep PR #3351 Draft and obtain independent owner review. Re-check GitHub status against the current PR head; no merge or release."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED

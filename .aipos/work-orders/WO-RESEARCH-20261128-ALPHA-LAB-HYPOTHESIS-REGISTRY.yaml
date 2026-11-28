@@ -1,0 +1,52 @@
+id: WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
+title: "Alpha Lab A1: offline append-only hypothesis registry core"
+status: IN_PROGRESS
+created: 2026-11-28
+assignee: codex
+implementation_branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-HYPOTHESIS-REGISTRY
+owner_decision: "2026-11-28: owner requested Alpha Lab implementation; this task takes the next Codex-owned offline component in roadmap A1."
+follows:
+  - "docs/ALPHA_LAB_COMPLETION_ROADMAP_2026-11-26.md (A1)"
+  - "docs/ALPHA_LAB_V3_CROSS_SECTION_EVALUE_DESIGN_2026-11-27.md (hypothesis registry)"
+objective: "Implement a repository-local, offline registry core for prospective Alpha Lab hypotheses. Freeze a canonical specification hash before data access, require an explicit fixed K slot per family, preserve every later data-access/result/verdict event in an append-only hash chain, and make negative verdicts visible. This is A1 infrastructure only; it does not backfill or relabel past work."
+change:
+  - "scripts/alpha-lab/hypothesis-registry.js and focused tests."
+  - "docs/ALPHA_LAB_HYPOTHESIS_REGISTRY.md (schema, usage, and integrity limits)."
+  - "This work order, a separate AIPOS state entry, and a handoff."
+not_changed:
+  - "The prior IC-decay measurement or any other historical result; no retrospective preregistration."
+  - "No signal, strategy, or candidate is selected, promoted, traded, or registered by this implementation."
+  - "No default program alpha, per-family K, risk limit, threshold, capital, authority, service, workflow, or UI change."
+  - "No market-data or order-book reads; commands read/write the local JSONL ledger and supplied frozen spec. Evidence references and hashes are recorded as strings; evidence artifacts are not opened or verified."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+authority_impact: none
+validation:
+  - "node --check scripts/alpha-lab/hypothesis-registry.js"
+  - "node --test scripts/alpha-lab/hypothesis-registry.test.js"
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/aipos-work-order-index.js --check"
+  - "pnpm run preflight"
+  - "git diff --check"
+acceptance:
+  - "Append-only event writer, deterministic hash-chain validator, fixed-K family accounting, and projection of all verdict history; data access cannot begin until every slot in family K is registered."
+  - "Tests prove duplicate hash/ID/slot, invalid transitions, tampering, truncation, and concurrent-writer lock all fail closed."
+  - "No production registry entry is created in this work order; tests use temporary files only."
+  - "Open a draft PR only after local validation; keep it draft pending non-author CORE review and exact-head CI. No merge or release."
+notes:
+  - "Draft PR #3351 created from this work order; initial implementation head ed46793f604a9146441caa02d697596c7f230c64. Keep draft pending exact-head CI and independent owner review."
+  - "Local implementation on base 11058d27b50e518f764fe7ffb17e5be2e498a14b: focused registry suite 13/13 PASS; node syntax check PASS; pnpm run preflight PASS; strict AIPOS YAML (832 files) and work-order index PASS; git diff --check PASS."
+  - "Frozen dependency install used --ignore-scripts and did not change pnpm-lock.yaml. No exact-head CI or independent review is claimed before the draft PR is published."
+  - "The append API detects partial edits and enforces append-only writes, but a complete ledger rewrite can recompute hashes; repository review and protection remain the authority."
+  - "The registration attestation and timestamps are caller/system-clock evidence, not cryptographic proof that no one previously viewed the data."
+  - "Semantic variants require an explicit relation/revision link and consume a new K slot; exact duplicate specifications are rejected."
+  - "Historical hypotheses are not imported because their pre-data freeze evidence must not be fabricated. A future backfill needs separate scope and source-specific evidence."
+  - "GitHub verified PR #3351 head 0b7edb297a809ae616098959a94a22c82ab6e2dd: CI run 46095924408 PASS; Actual PAPER run 46095924366 PASS; read-only broker 46095924415, LIVE transport readiness 46095924423, LIVE activation rehearsal 46095924449, and LIVE capability guard 46095924428 PASS. Optional causal-regression checks were SKIPPED. No independent review is recorded; PR remains Draft."
+  - "The above exact-head evidence predates this AIPOS-only follow-up. The updated PR head needs its own exact-head checks before review/merge; no branch refresh was made solely because main advanced."
+  - "Exact-head validation for PR #3351 head da6b54ff0c972d8db82d6f57f4e42326ba392a4d: CI run 46114812378 PASS; Actual PAPER run 46114812488 PASS; read-only broker 46114812435, LIVE transport readiness 46114812409, LIVE activation rehearsal 46114812537, LIVE capability guard 46114812408, and event bridge 46114810376 PASS. Optional causal-regression checks were SKIPPED. PR was OPEN, Draft, mergeable, and behind main 8d66608caf36fdec5958a8780ceedb8dba546a10; independent owner review remains pending. This evidence-only update changes the PR head; verify new exact-head checks before review/merge."
