@@ -5,7 +5,7 @@
 - Parent work order: `WO-RESEARCH-20261128-CODEX-ALPHA-LAB-ENGINE`, subtask E4.
 - Branch: `codex/alpha-lab-programme-ledger-20261128`.
 - Base branch: E1 `codex/alpha-lab-registry-20261128` at `7f8aaf0d749b6bab8d82a49b23633dbc0ee31767`.
-- Pull request: not opened.
+- Draft pull request: [#3358](https://github.com/cinamoncandy/NUSA/pull/3358), created at initial implementation commit `88c42916ed215b8ba353ec15090b5d8b5d16560b`.
 
 ## Implementation
 
@@ -21,4 +21,4 @@ The work order requires the E4 ledger to be read-only. Therefore `check` is a bu
 
 ## Next action
 
-Run preflight/AIPOS validation, open a Draft PR targeted to the E1 branch, verify exact-head CI, and await independent review. No merge or release action.
+Push this AIPOS evidence follow-up, verify exact-head CI on #3358, and await independent review. No merge or release action.
