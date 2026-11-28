@@ -1,0 +1,10 @@
+current_alpha_lab_f2b_evalue_power_20261128:
+  work_order: WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
+  status: IN_PROGRESS_SPEC_FROZEN
+  branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
+  base_sha: 5846d6b58b4fa7f5aff7ea7b746a8fc8f3222e92
+  scope: offline_synthetic_eprocess_and_hold_comparison_only
+  primary_run: NOT_STARTED
+  exact_head_ci: PENDING
+  next: "Push the claimed WO branch after AIPOS/preflight checks, then implement tests and the frozen synthetic measurement."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED

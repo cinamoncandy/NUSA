@@ -1,0 +1,55 @@
+id: WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
+title: "Alpha Lab V1: offline synthetic F2b power and hold comparison"
+status: IN_PROGRESS
+created: 2026-11-28
+assignee: codex
+implementation_branch: codex/WO-RESEARCH-20261128-ALPHA-LAB-F2B-EVALUE-POWER
+owner_decision: "2026-11-28: owner said continue Alpha Lab implementation; this follows the published V3 design's V1/F2b offline synthetic step and is measurement only."
+follows:
+  - "docs/ALPHA_LAB_V3_CROSS_SECTION_EVALUE_DESIGN_2026-11-27.md (V1/F2b)"
+  - "scripts/offline-lab-f2-crosssection-evalue.js (frozen F2 baseline; do not alter)"
+objective: "Measure, without selecting or adopting a method, how equal per-day predictive IC across 1/5/20-day holds and the predeclared baseline, wider-mixture, predictable adaptive-bet, and wider-clip e-process variants affect synthetic false-pass and power estimates. Include symmetric and zero-mean skewed null diagnostics, and publish one reproducible, hashed result artifact plus a limitation note."
+change:
+  - "scripts/alpha-lab/f2b-evalue-power.js and focused tests."
+  - "docs/research-data/alpha-lab-f2b-evalue-power-2026-11-28.json (one frozen primary run)."
+  - "docs/ALPHA_LAB_F2B_EVALUE_POWER_RESULT_2026-11-28.md."
+  - "This work order, a separate AIPOS state entry, and a handoff."
+not_changed:
+  - "The existing F2 script, F2 result/design, any real market-data result, registered hypothesis, or prior Alpha Lab measurement."
+  - "No production e-process, strategy, threshold, program alpha, candidate, signal, risk limit, capital, gate, authority, runtime, host, workflow, or UI change."
+  - "No market data, order-book, account, PAPER order, or trading execution read or operation."
+  - "This simulation result does not choose a rebalance interval, validate real-data assumptions, establish a trading edge, or authorize strategy promotion."
+design_constraints:
+  - "Use the existing F2 synthetic one-factor t4 baseline, 56 markets, 365 days, 20-day burn-in, and transaction-cost convention unchanged; do not edit that source."
+  - "For hold H, construct the block score with correlation dailyIC*sqrt(H) to normalized block return, making dailyIC—not cumulative block IC—comparable across holds. Reject any invalid correlation."
+  - "Keep the existing proposed alpha 0.0125 only for comparability with F2 and label it proposed/unadopted; do not change any real test threshold."
+  - "Compare the frozen F2 fixed lambda grid at 4-sd clipping against a wider fixed grid, a predictable past-only adaptive bet, and the same baseline grid at 8-sd clipping. All wagers are previsible, nonnegative, below 1, and preserve nonnegative factors for y in [-1,1]."
+  - "The skewed zero-raw-mean null is a diagnostic for the distinction between raw mean and the design's clipped conditional-mean null; report it honestly, even if a positive clipped result produces a pass."
+data_rules:
+  - "Synthetic random numbers only; no network, candles, order-book, persisted market dataset, or previously read-data access."
+  - "Run deterministic self-tests during development. Freeze and record the analysis-script SHA before the primary simulation; run the primary configuration once. If the frozen analysis needs correction, invalidate the result and stop for a new work order rather than silently replacing the artifact."
+safety:
+  paper_only: true
+  liveAuthority: NONE
+  productionMutationAllowed: false
+  realOrderAuthority: false
+  realTransferAuthority: false
+  aiAuthority: ZERO_AUTHORITY
+  fail_closed: true
+authority_impact: none
+validation:
+  - "node --check scripts/alpha-lab/f2b-evalue-power.js"
+  - "node --test scripts/alpha-lab/f2b-evalue-power.test.js"
+  - "node scripts/alpha-lab/f2b-evalue-power.js --self-test"
+  - "node scripts/validate-aipos-yaml.js"
+  - "node scripts/aipos-work-order-index.js --check"
+  - "pnpm run preflight"
+  - "pnpm run ai:architecture"
+  - "git diff --check"
+acceptance:
+  - "Tests prove equal per-day IC parameterization, deterministic seeded output, past-only adaptive wager selection, nonnegative e-process factors, and no data/network/runtime/trading dependencies."
+  - "The primary JSON is deterministic for its frozen seed/config, records source/script/config hashes, replication counts, uncertainty bounds, raw and clipped-null diagnostics, hold and cost assumptions, and never labels synthetic results as real-market evidence."
+  - "The result note separates findings from limitations and makes no method/strategy/promotion recommendation."
+  - "Open a draft PR only after local validation; keep it draft pending non-author review and exact-head CI. No merge, release, host change, or hypothesis registration."
+notes:
+  - "Only an offline research measurement is in scope. No result may be fed into a live/PAPER execution or production admission path."
