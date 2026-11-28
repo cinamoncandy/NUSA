@@ -66,7 +66,9 @@ test("report groups tests and alpha by registration year and lists only open loo
     assert.deepEqual(report.years.map((y) => y.year), [2026, 2027]);
     assert.equal(report.years[0].testsRegistered, 2);
     assert.equal(report.years[0].alphaSpent, 0.03);
-    assert.equal(report.years[0].remainingAlpha, 0.05 - 0.03);
+    assert.equal(report.years[0].remainingAlpha, 0.02);
+    assert.equal(report.years[0].alphaSpentExact, "0.03");
+    assert.equal(report.years[0].remainingAlphaExact, "0.02");
     assert.deepEqual(report.years[0].openLooks, [
       { id: "HYP_26_A", look: "L1", date: "2026-12-01" },
       { id: "HYP_26_B", look: "L1", date: "2026-12-01" },
@@ -89,14 +91,24 @@ test("budget check passes at the limit, fails closed above it, and never edits t
     writeCanonical(withinPath, hypothesis("CANDIDATE_IN", 0.01));
     const overPath = files.hypothesisPath("CANDIDATE_OVER");
     writeCanonical(overPath, hypothesis("CANDIDATE_OVER", 0.011));
+    const precisionEdgePath = files.hypothesisPath("CANDIDATE_PRECISION_EDGE");
+    writeCanonical(precisionEdgePath, hypothesis("CANDIDATE_PRECISION_EDGE", 0.010000000000000002));
     const before = fs.readFileSync(files.registryPath);
     const within = checkRegistration({ candidatePath: withinPath, registrationYear: 2026, registryPath: files.registryPath, programmePath: files.programmePath });
     const over = checkRegistration({ candidatePath: overPath, registrationYear: 2026, registryPath: files.registryPath, programmePath: files.programmePath });
+    const precisionEdge = checkRegistration({ candidatePath: precisionEdgePath, registrationYear: 2026, registryPath: files.registryPath, programmePath: files.programmePath });
     assert.equal(within.withinBudget, true);
     assert.equal(within.reason, "WITHIN_ANNUAL_ALPHA_BUDGET");
     assert.equal(over.withinBudget, false);
     assert.equal(over.reason, "ANNUAL_ALPHA_BUDGET_EXCEEDED");
-    assert.equal(over.remainingAlpha, 0.05 - 0.04);
+    assert.equal(over.remainingAlpha, 0.01);
+    // Binary floating point rounds 0.05 - 0.04 to the same Number as this
+    // candidate, although its canonical decimal sum is above the budget.
+    assert.equal(precisionEdge.withinBudget, false);
+    assert.equal(precisionEdge.alphaSpent, 0.04);
+    assert.equal(precisionEdge.wouldSpend, 0.05);
+    assert.equal(precisionEdge.remainingAlphaExact, "0.01");
+    assert.equal(precisionEdge.wouldSpendExact, "0.050000000000000002");
     assert.deepEqual(fs.readFileSync(files.registryPath), before);
   } finally { files.cleanup(); }
 });

@@ -14,6 +14,68 @@ function fail(code) { throw new Error(code); }
 function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function sha256(bytes) { return crypto.createHash("sha256").update(bytes).digest("hex"); }
 
+// Alpha values enter as canonical JSON decimal numbers. Keep their decimal
+// spellings exact for the budget decision instead of letting IEEE-754
+// rounding make a just-over-budget registration compare as equal.
+function decimalParts(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) fail("PROGRAMME_ALPHA_ARITHMETIC_INVALID");
+  const match = /^(-?)(\d+)(?:\.(\d+))?(?:e([+-]?\d+))?$/i.exec(String(value));
+  if (!match) fail("PROGRAMME_ALPHA_ARITHMETIC_INVALID");
+  const fraction = match[3] || "";
+  const exponent = Number(match[4] || 0);
+  let coefficient = BigInt(`${match[1]}${match[2]}${fraction}`);
+  let scale = fraction.length - exponent;
+  if (scale < 0) {
+    coefficient *= 10n ** BigInt(-scale);
+    scale = 0;
+  }
+  return normalizeDecimal({ coefficient, scale });
+}
+
+function normalizeDecimal(value) {
+  let { coefficient, scale } = value;
+  while (scale > 0 && coefficient % 10n === 0n) {
+    coefficient /= 10n;
+    scale -= 1;
+  }
+  return { coefficient, scale };
+}
+
+function alignDecimals(left, right) {
+  const scale = Math.max(left.scale, right.scale);
+  return {
+    left: left.coefficient * 10n ** BigInt(scale - left.scale),
+    right: right.coefficient * 10n ** BigInt(scale - right.scale),
+    scale,
+  };
+}
+
+function addDecimals(left, right) {
+  const aligned = alignDecimals(left, right);
+  return normalizeDecimal({ coefficient: aligned.left + aligned.right, scale: aligned.scale });
+}
+
+function subtractDecimals(left, right) {
+  const aligned = alignDecimals(left, right);
+  return normalizeDecimal({ coefficient: aligned.left - aligned.right, scale: aligned.scale });
+}
+
+function compareDecimals(left, right) {
+  const aligned = alignDecimals(left, right);
+  return aligned.left < aligned.right ? -1 : aligned.left > aligned.right ? 1 : 0;
+}
+
+function decimalText(value) {
+  const negative = value.coefficient < 0n;
+  const digits = (negative ? -value.coefficient : value.coefficient).toString();
+  if (value.scale === 0) return `${negative ? "-" : ""}${digits}`;
+  const padded = digits.padStart(value.scale + 1, "0");
+  const split = padded.length - value.scale;
+  return `${negative ? "-" : ""}${padded.slice(0, split)}.${padded.slice(split)}`;
+}
+
+function decimalNumber(value) { return Number(decimalText(value)); }
+
 function readCanonicalJson(filePath, code, maxBytes = MAX_CONFIG_BYTES) {
   const stat = fs.lstatSync(filePath);
   if (!stat.isFile() || stat.size > maxBytes) fail(`${code}_FILE_INVALID`);
@@ -53,10 +115,13 @@ function registrationsByYear(state) {
   for (const row of state.rows) {
     if (row.rowType !== "REGISTERED") continue;
     const year = calendarYearFromTimestamp(row.recordedAtUtc);
-    const entry = registrations.get(year) || { year, testsRegistered: 0, alphaSpent: 0, ids: [] };
+    const entry = registrations.get(year) || {
+      year,
+      testsRegistered: 0,
+      alphaSpentExact: decimalParts(0),
+    };
     entry.testsRegistered += 1;
-    entry.alphaSpent += row.payload.alphaSpent;
-    entry.ids.push(row.id);
+    entry.alphaSpentExact = addDecimals(entry.alphaSpentExact, decimalParts(row.payload.alphaSpent));
     registrations.set(year, entry);
   }
   return registrations;
@@ -84,9 +149,11 @@ function reportProgramme({ registryPath = DEFAULT_REGISTRY, programmePath = DEFA
     return {
       year,
       testsRegistered: entry.testsRegistered,
-      alphaSpent: entry.alphaSpent,
+      alphaSpent: decimalNumber(entry.alphaSpentExact),
       annualAlpha: config.annualAlpha,
-      remainingAlpha: config.annualAlpha - entry.alphaSpent,
+      remainingAlpha: decimalNumber(subtractDecimals(decimalParts(config.annualAlpha), entry.alphaSpentExact)),
+      alphaSpentExact: decimalText(entry.alphaSpentExact),
+      remainingAlphaExact: decimalText(subtractDecimals(decimalParts(config.annualAlpha), entry.alphaSpentExact)),
       openLooks: openLooksForYear(state, year),
     };
   });
@@ -106,20 +173,31 @@ function checkRegistration({ candidatePath, registrationYear, registryPath = DEF
   const state = readRegistry(registryPath);
   const candidate = readCanonicalJson(candidatePath, "HYPOTHESIS", 1024 * 1024).value;
   const hypothesis = validateHypothesis(candidate);
-  const entry = registrationsByYear(state).get(registrationYear) || { testsRegistered: 0, alphaSpent: 0 };
-  const remainingAlpha = config.annualAlpha - entry.alphaSpent;
-  const wouldSpend = entry.alphaSpent + hypothesis.alphaSpent;
-  const withinBudget = hypothesis.alphaSpent <= remainingAlpha;
+  const entry = registrationsByYear(state).get(registrationYear) || {
+    testsRegistered: 0,
+    alphaSpentExact: decimalParts(0),
+  };
+  const annualAlphaExact = decimalParts(config.annualAlpha);
+  const requestedAlphaExact = decimalParts(hypothesis.alphaSpent);
+  const remainingAlphaExact = subtractDecimals(annualAlphaExact, entry.alphaSpentExact);
+  const wouldSpendExact = addDecimals(entry.alphaSpentExact, requestedAlphaExact);
+  const remainingAlpha = decimalNumber(remainingAlphaExact);
+  const wouldSpend = decimalNumber(wouldSpendExact);
+  const withinBudget = compareDecimals(wouldSpendExact, annualAlphaExact) <= 0;
   return {
     schemaVersion: 1,
     id: hypothesis.id,
     registrationYear,
     testsRegistered: entry.testsRegistered,
-    alphaSpent: entry.alphaSpent,
+    alphaSpent: decimalNumber(entry.alphaSpentExact),
     requestedAlpha: hypothesis.alphaSpent,
+    requestedAlphaExact: decimalText(requestedAlphaExact),
     wouldSpend,
+    wouldSpendExact: decimalText(wouldSpendExact),
     annualAlpha: config.annualAlpha,
+    annualAlphaExact: decimalText(annualAlphaExact),
     remainingAlpha,
+    remainingAlphaExact: decimalText(remainingAlphaExact),
     withinBudget,
     reason: withinBudget ? "WITHIN_ANNUAL_ALPHA_BUDGET" : "ANNUAL_ALPHA_BUDGET_EXCEEDED",
     programmeConfigSha256: config.configSha256,
