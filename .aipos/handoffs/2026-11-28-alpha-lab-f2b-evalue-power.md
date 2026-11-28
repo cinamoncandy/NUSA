@@ -27,4 +27,5 @@ Safety: `PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / rea
 - The reviewer read the result JSON but did not rerun the 1,000-replication primary simulation; this remains a non-independent simulation result.
 - The result note now clarifies that `dailyIC` is the configured model parameter, not measured realized cross-sectional Pearson/Spearman IC, and that per-cell Wilson intervals do not quantify differences across hold lengths with separate seeds.
 - This is a documentation-only clarification. The simulation script, JSON artifact, and hashes are unchanged; the one-time primary run was not repeated.
-- Fetch the new PR head and verify exact-head CI, then obtain a fresh non-author review of the amended head. Keep PR #3352 in draft; do not select or register a strategy.
+- Updated documentation head `318c5105254a23ec66f47228ade4e320c95a7f2f` passed exact-head CI #15004 and Actual PAPER evidence #10649. The corresponding AIPOS state update is evidence-only; fetch the latest PR head and its CI before review.
+- Obtain a fresh non-author review of the latest head. Keep PR #3352 in draft; do not select or register a strategy.

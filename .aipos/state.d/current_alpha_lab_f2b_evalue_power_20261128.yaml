@@ -11,14 +11,17 @@ current_alpha_lab_f2b_evalue_power_20261128:
   config_sha256: baa0ce0a3ac95a8003f30f410aca98d89773d806637237f545951674b12a7343
   artifact_sha256: 1901d4dac5b03323b9aa3f800c7fbf4d7d4b8f0561ad128f3fe273894ee6e562
   result_note: docs/ALPHA_LAB_F2B_EVALUE_POWER_RESULT_2026-11-28.md
-  prior_exact_head_ci: "CI #15002 and companion workflows PASS on reviewed head 20124ea9d1bf5a41a9afc0432f1a1c64b9277a0d; not validation of the documentation follow-up head."
-  exact_head_ci: PENDING_AMENDED_HEAD
-  independent_review: PENDING_NON_AUTHOR
+  prior_exact_head_ci: "CI #15002 and companion workflows PASS on reviewed head 20124ea9d1bf5a41a9afc0432f1a1c64b9277a0d."
+  validated_code_head_sha: 318c5105254a23ec66f47228ade4e320c95a7f2f
+  exact_head_ci: PASS
+  exact_head_ci_run: 15004
+  exact_head_actual_paper_run: 10649
+  independent_review: PENDING_NON_AUTHOR_REVIEW_OF_LATEST_HEAD
   owner_supplied_review:
     reviewed_head_sha: 20124ea9d1bf5a41a9afc0432f1a1c64b9277a0d
     verdict: ACCEPT_WITH_P2
     findings: "P0/P1=0; P2=2 (realized per-hold IC not measured; no uncertainty interval for between-hold differences)."
     disposition: "Result note scopes dailyIC to a model parameter and discloses independent scenario seeds and marginal Wilson intervals; realized rank IC and between-hold uncertainty remain uncomputed; script, artifact, and primary run are unchanged."
     amended_head_review: PENDING
-  next: "Fetch the amended PR head, verify exact-head CI and request non-author review of the documentation-only caveats; keep PR draft; do not merge or register a strategy."
+  next: "Fetch the latest PR head after this AIPOS evidence update and obtain non-author review; keep PR draft; do not merge or register a strategy."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
