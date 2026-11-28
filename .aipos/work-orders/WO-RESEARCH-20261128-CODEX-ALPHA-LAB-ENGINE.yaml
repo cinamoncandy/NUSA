@@ -29,7 +29,7 @@ order:
   - id: E4
     name: "Programme ledger (roadmap A6)"
     branch: codex/alpha-lab-programme-ledger-20261128
-    paths: ["scripts/alpha-lab/programme.js", "tests/alpha-lab-programme.test.js"]
+    paths: ["scripts/alpha-lab/programme.js", "tests/alpha-lab-programme.test.js", "research/alpha-lab/programme.json"]
     spec: "Reads the registry and reports per calendar year: tests registered, alpha spent against the assumed programme alpha 0.05 per year (owner may change it; read from research/alpha-lab/programme.json), remaining budget, open looks with dates. Refuses to approve a registration that would exceed the budget (exit code), never edits the registry."
     checks: ["budget arithmetic on fixtures", "over-budget registration refused"]
   - id: E5
@@ -56,3 +56,5 @@ notes:
   - "E1 implementation contract: canonical UTF-8 JSON with sorted keys and one LF; fields schemaVersion, id, shortNameKo, kContribution, alphaSpent, hold, sorted unique KRW universe, signal object, and strictly ordered declared looks. Registration computes firstEvaluableDate as the next UTC calendar date. Verdict look arguments are declared look IDs; the result file must bind the same hypothesis, look, allowed result code, and an evaluation timestamp on/after the look date."
   - "E1 integrity limitation: the code enforces dates against the local UTC system clock and verifies the event hash chain, but neither proves trusted time nor detects a complete rewrite whose chain is recomputed. No hypothesis, result, or production registry row is created by implementation or tests."
   - "E1 Draft PR #3355 is open; implementation commit e094410a7cd149a6ea81ae524b8795c556d63978 is based on main 6e908e4f9d2339775f392f9f00279192b3298f3c. Exact-head CI passed on 96d5bf7c33cbf419664f4e52dbb86dc04dd6042f with all required checks green and optional causal jobs skipped; this status-only AIPOS update creates a new head requiring a fresh exact-head run. Independent review remains pending."
+  - "E4 programme ledger is stacked on E1 branch codex/alpha-lab-registry-20261128 so it can import the E1 chain-verifying reader. The E4 path list includes research/alpha-lab/programme.json because the spec requires the documented assumed default annualAlpha 0.05 to be editable by the owner. The E4 check is read-only and does not write registry events; it reports only budget fit, so registry admission must call or require this check in the eventual registration workflow."
+  - "E4 programme.js, editable programme.json (annualAlpha 0.05), and five synthetic tests are implemented on codex/alpha-lab-programme-ledger-20261128. Focused tests, AIPOS validation, work-order index and preflight pass. No real registry, data or hypothesis was touched."

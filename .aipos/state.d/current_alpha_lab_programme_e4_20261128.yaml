@@ -1,0 +1,33 @@
+current_alpha_lab_programme_e4_20261128:
+  work_order: WO-RESEARCH-20261128-CODEX-ALPHA-LAB-ENGINE
+  subtask: E4
+  status: IN_PROGRESS
+  branch: codex/alpha-lab-programme-ledger-20261128
+  branch_base: codex/alpha-lab-registry-20261128
+  base_sha: 7f8aaf0d749b6bab8d82a49b23633dbc0ee31767
+  pull_request: null
+  scope: offline_read_only_programme_alpha_ledger
+  owner_decisions:
+    - "Use the design's assumed annual alpha 0.05 as the initial editable config; owner may amend research/alpha-lab/programme.json."
+    - "Stack on E1 so report/check uses its canonical chain-verifying reader; do not duplicate or change registry writes."
+  implementation:
+    files:
+      - scripts/alpha-lab/programme.js
+      - tests/alpha-lab-programme.test.js
+      - research/alpha-lab/programme.json
+    registry_mutated: false
+    market_data_read: false
+    order_book_data_read: false
+    production_or_trading_effect: false
+  verification:
+    node_check: PASS
+    focused_tests: "5/5 PASS (temporary synthetic registry fixtures)"
+    preflight: PASS
+    aipos_yaml: "PASS (841 files)"
+    exact_head_ci: PENDING
+    independent_review: PENDING
+  known_limits:
+    - "The budget check is read-only and does not mutate the registry. It reports whether a candidate fits the annual budget; the actual registry admission caller must require this check. Direct invocation of the E1 register command is not blocked by this E4 tool alone."
+    - "No real hypothesis or registry row was created; annual totals are based only on rows verified by the E1 reader."
+  next: "Push a Draft PR based on the E1 branch, then record its PR ID and verify exact-head CI."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
