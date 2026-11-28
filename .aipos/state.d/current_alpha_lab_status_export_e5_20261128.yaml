@@ -1,0 +1,41 @@
+current_alpha_lab_status_export_e5_20261128:
+  work_order: WO-RESEARCH-20261128-CODEX-ALPHA-LAB-ENGINE
+  subtask: E5
+  status: IN_PROGRESS
+  branch: codex/alpha-lab-status-export-20261128
+  base_branch: codex/alpha-lab-registry-20261128
+  base_sha: 7f8aaf0d749b6bab8d82a49b23633dbc0ee31767
+  implementation_commit: 1c80c92234520cdb9e3d8fdf98f42b6b9c8eeb59
+  pull_request: 3360
+  pull_request_state: DRAFT
+  scope: offline_display_only_status_export
+  output_schema:
+    schemaVersion: 1
+    hypothesis_fields: [id, shortNameKo, state, nextLookDate, lastVerdictCode]
+    no_verdict_value: null
+  implementation:
+    files:
+      - scripts/alpha-lab/status-export.js
+      - tests/alpha-lab-status-export.test.js
+    registry_reader: scripts/alpha-lab/registry.js
+    registry_read_only: true
+    real_registry_rows_created: false
+    market_data_read: false
+    order_data_read: false
+    host_or_app_modified: false
+  verification:
+    node_check: PASS
+    focused_tests: "4/4 PASS (synthetic temporary registries)"
+    default_cli_empty_export: PASS
+    preflight: PASS
+    aipos_yaml: PASS
+    work_order_index: PASS
+    aipos_provenance: PASS
+    diff_check: PASS
+    exact_head_ci: "PR #3360 checks are the source of truth; verify their head SHA matches the current PR head."
+    independent_review: PENDING
+  limitations:
+    - "CLI emits JSON on stdout; separate host/app integration chooses the destination and is outside this work order."
+    - "No real registry data was inspected; missing registry produces the empty state, while invalid registry data fails without an export."
+  next: "Keep PR #3360 Draft, read its live checks at the current head, and await non-author review."
+  safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
