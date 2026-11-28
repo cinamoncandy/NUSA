@@ -24,11 +24,19 @@
 - `XDG_DATA_HOME=/workspace/.local/share pnpm run preflight`: PASS.
 - `pnpm install --frozen-lockfile --ignore-scripts`: PASS using `XDG_DATA_HOME=/workspace/.local/share`; lockfile unchanged.
 
+## GitHub exact-head evidence
+
+- PR #3351 head `0b7edb297a809ae616098959a94a22c82ab6e2dd` was Draft, open, and mergeable when checked on 2026-11-28; GitHub reported it behind `main`.
+- Exact-head CI run `46095924408`: PASS. Actual PAPER run `46095924366`: PASS.
+- Required companions: read-only broker `46095924415`, LIVE transport readiness `46095924423`, LIVE activation rehearsal `46095924449`, and LIVE capability guard `46095924428`: PASS.
+- Optional causal-regression checks were SKIPPED and are not counted as passes. No independent review is recorded.
+- This AIPOS-only follow-up changes the PR head; the new head's exact checks are pending. No code, data, authority, or research artifact changed.
+
 ## Caveats and next actions
 
 - Registration attestation and recorded timestamps are not cryptographic proof of prior data non-access or trusted time.
 - The hash chain detects partial edits but a full ledger rewrite can recompute it; repository history and independent review are still required.
 - Evidence references/hashes are recorded but referenced artifacts are not opened or independently verified.
-- Inspect the latest exact-head CI for PR #3351 and keep the PR draft and work order `IN_PROGRESS` pending the owner's independent review. Do not merge, release, or register a real hypothesis as part of this implementation.
+- Verify exact-head CI for this AIPOS-only follow-up. Keep the PR draft and work order `IN_PROGRESS` pending the owner's independent review. Do not merge, release, or register a real hypothesis as part of this implementation.
 
 Safety: `PAPER_ONLY / liveAuthority=NONE / productionMutationAllowed=false / realOrderAuthority=false / realTransferAuthority=false / aiAuthority=ZERO_AUTHORITY / FAIL_CLOSED`.

@@ -8,7 +8,9 @@ current_alpha_lab_hypothesis_registry_20261128:
   implementation: offline_append_only_hypothesis_registry_core
   tests: 13_passed
   preflight: PASS
-  exact_head_ci: PENDING
+  last_verified_head: 0b7edb297a809ae616098959a94a22c82ab6e2dd
+  last_verified_exact_head_ci: "PASS: CI 46095924408; Actual PAPER 46095924366; required companions 46095924415, 46095924423, 46095924449, 46095924428. Optional causal-regression checks were SKIPPED."
+  current_followup_head_ci: PENDING_AIPOS_ONLY_UPDATE
   production_registry_created: false
-  next: "Verify exact-head CI on PR #3351; keep draft for independent owner review."
+  next: "Verify exact-head CI for this AIPOS-only update; keep PR #3351 Draft pending independent owner review."
   safety: PAPER_ONLY_LIVE_NONE_PRODUCTION_MUTATION_FALSE_REAL_ORDER_FALSE_REAL_TRANSFER_FALSE_AI_ZERO_AUTHORITY_FAIL_CLOSED
